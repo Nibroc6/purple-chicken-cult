@@ -21,8 +21,24 @@ A bot-free social media site that works for social good.
   - A "friendship+" level requires real-life verification (the same in-person handshake as invites)
 - The connection graph is private: it's only visible through your own connections, and if you're in a disconnected part of the network you can't see anything about the rest
 - ~~Ideally distributed/federated~~ Decided against federation for now: it conflicts with graph privacy, unlimited reach, and exact shortest distances (see ARCHITECTURE.md §11). Exports of your own signed records keep the door open.
-- Content-wise, something between Reddit, Instagram, and Twitter (maybe a twitter-style feed, but make threads based on posts really easy?)
-  - Start out with just text (though don't limit size too strictly) as a PoC and see where it goes from there
+- Content-wise, something between Reddit, Instagram, and Twitter
+  - Instagram-style feed, with small section headers at each connection level
+  - Clicking a post opens it as part of a network of posts, like a family tree. Connected posts are prioritized with the same ranking system as the feed, and lower-priority posts are pushed off to the sides
+  - No comments: every response is a post, which can reference one or more parent posts. Threads are posts continuing your own post
+  - Posts can be made "slippery" (nobody else can reply to them), and authors can detach replies from their posts
+  - Replies show up in the feed like any other post but rank a bit lower. A post gets a boost when people in your network like its replies (capped, so posts nobody liked don't rise because of replies dunking on them)
+  - Within a connection level, ranking only uses the preferences of people in your own network, never view time, and can be switched to pure chronological
+  - Mostly short posts: long posts aren't blocked, but they're systematically discouraged (soft limit, "split into a thread", folding)
+  - No titles outside the post
+  - Markdown and link previews are allowed, with headers toned down so header text doesn't become the only thing people send
+  - Start out with just text as a PoC and see where it goes from there
+- No groups or communities: the friend graph acts as a natural proxy for communities
+- Several UI formats to pick from, with a sensible, clean default. Advanced users can build their own layouts inside the app
+- No public API: it would mostly make scraping easy. Fight bot scraping (and scraping for AI training) as hard as possible
+  - Nothing is public, and members' content is never sold, licensed, or used for AI training
+- One person, one action: every post, like and connection is a deliberate act by the account's own human
+- Multilingual: every user-facing string is a UI string so the app can be translated
+  - Later: opt-in autotranslation of posts into the user's primary language. Users can list several languages they read, and posts in any of those are never translated
 
 ### Technical Requirements:
 - Must be able to scale fast in a theoretical best-case
