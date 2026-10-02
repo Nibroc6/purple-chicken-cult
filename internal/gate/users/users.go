@@ -189,11 +189,15 @@ func (s *Service) HandleAvailable(ctx context.Context, canon string) bool {
 	return n == 0
 }
 
-// Create inserts a user. Problems: handle_invalid, handle_taken.
+// Create inserts a user. Problems: handle_invalid, handle_taken,
+// display_name_invalid.
 func (s *Service) Create(ctx context.Context, tx store.Q, u core.NewUser) (core.UserID, error) {
 	canon, ok := Canon(u.Handle)
 	if !ok {
 		return 0, gate.NewProblem(gate.StatusUnprocessable, "handle_invalid", "handle")
+	}
+	if u.DisplayName, ok = CleanDisplayName(u.DisplayName); !ok {
+		return 0, gate.NewProblem(gate.StatusUnprocessable, "display_name_invalid", "display_name")
 	}
 	webID := u.WebAuthnID
 	if len(webID) == 0 {

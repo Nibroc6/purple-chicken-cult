@@ -1,18 +1,33 @@
 // Package account owns the signed-in user's own surface: Me, settings, export,
-// deletion and manual recovery (ARCHITECTURE §10.2, §10.3, §10.7, §2.3).
+// deletion and manual recovery (ARCHITECTURE §10.2, §10.3, §10.7, §2.3). It is
+// the writer of the users settings/status/deletion columns, account_stubs,
+// recovery_requests and recovery_approvals.
 //
-// Owner: P0-W11 → P1-W10. Scaffold stub: Me works (read-only); everything else
-// returns gate.ErrNotImplemented after the viewer / freshness checks.
+// Owner: P0-W11 → P1-W10.
 package account
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"io"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/internal/core"
+	"github.com/Nibroc6/purple-chicken-cult/internal/store"
 )
+
+// Job kinds registered by the account module (plan §4.3).
+const (
+	JobDelete  = "account.delete"
+	JobRelease = "recovery.release"
+)
+
+// ReleaseEvery is how often the recovery release job runs.
+const ReleaseEvery = 10 * time.Minute
 
 // Service is the account module.
 type Service struct{ d *core.Deps }
@@ -20,8 +35,91 @@ type Service struct{ d *core.Deps }
 // New returns the service.
 func New(d *core.Deps) *Service { return &Service{d: d} }
 
-// Init registers account.delete / recovery.release in W11.
-func (s *Service) Init(context.Context) error { return nil }
+// Init registers the account.delete and recovery.release jobs.
+func (s *Service) Init(context.Context) error {
+	if s.d.Jobs == nil {
+		return nil
+	}
+	s.d.Jobs.Handle(JobDelete, func(ctx context.Context, payload json.RawMessage) error {
+		var p deletePayload
+		if err := json.Unmarshal(payload, &p); err != nil {
+			return err
+		}
+		return s.runDelete(ctx, core.UserID(p.User))
+	})
+	s.d.Jobs.Handle(JobRelease, func(ctx context.Context, _ json.RawMessage) error {
+		_, err := s.releaseDue(ctx)
+		return err
+	})
+	s.d.Jobs.Every(JobRelease, ReleaseEvery)
+	return nil
+}
+
+// ---- local adapters over core (contract requests p0-w11-1 and p0-w11-2) ----
+
+// displayNames is implemented by gate/users (core.Users.CleanDisplayName once
+// docs/contract-requests/p0-w11-1.md lands).
+type displayNames interface {
+	CleanDisplayName(name string) (string, bool)
+}
+
+// recordExporter is implemented by gate/records (core.Signer.ExportRecords once
+// docs/contract-requests/p0-w11-1.md lands).
+type recordExporter interface {
+	ExportRecords(ctx context.Context, q store.Q, user core.UserID) (recordsJSONL, keysJSON []byte, err error)
+}
+
+var errNoAdapter = errors.New("account: a dependency lacks a required capability")
+
+// ---- Me ----
+
+// settingsRow is the settings part of a users row.
+type settingsRow struct {
+	handle, displayName string
+	status              int16
+	locale              string
+	languages           []string
+	translateTo         *string
+	autotranslate       bool
+	preset              int16
+	nameInChains        bool
+	suggestible         bool
+	namedInLikes        bool
+	slippery            bool
+	uiPrefs             []byte
+}
+
+func loadSettings(ctx context.Context, q store.Q, id core.UserID, forUpdate bool) (settingsRow, error) {
+	sql := `SELECT handle, display_name, status, ui_locale, languages, translate_to, autotranslate, rank_preset,
+		name_in_chains, suggestible, named_in_likes, slippery_default, ui_prefs FROM users WHERE id = $1`
+	if forUpdate {
+		sql += " FOR UPDATE"
+	}
+	var r settingsRow
+	err := q.QueryRow(ctx, sql, int64(id)).Scan(&r.handle, &r.displayName, &r.status, &r.locale, &r.languages,
+		&r.translateTo, &r.autotranslate, &r.preset, &r.nameInChains, &r.suggestible, &r.namedInLikes, &r.slippery,
+		&r.uiPrefs)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return r, gate.ErrNotFound
+	}
+	return r, err
+}
+
+func (r settingsRow) view() gate.SettingsView {
+	v := gate.SettingsView{UILocale: r.locale, Languages: r.languages, Autotranslate: r.autotranslate,
+		RankPreset: core.Preset(r.preset).String(), NameInChains: r.nameInChains, Suggestible: r.suggestible,
+		NamedInLikes: r.namedInLikes, SlipperyDefault: r.slippery, UIPrefs: json.RawMessage(r.uiPrefs)}
+	if v.Languages == nil {
+		v.Languages = []string{}
+	}
+	if len(v.UIPrefs) == 0 {
+		v.UIPrefs = json.RawMessage("{}")
+	}
+	if r.translateTo != nil {
+		v.TranslateTo = *r.translateTo
+	}
+	return v
+}
 
 // Me returns the signed-in user.
 func (s *Service) Me(ctx context.Context) (gate.MeView, error) {
@@ -33,78 +131,29 @@ func (s *Service) Me(ctx context.Context) (gate.MeView, error) {
 	if err != nil {
 		return gate.MeView{}, err
 	}
+	if m.Status == core.StatusDeleted {
+		return gate.MeView{}, gate.ErrNotFound
+	}
+	row, err := loadSettings(ctx, s.d.DB.Q(), v.ID, false)
+	if err != nil {
+		return gate.MeView{}, err
+	}
 	label, err := s.d.Users.InviterLabel(ctx, v.ID)
 	if err != nil {
 		return gate.MeView{}, err
 	}
 	return gate.MeView{
-		Ref: s.d.Refs.User(v.ID, v.ID), Handle: m.Handle, DisplayName: m.DisplayName, Role: m.Role.String(), Inviter: label,
-		Settings: gate.SettingsView{UILocale: m.Locale, Languages: m.Languages, RankPreset: m.Preset.String(),
-			NameInChains: m.NameInChains, Suggestible: m.Suggestible, NamedInLikes: m.NamedInLikes,
-			SlipperyDefault: m.SlipperyDefault, UIPrefs: []byte("{}")},
+		Ref: s.d.Refs.User(v.ID, v.ID), Handle: row.handle, DisplayName: row.displayName, Role: m.Role.String(),
+		Inviter: label, Settings: row.view(),
 	}, nil
 }
 
-// UpdateSettings validates and applies a settings patch.
-func (s *Service) UpdateSettings(ctx context.Context, p gate.SettingsPatch) (gate.SettingsView, error) {
-	if _, err := core.RequireUser(ctx); err != nil {
-		return gate.SettingsView{}, err
-	}
-	return gate.SettingsView{}, gate.ErrNotImplemented
-}
-
-// Export writes the viewer's export zip (RequireFresh).
+// Export writes the viewer's export zip (fresh step-up): records.jsonl,
+// keys.json, posts.jsonl, credentials.jsonl and manifest.json (§10.2).
 func (s *Service) Export(ctx context.Context, w io.Writer) error {
-	if _, err := core.RequireFresh(ctx, s.d.Clock.Now()); err != nil {
+	v, err := core.RequireFresh(ctx, s.d.Clock.Now())
+	if err != nil {
 		return err
 	}
-	return gate.ErrNotImplemented
-}
-
-// Delete deletes the viewer's account (RequireFresh; confirmHandle must match).
-func (s *Service) Delete(ctx context.Context, confirmHandle string) error {
-	if _, err := core.RequireFresh(ctx, s.d.Clock.Now()); err != nil {
-		return err
-	}
-	return gate.ErrNotImplemented
-}
-
-// RecoveryRequest opens a manual recovery (moderator 1).
-func (s *Service) RecoveryRequest(ctx context.Context, subject gate.Ref) (gate.Ref, error) {
-	if _, err := core.RequireModerator(ctx); err != nil {
-		return "", err
-	}
-	return "", gate.ErrNotImplemented
-}
-
-// RecoveryApprove approves a recovery (moderator 2 ≠ 1, RequireFresh).
-func (s *Service) RecoveryApprove(ctx context.Context, id gate.Ref) error {
-	if _, err := core.RequireModerator(ctx); err != nil {
-		return err
-	}
-	return gate.ErrNotImplemented
-}
-
-// RecoveryLink returns the enrollment URL after the 24 h hold (moderator 2 only).
-func (s *Service) RecoveryLink(ctx context.Context, id gate.Ref) (string, error) {
-	if _, err := core.RequireModerator(ctx); err != nil {
-		return "", err
-	}
-	return "", gate.ErrNotImplemented
-}
-
-// RecoveryCancel cancels a pending recovery of the viewer's own account.
-func (s *Service) RecoveryCancel(ctx context.Context) error {
-	if _, err := core.RequireUser(ctx); err != nil {
-		return err
-	}
-	return gate.ErrNotImplemented
-}
-
-// RecoveryPending returns the release time of a pending recovery (banner), or nil.
-func (s *Service) RecoveryPending(ctx context.Context) (*time.Time, error) {
-	if _, err := core.RequireUser(ctx); err != nil {
-		return nil, err
-	}
-	return nil, nil
+	return s.writeExport(ctx, v.ID, w)
 }
