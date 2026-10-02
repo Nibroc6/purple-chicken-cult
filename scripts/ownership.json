@@ -1,0 +1,159 @@
+{
+  "$comment": "Machine-readable file ownership (plan §0.1, 'Work packages'). Globs: ** any path, * one segment, ? one char, {a,b} alternation, leading ! = exception. Every WP also owns docs/contract-requests/<wp-id>-*.md. Owned by SCAFFOLD; changed only by the contract steward.",
+  "steward": [
+    "go.mod", "go.sum", ".gitattributes", ".gitignore", ".golangci.yml", "Makefile", "docker-compose.yml",
+    "deploy/postgres/**", ".github/workflows/ci.yml", "scripts/**", "cmd/pcc/**", "internal/archtest/**", "internal/deps/**",
+    "internal/store/**", "internal/platform/{config,clock,ids,refs,sigs,httpx,logx}/**",
+    "internal/gate/{gate.go,views.go,errors.go}", "internal/gate/internal/**", "internal/gate/wire/**",
+    "internal/api/{apix,router,apitest,testhooks}/**", "!internal/api/apix/pad/**", "internal/api/deps.go", "api/openapi/_common.yaml",
+    "README.md", "ARCHITECTURE.md", "docs/IMPLEMENTATION.md", "docs/SCAFFOLD.md", "docs/contract-requests/.gitkeep",
+    "deploy/runbooks/README.md", "testdata/fixtures/.gitkeep",
+    "web/package.json", "web/package-lock.json", "web/vite.config.ts", "web/tsconfig*.json", "web/eslint.config.js",
+    "web/index.html", "web/vitest.config.ts", "web/playwright.config.ts", "web/embed.go", "web/dist/.keep", "web/public/**",
+    "web/scripts/{lib,gen,openapi-merge,pseudo-locale,check-i18n,check-css-logical}.mjs",
+    "web/e2e/fixtures/{auth,world,server,global-setup}.ts", "web/e2e/scaffold.spec.ts",
+    "web/src/main.tsx", "web/src/app/**", "web/src/api/{client,errors}.ts", "web/src/vm/types.ts",
+    "web/src/i18n/{setup,namespaces}.ts", "web/src/i18n/resources.d.ts", "web/src/i18n/locales/en/{common,errors}.json",
+    "web/src/formats/{types,registry}.ts", "web/src/formats/formats.test.tsx", "web/src/formats/{cards,compact,explorer}/index.ts",
+    "web/src/integrity/types.ts", "web/src/integrity/index.ts", "web/src/lib/**", "web/src/sw/{sw,register}.ts",
+    "web/src/styles/**", "web/src/test/**",
+    "web/src/features/handshake-audio/index.ts", "web/src/features/media/index.ts"
+  ],
+  "phases": {
+    "0": {
+      "p0-w01": [
+        "internal/gate/auth/**", "internal/api/authapi/**", "api/openapi/auth.yaml", "web/src/features/{auth,stepup}/**",
+        "web/src/i18n/locales/en/{auth,stepup}.json", "web/e2e/p0-w01.spec.ts", "testdata/fixtures/p0-w01.json",
+        "internal/store/migrations/101?_*.sql"
+      ],
+      "p0-w02": ["internal/gate/{graph,visibility,views,devseed}/**", "internal/store/migrations/102?_*.sql"],
+      "p0-w03": [
+        "internal/gate/friends/**", "internal/api/friendsapi/**", "api/openapi/friends.yaml", "web/src/features/people/**",
+        "web/src/i18n/locales/en/people.json", "web/e2e/p0-w03.spec.ts", "testdata/fixtures/p0-w03.json",
+        "internal/store/migrations/103?_*.sql"
+      ],
+      "p0-w04": [
+        "internal/gate/invites/**", "internal/api/invitesapi/**", "api/openapi/invites.yaml", "web/src/features/{invites,join}/**",
+        "web/src/i18n/locales/en/{invites,join}.json", "web/scripts/gen-y4m.mjs", "web/e2e/fixtures/camera.ts",
+        "web/e2e/p0-w04.spec.ts", "testdata/fixtures/p0-w04.json", "internal/store/migrations/104?_*.sql"
+      ],
+      "p0-w05": [
+        "internal/gate/{posts,postindex}/**", "internal/api/postsapi/**", "api/openapi/posts.yaml",
+        "web/src/features/{post,composer}/**", "web/src/i18n/locales/en/{post,composer}.json", "web/e2e/p0-w05.spec.ts",
+        "testdata/fixtures/p0-w05.json", "internal/store/migrations/105?_*.sql"
+      ],
+      "p0-w06": [
+        "internal/gate/{engage,rank}/**", "internal/api/engageapi/**", "api/openapi/engage.yaml", "web/src/features/{engage,seen}/**",
+        "web/src/i18n/locales/en/{engage,seen}.json", "web/e2e/p0-w06.spec.ts", "testdata/fixtures/p0-w06.json",
+        "internal/store/migrations/106?_*.sql"
+      ],
+      "p0-w07": [
+        "internal/gate/feed/**", "internal/api/feedapi/**", "api/openapi/feed.yaml", "web/src/features/feed/**",
+        "web/src/formats/{cards,compact}/{FeedLayout,PostLayout}.tsx", "web/src/formats/{cards,compact}/feed/**",
+        "web/src/i18n/locales/en/feed.json", "web/e2e/p0-w07.spec.ts", "testdata/fixtures/p0-w07.json",
+        "internal/store/migrations/107?_*.sql"
+      ],
+      "p0-w08": [
+        "internal/gate/tree/**", "internal/api/treeapi/**", "api/openapi/tree.yaml", "web/src/features/tree/**",
+        "web/src/formats/{cards,compact}/TreeLayout.tsx", "web/src/formats/{cards,compact}/tree/**",
+        "web/src/i18n/locales/en/tree.json", "web/e2e/p0-w08.spec.ts", "testdata/fixtures/p0-w08.json",
+        "internal/store/migrations/108?_*.sql"
+      ],
+      "p0-w09": [
+        "internal/platform/{safefetch,urlx,mdscan}/**", "internal/gate/previews/**", "testdata/markdown/**",
+        "testdata/tracking-params.json", "web/src/markdown/**", "web/src/i18n/locales/en/markdown.json",
+        "deploy/runbooks/egress.md", "internal/store/migrations/109?_*.sql"
+      ],
+      "p0-w10": [
+        "internal/gate/{notify,metrics}/**", "internal/api/notifyapi/**", "api/openapi/notify.yaml", "web/src/api/sse.ts",
+        "web/src/features/notifications/**", "web/src/integrity/**", "!web/src/integrity/types.ts", "!web/src/integrity/index.ts",
+        "web/src/i18n/locales/en/{notifications,integrity}.json", "web/e2e/p0-w10.spec.ts", "testdata/fixtures/p0-w10.json",
+        "internal/store/migrations/110?_*.sql"
+      ],
+      "p0-w11": [
+        "internal/gate/{records,account,users}/**", "internal/api/accountapi/**", "api/openapi/account.yaml",
+        "web/src/features/{settings,modrecovery}/**", "web/src/i18n/locales/en/{settings,account,modrecovery}.json",
+        "web/e2e/p0-w11.spec.ts", "testdata/fixtures/p0-w11.json", "internal/store/migrations/111?_*.sql"
+      ],
+      "p0-w12": [
+        "internal/gate/{limits,moderation}/**", "internal/platform/secheaders/**", "internal/api/{modapi,staticapi}/**",
+        "api/openapi/mod.yaml", "web/src/features/{moderation,landing}/**", "web/src/i18n/locales/en/{moderation,landing}.json",
+        "web/e2e/p0-w12.spec.ts", "testdata/fixtures/p0-w12.json", "internal/store/migrations/112?_*.sql"
+      ],
+      "int-0": ["internal/gate/conformance/**", "web/e2e/journeys/**", "web/e2e/integrity.spec.ts"]
+    },
+    "1": {
+      "p1-w01": [
+        "internal/gate/{cosign,records}/**", "internal/api/cosignapi/**", "api/openapi/cosign.yaml", "web/src/features/cosign/**",
+        "web/src/i18n/locales/en/cosign.json", "web/e2e/p1-w01.spec.ts", "testdata/fixtures/p1-w01.json",
+        "internal/store/migrations/301?_*.sql"
+      ],
+      "p1-w02": [
+        "internal/gate/invites/**", "internal/api/invitesapi/**", "api/openapi/invites.yaml", "web/src/features/{invites,join}/**",
+        "web/src/i18n/locales/en/{invites,join}.json", "web/scripts/gen-y4m.mjs", "web/e2e/fixtures/camera.ts",
+        "web/e2e/p1-w02.spec.ts", "testdata/fixtures/p1-w02.json", "internal/store/migrations/302?_*.sql"
+      ],
+      "p1-w03": [
+        "internal/gate/{graph,visibility,friends,devseed}/**", "internal/api/friendsapi/**", "api/openapi/friends.yaml",
+        "web/src/features/people/**", "web/src/i18n/locales/en/people.json", "web/e2e/p1-w03.spec.ts",
+        "testdata/fixtures/p1-w03.json", "internal/store/migrations/303?_*.sql"
+      ],
+      "p1-w04": [
+        "internal/platform/{blob,scan,imageproc}/**", "internal/gate/media/**", "internal/api/mediaapi/**", "api/openapi/media.yaml",
+        "web/src/features/media/**", "!web/src/features/media/index.ts", "deploy/cloudflare/**", "deploy/runbooks/{csam,media}.md",
+        "testdata/scan/**", "web/src/i18n/locales/en/media.json", "web/e2e/p1-w04.spec.ts", "testdata/fixtures/p1-w04.json",
+        "internal/store/migrations/304?_*.sql"
+      ],
+      "p1-w05": [
+        "internal/platform/{webpush,i18n}/**", "internal/gate/{notify,metrics}/**", "internal/api/{notifyapi,pushapi}/**",
+        "api/openapi/{notify,push}.yaml", "web/src/sw/push.ts", "web/src/api/sse.ts", "web/src/features/{push,notifications}/**",
+        "web/src/i18n/locales/en/{push,notifications}.json", "web/e2e/p1-w05.spec.ts", "testdata/fixtures/p1-w05.json",
+        "internal/store/migrations/305?_*.sql"
+      ],
+      "p1-w06": [
+        "internal/gate/{moderation,signals/behavior}/**", "internal/api/modapi/**", "api/openapi/mod.yaml",
+        "web/src/features/moderation/**", "web/src/i18n/locales/en/moderation.json", "web/e2e/p1-w06.spec.ts",
+        "testdata/fixtures/p1-w06.json", "internal/store/migrations/306?_*.sql"
+      ],
+      "p1-w07": [
+        "internal/gate/{auth,limits,signals/automation}/**", "internal/platform/dbsc/**", "internal/api/{authapi,signalsapi}/**",
+        "internal/api/apix/pad/**", "!internal/api/apix/apix.go", "api/openapi/{auth,signals}.yaml", "web/src/features/{auth,stepup}/**",
+        "web/src/i18n/locales/en/{auth,stepup,signals}.json", "web/e2e/p1-w07.spec.ts", "testdata/fixtures/p1-w07.json",
+        "internal/store/migrations/307?_*.sql"
+      ],
+      "p1-w08": [
+        "internal/gate/{rank,engage,feed,tree}/**", "internal/api/{engageapi,feedapi,treeapi}/**", "api/openapi/{engage,feed,tree}.yaml",
+        "web/src/features/{feed,seen,saves,engage}/**", "web/src/i18n/locales/en/{feed,seen,saves,engage}.json",
+        "web/e2e/p1-w08.spec.ts", "testdata/fixtures/p1-w08.json", "internal/store/migrations/308?_*.sql"
+      ],
+      "p1-w09": [
+        "web/src/formats/explorer/**", "!web/src/formats/explorer/index.ts", "web/src/features/{themes,tree}/**",
+        "web/src/formats/{cards,compact}/TreeLayout.tsx", "web/src/formats/{cards,compact}/tree/**", "web/src/integrity/**",
+        "!web/src/integrity/types.ts", "!web/src/integrity/index.ts", "internal/gate/themes/**", "internal/api/themeapi/**",
+        "api/openapi/theme.yaml", "web/src/i18n/locales/en/{themes,explorer,tree,integrity}.json", "web/e2e/p1-w09.spec.ts",
+        "testdata/fixtures/p1-w09.json", "internal/store/migrations/309?_*.sql"
+      ],
+      "p1-w10": [
+        "internal/gate/{account,users}/**", "internal/api/accountapi/**", "api/openapi/account.yaml",
+        "web/src/features/{recovery,settings,modrecovery}/**", "web/src/i18n/locales/en/{recovery,settings,account,modrecovery}.json",
+        "web/e2e/p1-w10.spec.ts", "testdata/fixtures/p1-w10.json", "internal/store/migrations/310?_*.sql"
+      ],
+      "p1-w11": [
+        "internal/platform/{safefetch,urlx,mdscan}/**", "internal/gate/previews/**", "testdata/markdown/**",
+        "testdata/tracking-params.json", "web/src/markdown/**", "web/src/i18n/locales/en/markdown.json",
+        "deploy/runbooks/egress.md", "internal/store/migrations/311?_*.sql"
+      ],
+      "p1-w12": [
+        "internal/gate/{posts,postindex,views}/**", "internal/api/postsapi/**", "api/openapi/posts.yaml",
+        "web/src/features/{post,composer}/**", "web/src/formats/{cards,compact}/{FeedLayout,PostLayout}.tsx",
+        "web/src/formats/{cards,compact}/feed/**", "web/src/i18n/locales/en/{post,composer}.json", "web/e2e/p1-w12.spec.ts",
+        "testdata/fixtures/p1-w12.json", "internal/store/migrations/312?_*.sql"
+      ],
+      "p1-w13": [
+        "web/src/features/handshake-audio/**", "!web/src/features/handshake-audio/index.ts", "web/src/i18n/locales/en/handshake.json",
+        "docs/sound/**"
+      ],
+      "int-1": ["internal/gate/conformance/**", "web/e2e/journeys/**", "web/e2e/integrity.spec.ts"]
+    }
+  }
+}

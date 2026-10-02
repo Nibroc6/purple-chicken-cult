@@ -1,0 +1,65 @@
+# OpenAPI fragment of the auth module (plan §5.3). Owner: P0-W01 → P1-W07.
+# Paths are relative to /api. The scaffold registered /session, /auth/logout and
+# the login routes.
+openapi: 3.0.3
+info:
+  title: pcc internal API (auth)
+  version: "0"
+paths:
+  /session:
+    get:
+      operationId: getSession
+      responses:
+        "200":
+          description: The caller's session (works unauthenticated).
+          content:
+            application/json:
+              schema: { $ref: '_common.yaml#/components/schemas/SessionView' }
+  /auth/logout:
+    post:
+      operationId: logout
+      responses:
+        "204": { description: Logged out. }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+  /auth/login/begin:
+    post:
+      operationId: loginBegin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: false }
+      responses:
+        "200":
+          description: WebAuthn request options.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [options]
+                properties:
+                  options: { type: object, additionalProperties: true }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "501": { $ref: '_common.yaml#/components/responses/NotImplemented' }
+  /auth/login/finish:
+    post:
+      operationId: loginFinish
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [credential]
+              properties:
+                credential: { type: object, additionalProperties: true }
+      responses:
+        "200":
+          description: The new session.
+          content:
+            application/json:
+              schema: { $ref: '_common.yaml#/components/schemas/SessionView' }
+        "400": { $ref: '_common.yaml#/components/responses/Problem' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "501": { $ref: '_common.yaml#/components/responses/NotImplemented' }

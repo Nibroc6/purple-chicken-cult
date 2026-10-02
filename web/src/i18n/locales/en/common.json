@@ -1,0 +1,39 @@
+{
+  "app": {
+    "name": "Purple Chicken Cult"
+  },
+  "nav": {
+    "label": "Main",
+    "feed": "Feed",
+    "compose": "New post",
+    "invite": "Invite",
+    "friends": "Friends",
+    "notifications": "Notifications",
+    "settings": "Settings"
+  },
+  "placeholder": {
+    "body": "This page is not built yet."
+  },
+  "notFound": {
+    "title": "Nothing here",
+    "body": "This page does not exist, or you cannot see it."
+  },
+  "loading": "Loading…",
+  "error": {
+    "title": "Something went wrong",
+    "retry": "Try again"
+  },
+  "settingsNav": {
+    "label": "Settings sections",
+    "display": "Display",
+    "languages": "Languages",
+    "privacy": "Privacy",
+    "passkeys": "Passkeys",
+    "blocks": "Blocked people",
+    "export": "Export your data",
+    "delete": "Delete account",
+    "recovery": "Recovery contacts",
+    "theme": "Theme",
+    "notifications": "Push notifications"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "index": {
+    "title": "Settings"
+  },
+  "display": {
+    "title": "Display"
+  },
+  "languages": {
+    "title": "Languages"
+  },
+  "privacy": {
+    "title": "Privacy"
+  },
+  "export": {
+    "title": "Export your data"
+  },
+  "delete": {
+    "title": "Delete your account"
+  }
+}
