@@ -571,16 +571,32 @@ func TestRotateKeysAndPurge(t *testing.T) {
 }
 
 // The key window check rejects a record whose time lies outside its key's window.
+//
+// Regression: only the upper bound (a retired key's valid_until) is checked. A
+// record signed after a rotation that carries an earlier time of its own (an
+// edited Post version keeps the post's created_at) still verifies.
 func TestVerifyExportKeyWindow(t *testing.T) {
-	f := newFixture(t)
-	alice, bob := f.user("alice"), f.user("bob")
+	dir := t.TempDir()
+	f := newFixture(t, wiretest.WithEnv("PCC_SERVER_KEY_FILE", filepath.Join(dir, "keys", "server.key")))
+	alice, bob, carol := f.user("alice"), f.user("bob"), f.user("carol")
+	// Signed by the first key, dated two days after that key is retired.
+	future := sigs.T(f.d.Clock.Now().Add(48 * time.Hour))
+	if _, err := f.a.Records.Sign(f.ctx, nil, core.RecFriendship, 0,
+		friendship{A: f.ext[alice], B: f.ext[bob], Level: "friend", CreatedAt: future}, []core.UserID{alice, bob}); err != nil {
+		t.Fatal(err)
+	}
+	advance(t, f.a, time.Hour)
+	if _, err := f.a.Records.RotateServerKey(f.ctx); err != nil {
+		t.Fatal(err)
+	}
+	// Signed by the new key, dated before the new key's valid_from.
 	old := sigs.T(coretest.Epoch.Add(-48 * time.Hour))
 	if _, err := f.a.Records.Sign(f.ctx, nil, core.RecFriendship, 0,
-		friendship{A: f.ext[alice], B: f.ext[bob], Level: "friend", CreatedAt: old}, []core.UserID{alice, bob}); err != nil {
+		friendship{A: f.ext[alice], B: f.ext[carol], Level: "friend", CreatedAt: old}, []core.UserID{alice, carol}); err != nil {
 		t.Fatal(err)
 	}
 	rep := verify(t, f.export(alice), nil)
-	if rep.Valid != 0 || len(rep.Failures) != 1 || rep.Failures[0].Code != records.FailKeyWindow {
+	if rep.Valid != 1 || len(rep.Failures) != 1 || rep.Failures[0].Code != records.FailKeyWindow {
 		t.Fatalf("report %+v", rep)
 	}
 	if _, err := records.VerifyExport(bytes.NewReader([]byte("not a zip")), 9, nil); err == nil {

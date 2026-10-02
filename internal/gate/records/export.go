@@ -137,7 +137,7 @@ const MaxExportFile = 256 << 20
 
 type pubKey struct {
 	pub         ed25519.PublicKey
-	from, until time.Time
+	until time.Time // zero while the key is current
 }
 
 // VerifyExport verifies an export zip offline. Every records.jsonl line must be
@@ -179,7 +179,7 @@ func VerifyExport(r io.ReaderAt, size int64, pinned map[string]string) (gate.Ver
 		if len(pinned) > 0 && !strings.EqualFold(strings.TrimSpace(pinned[k.KeyID]), fp) {
 			continue
 		}
-		pk := pubKey{pub: pub, from: k.ValidFrom}
+		pk := pubKey{pub: pub}
 		if k.ValidUntil != nil {
 			pk.until = *k.ValidUntil
 		}
@@ -303,8 +303,13 @@ func verifyLine(raw []byte, keys map[string]pubKey) string {
 	default:
 		return FailNotCanonical
 	}
+	// Only the upper bound is checked: a retired key cannot have signed a
+	// record dated after it was retired. There is no lower bound against
+	// valid_from, because a record signed after a rotation may legitimately
+	// carry an earlier time of its own (an edited Post version keeps the
+	// post's created_at; an Invite's issued_at is the handshake start).
 	if t, ok := bodyTime(env.Body); ok {
-		if t.Before(k.from.Add(-windowSkew)) || (!k.until.IsZero() && t.After(k.until.Add(windowSkew))) {
+		if !k.until.IsZero() && t.After(k.until.Add(windowSkew)) {
 			return FailKeyWindow
 		}
 	}

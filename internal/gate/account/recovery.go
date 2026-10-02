@@ -68,19 +68,17 @@ func (s *Service) RecoveryRequest(ctx context.Context, subject gate.Ref) (gate.R
 	if !ok {
 		return "", gate.ErrNotFound
 	}
-	m, err := s.d.Users.Get(ctx, target)
-	if err != nil {
-		return "", err
-	}
-	if m.Status == core.StatusDeleted {
-		return "", gate.ErrNotFound
-	}
 	if target == v.ID {
 		return "", gate.NewProblem(gate.StatusConflict, "recovery_self")
 	}
 	id := s.d.IDs.New()
 	now := s.d.Clock.Now()
 	err = s.d.DB.Tx(ctx, func(tx pgx.Tx) error {
+		// Status under a share lock: a concurrent Delete (users row FOR
+		// UPDATE, then cancels every live request) serializes with us.
+		if err := subjectLive(ctx, tx, target); err != nil {
+			return err
+		}
 		if _, err := tx.Exec(ctx, `INSERT INTO recovery_requests (id, user_id, kind, state, created_at)
 			VALUES ($1, $2, $3, $4, $5)`, id, int64(target), kindManual, stateOpen, now); err != nil {
 			if store.IsUniqueViolation(err) {
@@ -111,10 +109,41 @@ type recoveryRow struct {
 	approvals     int
 }
 
+// subjectLive share-locks the subject's users row and answers ErrNotFound when
+// the account is gone or deleted. Delete holds that row FOR UPDATE while it
+// cancels every live recovery, so no recovery step can race a deletion.
+func subjectLive(ctx context.Context, tx store.Q, user core.UserID) error {
+	var status int16
+	err := tx.QueryRow(ctx, "SELECT status FROM users WHERE id = $1 FOR SHARE", int64(user)).Scan(&status)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return gate.ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if status == int16(core.StatusDeleted) {
+		return gate.ErrNotFound
+	}
+	return nil
+}
+
+// loadRecovery locks a manual recovery request after share-locking its
+// subject's users row (the lock order Delete uses) and answers ErrNotFound
+// when the subject account has been deleted.
 func loadRecovery(ctx context.Context, tx store.Q, id uuid.UUID) (recoveryRow, error) {
 	r := recoveryRow{id: id}
 	var user int64
-	err := tx.QueryRow(ctx, `SELECT user_id, state, created_at, release_at, enrollment_token IS NOT NULL, revoke_old
+	err := tx.QueryRow(ctx, "SELECT user_id FROM recovery_requests WHERE id = $1 AND kind = $2", id, kindManual).Scan(&user)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return r, gate.ErrNotFound
+	}
+	if err != nil {
+		return r, err
+	}
+	if err := subjectLive(ctx, tx, core.UserID(user)); err != nil {
+		return r, err
+	}
+	err = tx.QueryRow(ctx, `SELECT user_id, state, created_at, release_at, enrollment_token IS NOT NULL, revoke_old
 		FROM recovery_requests WHERE id = $1 AND kind = $2 FOR UPDATE`, id, kindManual).
 		Scan(&user, &r.state, &r.createdAt, &r.releaseAt, &r.tokenIssued, &r.revokeOld)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -161,10 +190,7 @@ func (s *Service) RecoveryApprove(ctx context.Context, id gate.Ref) error {
 		return gate.ErrNotFound
 	}
 	now := s.d.Clock.Now()
-	var (
-		subject core.UserID
-		expired bool
-	)
+	var expired bool
 	err = s.d.DB.Tx(ctx, func(tx pgx.Tx) error {
 		expired = false
 		r, err := loadRecovery(ctx, tx, rid)
@@ -185,7 +211,6 @@ func (s *Service) RecoveryApprove(ctx context.Context, id gate.Ref) error {
 		if r.user == v.ID {
 			return gate.NewProblem(gate.StatusConflict, "recovery_self")
 		}
-		subject = r.user
 		if _, err := tx.Exec(ctx, `INSERT INTO recovery_approvals (request_id, approver_id, role, at, auth_at)
 			VALUES ($1, $2, $3, $4, $5)`, rid, int64(v.ID), roleModerator, now, v.AuthAt); err != nil {
 			return err
@@ -219,7 +244,9 @@ func (s *Service) RecoveryApprove(ctx context.Context, id gate.Ref) error {
 	if expired {
 		return gate.NewProblem(gate.StatusConflict, "recovery_expired")
 	}
-	s.d.Notify.Live(subject, "recovery", map[string]any{"state": "holding"})
+	// No live push: "recovery" is not in the closed GET /api/events list. The
+	// account's sessions pick the banner up from GET /api/me/recovery (polled,
+	// and refetched on focus and reconnect).
 	return nil
 }
 
@@ -236,8 +263,12 @@ func (s *Service) RecoveryLink(ctx context.Context, id gate.Ref) (string, error)
 		return "", gate.ErrNotFound
 	}
 	now := s.d.Clock.Now()
-	var token string
+	var (
+		token   string
+		expired bool
+	)
 	err = s.d.DB.Tx(ctx, func(tx pgx.Tx) error {
+		token, expired = "", false
 		r, err := loadRecovery(ctx, tx, rid)
 		if err != nil {
 			return err
@@ -255,6 +286,13 @@ func (s *Service) RecoveryLink(ctx context.Context, id gate.Ref) (string, error)
 			return gate.NewProblem(gate.StatusConflict, "recovery_link_issued")
 		case r.releaseAt == nil || now.Before(*r.releaseAt):
 			return gate.NewProblem(gate.StatusConflict, "recovery_held")
+		case !now.Before(r.releaseAt.Add(LinkFor)):
+			// The banner and the account's cancel window close at
+			// release_at + LinkFor; a link fetched later would be invisible
+			// to the owner, so the request expires instead.
+			expired = true
+			_, err := tx.Exec(ctx, "UPDATE recovery_requests SET state = $2 WHERE id = $1", rid, stateExpired)
+			return err
 		}
 		if r.state == stateHolding && r.revokeOld {
 			// Released now (the job had not run yet): every session ends.
@@ -262,7 +300,9 @@ func (s *Service) RecoveryLink(ctx context.Context, id gate.Ref) (string, error)
 				return err
 			}
 		}
-		tok, err := s.d.Passkeys.IssueEnrollment(ctx, tx, r.user, purposeRecovery, now)
+		// Usable from release_at for EnrollTokenTTL (= LinkFor): the token dies
+		// exactly when the banner and the account's cancel window close.
+		tok, err := s.d.Passkeys.IssueEnrollment(ctx, tx, r.user, purposeRecovery, *r.releaseAt)
 		if err != nil {
 			return err
 		}
@@ -277,6 +317,9 @@ func (s *Service) RecoveryLink(ctx context.Context, id gate.Ref) (string, error)
 	if err != nil {
 		return "", err
 	}
+	if expired {
+		return "", gate.NewProblem(gate.StatusConflict, "recovery_expired")
+	}
 	return s.d.Cfg.Origin + "/enroll#" + token, nil
 }
 
@@ -288,45 +331,46 @@ func (s *Service) RecoveryCancel(ctx context.Context) error {
 		return err
 	}
 	now := s.d.Clock.Now()
-	var cancelled bool
-	err = s.d.DB.Tx(ctx, func(tx pgx.Tx) error {
-		cancelled = false
-		rows, err := tx.Query(ctx, `UPDATE recovery_requests SET state = $2
-			WHERE user_id = $1 AND (state IN (0, 1) OR (state = 2 AND release_at > $3))
-			RETURNING enrollment_token`, int64(v.ID), stateCancelled, now.Add(-LinkFor))
-		if err != nil {
-			return err
-		}
-		var tokens [][]byte
-		for rows.Next() {
-			var h []byte
-			if err := rows.Scan(&h); err != nil {
-				rows.Close()
-				return err
-			}
-			cancelled = true
-			if h != nil {
-				tokens = append(tokens, h)
-			}
-		}
-		rows.Close()
-		if err := rows.Err(); err != nil {
-			return err
-		}
-		for _, h := range tokens {
-			if err := cancelEnrollment(ctx, tx, h, now); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-	if err != nil {
+	return s.d.DB.Tx(ctx, func(tx pgx.Tx) error {
+		_, err := cancelRecoveries(ctx, tx, v.ID, now)
 		return err
+	})
+}
+
+// cancelRecoveries cancels every live recovery of user (open, holding, or
+// released within the link window) and voids any enrollment token already
+// issued for them. Used by RecoveryCancel and Delete. It reports whether
+// anything was cancelled.
+func cancelRecoveries(ctx context.Context, tx store.Q, user core.UserID, now time.Time) (bool, error) {
+	rows, err := tx.Query(ctx, `UPDATE recovery_requests SET state = $2
+		WHERE user_id = $1 AND (state IN (0, 1) OR (state = 2 AND release_at > $3))
+		RETURNING enrollment_token`, int64(user), stateCancelled, now.Add(-LinkFor))
+	if err != nil {
+		return false, err
 	}
-	if cancelled {
-		s.d.Notify.Live(v.ID, "recovery", map[string]any{"state": "cancelled"})
+	cancelled := false
+	var tokens [][]byte
+	for rows.Next() {
+		var h []byte
+		if err := rows.Scan(&h); err != nil {
+			rows.Close()
+			return false, err
+		}
+		cancelled = true
+		if h != nil {
+			tokens = append(tokens, h)
+		}
 	}
-	return nil
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return false, err
+	}
+	for _, h := range tokens {
+		if err := cancelEnrollment(ctx, tx, h, now); err != nil {
+			return false, err
+		}
+	}
+	return cancelled, nil
 }
 
 // cancelEnrollment voids an issued recovery enrollment token.
@@ -407,5 +451,12 @@ func (s *Service) releaseDue(ctx context.Context) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	return released + int(b.RowsAffected()), nil
+	// A released request whose link was never fetched expires with the window.
+	c, err := s.d.DB.Q().Exec(ctx, `UPDATE recovery_requests SET state = $2
+		WHERE state = $3 AND enrollment_token IS NULL AND release_at <= $1`,
+		now.Add(-LinkFor), stateExpired, stateReleased)
+	if err != nil {
+		return 0, err
+	}
+	return released + int(b.RowsAffected()) + int(c.RowsAffected()), nil
 }

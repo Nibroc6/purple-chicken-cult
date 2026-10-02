@@ -12,6 +12,12 @@ import { toA11y, toUIPrefs } from './vm';
 
 export const recoveryKey = ['me', 'recovery'] as const;
 
+// RECOVERY_POLL_MS is how often a live session re-asks GET /api/me/recovery.
+// There is no SSE event for recovery (the /api/events list is closed), so the
+// banner relies on this poll plus refetch on focus and reconnect; against a
+// 24 h hold a 5 minute lag leaves the owner ample time to cancel.
+export const RECOVERY_POLL_MS = 5 * 60_000;
+
 // RecoveryBanner warns every live session of an account with a pending manual
 // recovery and lets it cancel (§10.3, security #14).
 export function RecoveryBanner() {
@@ -22,7 +28,9 @@ export function RecoveryBanner() {
     queryKey: recoveryKey,
     queryFn: fetchRecoveryPending,
     enabled: me !== undefined,
-    refetchInterval: 5 * 60_000,
+    refetchInterval: RECOVERY_POLL_MS,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
   const cancel = useMutation({
     mutationFn: cancelRecovery,

@@ -56,8 +56,9 @@ func (s *Service) Delete(ctx context.Context, confirmHandle string) error {
 			int64(v.ID), int16(core.StatusDeleted), now); err != nil {
 			return err
 		}
-		if _, err := tx.Exec(ctx, "UPDATE recovery_requests SET state = $2 WHERE user_id = $1 AND state IN (0, 1)",
-			int64(v.ID), stateCancelled); err != nil {
+		// Every live recovery ends, including a released one whose link may
+		// already be out: its enrollment token is voided too.
+		if _, err := cancelRecoveries(ctx, tx, v.ID, now); err != nil {
 			return err
 		}
 		if err := s.d.Passkeys.RevokeAll(ctx, tx, v.ID); err != nil {
