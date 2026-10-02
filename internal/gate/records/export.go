@@ -136,7 +136,7 @@ const windowSkew = 10 * time.Minute
 const MaxExportFile = 256 << 20
 
 type pubKey struct {
-	pub         ed25519.PublicKey
+	pub   ed25519.PublicKey
 	until time.Time // zero while the key is current
 }
 

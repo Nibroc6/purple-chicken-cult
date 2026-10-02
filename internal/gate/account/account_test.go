@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate"
+	"github.com/Nibroc6/purple-chicken-cult/internal/gate/account"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/internal/core"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/internal/coreref"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/internal/coretest"
@@ -493,6 +494,150 @@ func TestManualRecovery(t *testing.T) {
 	// Cancelling with nothing pending is a no-op.
 	if err := e.a.Account.RecoveryCancel(e.fresh(alice)); err != nil {
 		t.Fatal(err)
+	}
+	// Regression: no live push on an SSE topic outside the closed
+	// /api/events list (hello, notification, handshake, stepup).
+	for _, ev := range e.rec.LiveEv {
+		switch ev.Topic {
+		case "hello", "notification", "handshake", "stepup":
+		default:
+			t.Fatalf("undeclared SSE topic %q", ev.Topic)
+		}
+	}
+}
+
+// approved opens a manual recovery of user by mod1 and approves it by mod2.
+func (e *env) approved(mod1, mod2, user core.UserID) gate.Ref {
+	e.t.Helper()
+	id, err := e.a.Account.RecoveryRequest(e.fresh(mod1), e.d.Refs.ModUser(mod1, user))
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	if err := e.a.Account.RecoveryApprove(e.fresh(mod2), id); err != nil {
+		e.t.Fatal(err)
+	}
+	return id
+}
+
+// Regression: the link is only issued while the account can still see the
+// banner and cancel (release_at + LinkFor), and the token dies with that window.
+func TestRecoveryLinkWindow(t *testing.T) {
+	e := newEnv(t)
+	mod1, mod2 := e.moderator("mod_one"), e.moderator("mod_two")
+	alice := e.w.User("alice")
+
+	// Fetched 23 h after release: the token expires at release_at + 24 h,
+	// exactly when the banner and the cancel window close.
+	id := e.approved(mod1, mod2, alice)
+	releaseAt := e.now().Add(account.HoldFor)
+	e.advance(account.HoldFor + 23*time.Hour)
+	if err := e.a.DrainJobs(e.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if at, err := e.a.Account.RecoveryPending(e.fresh(alice)); err != nil || at == nil {
+		t.Fatalf("banner 23 h after release: %v %v", at, err)
+	}
+	if _, err := e.a.Account.RecoveryLink(e.fresh(mod2), id); err != nil {
+		t.Fatal(err)
+	}
+	var expires time.Time
+	if err := e.d.DB.Q().QueryRow(e.ctx, "SELECT expires_at FROM enrollment_tokens WHERE user_id = $1 AND purpose = 1",
+		int64(alice)).Scan(&expires); err != nil {
+		t.Fatal(err)
+	}
+	if !expires.Equal(releaseAt.Add(account.LinkFor)) {
+		t.Fatalf("token expires %v, want %v", expires, releaseAt.Add(account.LinkFor))
+	}
+	e.advance(time.Hour)
+	if at, _ := e.a.Account.RecoveryPending(e.fresh(alice)); at != nil {
+		t.Fatal("banner after the window")
+	}
+
+	// Fetched after the window: refused, the request expires, no token.
+	id2 := e.approved(mod1, mod2, alice)
+	e.advance(account.HoldFor + account.LinkFor + time.Minute)
+	_, err := e.a.Account.RecoveryLink(e.fresh(mod2), id2)
+	wantProblem(t, err, "recovery_expired")
+	if _, err := e.a.Account.RecoveryLink(e.fresh(mod2), id2); !errors.Is(err, gate.ErrNotFound) {
+		t.Fatalf("link after expiry: %v", err)
+	}
+	if n := e.count("SELECT count(*) FROM enrollment_tokens WHERE user_id = $1", int64(alice)); n != 1 {
+		t.Fatalf("%d tokens, want 1", n)
+	}
+
+	// The release job expires a released request whose link was never fetched.
+	e.approved(mod1, mod2, alice)
+	e.advance(account.HoldFor + time.Minute)
+	if err := e.a.DrainJobs(e.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if n := e.count("SELECT count(*) FROM recovery_requests WHERE user_id = $1 AND state = 2 AND enrollment_token IS NULL", int64(alice)); n != 1 {
+		t.Fatalf("%d released", n)
+	}
+	e.advance(account.LinkFor)
+	if err := e.a.DrainJobs(e.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if n := e.count("SELECT count(*) FROM recovery_requests WHERE user_id = $1 AND state = 2 AND enrollment_token IS NULL", int64(alice)); n != 0 {
+		t.Fatalf("%d released requests without a link outlive the window", n)
+	}
+}
+
+// Regression: deleting the account ends every live recovery, a released one
+// included, voids an issued token, and no recovery step works on a deleted
+// account afterwards.
+func TestDeleteEndsRecovery(t *testing.T) {
+	e := newEnv(t)
+	mod1, mod2 := e.moderator("mod_one"), e.moderator("mod_two")
+
+	// Released with the link out: deletion voids the token.
+	alice := e.w.User("alice")
+	id := e.approved(mod1, mod2, alice)
+	e.advance(account.HoldFor)
+	if _, err := e.a.Account.RecoveryLink(e.fresh(mod2), id); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.a.Account.Delete(e.fresh(alice), "alice"); err != nil {
+		t.Fatal(err)
+	}
+	if n := e.count("SELECT count(*) FROM enrollment_tokens WHERE user_id = $1 AND cancelled_at IS NULL", int64(alice)); n != 0 {
+		t.Fatalf("%d live recovery tokens after delete", n)
+	}
+	if n := e.count("SELECT count(*) FROM recovery_requests WHERE user_id = $1 AND state <> 3", int64(alice)); n != 0 {
+		t.Fatalf("%d recoveries not cancelled", n)
+	}
+
+	// Released without a link: after deletion moderator 2 gets nothing.
+	bob := e.w.User("bob")
+	id2 := e.approved(mod1, mod2, bob)
+	e.advance(account.HoldFor)
+	if err := e.a.Account.Delete(e.fresh(bob), "bob"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.a.Account.RecoveryLink(e.fresh(mod2), id2); !errors.Is(err, gate.ErrNotFound) {
+		t.Fatalf("link on a deleted account: %v", err)
+	}
+	if n := e.count("SELECT count(*) FROM enrollment_tokens WHERE user_id = $1", int64(bob)); n != 0 {
+		t.Fatalf("%d tokens issued for a deleted account", n)
+	}
+
+	// The status is read inside the transaction, not from the users cache: a
+	// deletion the cache has not seen yet still blocks request, approve and link.
+	carol := e.w.User("carol")
+	if _, err := e.a.Users.Get(e.ctx, carol); err != nil {
+		t.Fatal(err)
+	}
+	id3, err := e.a.Account.RecoveryRequest(e.fresh(mod1), e.d.Refs.ModUser(mod1, carol))
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.exec("UPDATE users SET status = $2 WHERE id = $1", int64(carol), int16(core.StatusDeleted))
+	if err := e.a.Account.RecoveryApprove(e.fresh(mod2), id3); !errors.Is(err, gate.ErrNotFound) {
+		t.Fatalf("approve on a deleted account: %v", err)
+	}
+	e.exec("UPDATE recovery_requests SET state = 3 WHERE user_id = $1", int64(carol))
+	if _, err := e.a.Account.RecoveryRequest(e.fresh(mod1), e.d.Refs.ModUser(mod1, carol)); !errors.Is(err, gate.ErrNotFound) {
+		t.Fatalf("request on a deleted account: %v", err)
 	}
 }
 
