@@ -127,9 +127,9 @@ func (s *Service) UpdateSettings(ctx context.Context, p gate.SettingsPatch) (gat
 
 func (s *Service) apply(r *settingsRow, p gate.SettingsPatch) error {
 	if p.DisplayName != nil {
-		dn, ok := s.d.Users.(displayNames)
-		if !ok {
-			return errNoAdapter
+		dn := s.d.DisplayNames
+		if dn == nil {
+			return errNoDep
 		}
 		name, valid := dn.CleanDisplayName(*p.DisplayName)
 		if !valid {

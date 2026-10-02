@@ -7,13 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/internal/core"
-	"github.com/Nibroc6/purple-chicken-cult/internal/platform/sigs"
-	"github.com/Nibroc6/purple-chicken-cult/internal/store"
 )
 
 type deletePayload struct {
@@ -58,7 +55,7 @@ func (s *Service) Delete(ctx context.Context, confirmHandle string) error {
 		}
 		// Every live recovery ends, including a released one whose link may
 		// already be out: its enrollment token is voided too.
-		if _, err := cancelRecoveries(ctx, tx, v.ID, now); err != nil {
+		if _, err := s.cancelRecoveries(ctx, tx, v.ID, now); err != nil {
 			return err
 		}
 		if err := s.d.Passkeys.RevokeAll(ctx, tx, v.ID); err != nil {
@@ -72,12 +69,6 @@ func (s *Service) Delete(ctx context.Context, confirmHandle string) error {
 	}
 	s.d.Bus.Publish(core.UserChanged{ID: v.ID})
 	return nil
-}
-
-type tombstoneBody struct {
-	Target uuid.UUID `json:"target"`
-	By     uuid.UUID `json:"by"`
-	At     sigs.Time `json:"at"`
 }
 
 // runDelete is the account.delete job (§10.2): tombstone every post, revoke
@@ -121,7 +112,7 @@ func (s *Service) runDelete(ctx context.Context, user core.UserID) error {
 			}
 			revoked = append(revoked, f.To)
 		}
-		ids, err := s.tombstonePosts(ctx, tx, user, m.ExtID, now)
+		ids, err := s.d.PostAdmin.DeleteAllBy(ctx, tx, user)
 		if err != nil {
 			return err
 		}
@@ -169,43 +160,4 @@ func (s *Service) runDelete(ctx context.Context, user core.UserID) error {
 	s.d.Bus.Publish(core.AccountDeleted{ID: user})
 	s.d.Bus.Publish(core.UserChanged{ID: user})
 	return nil
-}
-
-// tombstonePosts signs a Tombstone for every live post of author and
-// hard-deletes its body and salt (§10.2, security #25).
-//
-// Local adapter: the posts table belongs to gate/posts (P0-W05), which has no
-// core interface for an author-wide delete yet. docs/contract-requests/
-// p0-w11-2.md asks for core.PostAdmin.DeleteAllBy; once it lands this becomes a
-// single call and the SQL below moves to gate/posts.
-func (s *Service) tombstonePosts(ctx context.Context, tx store.Q, author core.UserID, ext uuid.UUID, now time.Time) ([]core.PostID, error) {
-	rows, err := tx.Query(ctx, "SELECT id FROM posts WHERE author_id = $1 AND deleted_at IS NULL ORDER BY created_at, id",
-		int64(author))
-	if err != nil {
-		return nil, err
-	}
-	var ids []core.PostID
-	for rows.Next() {
-		var id uuid.UUID
-		if err := rows.Scan(&id); err != nil {
-			rows.Close()
-			return nil, err
-		}
-		ids = append(ids, id)
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	for _, id := range ids {
-		if _, err := s.d.Signer.Sign(ctx, tx, core.RecTombstone, author,
-			tombstoneBody{Target: id, By: ext, At: sigs.T(now)}, []core.UserID{author}); err != nil {
-			return nil, err
-		}
-		if _, err := tx.Exec(ctx, `UPDATE posts SET body = NULL, body_salt = NULL, deleted_at = $2
-			WHERE id = $1 AND deleted_at IS NULL`, id, now); err != nil {
-			return nil, err
-		}
-	}
-	return ids, nil
 }

@@ -80,6 +80,13 @@ type Users interface {
 	HandleAvailable(ctx context.Context, canon string) bool            // join flow only (D21)
 }
 
+// DisplayNames validates display names (impl: gate/users): NFC, ≤ 50 code points,
+// graphic code points and plain spaces only, none of the integrity glyphs.
+// Steward: contract request p0-w11-1.
+type DisplayNames interface {
+	CleanDisplayName(name string) (clean string, ok bool)
+}
+
 // ---- graph (impl: gate/graph) ----
 
 // Edge is one adjacency entry.
@@ -182,6 +189,15 @@ type PostIndex interface {
 	Delete(id PostID)
 	PutLink(l LinkMeta)
 	UpdateLink(l LinkMeta)
+}
+
+// PostAdmin deletes posts on behalf of the system (impl: gate/posts).
+// Steward: contract request p0-w11-2.
+type PostAdmin interface {
+	// DeleteAllBy tombstones every live post of author in tx exactly like
+	// posts.Delete (Tombstone record; body and salt NULL) and returns their IDs;
+	// the caller runs PostIndex.Delete and publishes PostDeleted after commit.
+	DeleteAllBy(ctx context.Context, tx store.Q, author UserID) ([]PostID, error)
 }
 
 // ---- visibility (impl: gate/visibility) ----
@@ -340,6 +356,14 @@ type Signer interface {
 	Delete(ctx context.Context, tx store.Q, hash []byte) error                      // Block record on unblock
 }
 
+// RecordExporter produces the signed part of an export (impl: gate/records):
+// records.jsonl (the exact stored envelopes of every record user is a party to,
+// never Report records of others) and keys.json ({"server": [KeyView]}).
+// Steward: contract request p0-w11-1.
+type RecordExporter interface {
+	ExportRecords(ctx context.Context, q store.Q, user UserID) (recordsJSONL, keysJSON []byte, err error)
+}
+
 // ---- passkeys / sessions (impl: gate/auth) ----
 
 // Credential is a verified WebAuthn credential.
@@ -373,6 +397,13 @@ type Passkeys interface {
 	VerifyAssertion(ctx context.Context, v Viewer, purpose string, body []byte) (Assertion, error)
 	IssueEnrollment(ctx context.Context, tx store.Q, user UserID, purpose uint8, usableFrom time.Time) (token string, err error)
 	RevokeAll(ctx context.Context, tx store.Q, user UserID) error
+}
+
+// Enrollments cancels issued enrollment tokens (impl: gate/auth).
+// Steward: contract request p0-w11-2.
+type Enrollments interface {
+	// CancelEnrollment voids the unused token whose sha256 is tokenHash.
+	CancelEnrollment(ctx context.Context, tx store.Q, tokenHash []byte) error
 }
 
 // ---- invites (impl: gate/invites) ----

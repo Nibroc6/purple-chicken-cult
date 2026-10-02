@@ -332,7 +332,7 @@ func (s *Service) RecoveryCancel(ctx context.Context) error {
 	}
 	now := s.d.Clock.Now()
 	return s.d.DB.Tx(ctx, func(tx pgx.Tx) error {
-		_, err := cancelRecoveries(ctx, tx, v.ID, now)
+		_, err := s.cancelRecoveries(ctx, tx, v.ID, now)
 		return err
 	})
 }
@@ -341,7 +341,7 @@ func (s *Service) RecoveryCancel(ctx context.Context) error {
 // released within the link window) and voids any enrollment token already
 // issued for them. Used by RecoveryCancel and Delete. It reports whether
 // anything was cancelled.
-func cancelRecoveries(ctx context.Context, tx store.Q, user core.UserID, now time.Time) (bool, error) {
+func (s *Service) cancelRecoveries(ctx context.Context, tx store.Q, user core.UserID, now time.Time) (bool, error) {
 	rows, err := tx.Query(ctx, `UPDATE recovery_requests SET state = $2
 		WHERE user_id = $1 AND (state IN (0, 1) OR (state = 2 AND release_at > $3))
 		RETURNING enrollment_token`, int64(user), stateCancelled, now.Add(-LinkFor))
@@ -366,22 +366,11 @@ func cancelRecoveries(ctx context.Context, tx store.Q, user core.UserID, now tim
 		return false, err
 	}
 	for _, h := range tokens {
-		if err := cancelEnrollment(ctx, tx, h, now); err != nil {
+		if err := s.d.Enrollments.CancelEnrollment(ctx, tx, h); err != nil {
 			return false, err
 		}
 	}
 	return cancelled, nil
-}
-
-// cancelEnrollment voids an issued recovery enrollment token.
-//
-// Local adapter: enrollment_tokens belongs to gate/auth (P0-W01), whose
-// EnrollBegin/EnrollFinish refuse a token with cancelled_at set (plan §3.2).
-// docs/contract-requests/p0-w11-2.md asks for core.Passkeys.CancelEnrollment.
-func cancelEnrollment(ctx context.Context, tx store.Q, tokenHash []byte, now time.Time) error {
-	_, err := tx.Exec(ctx, `UPDATE enrollment_tokens SET cancelled_at = $2
-		WHERE token_hash = $1 AND used_at IS NULL AND cancelled_at IS NULL`, tokenHash, now)
-	return err
 }
 
 // RecoveryPending returns the release time of a pending recovery of the

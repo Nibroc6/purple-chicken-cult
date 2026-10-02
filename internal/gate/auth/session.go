@@ -316,6 +316,17 @@ func (s *Service) IssueEnrollment(ctx context.Context, tx store.Q, user core.Use
 	return tok, nil
 }
 
+var _ core.Enrollments = (*Service)(nil)
+
+// CancelEnrollment voids the unused, not yet cancelled enrollment token whose
+// sha256 is tokenHash (core.Enrollments; steward, contract request p0-w11-2).
+// EnrollBegin/EnrollFinish refuse a token with cancelled_at set (plan §3.2).
+func (s *Service) CancelEnrollment(ctx context.Context, tx store.Q, tokenHash []byte) error {
+	_, err := tx.Exec(ctx, `UPDATE enrollment_tokens SET cancelled_at = $2
+		WHERE token_hash = $1 AND used_at IS NULL AND cancelled_at IS NULL`, tokenHash, s.d.Clock.Now())
+	return err
+}
+
 // GenesisBootstrapLimit: SeedGenesis is refused once this many non-genesis users exist.
 const GenesisBootstrapLimit = 50
 

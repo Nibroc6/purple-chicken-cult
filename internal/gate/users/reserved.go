@@ -60,5 +60,5 @@ func CleanDisplayName(s string) (string, bool) {
 }
 
 // CleanDisplayName exposes the display-name rule on the directory (account
-// settings reach it through core.DisplayNames; see docs/contract-requests/p0-w11-1.md).
+// settings reach it through core.DisplayNames).
 func (s *Service) CleanDisplayName(name string) (string, bool) { return CleanDisplayName(name) }

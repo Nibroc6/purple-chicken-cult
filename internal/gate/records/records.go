@@ -56,7 +56,10 @@ type Service struct {
 	key *sigs.Key
 }
 
-var _ core.Signer = (*Service)(nil)
+var (
+	_ core.Signer         = (*Service)(nil)
+	_ core.RecordExporter = (*Service)(nil)
+)
 
 // New returns the service.
 func New(d *core.Deps) *Service { return &Service{d: d} }

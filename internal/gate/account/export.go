@@ -66,9 +66,9 @@ type credentialLine struct {
 }
 
 func (s *Service) writeExport(ctx context.Context, user core.UserID, w io.Writer) error {
-	ex, ok := s.d.Signer.(recordExporter)
-	if !ok {
-		return errNoAdapter
+	ex := s.d.RecordExporter
+	if ex == nil {
+		return errNoDep
 	}
 	tx, err := s.d.DB.Pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead})
 	if err != nil {

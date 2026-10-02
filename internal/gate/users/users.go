@@ -32,7 +32,10 @@ type Service struct {
 	inviter map[core.UserID]core.UserID
 }
 
-var _ core.Users = (*Service)(nil)
+var (
+	_ core.Users        = (*Service)(nil)
+	_ core.DisplayNames = (*Service)(nil)
+)
 
 // New returns the service.
 func New(d *core.Deps) *Service {

@@ -59,4 +59,10 @@ type Deps struct {
 	Media      Media
 	ModQueue   ModQueue
 	StepUp     StepUp
+
+	// Steward additions (contract requests p0-w11-1, p0-w11-2).
+	DisplayNames   DisplayNames
+	RecordExporter RecordExporter
+	PostAdmin      PostAdmin
+	Enrollments    Enrollments
 }

@@ -208,6 +208,10 @@ func Build(ctx context.Context, cfg *config.Config, db *store.DB, log *slog.Logg
 	d.Media = a.Media
 	d.ModQueue = a.Moderation
 	d.StepUp = a.Auth
+	d.DisplayNames = a.Users
+	d.RecordExporter = a.Records
+	d.PostAdmin = a.Posts
+	d.Enrollments = a.Auth
 
 	inits := []struct {
 		name string
