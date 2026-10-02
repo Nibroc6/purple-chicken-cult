@@ -423,9 +423,16 @@ func TestManualRecovery(t *testing.T) {
 	} else {
 		wantProblem(t, err, "recovery_held")
 	}
+	if _, err := e.a.Auth.IssueSession(e.ctx, nil, core.SessUser, alice, e.now()); err != nil {
+		t.Fatal(err)
+	}
 	e.advance(time.Minute)
 	if err := e.a.DrainJobs(e.ctx); err != nil {
 		t.Fatal(err)
+	}
+	// Release ends every session of the account.
+	if n := e.count("SELECT count(*) FROM sessions WHERE user_id = $1", int64(alice)); n != 0 {
+		t.Fatalf("%d sessions survive the release", n)
 	}
 	if _, err := e.a.Account.RecoveryLink(e.fresh(mod1), id); !errors.Is(err, gate.ErrNotFound) {
 		t.Fatalf("moderator 1 link: %v", err)

@@ -105,6 +105,7 @@ type recoveryRow struct {
 	createdAt     time.Time
 	releaseAt     *time.Time
 	tokenIssued   bool
+	revokeOld     bool
 	first, second core.UserID
 	firstAuth     *time.Time
 	approvals     int
@@ -113,9 +114,9 @@ type recoveryRow struct {
 func loadRecovery(ctx context.Context, tx store.Q, id uuid.UUID) (recoveryRow, error) {
 	r := recoveryRow{id: id}
 	var user int64
-	err := tx.QueryRow(ctx, `SELECT user_id, state, created_at, release_at, enrollment_token IS NOT NULL
+	err := tx.QueryRow(ctx, `SELECT user_id, state, created_at, release_at, enrollment_token IS NOT NULL, revoke_old
 		FROM recovery_requests WHERE id = $1 AND kind = $2 FOR UPDATE`, id, kindManual).
-		Scan(&user, &r.state, &r.createdAt, &r.releaseAt, &r.tokenIssued)
+		Scan(&user, &r.state, &r.createdAt, &r.releaseAt, &r.tokenIssued, &r.revokeOld)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return r, gate.ErrNotFound
 	}
@@ -255,6 +256,12 @@ func (s *Service) RecoveryLink(ctx context.Context, id gate.Ref) (string, error)
 		case r.releaseAt == nil || now.Before(*r.releaseAt):
 			return gate.NewProblem(gate.StatusConflict, "recovery_held")
 		}
+		if r.state == stateHolding && r.revokeOld {
+			// Released now (the job had not run yet): every session ends.
+			if err := s.d.Passkeys.RevokeAll(ctx, tx, r.user); err != nil {
+				return err
+			}
+		}
 		tok, err := s.d.Passkeys.IssueEnrollment(ctx, tx, r.user, purposeRecovery, now)
 		if err != nil {
 			return err
@@ -356,11 +363,42 @@ func (s *Service) RecoveryPending(ctx context.Context) (*time.Time, error) {
 
 // releaseDue is the recovery.release job: holding requests whose hold has
 // elapsed become released (the second moderator may fetch the link) and open
-// requests never approved expire. It returns how many rows changed.
+// requests never approved expire. On release every session of the account
+// ends (revoke_old, security #14). It returns how many rows changed.
 func (s *Service) releaseDue(ctx context.Context) (int, error) {
 	now := s.d.Clock.Now()
-	a, err := s.d.DB.Q().Exec(ctx, "UPDATE recovery_requests SET state = $2 WHERE state = $3 AND release_at <= $1",
-		now, stateReleased, stateHolding)
+	released := 0
+	err := s.d.DB.Tx(ctx, func(tx pgx.Tx) error {
+		released = 0
+		rows, err := tx.Query(ctx, `UPDATE recovery_requests SET state = $2 WHERE state = $3 AND release_at <= $1
+			RETURNING user_id, revoke_old`, now, stateReleased, stateHolding)
+		if err != nil {
+			return err
+		}
+		var revoke []core.UserID
+		for rows.Next() {
+			var u int64
+			var old bool
+			if err := rows.Scan(&u, &old); err != nil {
+				rows.Close()
+				return err
+			}
+			released++
+			if old {
+				revoke = append(revoke, core.UserID(u))
+			}
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return err
+		}
+		for _, u := range revoke {
+			if err := s.d.Passkeys.RevokeAll(ctx, tx, u); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 	if err != nil {
 		return 0, err
 	}
@@ -369,5 +407,5 @@ func (s *Service) releaseDue(ctx context.Context) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	return int(a.RowsAffected() + b.RowsAffected()), nil
+	return released + int(b.RowsAffected()), nil
 }
