@@ -7,7 +7,7 @@ import { useMe } from '../../app/session';
 import { applyA11y } from '../../lib/a11y';
 import { formatDateTime } from '../../lib/time';
 import { cancelRecovery, fetchRecoveryPending } from './api';
-import { ErrorText } from './shared';
+import { ErrorText, useAccountMe } from './shared';
 import { toA11y, toUIPrefs } from './vm';
 
 export const recoveryKey = ['me', 'recovery'] as const;
@@ -58,8 +58,8 @@ export function RecoveryBanner() {
 // PrefsApplier applies the signed-in user's accessibility switches to <html>
 // on every page (§15.1: accessibility is not a format).
 export function PrefsApplier() {
-  const me = useMe();
-  const raw = me?.settings.ui_prefs;
+  const me = useAccountMe();
+  const raw = me.data?.settings.ui_prefs;
   useEffect(() => {
     if (raw !== undefined) applyA11y(toA11y(toUIPrefs(raw)));
   }, [raw]);

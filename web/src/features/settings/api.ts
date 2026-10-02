@@ -33,3 +33,11 @@ export async function cancelRecovery(): Promise<void> {
   const res = await api.POST('/me/recovery/cancel');
   if (!res.response.ok) throw new ApiError(res.response.status, res.error);
 }
+
+export type MeView = components['schemas']['MeView'];
+
+// fetchMe reads GET /api/me: the signed-in user with every setting (the session
+// view carries only a summary).
+export async function fetchMe(): Promise<MeView> {
+  return unwrap(await api.GET('/me'));
+}

@@ -1,13 +1,21 @@
 // Shared pieces of the settings pages. Owner: P0-W11 → P1-W10.
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { Loading } from '../../app/Loading';
-import { sessionKey, useMe, useSession, type MeView } from '../../app/session';
-import { patchSettings, type SettingsPatch } from './api';
+import { sessionKey, useSession } from '../../app/session';
+import { fetchMe, patchSettings, type MeView, type SettingsPatch } from './api';
 import { accountErrorKey, errorParams } from './vm';
 import './settings.css';
+
+export const accountMeKey = ['account', 'me'] as const;
+
+// useAccountMe is GET /api/me for a signed-in session (idle otherwise).
+export function useAccountMe() {
+  const session = useSession();
+  return useQuery({ queryKey: accountMeKey, queryFn: fetchMe, enabled: session.data?.authenticated === true });
+}
 
 // ErrorText renders an API error from the account, errors or common catalogs.
 export function ErrorText({ err }: { err: unknown }) {
@@ -21,28 +29,34 @@ export function ErrorText({ err }: { err: unknown }) {
 }
 
 // SettingsShell is the frame of one settings page: title, back link and, once
-// the session is known, the page body for the signed-in user.
+// the account is loaded, the page body for the signed-in user.
 export function SettingsShell({ title, children }: { title: string; children: (me: MeView) => ReactNode }) {
   const { t } = useTranslation('settings');
   const session = useSession();
-  const me = useMe();
+  const me = useAccountMe();
+  const loading = session.isPending || (session.data?.authenticated === true && me.isPending);
   return (
     <section className="page settings-page">
       <h1>{title}</h1>
       <p>
         <Link to="/settings">{t('index.title')}</Link>
       </p>
-      {me ? children(me) : session.isPending ? <Loading /> : null}
+      {me.data ? children(me.data) : loading ? <Loading /> : <ErrorText err={me.error} />}
     </section>
   );
 }
 
-// useSaveSettings PATCHes /me/settings and refreshes the session's MeView.
+// useSaveSettings PATCHes /me/settings and refreshes both views of the user.
 export function useSaveSettings() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (p: SettingsPatch) => patchSettings(p),
-    onSuccess: () => qc.invalidateQueries({ queryKey: sessionKey }),
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: accountMeKey }),
+        qc.invalidateQueries({ queryKey: sessionKey }),
+      ]);
+    },
   });
 }
 

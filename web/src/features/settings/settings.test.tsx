@@ -71,6 +71,7 @@ function stubAPI(handler: Handler, meOver: Partial<typeof me> = {}): Call[] {
       const c: Call = { method: req.method, path, body: text ? (JSON.parse(text) as unknown) : undefined };
       calls.push(c);
       if (path === '/session') return json(200, { authenticated: true, kind: 'user', csrf: 'x', me: { ...me, ...meOver } });
+      if (path === '/me' && req.method === 'GET') return json(200, { ...me, ...meOver });
       return handler(c) ?? json(404, { error: 'not_found' });
     }),
   );
