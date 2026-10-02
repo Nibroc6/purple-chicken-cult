@@ -124,8 +124,8 @@ func TestUpdateSettingsValidation(t *testing.T) {
 		{"a11y type", gate.SettingsPatch{UIPrefs: raw(`{"a11y":{"reduced_motion":"yes"}}`)}, "ui_prefs_invalid"},
 		{"prefs not an object", gate.SettingsPatch{UIPrefs: raw(`["cards"]`)}, "ui_prefs_invalid"},
 		{"reserved glyph", gate.SettingsPatch{DisplayName: ptr("Alice ✓")}, "display_name_invalid"},
-		{"bidi override", gate.SettingsPatch{DisplayName: ptr("Alice‮ecila")}, "display_name_invalid"},
-		{"zero width", gate.SettingsPatch{DisplayName: ptr("Al​ice")}, "display_name_invalid"},
+		{"bidi override", gate.SettingsPatch{DisplayName: ptr("Alice" + string(rune(0x202e)) + "ecila")}, "display_name_invalid"},
+		{"zero width", gate.SettingsPatch{DisplayName: ptr("Al" + string(rune(0x200b)) + "ice")}, "display_name_invalid"},
 		{"newline", gate.SettingsPatch{DisplayName: ptr("Al\nice")}, "display_name_invalid"},
 		{"too long", gate.SettingsPatch{DisplayName: ptr(strings.Repeat("é", 51))}, "display_name_invalid"},
 	}

@@ -93,7 +93,8 @@ func loadSettings(ctx context.Context, q store.Q, id core.UserID, forUpdate bool
 	sql := `SELECT handle, display_name, status, ui_locale, languages, translate_to, autotranslate, rank_preset,
 		name_in_chains, suggestible, named_in_likes, slippery_default, ui_prefs FROM users WHERE id = $1`
 	if forUpdate {
-		sql += " FOR UPDATE"
+		sql = `SELECT handle, display_name, status, ui_locale, languages, translate_to, autotranslate, rank_preset,
+		name_in_chains, suggestible, named_in_likes, slippery_default, ui_prefs FROM users WHERE id = $1 FOR UPDATE`
 	}
 	var r settingsRow
 	err := q.QueryRow(ctx, sql, int64(id)).Scan(&r.handle, &r.displayName, &r.status, &r.locale, &r.languages,

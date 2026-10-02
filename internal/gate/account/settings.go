@@ -43,16 +43,12 @@ type A11yPrefs struct {
 	DyslexiaFont  *bool   `json:"dyslexia_font,omitempty"`
 }
 
-func problem(code, field string) error {
-	return gate.NewProblem(gate.StatusUnprocessable, code, field)
-}
-
 func oneOf(p *string, set []string) bool { return p == nil || slices.Contains(set, *p) }
 
 // ValidateUIPrefs checks raw against the ui_prefs schema and returns its
 // normalized JSON. Problem ui_prefs_invalid.
 func ValidateUIPrefs(raw []byte) ([]byte, error) {
-	bad := problem("ui_prefs_invalid", "ui_prefs")
+	bad := gate.NewProblem(gate.StatusUnprocessable, "ui_prefs_invalid", "ui_prefs")
 	if len(raw) > MaxUIPrefs {
 		return nil, bad
 	}
@@ -137,27 +133,27 @@ func (s *Service) apply(r *settingsRow, p gate.SettingsPatch) error {
 		}
 		name, valid := dn.CleanDisplayName(*p.DisplayName)
 		if !valid {
-			return problem("display_name_invalid", "display_name")
+			return gate.NewProblem(gate.StatusUnprocessable, "display_name_invalid", "display_name")
 		}
 		r.displayName = name
 	}
 	if p.UILocale != nil {
 		tag, ok := ParseTag(*p.UILocale)
 		if !ok {
-			return problem("locale_invalid", "ui_locale")
+			return gate.NewProblem(gate.StatusUnprocessable, "locale_invalid", "ui_locale")
 		}
 		r.locale = tag
 	}
 	if p.Languages != nil {
 		in := *p.Languages
 		if len(in) == 0 || len(in) > MaxLanguages {
-			return problem("lang_invalid", "languages")
+			return gate.NewProblem(gate.StatusUnprocessable, "lang_invalid", "languages")
 		}
 		langs := make([]string, 0, len(in))
 		for _, l := range in {
 			tag, ok := ParseTag(l)
 			if !ok {
-				return problem("lang_invalid", "languages")
+				return gate.NewProblem(gate.StatusUnprocessable, "lang_invalid", "languages")
 			}
 			if !slices.Contains(langs, tag) {
 				langs = append(langs, tag)
@@ -174,7 +170,7 @@ func (s *Service) apply(r *settingsRow, p gate.SettingsPatch) error {
 		} else {
 			tag, ok := ParseTag(*p.TranslateTo)
 			if !ok || !slices.Contains(r.languages, tag) {
-				return problem("translate_to_not_in_languages", "translate_to")
+				return gate.NewProblem(gate.StatusUnprocessable, "translate_to_not_in_languages", "translate_to")
 			}
 			r.translateTo = &tag
 		}
@@ -185,7 +181,7 @@ func (s *Service) apply(r *settingsRow, p gate.SettingsPatch) error {
 	if p.RankPreset != nil {
 		pr, ok := core.ParsePreset(*p.RankPreset)
 		if !ok || pr == core.PresetTop { // top is Phase 1
-			return problem("preset_unavailable", "rank_preset")
+			return gate.NewProblem(gate.StatusUnprocessable, "preset_unavailable", "rank_preset")
 		}
 		r.preset = int16(pr)
 	}

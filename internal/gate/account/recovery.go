@@ -55,8 +55,6 @@ func (s *Service) freshModerator(ctx context.Context) (core.Viewer, error) {
 	return core.RequireFresh(ctx, s.d.Clock.Now())
 }
 
-func recoveryProblem(code string) error { return gate.NewProblem(gate.StatusConflict, code) }
-
 // RecoveryRequest opens a manual recovery for subject (a moderator-scoped user
 // ref minted for this moderator); it needs a fresh step-up. It returns the
 // request ID, a ref every moderator can open. Problems recovery_self,
@@ -78,7 +76,7 @@ func (s *Service) RecoveryRequest(ctx context.Context, subject gate.Ref) (gate.R
 		return "", gate.ErrNotFound
 	}
 	if target == v.ID {
-		return "", recoveryProblem("recovery_self")
+		return "", gate.NewProblem(gate.StatusConflict, "recovery_self")
 	}
 	id := s.d.IDs.New()
 	now := s.d.Clock.Now()
@@ -86,7 +84,7 @@ func (s *Service) RecoveryRequest(ctx context.Context, subject gate.Ref) (gate.R
 		if _, err := tx.Exec(ctx, `INSERT INTO recovery_requests (id, user_id, kind, state, created_at)
 			VALUES ($1, $2, $3, $4, $5)`, id, int64(target), kindManual, stateOpen, now); err != nil {
 			if store.IsUniqueViolation(err) {
-				return recoveryProblem("recovery_exists")
+				return gate.NewProblem(gate.StatusConflict, "recovery_exists")
 			}
 			return err
 		}
@@ -173,7 +171,7 @@ func (s *Service) RecoveryApprove(ctx context.Context, id gate.Ref) error {
 			return err
 		}
 		if r.state != stateOpen {
-			return recoveryProblem("recovery_not_open")
+			return gate.NewProblem(gate.StatusConflict, "recovery_not_open")
 		}
 		if now.Sub(r.createdAt) > OpenFor {
 			expired = true
@@ -181,10 +179,10 @@ func (s *Service) RecoveryApprove(ctx context.Context, id gate.Ref) error {
 			return err
 		}
 		if r.first == v.ID {
-			return recoveryProblem("second_moderator_required")
+			return gate.NewProblem(gate.StatusConflict, "second_moderator_required")
 		}
 		if r.user == v.ID {
-			return recoveryProblem("recovery_self")
+			return gate.NewProblem(gate.StatusConflict, "recovery_self")
 		}
 		subject = r.user
 		if _, err := tx.Exec(ctx, `INSERT INTO recovery_approvals (request_id, approver_id, role, at, auth_at)
@@ -218,7 +216,7 @@ func (s *Service) RecoveryApprove(ctx context.Context, id gate.Ref) error {
 		return err
 	}
 	if expired {
-		return recoveryProblem("recovery_expired")
+		return gate.NewProblem(gate.StatusConflict, "recovery_expired")
 	}
 	s.d.Notify.Live(subject, "recovery", map[string]any{"state": "holding"})
 	return nil
@@ -245,7 +243,7 @@ func (s *Service) RecoveryLink(ctx context.Context, id gate.Ref) (string, error)
 		}
 		if r.approvals < 2 || r.second != v.ID {
 			if r.first == v.ID && r.state == stateOpen {
-				return recoveryProblem("recovery_held")
+				return gate.NewProblem(gate.StatusConflict, "recovery_held")
 			}
 			return gate.ErrNotFound
 		}
@@ -253,9 +251,9 @@ func (s *Service) RecoveryLink(ctx context.Context, id gate.Ref) (string, error)
 		case r.state == stateCancelled || r.state == stateExpired:
 			return gate.ErrNotFound
 		case r.tokenIssued:
-			return recoveryProblem("recovery_link_issued")
+			return gate.NewProblem(gate.StatusConflict, "recovery_link_issued")
 		case r.releaseAt == nil || now.Before(*r.releaseAt):
-			return recoveryProblem("recovery_held")
+			return gate.NewProblem(gate.StatusConflict, "recovery_held")
 		}
 		tok, err := s.d.Passkeys.IssueEnrollment(ctx, tx, r.user, purposeRecovery, now)
 		if err != nil {
