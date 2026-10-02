@@ -201,6 +201,14 @@ func (s *Service) q(tx store.Q) store.Q {
 
 // ---- handler / CLI API ----
 
+// PublishedKeys is Keys for a signed-in user (GET /api/keys).
+func (s *Service) PublishedKeys(ctx context.Context) ([]gate.KeyView, error) {
+	if _, err := core.RequireUser(ctx); err != nil {
+		return nil, err
+	}
+	return s.Keys(ctx)
+}
+
 // Keys returns every published server key (current and retired) with its
 // validity window and fingerprint, oldest first.
 func (s *Service) Keys(ctx context.Context) ([]gate.KeyView, error) {

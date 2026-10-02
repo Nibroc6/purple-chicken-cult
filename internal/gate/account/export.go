@@ -70,7 +70,7 @@ func (s *Service) writeExport(ctx context.Context, user core.UserID, w io.Writer
 	if !ok {
 		return errNoAdapter
 	}
-	tx, err := s.d.DB.Pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+	tx, err := s.d.DB.Pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead})
 	if err != nil {
 		return err
 	}

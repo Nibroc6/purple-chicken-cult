@@ -1,8 +1,216 @@
-# OpenAPI fragment of the account module (plan §5.3). Owner: P0-W11.
+# OpenAPI fragment of the account module (plan §5.3). Owner: P0-W11 → P1-W10.
 # Paths are relative to /api. Schemas: module-prefixed names in this file, or
 # $ref: '_common.yaml#/components/schemas/X'. Validated on its own by apitest.
 openapi: 3.0.3
 info:
   title: pcc internal API (account)
   version: "0"
-paths: {}
+paths:
+  /me:
+    get:
+      operationId: getMe
+      responses:
+        "200":
+          description: The signed-in user.
+          content:
+            application/json:
+              schema: { $ref: '_common.yaml#/components/schemas/MeView' }
+        "401": { $ref: '#/components/responses/AccountStepUp' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+  /me/settings:
+    patch:
+      operationId: updateSettings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '_common.yaml#/components/schemas/SettingsPatch' }
+      responses:
+        "200":
+          description: The settings after the patch.
+          content:
+            application/json:
+              schema: { $ref: '_common.yaml#/components/schemas/SettingsView' }
+        "400": { $ref: '_common.yaml#/components/responses/Problem' }
+        "401": { $ref: '#/components/responses/AccountStepUp' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "422":
+          description: >-
+            display_name_invalid, locale_invalid, lang_invalid, translate_to_not_in_languages,
+            preset_unavailable or ui_prefs_invalid.
+          content:
+            application/json:
+              schema: { $ref: '_common.yaml#/components/schemas/Error' }
+        "429": { $ref: '#/components/responses/AccountRateLimited' }
+  /me/export:
+    post:
+      operationId: exportAccount
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: false }
+      responses:
+        "200":
+          description: >-
+            The export zip (records.jsonl, keys.json, posts.jsonl, credentials.jsonl,
+            manifest.json). Needs a fresh step-up.
+          headers:
+            Content-Disposition:
+              schema: { type: string }
+          content:
+            application/zip:
+              schema: { type: string, format: binary }
+        "400": { $ref: '_common.yaml#/components/responses/Problem' }
+        "401": { $ref: '#/components/responses/AccountStepUp' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/AccountRateLimited' }
+  /me/delete:
+    post:
+      operationId: deleteAccount
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [confirm_handle]
+              properties:
+                confirm_handle: { type: string, maxLength: 64 }
+      responses:
+        "202": { description: Deletion accepted; every session is revoked. }
+        "400": { $ref: '_common.yaml#/components/responses/Problem' }
+        "401": { $ref: '#/components/responses/AccountStepUp' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "422":
+          description: confirm_mismatch.
+          content:
+            application/json:
+              schema: { $ref: '_common.yaml#/components/schemas/Error' }
+        "429": { $ref: '#/components/responses/AccountRateLimited' }
+  /me/recovery:
+    get:
+      operationId: getRecoveryPending
+      responses:
+        "200":
+          description: A pending manual recovery of the caller's own account (banner).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AccountRecoveryPending' }
+        "401": { $ref: '#/components/responses/AccountStepUp' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+  /me/recovery/cancel:
+    post:
+      operationId: cancelRecovery
+      responses:
+        "204": { description: Any pending recovery of the caller's account is cancelled. }
+        "401": { $ref: '#/components/responses/AccountStepUp' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/AccountRateLimited' }
+  /keys:
+    get:
+      operationId: getKeys
+      responses:
+        "200":
+          description: The server's public signing keys with validity windows and fingerprints.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AccountKeys' }
+        "401": { $ref: '#/components/responses/AccountStepUp' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/AccountRateLimited' }
+  /mod/recovery:
+    post:
+      operationId: modRecoveryRequest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [subject]
+              properties:
+                subject: { $ref: '_common.yaml#/components/schemas/Ref' }
+      responses:
+        "201":
+          description: The recovery request; its ID opens for every moderator.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id]
+                properties:
+                  id: { $ref: '_common.yaml#/components/schemas/Ref' }
+        "400": { $ref: '_common.yaml#/components/responses/Problem' }
+        "401": { $ref: '#/components/responses/AccountStepUp' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409":
+          description: recovery_self or recovery_exists.
+          content:
+            application/json:
+              schema: { $ref: '_common.yaml#/components/schemas/Error' }
+        "429": { $ref: '#/components/responses/AccountRateLimited' }
+  /mod/recovery/{id}/approve:
+    post:
+      operationId: modRecoveryApprove
+      parameters:
+        - { name: id, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
+      responses:
+        "204": { description: Approved by a second moderator; the 24 h hold starts. }
+        "401": { $ref: '#/components/responses/AccountStepUp' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409":
+          description: second_moderator_required, recovery_self, recovery_not_open or recovery_expired.
+          content:
+            application/json:
+              schema: { $ref: '_common.yaml#/components/schemas/Error' }
+        "429": { $ref: '#/components/responses/AccountRateLimited' }
+  /mod/recovery/{id}/link:
+    get:
+      operationId: modRecoveryLink
+      parameters:
+        - { name: id, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
+      responses:
+        "200":
+          description: The one-time enrollment link (second moderator, after the hold).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [enroll_url]
+                properties:
+                  enroll_url: { type: string }
+        "401": { $ref: '#/components/responses/AccountStepUp' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409":
+          description: recovery_held or recovery_link_issued.
+          content:
+            application/json:
+              schema: { $ref: '_common.yaml#/components/schemas/Error' }
+        "429": { $ref: '#/components/responses/AccountRateLimited' }
+components:
+  schemas:
+    AccountKeys:
+      type: object
+      required: [server]
+      properties:
+        server:
+          type: array
+          items: { $ref: '_common.yaml#/components/schemas/KeyView' }
+    AccountRecoveryPending:
+      type: object
+      properties:
+        pending_until: { type: string, format: date-time }
+  responses:
+    AccountStepUp:
+      description: step_up_required (a fresh passkey verification is needed).
+      content:
+        application/json:
+          schema: { $ref: '_common.yaml#/components/schemas/Error' }
+    AccountRateLimited:
+      description: rate_limited.
+      content:
+        application/json:
+          schema: { $ref: '_common.yaml#/components/schemas/Error' }
