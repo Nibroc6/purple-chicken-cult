@@ -1,0 +1,91 @@
+/* Settings and account pages (P0-W11). Logical properties only. */
+.settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.settings-form fieldset {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-3) var(--space-4);
+  margin: 0;
+}
+
+.settings-form label {
+  display: block;
+}
+
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.settings-choice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.settings-actions p {
+  margin: 0;
+}
+
+.settings-error {
+  color: var(--color-text);
+  border-inline-start: 4px solid var(--color-accent);
+  padding-inline-start: var(--space-2);
+}
+
+.settings-langs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.settings-langs li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.settings-danger {
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius);
+  padding: var(--space-4);
+}
+
+.recovery-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  max-inline-size: var(--content-width);
+  margin-inline: auto;
+  margin-block: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 2px solid var(--color-accent);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.recovery-banner p {
+  margin: 0;
+  flex: 1 1 16rem;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  overflow-wrap: anywhere;
+}

@@ -1,5 +1,35 @@
 {
   "page": {
-    "title": "Account recovery"
+    "title": "Account recovery",
+    "intro": "Manual recovery needs two different moderators, each confirming with their passkey. After the second approval the account holder is warned and can cancel for 24 hours; then the second moderator gets a one-time enrollment link.",
+    "membersOnly": "This page is for moderators."
+  },
+  "request": {
+    "legend": "1. Open a recovery",
+    "subject": "Account reference",
+    "help": "Copy it from the moderation queue or log.",
+    "button": "Open recovery",
+    "created": "Recovery opened. Give this ID to a second moderator:"
+  },
+  "approve": {
+    "legend": "2. Approve as the second moderator",
+    "id": "Recovery ID",
+    "button": "Approve",
+    "done": "Approved. The 24-hour hold has started and the account holder has been warned."
+  },
+  "link": {
+    "legend": "3. Get the enrollment link",
+    "id": "Recovery ID",
+    "button": "Get link",
+    "result": "One-time enrollment link. Hand it over only to the verified account holder:"
+  },
+  "errors": {
+    "recovery_self": "Moderators can't recover their own account.",
+    "recovery_exists": "This account already has a recovery in progress.",
+    "second_moderator_required": "A different moderator has to approve this recovery.",
+    "recovery_not_open": "This recovery is no longer waiting for approval.",
+    "recovery_expired": "This recovery waited too long for a second moderator and has expired.",
+    "recovery_held": "The link becomes available 24 hours after the second approval.",
+    "recovery_link_issued": "The enrollment link for this recovery was already issued."
   }
 }

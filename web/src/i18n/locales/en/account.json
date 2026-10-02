@@ -1,1 +1,16 @@
-{}
+{
+  "banner": {
+    "pending": "A moderator-approved recovery of your account will unlock a new passkey on {at}. If you did not ask for this, cancel it now.",
+    "cancel": "Cancel recovery",
+    "cancelled": "The recovery was cancelled."
+  },
+  "errors": {
+    "display_name_invalid": "That display name can't be used. Remove special symbols and keep it under 50 characters.",
+    "locale_invalid": "That isn't a valid language tag.",
+    "lang_invalid": "Add between 1 and 10 valid language tags.",
+    "translate_to_not_in_languages": "You can only translate into one of your languages.",
+    "ui_prefs_invalid": "Those display options aren't available.",
+    "preset_unavailable": "That feed order isn't available yet.",
+    "confirm_mismatch": "That isn't your handle."
+  }
+}

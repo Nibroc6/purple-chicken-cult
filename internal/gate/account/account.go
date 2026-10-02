@@ -57,13 +57,13 @@ func (s *Service) Init(context.Context) error {
 
 // ---- local adapters over core (contract requests p0-w11-1 and p0-w11-2) ----
 
-// displayNames is implemented by gate/users (core.Users.CleanDisplayName once
+// displayNames is implemented by gate/users (core.DisplayNames once
 // docs/contract-requests/p0-w11-1.md lands).
 type displayNames interface {
 	CleanDisplayName(name string) (string, bool)
 }
 
-// recordExporter is implemented by gate/records (core.Signer.ExportRecords once
+// recordExporter is implemented by gate/records (core.RecordExporter once
 // docs/contract-requests/p0-w11-1.md lands).
 type recordExporter interface {
 	ExportRecords(ctx context.Context, q store.Q, user core.UserID) (recordsJSONL, keysJSON []byte, err error)
