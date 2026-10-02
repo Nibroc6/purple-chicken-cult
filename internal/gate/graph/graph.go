@@ -92,6 +92,10 @@ type Graph struct {
 	idx map[core.UserID]int32
 	ids []core.UserID
 
+	// order lists every dense index sorted by user ID (guarded by mu), so a
+	// search emits ID-sorted layers in one linear pass.
+	order []int32
+
 	epoch atomic.Uint64
 }
 
@@ -105,8 +109,39 @@ func New(d *core.Deps) *Graph {
 	}
 }
 
-// Init loads the graph.
-func (g *Graph) Init(ctx context.Context) error { return g.Load(ctx) }
+// Init subscribes to AccountDeleted and loads the graph.
+func (g *Graph) Init(ctx context.Context) error {
+	if g.d != nil && g.d.Bus != nil {
+		core.Subscribe(g.d.Bus, func(e core.AccountDeleted) { g.forget(e.ID) })
+	}
+	return g.Load(ctx)
+}
+
+// forget drops every edge, block and hide-via involving u (account deletion;
+// the table owners delete the rows themselves). It bumps the epoch.
+func (g *Graph) forget(u core.UserID) {
+	i, ok := g.lookup(u)
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if ok {
+		for _, j := range g.rows[i].to {
+			if r, had := g.rows[j].without(i); had {
+				g.rows[j] = r
+			}
+		}
+		g.rows[i] = row{}
+	}
+	delete(g.blocks, u)
+	delete(g.hideVia, u)
+	for _, m := range []map[core.UserID]*roaring.Bitmap{g.blocks, g.hideVia} {
+		for a, bm := range m {
+			if bm.Contains(uint32(u)) {
+				setRel(m, a, u, false)
+			}
+		}
+	}
+	g.epoch.Add(1)
+}
 
 // Epoch returns the global removal epoch.
 func (g *Graph) Epoch() uint64 { return g.epoch.Load() }
@@ -119,19 +154,29 @@ func (g *Graph) lookup(u core.UserID) (int32, bool) {
 	return i, ok
 }
 
-// intern returns u's dense index, assigning one (with an empty row) if needed.
-// Callers hold g.mu for writing.
+// intern returns u's dense index, assigning one (with an empty row) if needed
+// and keeping order sorted. Callers hold g.mu for writing.
 func (g *Graph) intern(u core.UserID) int32 {
+	i, added := g.internUnordered(u)
+	if added {
+		pos, _ := slices.BinarySearchFunc(g.order, u, func(j int32, u core.UserID) int { return cmpID(g.ids[j], u) })
+		g.order = slices.Insert(g.order, pos, i)
+	}
+	return i
+}
+
+// internUnordered is intern without maintaining order (bulk loads re-sort once).
+func (g *Graph) internUnordered(u core.UserID) (int32, bool) {
 	g.imu.Lock()
 	defer g.imu.Unlock()
 	if i, ok := g.idx[u]; ok {
-		return i
+		return i, false
 	}
 	i := int32(len(g.ids))
 	g.idx[u] = i
 	g.ids = append(g.ids, u)
 	g.rows = append(g.rows, row{})
-	return i
+	return i, true
 }
 
 // Friends returns u's edges sorted by (level desc, since asc, id asc).
@@ -400,9 +445,16 @@ func (g *Graph) replace(edges []loadedEdge, blocks, hide map[core.UserID]*roarin
 	defer g.mu.Unlock()
 	for _, e := range edges {
 		if valid(e) {
-			g.intern(e.a)
-			g.intern(e.b)
+			g.internUnordered(e.a)
+			g.internUnordered(e.b)
 		}
+	}
+	if len(g.order) != len(g.ids) {
+		g.order = make([]int32, len(g.ids))
+		for i := range g.order {
+			g.order[i] = int32(i)
+		}
+		slices.SortFunc(g.order, func(a, b int32) int { return cmpID(g.ids[a], g.ids[b]) })
 	}
 	g.imu.RLock()
 	accs := make([][]int, len(g.ids)) // dense → indices into edges

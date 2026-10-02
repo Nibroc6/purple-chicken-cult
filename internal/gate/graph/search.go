@@ -29,12 +29,19 @@ var queuePool = sync.Pool{New: func() any { s := make([]int32, 0, 256); return &
 // themselves. Relaxing u→w with w ∈ L_{k+1}: an unvisited w takes u's first
 // hop and parent u; an already-labelled w switches to u's first hop (and
 // parent u) when it ranks strictly better, and among parents carrying the same
-// first hop the lower user ID wins. The result is independent of adjacency
-// and queue order and equals the best first hop over all shortest paths.
+// first hop the lower user ID wins. Layer k is final before layer k+1 is
+// relaxed, so by induction the result is independent of adjacency and queue
+// order and equals the best first hop over all shortest paths.
+//
+// Labels are stored as rank positions (index into s.l1), so the hot loop
+// compares integers only.
 func (g *Graph) Search(ctx context.Context, v core.UserID, ex core.Exclusions) (core.Search, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	g.mu.RLock()
 	defer g.mu.RUnlock()
-	// Under g.mu (read) nothing can intern, so idx/ids are stable here.
+	// Under g.mu (read) nothing can intern, so idx/ids/order are stable here.
 	n := len(g.ids)
 	s := &search{
 		g: g, viewer: v, vi: -1, epoch: g.epoch.Load(), ids: g.ids[:n:n],
@@ -42,7 +49,7 @@ func (g *Graph) Search(ctx context.Context, v core.UserID, ex core.Exclusions) (
 	}
 	vi, ok := g.idx[v]
 	if !ok {
-		s.finish()
+		s.initBitmaps()
 		return s, nil
 	}
 	s.vi = vi
@@ -54,6 +61,7 @@ func (g *Graph) Search(ctx context.Context, v core.UserID, ex core.Exclusions) (
 	s.parent = make([]int32, n)
 	s.dist[vi] = 0
 	s.first[vi], s.parent[vi] = -1, -1
+	s.own = g.rows[vi]
 
 	blocked := ex.Blocked
 	if blocked != nil && blocked.IsEmpty() {
@@ -64,11 +72,6 @@ func (g *Graph) Search(ctx context.Context, v core.UserID, ex core.Exclusions) (
 		hidden = nil
 	}
 
-	// The reader's own edges define the first-hop rank.
-	own := g.rows[vi]
-	s.own = own
-	s.rank = map[int32]int{}
-
 	curp := queuePool.Get().(*[]int32)
 	nextp := queuePool.Get().(*[]int32)
 	defer func() {
@@ -78,6 +81,7 @@ func (g *Graph) Search(ctx context.Context, v core.UserID, ex core.Exclusions) (
 	}()
 	cur := append((*curp)[:0], vi)
 	next := (*nextp)[:0]
+	sizes := []int{1}
 	for k := 0; len(cur) > 0; k++ {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -91,31 +95,25 @@ func (g *Graph) Search(ctx context.Context, v core.UserID, ex core.Exclusions) (
 			if k > 0 && hidden != nil && hidden.Contains(uint32(s.ids[u])) {
 				continue // transit only: reachable, never routed through
 			}
+			fu := s.first[u]
 			for _, w := range g.rows[u].to {
-				if blocked != nil && blocked.Contains(uint32(s.ids[w])) {
-					continue
-				}
 				switch s.dist[w] {
 				case unreached:
+					if blocked != nil && blocked.Contains(uint32(s.ids[w])) {
+						continue
+					}
 					s.dist[w] = d
 					next = append(next, w)
-					if k == 0 {
-						s.first[w], s.parent[w] = w, vi
-					} else {
-						s.first[w], s.parent[w] = s.first[u], u
-					}
+					s.first[w], s.parent[w] = fu, u
 				case d:
 					if k == 0 {
 						continue
 					}
-					fu, fw := s.first[u], s.first[w]
-					switch {
-					case fu == fw:
-						if s.ids[u] < s.ids[s.parent[w]] {
-							s.parent[w] = u
-						}
-					case s.rank[fu] < s.rank[fw]:
+					switch fw := s.first[w]; {
+					case fu < fw:
 						s.first[w], s.parent[w] = fu, u
+					case fu == fw && s.ids[u] < s.ids[s.parent[w]]:
+						s.parent[w] = u
 					}
 				}
 			}
@@ -126,16 +124,21 @@ func (g *Graph) Search(ctx context.Context, v core.UserID, ex core.Exclusions) (
 		if len(next) == 0 {
 			break
 		}
-		layer := make([]core.UserID, len(next))
-		for i, w := range next {
-			layer[i] = s.ids[w]
-		}
-		slices.Sort(layer)
-		s.layers = append(s.layers, layer)
+		sizes = append(sizes, len(next))
 		cur, next = next, cur
 	}
 	*curp, *nextp = cur, next
-	s.finish()
+
+	// Layers sorted by ID in one pass over the ID-ordered dense indices.
+	for k := 1; k < len(sizes); k++ {
+		s.layers = append(s.layers, make([]core.UserID, 0, sizes[k]))
+	}
+	for _, i := range g.order[:n] {
+		if dk := s.dist[i]; dk != unreached && dk > 0 {
+			s.layers[dk] = append(s.layers[dk], s.ids[i])
+		}
+	}
+	s.initBitmaps()
 	return s, nil
 }
 
@@ -148,18 +151,19 @@ type search struct {
 	ids    []core.UserID // dense → user, as of the search
 
 	dist   []uint16
-	first  []int32
+	first  []int32 // rank position of the first hop (index into l1); -1 for the viewer
 	parent []int32
-	own    row           // the reader's own edges
-	rank   map[int32]int // layer-1 dense index → D22 rank position
+	own    row     // the reader's own edges
+	l1     []int32 // layer-1 dense indices in D22 rank order
 
-	layers  [][]core.UserID // sorted by user ID
-	bitmaps []*roaring.Bitmap
+	layers  [][]core.UserID // layer k sorted by ID; never modified after Search returns
+	bitmaps []func() *roaring.Bitmap
 }
 
 var _ core.Search = (*search)(nil)
 
-// rankLayer1 orders the reader's friends by the D22 rank.
+// rankLayer1 orders the reader's friends by the D22 rank and relabels every
+// layer-1 node with its rank position.
 func (s *search) rankLayer1(l1 []int32) {
 	type cand struct {
 		i     int32
@@ -187,20 +191,26 @@ func (s *search) rankLayer1(l1 []int32) {
 		}
 		return cmpID(a.id, b.id)
 	})
+	s.l1 = make([]int32, len(cs))
 	for pos, c := range cs {
-		s.rank[c.i] = pos
+		s.l1[pos] = c.i
+		s.first[c.i] = int32(pos)
 	}
 }
 
-func (s *search) finish() {
-	s.bitmaps = make([]*roaring.Bitmap, len(s.layers))
-	for k, l := range s.layers {
-		b := roaring.New()
-		for _, u := range l {
-			b.Add(uint32(u))
-		}
-		b.RunOptimize()
-		s.bitmaps[k] = b
+// initBitmaps prepares the lazily built, cached layer bitmaps.
+func (s *search) initBitmaps() {
+	s.bitmaps = make([]func() *roaring.Bitmap, len(s.layers))
+	for k := range s.layers {
+		l := s.layers[k]
+		s.bitmaps[k] = sync.OnceValue(func() *roaring.Bitmap {
+			b := roaring.New()
+			for _, u := range l {
+				b.Add(uint32(u))
+			}
+			b.RunOptimize()
+			return b
+		})
 	}
 }
 
@@ -237,7 +247,7 @@ func (s *search) FirstHop(u core.UserID) core.UserID {
 	if !ok || s.dist[i] <= 1 {
 		return 0
 	}
-	return s.ids[s.first[i]]
+	return s.ids[s.l1[s.first[i]]]
 }
 
 // FirstHopPlus reports whether the reader's edge to u's first hop is friend+.
@@ -246,7 +256,7 @@ func (s *search) FirstHopPlus(u core.UserID) bool {
 	if !ok || s.dist[i] == 0 {
 		return false
 	}
-	k, ok := s.own.find(s.first[i])
+	k, ok := s.own.find(s.l1[s.first[i]])
 	return ok && s.own.level[k] == core.LevelFriendPlus
 }
 
@@ -268,7 +278,7 @@ func (s *search) Path(u core.UserID) []core.UserID {
 	return p
 }
 
-// Layer is the exact set at distance k, sorted by ID.
+// Layer is the exact set at distance k, sorted by ID (a fresh copy).
 func (s *search) Layer(k int) []core.UserID {
 	if k < 0 || k >= len(s.layers) {
 		return nil
@@ -281,7 +291,7 @@ func (s *search) LayerBitmap(k int) *roaring.Bitmap {
 	if k < 0 || k >= len(s.bitmaps) {
 		return roaring.New()
 	}
-	return s.bitmaps[k].Clone()
+	return s.bitmaps[k]().Clone()
 }
 
 // MaxLayer is the deepest non-empty layer.
