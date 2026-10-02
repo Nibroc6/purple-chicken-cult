@@ -153,8 +153,12 @@ func (s *Service) runDelete(ctx context.Context, user core.UserID) error {
 	if err != nil {
 		return err
 	}
+	// The graph drops every edge of the account, including any the edge owner
+	// already reported gone; only edges revoked here are announced.
+	for _, f := range friends {
+		s.d.Graph.RemoveEdge(user, f.To)
+	}
 	for _, f := range revoked {
-		s.d.Graph.RemoveEdge(user, f)
 		s.d.Bus.Publish(core.EdgeRemoved{A: user, B: f, By: user, At: now})
 	}
 	for _, id := range posts {
