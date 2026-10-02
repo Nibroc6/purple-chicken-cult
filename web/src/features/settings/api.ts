@@ -39,5 +39,8 @@ export type MeView = components['schemas']['MeView'];
 // fetchMe reads GET /api/me: the signed-in user with every setting (the session
 // view carries only a summary).
 export async function fetchMe(): Promise<MeView> {
-  return unwrap(await api.GET('/me'));
+  const me = unwrap(await api.GET('/me'));
+  const raw: { settings?: unknown } = me;
+  if (typeof raw.settings !== 'object' || raw.settings === null) throw new ApiError(500, { error: 'internal' });
+  return me;
 }
