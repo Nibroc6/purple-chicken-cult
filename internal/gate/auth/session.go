@@ -28,11 +28,18 @@ const (
 	EnrollTokenTTL = 24 * time.Hour
 )
 
+// slideEvery limits how often a user session's expiry is written.
+const slideEvery = time.Minute
+
+// tokenLen is the length of a session or enrollment token (base64url of 32 bytes).
+const tokenLen = 43
+
 // sessInfo is the loaded session, kept in ctx for APIGuard (CSRF) and Session.
 type sessInfo struct {
 	idHash [32]byte
 	seed   []byte
 	kind   core.SessionKind
+	user   core.UserID // set for user and enrollment sessions
 }
 
 type sessKey struct{}
@@ -53,6 +60,15 @@ func newToken() (string, [32]byte, error) {
 
 func hashToken(tok string) [32]byte { return sha256.Sum256([]byte(tok)) }
 
+// wellFormed reports whether tok looks like a token this package minted.
+func wellFormed(tok string) bool {
+	if len(tok) != tokenLen {
+		return false
+	}
+	_, err := base64.RawURLEncoding.Strict().DecodeString(tok)
+	return err == nil
+}
+
 func (s *Service) secure() bool { return strings.HasPrefix(s.d.Cfg.Origin, "https://") }
 
 // csrfToken = base64url(HMAC(CSRFKey, id_hash ‖ csrf_seed)[:16]).
@@ -64,25 +80,37 @@ func (s *Service) csrfToken(idHash [32]byte, seed []byte) string {
 }
 
 // Middleware runs on ALL routes: it loads the session cookie, puts the viewer in
-// the context (core.WithViewer) and slides the expiry. It never rejects a request:
-// origin and CSRF checks are APIGuard's job (/api/* only).
+// the context (core.WithViewer) and slides a user session's expiry (re-sending
+// the cookie when it does). A cookie naming no live session is cleared. It never
+// rejects a request: origin and CSRF checks are APIGuard's job (/api/* only).
 func (s *Service) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c, err := r.Cookie(httpx.CookieName(s.secure()))
-		if err != nil || c.Value == "" || len(c.Value) > 128 {
+		if err != nil || c.Value == "" {
 			next.ServeHTTP(w, r)
 			return
 		}
-		ctx, ok := s.load(r.Context(), hashToken(c.Value))
-		if !ok {
+		if !wellFormed(c.Value) {
+			httpx.ClearSessionCookie(w, s.secure())
 			next.ServeHTTP(w, r)
 			return
+		}
+		ctx, slid, ok := s.load(r.Context(), hashToken(c.Value))
+		if !ok {
+			httpx.ClearSessionCookie(w, s.secure())
+			next.ServeHTTP(w, r)
+			return
+		}
+		if slid > 0 {
+			httpx.SetSessionCookie(w, c.Value, int(slid/time.Second), s.secure())
 		}
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
-func (s *Service) load(ctx context.Context, idHash [32]byte) (context.Context, bool) {
+// load resolves a session by its hash. slid is the new remaining lifetime when
+// the expiry was extended (0 otherwise).
+func (s *Service) load(ctx context.Context, idHash [32]byte) (context.Context, time.Duration, bool) {
 	now := s.d.Clock.Now()
 	var (
 		kind                int16
@@ -99,31 +127,38 @@ func (s *Service) load(ctx context.Context, idHash [32]byte) (context.Context, b
 		WHERE s.id_hash = $1 AND s.expires_at > $2`, idHash[:], now).
 		Scan(&kind, &userID, &seed, &cred, &authAt, &stepUp, &createdAt, &lastSeen, &role, &status)
 	if err != nil {
-		return ctx, false
+		return ctx, 0, false
 	}
-	v := core.Viewer{Session: idHash, Kind: core.SessionKind(kind), StepUp: stepUp, Credential: cred}
+	si := sessInfo{idHash: idHash, seed: seed, kind: core.SessionKind(kind)} //nolint:gosec // sessions.kind is 0..2
 	if userID != nil {
-		v.ID = core.UserID(*userID)
+		si.user = core.UserID(*userID) //nolint:gosec // users.id < 2^32 (DB CHECK)
 	}
-	if authAt != nil {
-		v.AuthAt = *authAt
+	v := core.Viewer{Session: idHash, Kind: si.kind, StepUp: stepUp, Credential: cred}
+	if si.kind == core.SessUser {
+		if status == nil || uint8(*status) != core.StatusActive { //nolint:gosec // users.status is 0..3
+			return ctx, 0, false // suspended/deleted accounts have no live sessions
+		}
+		v.ID = si.user
+		if role != nil {
+			v.Role = core.Role(*role) //nolint:gosec // users.role is 0..2
+		}
+		if authAt != nil {
+			v.AuthAt = *authAt
+		}
 	}
-	if role != nil {
-		v.Role = core.Role(*role)
-	}
-	if v.Kind == core.SessUser && (status == nil || uint8(*status) != core.StatusActive) {
-		return ctx, false // suspended/deleted accounts have no live sessions
-	}
-	if v.Kind == core.SessUser && now.Sub(lastSeen) > time.Minute {
+	var slid time.Duration
+	if v.Kind == core.SessUser && now.Sub(lastSeen) > slideEvery {
 		exp := now.Add(UserIdle)
 		if abs := createdAt.Add(UserAbsolute); abs.Before(exp) {
 			exp = abs
 		}
-		_, _ = s.d.DB.Q().Exec(ctx, "UPDATE sessions SET last_seen_at = $2, expires_at = $3 WHERE id_hash = $1",
-			idHash[:], now, exp)
+		if _, err := s.d.DB.Q().Exec(ctx, "UPDATE sessions SET last_seen_at = $2, expires_at = $3 WHERE id_hash = $1",
+			idHash[:], now, exp); err == nil {
+			slid = exp.Sub(now)
+		}
 	}
-	ctx = context.WithValue(ctx, sessKey{}, sessInfo{idHash: idHash, seed: seed, kind: v.Kind})
-	return core.WithViewer(ctx, v), true
+	ctx = context.WithValue(ctx, sessKey{}, si)
+	return core.WithViewer(ctx, v), slid, true
 }
 
 // APIGuard protects /api/* (§17.2(1), plan §5.1): Sec-Fetch-Site must be
@@ -162,9 +197,20 @@ func writeNotFound(w http.ResponseWriter) {
 	_, _ = w.Write([]byte(gate.NotFoundJSON))
 }
 
-// IssueSession creates a session of kind for user (0 for guests) and returns its
-// cookie token. Used by guest creation, enrollment, login (W01) and test hooks.
-func (s *Service) IssueSession(ctx context.Context, q store.Q, kind core.SessionKind, user core.UserID, authAt time.Time) (string, error) {
+func ttlOf(kind core.SessionKind) time.Duration {
+	switch kind {
+	case core.SessUser:
+		return UserIdle
+	case core.SessEnrollment:
+		return EnrollmentTTL
+	}
+	return GuestTTL
+}
+
+// issue creates a session and returns its cookie token. cred is the credential
+// that authenticated a user session; cer an initial pending ceremony (JSON).
+func (s *Service) issue(ctx context.Context, q store.Q, kind core.SessionKind, user core.UserID, authAt time.Time,
+	cred, cer []byte) (string, error) {
 	tok, idHash, err := newToken()
 	if err != nil {
 		return "", err
@@ -174,13 +220,6 @@ func (s *Service) IssueSession(ctx context.Context, q store.Q, kind core.Session
 		return "", err
 	}
 	now := s.d.Clock.Now()
-	ttl := GuestTTL
-	switch kind {
-	case core.SessUser:
-		ttl = UserIdle
-	case core.SessEnrollment:
-		ttl = EnrollmentTTL
-	}
 	var uid *int64
 	if user != 0 {
 		u := int64(user)
@@ -193,12 +232,19 @@ func (s *Service) IssueSession(ctx context.Context, q store.Q, kind core.Session
 	if q == nil {
 		q = s.d.DB.Q()
 	}
-	_, err = q.Exec(ctx, `INSERT INTO sessions (id_hash, kind, user_id, csrf_seed, created_at, last_seen_at, expires_at, auth_at)
-		VALUES ($1, $2, $3, $4, $5, $5, $6, $7)`, idHash[:], int16(kind), uid, seed, now, now.Add(ttl), at)
+	_, err = q.Exec(ctx, `INSERT INTO sessions (id_hash, kind, user_id, csrf_seed, created_at, last_seen_at, expires_at,
+		auth_at, credential_id, ceremony) VALUES ($1, $2, $3, $4, $5, $5, $6, $7, $8, $9)`,
+		idHash[:], int16(kind), uid, seed, now, now.Add(ttlOf(kind)), at, cred, cer)
 	if err != nil {
 		return "", err
 	}
 	return tok, nil
+}
+
+// IssueSession creates a session of kind for user (0 for guests) and returns its
+// cookie token. Used by guest creation and the test hooks.
+func (s *Service) IssueSession(ctx context.Context, q store.Q, kind core.SessionKind, user core.UserID, authAt time.Time) (string, error) {
+	return s.issue(ctx, q, kind, user, authAt, nil, nil)
 }
 
 // MaxAge returns the cookie Max-Age for a session kind.
@@ -226,7 +272,7 @@ func (s *Service) Session(ctx context.Context) (gate.SessionView, error) {
 	if si.kind != core.SessUser {
 		return sv, nil
 	}
-	me, err := s.me(ctx, v)
+	me, err := s.me(ctx, v.ID)
 	if err != nil {
 		return gate.SessionView{}, err
 	}
@@ -234,17 +280,43 @@ func (s *Service) Session(ctx context.Context) (gate.SessionView, error) {
 	return sv, nil
 }
 
-func (s *Service) me(ctx context.Context, v core.Viewer) (gate.MeView, error) {
-	m, err := s.d.Users.Get(ctx, v.ID)
+// sessionFor describes the session identified by its fresh cookie token (the
+// answer of login and enrollment, which rotate the token).
+func (s *Service) sessionFor(ctx context.Context, token string) (gate.SessionView, error) {
+	h := hashToken(token)
+	var (
+		kind int16
+		uid  *int64
+		seed []byte
+	)
+	if err := s.d.DB.Q().QueryRow(ctx, "SELECT kind, user_id, csrf_seed FROM sessions WHERE id_hash = $1", h[:]).
+		Scan(&kind, &uid, &seed); err != nil {
+		return gate.SessionView{}, err
+	}
+	k := core.SessionKind(kind) //nolint:gosec // sessions.kind is 0..2
+	sv := gate.SessionView{Kind: k.String(), CSRF: s.csrfToken(h, seed)}
+	if k != core.SessUser || uid == nil {
+		return sv, nil
+	}
+	me, err := s.me(ctx, core.UserID(*uid)) //nolint:gosec // users.id < 2^32 (DB CHECK)
+	if err != nil {
+		return gate.SessionView{}, err
+	}
+	sv.Authenticated, sv.Me = true, &me
+	return sv, nil
+}
+
+func (s *Service) me(ctx context.Context, id core.UserID) (gate.MeView, error) {
+	m, err := s.d.Users.Get(ctx, id)
 	if err != nil {
 		return gate.MeView{}, err
 	}
-	label, err := s.d.Users.InviterLabel(ctx, v.ID)
+	label, err := s.d.Users.InviterLabel(ctx, id)
 	if err != nil {
 		return gate.MeView{}, err
 	}
 	return gate.MeView{
-		Ref: s.d.Refs.User(v.ID, v.ID), Handle: m.Handle, DisplayName: m.DisplayName, Role: m.Role.String(), Inviter: label,
+		Ref: s.d.Refs.User(id, id), Handle: m.Handle, DisplayName: m.DisplayName, Role: m.Role.String(), Inviter: label,
 		Settings: gate.SettingsView{UILocale: m.Locale, Languages: m.Languages, RankPreset: m.Preset.String(),
 			NameInChains: m.NameInChains, Suggestible: m.Suggestible, NamedInLikes: m.NamedInLikes,
 			SlipperyDefault: m.SlipperyDefault, UIPrefs: []byte("{}")},
@@ -262,38 +334,42 @@ func (s *Service) Logout(ctx context.Context) error {
 	if !ok {
 		return nil
 	}
-	v, _ := core.ViewerFrom(ctx)
-	if _, err := s.d.DB.Q().Exec(ctx, "DELETE FROM sessions WHERE id_hash = $1", si.idHash[:]); err != nil {
-		return err
-	}
-	s.d.Bus.Publish(core.SessionEnded{User: v.ID, Session: si.idHash})
-	return nil
-}
-
-// RevokeAll deletes every session of user (core.Passkeys).
-func (s *Service) RevokeAll(ctx context.Context, tx store.Q, user core.UserID) error {
-	rows, err := tx.Query(ctx, "DELETE FROM sessions WHERE user_id = $1 RETURNING id_hash", int64(user))
+	evs, err := endSessions(ctx, s.d.DB.Q(), "id_hash = $1", si.idHash[:])
 	if err != nil {
 		return err
 	}
-	var ended [][32]byte
-	for rows.Next() {
-		var h []byte
-		if err := rows.Scan(&h); err != nil {
-			rows.Close()
-			return err
-		}
-		var k [32]byte
-		copy(k[:], h)
-		ended = append(ended, k)
+	s.publishEnded(evs)
+	return nil
+}
+
+// endCaller deletes the caller's current session (if any) inside q, when a
+// flow replaces it with a new one; the events are published after commit.
+func endCaller(ctx context.Context, q store.Q) ([]core.SessionEnded, error) {
+	si, ok := sessFrom(ctx)
+	if !ok {
+		return nil, nil
 	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
+	return endSessions(ctx, q, "id_hash = $1", si.idHash[:])
+}
+
+// RevokeAll deletes every session of user (core.Passkeys) and publishes
+// SessionEnded for each (callers invoke it as the last step of their tx).
+func (s *Service) RevokeAll(ctx context.Context, tx store.Q, user core.UserID) error {
+	evs, err := endSessions(ctx, tx, "user_id = $1", int64(user))
+	if err != nil {
 		return err
 	}
-	for _, k := range ended {
-		s.d.Bus.Publish(core.SessionEnded{User: user, Session: k})
+	s.publishEnded(evs)
+	return nil
+}
+
+// purgeExpired deletes expired sessions and publishes SessionEnded for each.
+func (s *Service) purgeExpired(ctx context.Context) error {
+	evs, err := endSessions(ctx, s.d.DB.Q(), "expires_at <= $1", s.d.Clock.Now())
+	if err != nil {
+		return err
 	}
+	s.publishEnded(evs)
 	return nil
 }
 
@@ -347,7 +423,7 @@ func (s *Service) SeedGenesis(ctx context.Context, handle, name string) (string,
 		if err != nil {
 			return err
 		}
-		tok, err = s.IssueEnrollment(ctx, tx, id, 0, s.d.Clock.Now())
+		tok, err = s.IssueEnrollment(ctx, tx, id, purposeGenesis, s.d.Clock.Now())
 		return err
 	})
 	if err != nil {

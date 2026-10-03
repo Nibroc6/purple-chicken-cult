@@ -1,24 +1,34 @@
 // Package auth owns sessions, CSRF, passkeys (WebAuthn), step-up and enrollment
 // (ARCHITECTURE §17.2, §10.3, §13). It implements core.Passkeys and (P1) core.StepUp.
 //
-// Owner: P0-W01 → P1-W07. The scaffold wrote a WORKING session-lookup Middleware,
-// APIGuard (fetch metadata, exact Origin, CSRF from csrf_seed), guest sessions,
-// Session, Logout, IssueEnrollment, RevokeAll and SeedGenesis; every WebAuthn
-// ceremony returns gate.ErrNotImplemented until W01 lands.
+// Owner: P0-W01 → P1-W07.
+//
+// Sessions are opaque cookie tokens stored only as sha256 (sessions.id_hash).
+// Every privilege change (login, enrollment, join) deletes the old row and
+// issues a new token with a new CSRF seed. A session holds at most one pending
+// WebAuthn ceremony (2 minutes, single use, cleared on any finish attempt).
 package auth
 
 import (
 	"context"
 	"encoding/json"
+	"sync"
 	"time"
+
+	"github.com/go-webauthn/webauthn/webauthn"
 
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/internal/core"
-	"github.com/Nibroc6/purple-chicken-cult/internal/store"
 )
 
 // Service is the auth module.
-type Service struct{ d *core.Deps }
+type Service struct {
+	d *core.Deps
+
+	rpOnce sync.Once
+	wa     *webauthn.WebAuthn
+	waErr  error
+}
 
 var (
 	_ core.Passkeys = (*Service)(nil)
@@ -28,16 +38,30 @@ var (
 // New returns the service.
 func New(d *core.Deps) *Service { return &Service{d: d} }
 
-// Init registers jobs (sessions.purge).
+// JobPurge deletes expired sessions (hourly).
+const JobPurge = "sessions.purge"
+
+// Init registers the purge job and the AccountDeleted clean-up.
 func (s *Service) Init(ctx context.Context) error {
 	if s.d.Jobs != nil {
-		s.d.Jobs.Handle("sessions.purge", func(ctx context.Context, _ json.RawMessage) error {
-			_, err := s.d.DB.Q().Exec(ctx, "DELETE FROM sessions WHERE expires_at < $1", s.d.Clock.Now())
-			return err
-		})
-		s.d.Jobs.Every("sessions.purge", time.Hour)
+		s.d.Jobs.Handle(JobPurge, func(ctx context.Context, _ json.RawMessage) error { return s.purgeExpired(ctx) })
+		s.d.Jobs.Every(JobPurge, time.Hour)
+	}
+	if s.d.Bus != nil {
+		base := context.WithoutCancel(ctx)
+		core.Subscribe(s.d.Bus, func(e core.AccountDeleted) { s.forget(base, e.ID) })
 	}
 	return nil
+}
+
+// forget deletes a deleted account's sessions and credentials (plan §4.7:
+// every owner deletes its own rows on AccountDeleted).
+func (s *Service) forget(ctx context.Context, user core.UserID) {
+	evs, err := endSessions(ctx, s.d.DB.Q(), "user_id = $1", int64(user))
+	if err == nil {
+		s.publishEnded(evs)
+	}
+	_, _ = s.d.DB.Q().Exec(ctx, "DELETE FROM webauthn_credentials WHERE user_id = $1", int64(user))
 }
 
 // PasskeyView is one of the viewer's passkeys.
@@ -49,113 +73,31 @@ type PasskeyView struct {
 	Current    bool       `json:"current"`
 }
 
+// BeginView starts a ceremony. Token, when set, is a new session cookie the
+// handler must send (it never appears in the JSON).
+type BeginView struct {
+	Token   string          `json:"-"`
+	Options json.RawMessage `json:"options"`
+	CSRF    string          `json:"csrf,omitempty"`
+}
+
 // EnrollView is the enrollment ceremony start.
 type EnrollView struct {
+	Token            string          `json:"-"`
 	Options          json.RawMessage `json:"options"`
+	CSRF             string          `json:"csrf,omitempty"`
 	Purpose          string          `json:"purpose"` // "genesis" | "recovery"
 	ExistingPasskeys []PasskeyView   `json:"existing_passkeys,omitempty"`
 }
 
-// ---- handler-facing API (P0-W01) ----
-
-// LoginBegin starts a discoverable passkey login in a fresh guest session.
-func (s *Service) LoginBegin(ctx context.Context) (string, json.RawMessage, error) {
-	return "", nil, gate.ErrNotImplemented
-}
-
-// LoginFinish verifies the assertion and returns a NEW user session token.
-func (s *Service) LoginFinish(ctx context.Context, body []byte) (string, gate.MeView, error) {
-	return "", gate.MeView{}, gate.ErrNotImplemented
-}
-
-// StepUpBegin starts a UV assertion over the viewer's own credentials.
-func (s *Service) StepUpBegin(ctx context.Context) (json.RawMessage, error) {
-	if _, err := core.RequireUser(ctx); err != nil {
-		return nil, err
+// signedIn returns the signed-in viewer, also while a P1 step-up is pending
+// (the step-up ceremony itself must remain reachable).
+func signedIn(ctx context.Context) (core.Viewer, error) {
+	v, ok := core.ViewerFrom(ctx)
+	if !ok || v.Kind != core.SessUser || v.ID == 0 {
+		return core.Viewer{}, gate.ErrNotFound
 	}
-	return nil, gate.ErrNotImplemented
-}
-
-// StepUpFinish verifies the step-up and sets auth_at.
-func (s *Service) StepUpFinish(ctx context.Context, body []byte) error {
-	if _, err := core.RequireUser(ctx); err != nil {
-		return err
-	}
-	return gate.ErrNotImplemented
-}
-
-// Passkeys lists the viewer's passkeys.
-func (s *Service) Passkeys(ctx context.Context) ([]PasskeyView, error) {
-	if _, err := core.RequireUser(ctx); err != nil {
-		return nil, err
-	}
-	return nil, gate.ErrNotImplemented
-}
-
-// AddPasskeyBegin starts adding a passkey (RequireFresh).
-func (s *Service) AddPasskeyBegin(ctx context.Context) (json.RawMessage, error) {
-	if _, err := core.RequireFresh(ctx, s.d.Clock.Now()); err != nil {
-		return nil, err
-	}
-	return nil, gate.ErrNotImplemented
-}
-
-// AddPasskeyFinish finishes adding a passkey (RequireFresh).
-func (s *Service) AddPasskeyFinish(ctx context.Context, body []byte, name string) error {
-	if _, err := core.RequireFresh(ctx, s.d.Clock.Now()); err != nil {
-		return err
-	}
-	return gate.ErrNotImplemented
-}
-
-// RemovePasskey removes one of the viewer's passkeys (RequireFresh; never the last).
-func (s *Service) RemovePasskey(ctx context.Context, id gate.Ref) error {
-	if _, err := core.RequireFresh(ctx, s.d.Clock.Now()); err != nil {
-		return err
-	}
-	return gate.ErrNotImplemented
-}
-
-// EnrollBegin binds an enrollment token (from the URL fragment) to this session.
-func (s *Service) EnrollBegin(ctx context.Context, token string) (EnrollView, error) {
-	return EnrollView{}, gate.ErrNotImplemented
-}
-
-// EnrollFinish registers the passkey and returns a user session token.
-func (s *Service) EnrollFinish(ctx context.Context, body []byte, removeOld bool, tosVersion int, ageAttested bool) (string, error) {
-	return "", gate.ErrNotImplemented
-}
-
-// ---- core.Passkeys (P0-W01) ----
-
-// BeginRegistration starts a WebAuthn registration in session sess.
-func (s *Service) BeginRegistration(ctx context.Context, sess [32]byte, u core.PendingUser) (json.RawMessage, error) {
-	return nil, gate.ErrNotImplemented
-}
-
-// FinishRegistration verifies a registration response.
-func (s *Service) FinishRegistration(ctx context.Context, sess [32]byte, body []byte) (core.Credential, error) {
-	return core.Credential{}, gate.ErrNotImplemented
-}
-
-// BindCredential stores c for user and writes the PasskeyChange record.
-func (s *Service) BindCredential(ctx context.Context, tx store.Q, user core.UserID, c core.Credential) error {
-	return gate.ErrNotImplemented
-}
-
-// Upgrade turns a guest session into a user session (rotating token and seed).
-func (s *Service) Upgrade(ctx context.Context, tx store.Q, sess [32]byte, user core.UserID, cred []byte) (string, error) {
-	return "", gate.ErrNotImplemented
-}
-
-// BeginAssertion starts an assertion over challenge, restricted to v's credentials.
-func (s *Service) BeginAssertion(ctx context.Context, v core.Viewer, challenge []byte, purpose string) (json.RawMessage, error) {
-	return nil, gate.ErrNotImplemented
-}
-
-// VerifyAssertion verifies an assertion (security #9 check list).
-func (s *Service) VerifyAssertion(ctx context.Context, v core.Viewer, purpose string, body []byte) (core.Assertion, error) {
-	return core.Assertion{}, gate.ErrNotImplemented
+	return v, nil
 }
 
 // ---- core.StepUp (P1-W07) ----
