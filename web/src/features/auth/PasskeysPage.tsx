@@ -1,8 +1,197 @@
-// Placeholder page (SCAFFOLD hand-off stub). Owner: P0-W01 → P1-W07.
+// Settings → Passkeys (§17.2, D27): list, add (fresh step-up, never twice on
+// one authenticator) and remove (fresh step-up, never the last; it signs out
+// every session that passkey started). Owner: P0-W01 → P1-W07.
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Placeholder } from '../../app/Placeholder';
+import { Link, Navigate, useNavigate } from 'react-router';
+import { Loading } from '../../app/Loading';
+import { sessionKey, useSession } from '../../app/session';
+import { withStepUp } from '../stepup/store';
+import { addPasskeyBegin, addPasskeyFinish, listPasskeys, logout, removePasskey } from './api';
+import { authErrorKey, toPasskeyVM, type PasskeyVM } from './vm';
+import { createPasskey } from './webauthn';
+import './auth.css';
+
+export const passkeysKey = ['auth', 'passkeys'] as const;
+
+function ErrorLine({ err }: { err: unknown }) {
+  const { t } = useTranslation(['auth', 'errors']);
+  const key = err ? authErrorKey(err) : undefined;
+  if (!key) return null;
+  return (
+    <p className="auth-error" role="alert">
+      {t(key as 'errors:unknown')}
+    </p>
+  );
+}
+
+function PasskeyItem({ p, only, onRemove, busy }: { p: PasskeyVM; only: boolean; onRemove: () => void; busy: boolean }) {
+  const { t } = useTranslation('auth');
+  const name = p.name || t('passkeys.unnamed');
+  return (
+    <li className="auth-passkey" data-testid="passkey-item">
+      <div>
+        <strong>{name}</strong>
+        {p.current ? <span className="auth-badge">{t('passkeys.current')}</span> : null}
+        <div className="muted">
+          {t('passkeys.created', { date: p.createdAt })}
+          {' · '}
+          {p.lastUsedAt ? t('passkeys.lastUsed', { date: p.lastUsedAt }) : t('passkeys.neverUsed')}
+        </div>
+      </div>
+      <button
+        type="button"
+        data-testid="passkey-remove"
+        disabled={only || busy}
+        aria-label={t('passkeys.removeLabel', { name })}
+        onClick={onRemove}
+      >
+        {t('passkeys.remove')}
+      </button>
+    </li>
+  );
+}
+
+function Passkeys() {
+  const { t } = useTranslation('auth');
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const nameId = useId();
+  const [name, setName] = useState('');
+  const [notice, setNotice] = useState<'added' | 'removed' | undefined>();
+  const list = useQuery({ queryKey: passkeysKey, queryFn: async () => (await listPasskeys()).map(toPasskeyVM) });
+
+  const add = useMutation({
+    mutationFn: async () => {
+      const options = await withStepUp(addPasskeyBegin);
+      const credential = await createPasskey(options);
+      await withStepUp(() => addPasskeyFinish(credential, name));
+    },
+    onMutate: () => {
+      setNotice(undefined);
+    },
+    onSuccess: async () => {
+      setName('');
+      setNotice('added');
+      await qc.invalidateQueries({ queryKey: passkeysKey });
+    },
+  });
+
+  const remove = useMutation({
+    mutationFn: async (p: PasskeyVM) => {
+      await withStepUp(() => removePasskey(p.id));
+      return p;
+    },
+    onMutate: () => {
+      setNotice(undefined);
+    },
+    onSuccess: async (p) => {
+      if (p.current) {
+        // This session was started with that passkey: it has ended.
+        qc.setQueryData(sessionKey, { authenticated: false, kind: 'none' });
+        await navigate('/login', { replace: true });
+        return;
+      }
+      setNotice('removed');
+      await qc.invalidateQueries({ queryKey: passkeysKey });
+    },
+  });
+
+  const signOut = useMutation({
+    mutationFn: logout,
+    onSuccess: async () => {
+      qc.setQueryData(sessionKey, { authenticated: false, kind: 'none' });
+      await navigate('/', { replace: true });
+    },
+  });
+
+  if (list.isPending) return <Loading />;
+  const items = list.data ?? [];
+  const only = items.length < 2;
+  return (
+    <>
+      <ErrorLine err={list.error} />
+      <ul className="auth-list" aria-label={t('passkeys.listLabel')}>
+        {items.map((p) => (
+          <PasskeyItem
+            key={p.id}
+            p={p}
+            only={only}
+            busy={remove.isPending}
+            onRemove={() => {
+              if (globalThis.confirm(t('passkeys.confirmRemove', { name: p.name || t('passkeys.unnamed') }))) {
+                remove.mutate(p);
+              }
+            }}
+          />
+        ))}
+      </ul>
+      {only ? <p className="muted">{t('passkeys.lastHint')}</p> : null}
+      <ErrorLine err={remove.error} />
+      <form
+        className="auth-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          add.mutate();
+        }}
+      >
+        <h2>{t('passkeys.addTitle')}</h2>
+        <p className="muted">{t('passkeys.addHint')}</p>
+        <div className="auth-field">
+          <label htmlFor={nameId}>{t('passkeys.nameLabel')}</label>
+          <input
+            id={nameId}
+            type="text"
+            maxLength={50}
+            value={name}
+            placeholder={t('passkeys.namePlaceholder')}
+            onChange={(e) => {
+              setName(e.target.value);
+            }}
+          />
+        </div>
+        <div className="auth-actions">
+          <button type="submit" className="primary" data-testid="passkey-add" disabled={add.isPending}>
+            {add.isPending ? t('passkeys.adding') : t('passkeys.add')}
+          </button>
+        </div>
+        <ErrorLine err={add.error} />
+      </form>
+      {notice ? (
+        <p role="status" className="muted">
+          {notice === 'added' ? t('passkeys.added') : t('passkeys.removed')}
+        </p>
+      ) : null}
+      <div className="auth-actions auth-signout">
+        <button
+          type="button"
+          data-testid="sign-out"
+          disabled={signOut.isPending}
+          onClick={() => {
+            signOut.mutate();
+          }}
+        >
+          {t('passkeys.signOut')}
+        </button>
+      </div>
+    </>
+  );
+}
 
 export default function PasskeysPage() {
-  const { t } = useTranslation('auth');
-  return <Placeholder title={t('passkeys.title')} />;
+  const { t } = useTranslation(['auth', 'common']);
+  const session = useSession();
+  if (session.isPending) return <Loading />;
+  if (!session.data?.authenticated) return <Navigate to="/login" replace />;
+  return (
+    <section className="page auth-page">
+      <h1>{t('passkeys.title')}</h1>
+      <p>
+        <Link to="/settings">{t('common:nav.settings')}</Link>
+      </p>
+      <p>{t('passkeys.intro')}</p>
+      <Passkeys />
+    </section>
+  );
 }
