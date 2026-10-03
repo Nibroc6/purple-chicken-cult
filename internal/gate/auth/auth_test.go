@@ -888,13 +888,14 @@ func TestMiddlewareCookies(t *testing.T) {
 		e.a.Auth.Middleware(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})).ServeHTTP(rec, req)
 		return rec
 	}
-	// An unknown or malformed cookie is cleared.
-	for _, bad := range []string{"nope", strings.Repeat("A", 43)} {
-		rec := run(bad)
-		ck := rec.Result().Cookies()
-		if len(ck) != 1 || ck[0].MaxAge >= 0 {
-			t.Fatalf("%q: cookies %+v", bad, ck)
-		}
+	// A malformed cookie is cleared.
+	if ck := run("nope").Result().Cookies(); len(ck) != 1 || ck[0].MaxAge >= 0 {
+		t.Fatalf("malformed: cookies %+v", ck)
+	}
+	// A well-formed cookie naming no live session is left alone: a request still
+	// in flight across a session rotation must not wipe the new cookie.
+	if ck := run(strings.Repeat("A", 43)).Result().Cookies(); len(ck) != 0 {
+		t.Fatalf("unknown: cookies %+v", ck)
 	}
 	// Sliding re-sends the cookie, HttpOnly and SameSite=Strict.
 	e.advance(2 * time.Minute)

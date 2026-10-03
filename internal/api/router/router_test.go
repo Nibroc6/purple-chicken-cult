@@ -145,10 +145,11 @@ func TestSessionAndLogout(t *testing.T) {
 	}
 }
 
-func TestStubsAnswerNotImplemented(t *testing.T) {
+func TestLoginBeginStartsAGuestCeremony(t *testing.T) {
 	h := apitest.App(t)
 	rec := h.Do("POST", "/api/auth/login/begin", map[string]any{})
-	if rec.Code != http.StatusNotImplemented {
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"options"`) ||
+		!strings.Contains(rec.Header().Get("Set-Cookie"), "SameSite=Strict") {
 		t.Fatalf("login begin: %d %s", rec.Code, rec.Body)
 	}
 }

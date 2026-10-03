@@ -3,10 +3,12 @@ package coreref
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -18,7 +20,8 @@ import (
 
 // Reference implementations of the steward additions from contract requests
 // p0-w11-1 (DisplayNames, RecordExporter), p0-w11-2 (PostAdmin, Enrollments) and
-// p0-w02-1 (MentionIndex on MemPosts, RequestStates).
+// p0-w02-1 (MentionIndex on MemPosts, RequestStates) and p0-w01-1 (Accounts on
+// MemUsers).
 
 // DisplayNameFunc adapts a function to core.DisplayNames.
 type DisplayNameFunc func(name string) (string, bool)
@@ -159,4 +162,32 @@ func (r *MemRequests) RequestState(_ context.Context, v, u core.UserID) string {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.m[[2]core.UserID{v, u}]
+}
+
+var _ core.Accounts = (*MemUsers)(nil)
+
+// Account returns id's WebAuthn user handle (sha256("webauthn:"+handle), as
+// coretest.World writes it), ext_id and status. forUpdate is a no-op here.
+func (u *MemUsers) Account(_ context.Context, _ store.Q, id core.UserID, _ bool) ([]byte, uuid.UUID, uint8, error) {
+	u.mu.RLock()
+	defer u.mu.RUnlock()
+	m, ok := u.byID[id]
+	if !ok {
+		return nil, uuid.Nil, 0, gate.ErrNotFound
+	}
+	wid := sha256.Sum256([]byte("webauthn:" + m.Handle))
+	return wid[:], m.ExtID, m.Status, nil
+}
+
+// ActivateGenesis turns a pending genesis account active.
+func (u *MemUsers) ActivateGenesis(_ context.Context, _ store.Q, id core.UserID, _ int, _ time.Time) error {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	m, ok := u.byID[id]
+	if !ok || !m.Genesis || m.Status != core.StatusPendingEnrollment {
+		return gate.ErrNotFound
+	}
+	m.Status = core.StatusActive
+	u.byID[id] = m
+	return nil
 }

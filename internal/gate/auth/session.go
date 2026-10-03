@@ -81,8 +81,12 @@ func (s *Service) csrfToken(idHash [32]byte, seed []byte) string {
 
 // Middleware runs on ALL routes: it loads the session cookie, puts the viewer in
 // the context (core.WithViewer) and slides a user session's expiry (re-sending
-// the cookie when it does). A cookie naming no live session is cleared. It never
-// rejects a request: origin and CSRF checks are APIGuard's job (/api/* only).
+// the cookie when it does). A malformed cookie is cleared. A well-formed cookie
+// naming no live session is ignored (the request runs anonymous) but NOT
+// cleared: a request still in flight with the old cookie when a ceremony
+// rotates the session (login, enroll, join) would otherwise answer after the
+// rotation and wipe the new cookie from the browser. It never rejects a
+// request: origin and CSRF checks are APIGuard's job (/api/* only).
 func (s *Service) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c, err := r.Cookie(httpx.CookieName(s.secure()))
@@ -97,7 +101,6 @@ func (s *Service) Middleware(next http.Handler) http.Handler {
 		}
 		ctx, slid, ok := s.load(r.Context(), hashToken(c.Value))
 		if !ok {
-			httpx.ClearSessionCookie(w, s.secure())
 			next.ServeHTTP(w, r)
 			return
 		}

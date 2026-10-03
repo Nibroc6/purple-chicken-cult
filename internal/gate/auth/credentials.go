@@ -8,7 +8,6 @@ import (
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate"
@@ -46,11 +45,7 @@ type passkeyChangeBody struct {
 	At           sigs.Time  `json:"at"`
 }
 
-// account is the part of a users row auth needs.
-//
-// Local adapter (contract request p0-w01-1): auth reads users.webauthn_user_id
-// and the status directly and activates genesis accounts at enrollment until a
-// core interface for both exists.
+// account is the part of a user auth needs.
 type account struct {
 	id           core.UserID
 	webauthnID   []byte
@@ -58,36 +53,21 @@ type account struct {
 	status       uint8
 }
 
+// loadAccount reads id's WebAuthn user handle and status through q (locking the
+// row until q's transaction ends when lock is set) via core.Accounts, and its
+// handle and display name via core.Users.
 func (s *Service) loadAccount(ctx context.Context, q store.Q, id core.UserID, lock bool) (account, error) {
-	sql := "SELECT webauthn_user_id, handle, display_name, status FROM users WHERE id = $1"
-	if lock {
-		sql = "SELECT webauthn_user_id, handle, display_name, status FROM users WHERE id = $1 FOR NO KEY UPDATE"
-	}
 	a := account{id: id}
-	var status int16
-	if err := q.QueryRow(ctx, sql, int64(id)).Scan(&a.webauthnID, &a.handle, &a.name, &status); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return a, gate.ErrNotFound
-		}
+	webID, _, status, err := s.d.Accounts.Account(ctx, q, id, lock)
+	if err != nil {
 		return a, err
 	}
-	a.status = uint8(status)
-	return a, nil
-}
-
-// activateGenesis turns a pending genesis account active, recording the terms
-// version and the age attestation (D29).
-func (s *Service) activateGenesis(ctx context.Context, tx store.Q, id core.UserID, tosVersion int, at time.Time) error {
-	tag, err := tx.Exec(ctx, `UPDATE users SET status = $2, tos_version = $3, tos_accepted_at = $4, age_attested_at = $4
-		WHERE id = $1 AND status = $5 AND is_genesis`, int64(id), int16(core.StatusActive), int16(tosVersion), at,
-		int16(core.StatusPendingEnrollment))
+	m, err := s.d.Users.Get(ctx, id)
 	if err != nil {
-		return err
+		return a, err
 	}
-	if tag.RowsAffected() != 1 {
-		return gate.ErrNotFound
-	}
-	return nil
+	a.webauthnID, a.status, a.handle, a.name = webID, status, m.Handle, m.DisplayName
+	return a, nil
 }
 
 // storedCred is one webauthn_credentials row.
@@ -202,11 +182,11 @@ func (s *Service) bindCredential(ctx context.Context, tx store.Q, user core.User
 // signChange writes a PasskeyChange record (party: the account).
 func (s *Service) signChange(ctx context.Context, tx store.Q, user core.UserID, op string, id, pub []byte, alg int, at time.Time) error {
 	// Read through tx: the account may have been created in this transaction (join).
-	var ext uuid.UUID
-	if err := tx.QueryRow(ctx, "SELECT ext_id FROM users WHERE id = $1", int64(user)).Scan(&ext); err != nil {
+	_, ext, _, err := s.d.Accounts.Account(ctx, tx, user, false)
+	if err != nil {
 		return err
 	}
-	_, err := s.d.Signer.Sign(ctx, tx, core.RecPasskeyChange, user, passkeyChangeBody{User: ext, Op: op,
+	_, err = s.d.Signer.Sign(ctx, tx, core.RecPasskeyChange, user, passkeyChangeBody{User: ext, Op: op,
 		CredentialID: id, PublicKey: pub, Alg: alg, At: sigs.T(at)}, []core.UserID{user})
 	return err
 }

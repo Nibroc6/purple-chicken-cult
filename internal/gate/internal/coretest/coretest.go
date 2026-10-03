@@ -107,7 +107,7 @@ func NewMem(t testing.TB) *Mem {
 	d.ModQueue, d.StepUp = m.ModQueue, &coreref.MemStepUp{D: d}
 	d.DisplayNames = coreref.DisplayNameFunc(func(s string) (string, bool) { return s, true })
 	d.RecordExporter, d.PostAdmin, d.Enrollments = m.Signer, &coreref.MemPostAdmin{D: d}, &coreref.MemEnrollments{}
-	d.Mentions, d.Requests = m.Posts, m.Requests
+	d.Mentions, d.Requests, d.Accounts = m.Posts, m.Requests, m.Users
 	m.D = d
 	return m
 }

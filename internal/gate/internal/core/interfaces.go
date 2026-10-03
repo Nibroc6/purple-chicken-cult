@@ -87,6 +87,22 @@ type DisplayNames interface {
 	CleanDisplayName(name string) (clean string, ok bool)
 }
 
+// Accounts exposes the account facts auth needs inside a transaction
+// (impl: gate/users). Steward: contract request p0-w01-1.
+type Accounts interface {
+	// Account reads the WebAuthn user handle, ext_id and status of id through q
+	// (so an account created earlier in the same transaction is visible).
+	// forUpdate also locks the row (FOR NO KEY UPDATE) until q's transaction
+	// ends, so a status change cannot interleave with the caller's work.
+	// gate.ErrNotFound when there is no such account.
+	Account(ctx context.Context, q store.Q, id UserID, forUpdate bool) (webauthnID []byte, ext uuid.UUID, status uint8, err error)
+	// ActivateGenesis turns a pending genesis account active and records the
+	// accepted terms version and the age attestation at at (D29). gate.ErrNotFound
+	// unless the account is a pending genesis account. The caller publishes
+	// UserChanged after commit.
+	ActivateGenesis(ctx context.Context, tx store.Q, id UserID, tosVersion int, at time.Time) error
+}
+
 // ---- graph (impl: gate/graph) ----
 
 // Edge is one adjacency entry.

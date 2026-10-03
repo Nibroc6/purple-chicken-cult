@@ -212,6 +212,7 @@ func Build(ctx context.Context, cfg *config.Config, db *store.DB, log *slog.Logg
 	d.RecordExporter = a.Records
 	d.PostAdmin = a.Posts
 	d.Enrollments = a.Auth
+	d.Accounts = a.Users
 
 	inits := []struct {
 		name string

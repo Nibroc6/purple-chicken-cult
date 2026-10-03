@@ -2,64 +2,16 @@
 // Chromium's virtual authenticator, through the real binary. Selectors avoid
 // English text so the spec runs in en and in the pseudo-locale en-XA.
 //
-// WebAuthn refuses IP-address origins ("This is an invalid domain"), and the
-// shared server of e2e/fixtures/server.ts serves http://127.0.0.1:<port>. Until
-// contract request p0-w01-3 switches that fixture to http://localhost:<port>,
-// this spec starts its own server the same way (same binary, database and
-// static dir that scripts/e2e.sh prepared; a free port) with a localhost origin.
-import { spawn, type ChildProcess } from 'node:child_process';
-import path from 'node:path';
+// WebAuthn refuses IP-address origins; the shared server of
+// e2e/fixtures/server.ts serves http://localhost:<port> (contract request p0-w01-3).
 import { expect, request as pwRequest, test, type APIRequestContext, type Page } from '@playwright/test';
 import { addVirtualAuthenticator } from './fixtures/auth';
-import { freePort } from './fixtures/server';
 import { World } from './fixtures/world';
 
-let child: ChildProcess | undefined;
 let origin = '';
 
-async function waitReady(url: string): Promise<void> {
-  const deadline = Date.now() + 30_000;
-  while (Date.now() < deadline) {
-    try {
-      const res = await fetch(`${url}/api/session`, { headers: { 'Sec-Fetch-Site': 'same-origin' } });
-      if (res.ok) return;
-    } catch {
-      // not up yet
-    }
-    await new Promise((r) => setTimeout(r, 200));
-  }
-  throw new Error(`pcc did not start at ${url}`);
-}
-
-test.beforeAll(async () => {
-  const repo = path.resolve(import.meta.dirname, '..', '..');
-  const bin = process.env.PCC_E2E_BIN ?? path.join(repo, 'var', process.platform === 'win32' ? 'pcc.exe' : 'pcc');
-  const port = await freePort();
-  origin = `http://localhost:${String(port)}`;
-  child = spawn(bin, ['serve'], {
-    cwd: repo,
-    stdio: ['ignore', 'inherit', 'inherit'],
-    env: {
-      ...process.env,
-      PCC_ENV: 'test',
-      PCC_TEST_HOOKS: '1',
-      PCC_HTTP_ADDR: `127.0.0.1:${String(port)}`,
-      PCC_ORIGIN: origin,
-      PCC_AUTO_MIGRATE: '1',
-    },
-  });
-  await waitReady(`http://127.0.0.1:${String(port)}`);
-});
-
-test.afterAll(async () => {
-  const c = child;
-  if (!c || c.exitCode !== null) return;
-  await new Promise<void>((resolve) => {
-    c.once('exit', () => {
-      resolve();
-    });
-    c.kill();
-  });
+test.beforeEach(({ baseURL }) => {
+  origin = baseURL ?? '';
 });
 
 // hooks drives /api/_test/* from a cookie-less context (no CSRF needed).

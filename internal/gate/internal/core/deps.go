@@ -70,4 +70,7 @@ type Deps struct {
 	// implementing WP lands; gate/views treats nil as "none".
 	Mentions MentionIndex
 	Requests RequestStates
+
+	// Steward addition (contract request p0-w01-1); impl: gate/users.
+	Accounts Accounts
 }

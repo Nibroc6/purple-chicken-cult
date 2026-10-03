@@ -505,7 +505,7 @@ func (s *Service) EnrollFinish(ctx context.Context, body []byte, removeOld bool,
 		}
 		switch t.purpose {
 		case purposeGenesis:
-			if err := s.activateGenesis(ctx, tx, t.user, tosVersion, now); err != nil {
+			if err := s.d.Accounts.ActivateGenesis(ctx, tx, t.user, tosVersion, now); err != nil {
 				return err
 			}
 		case purposeRecovery:

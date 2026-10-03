@@ -42,7 +42,7 @@ export async function startServer(): Promise<RunningServer> {
   const repo = path.resolve(import.meta.dirname, '..', '..', '..');
   const bin = process.env.PCC_E2E_BIN ?? path.join(repo, 'var', process.platform === 'win32' ? 'pcc.exe' : 'pcc');
   const port = await freePort();
-  const baseURL = `http://127.0.0.1:${String(port)}`;
+  const baseURL = `http://localhost:${String(port)}`; // WebAuthn refuses IP origins
   const child: ChildProcess = spawn(bin, ['serve'], {
     cwd: repo,
     stdio: ['ignore', 'inherit', 'inherit'],
@@ -55,7 +55,8 @@ export async function startServer(): Promise<RunningServer> {
       PCC_AUTO_MIGRATE: '1',
     },
   });
-  await waitReady(baseURL, 30_000);
+  // Probe the loopback address directly: Node may resolve localhost to ::1 first.
+  await waitReady(`http://127.0.0.1:${String(port)}`, 30_000);
   return {
     baseURL,
     stop: () =>
