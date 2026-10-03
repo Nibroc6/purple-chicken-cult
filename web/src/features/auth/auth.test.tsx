@@ -347,7 +347,7 @@ describe('PasskeysPage', () => {
     expect((await screen.findByRole('alert')).textContent).toBe(i18n.t('auth:passkey.exists'));
   });
 
-  it('signs out and sends a signed-out visitor to the login page', async () => {
+  it('signs out and points a signed-out visitor to the login page', async () => {
     const calls = stubAPI(signedIn, (c) => {
       if (c.path === '/auth/passkeys') return json(200, { items: one });
       if (c.path === '/auth/logout') return json(204, null);
@@ -360,6 +360,7 @@ describe('PasskeysPage', () => {
     vi.unstubAllGlobals();
     stubAPI(signedOut, () => undefined);
     renderAt('/settings/passkeys', <PasskeysPage />);
+    fireEvent.click(await screen.findByTestId('passkeys-login'));
     expect(await screen.findByText('login page')).toBeTruthy();
   });
 });

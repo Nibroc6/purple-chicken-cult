@@ -4,7 +4,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, Navigate, useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { Loading } from '../../app/Loading';
 import { sessionKey, useSession } from '../../app/session';
 import { withStepUp } from '../stepup/store';
@@ -101,8 +101,9 @@ function Passkeys() {
   const signOut = useMutation({
     mutationFn: logout,
     onSuccess: async () => {
-      qc.setQueryData(sessionKey, { authenticated: false, kind: 'none' });
+      // Leave first: this page sends signed-out visitors to the login page.
       await navigate('/', { replace: true });
+      qc.setQueryData(sessionKey, { authenticated: false, kind: 'none' });
     },
   });
 
@@ -183,7 +184,19 @@ export default function PasskeysPage() {
   const { t } = useTranslation(['auth', 'common']);
   const session = useSession();
   if (session.isPending) return <Loading />;
-  if (!session.data?.authenticated) return <Navigate to="/login" replace />;
+  if (!session.data?.authenticated) {
+    // No redirect: a sign-out from this page must not race into an automatic sign-in.
+    return (
+      <section className="page auth-page">
+        <h1>{t('passkeys.title')}</h1>
+        <p>
+          <Link to="/login" data-testid="passkeys-login">
+            {t('login.title')}
+          </Link>
+        </p>
+      </section>
+    );
+  }
   return (
     <section className="page auth-page">
       <h1>{t('passkeys.title')}</h1>
