@@ -563,8 +563,9 @@ func TestSearchForConsistentWithConcurrentBlock(t *testing.T) {
 	e.w.Friends("v", "x")
 	e.w.Friends("v", "y")
 	e.w.Friends("y", "x") // x stays reachable via y unless excluded
-	rg := &racyGraph{Graph: e.m.D.Graph}
-	rg.fire = func() { rg.Graph.RemoveEdge(v, x); rg.Graph.SetBlock(v, x, true) }
+	inner := e.m.D.Graph
+	rg := &racyGraph{Graph: inner}
+	rg.fire = func() { inner.RemoveEdge(v, x); inner.SetBlock(v, x, true) }
 	e.m.D.Graph = rg
 	s := e.search(v)
 	if s.Epoch() != rg.Epoch() {
