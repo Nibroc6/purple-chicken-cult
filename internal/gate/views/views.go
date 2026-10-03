@@ -175,7 +175,7 @@ func (s *Service) Posts(ctx context.Context, sr core.Search, ps []core.Checked, 
 	v := sr.Viewer()
 	ids := make([]core.PostID, len(ps))
 	for i, c := range ps {
-		if c.Viewer() != v || c.Meta().ID == uuid.Nil {
+		if c.Viewer() != v || c.Epoch() != sr.Epoch() || c.Meta().ID == uuid.Nil {
 			return nil, gate.ErrNotFound
 		}
 		ids[i] = c.Meta().ID
@@ -228,6 +228,10 @@ func (s *Service) Posts(ctx context.Context, sr core.Search, ps []core.Checked, 
 		}
 		if pv.Mine {
 			pv.AudienceForced = pm.AudienceForced
+		} else if pm.AudienceForced {
+			// D6: a forced post reads exactly like a voluntary d1 to others,
+			// whatever is stored (the same narrowing visibility applies).
+			pv.Audience = core.AudD1.String()
 		}
 		pv.Likes = pc.likes(ctx, pm.ID, liked[pm.ID])
 		if saved := s.d.Engage.SaverSet(ctx, pm.ID); saved != nil && saved.Contains(uint32(v)) {

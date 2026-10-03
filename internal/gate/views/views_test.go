@@ -445,3 +445,53 @@ func TestExcerpt(t *testing.T) {
 		t.Fatalf("runes: %q", got)
 	}
 }
+
+// A Checked minted under an older search for the same viewer is refused: the
+// graph changed (here an edge removal narrowed a d2 audience) since the check.
+func TestPostsRefusesStaleChecked(t *testing.T) {
+	e := newEnv(t, nil)
+	v, f := e.w.User("v"), e.w.User("f")
+	e.w.User("a")
+	e.w.User("g")
+	e.w.User("h")
+	e.w.Friends("v", "f")
+	e.w.Friends("f", "a")
+	e.w.Friends("v", "g")
+	e.w.Friends("g", "h")
+	e.w.Friends("h", "a") // a stays reachable at dist 3 after v–f goes
+	e.w.Post("a", "p", "x", coretest.Audience(core.AudD2))
+	old := e.search(v)
+	cs := e.checked(old, "p")
+	e.m.D.Graph.RemoveEdge(v, f)
+	fresh := e.search(v)
+	if fresh.Epoch() == old.Epoch() {
+		t.Fatal("edge removal must bump the epoch")
+	}
+	if _, ok := e.m.D.Vis.CheckPost(ctx, fresh, cs[0].Meta()); ok {
+		t.Fatal("the d2 post must be out of reach after the removal")
+	}
+	if _, err := e.views.Posts(ctx, fresh, cs, core.ViewOpts{}); !errors.Is(err, gate.ErrNotFound) {
+		t.Fatalf("stale Checked accepted: %v", err)
+	}
+	if _, err := e.views.Posts(ctx, old, cs, core.ViewOpts{}); err != nil {
+		t.Fatalf("matching search refused: %v", err)
+	}
+}
+
+// A forced post stored wider than d1 still reads "d1" to others (D6), exactly
+// like a voluntary d1; the author keeps the stored audience and the flag.
+func TestForcedPostReadsD1WhateverIsStored(t *testing.T) {
+	e := newEnv(t, nil)
+	e.w.User("v")
+	a := e.w.User("a")
+	e.w.Friends("v", "a")
+	e.w.Post("a", "p", "x", coretest.Audience(core.AudConnected), func(m *core.PostMeta, _ *[]core.LinkMeta) { m.AudienceForced = true })
+	e.w.Post("a", "q", "y", coretest.Audience(core.AudD1))
+	pv, vol := e.view(e.w.ID("v"), core.ViewOpts{}, "p"), e.view(e.w.ID("v"), core.ViewOpts{}, "q")
+	if pv.Audience != "d1" || pv.AudienceForced || pv.Audience != vol.Audience {
+		t.Fatalf("forced post leaks to others: %+v", pv)
+	}
+	if own := e.view(a, core.ViewOpts{}, "p"); !own.AudienceForced {
+		t.Fatalf("the author sees the forced flag: %+v", own)
+	}
+}

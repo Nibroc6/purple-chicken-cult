@@ -403,6 +403,7 @@ func TestFixtureErrors(t *testing.T) {
 		"dup friend":      `{"users": [{"handle": "abc"}, {"handle": "abd"}], "friends": [{"a": "abc", "b": "abd"}, {"a": "abd", "b": "abc"}]}`,
 		"bad level":       `{"users": [{"handle": "abc"}, {"handle": "abd"}], "friends": [{"a": "abc", "b": "abd", "level": "best"}]}`,
 		"self block":      `{"users": [{"handle": "abc"}], "blocks": [["abc", "abc"]]}`,
+		"friend blocked":  `{"users": [{"handle": "abc"}, {"handle": "abd"}], "friends": [{"a": "abc", "b": "abd"}], "blocks": [["abd", "abc"]]}`,
 		"no label":        `{"users": [{"handle": "abc"}], "posts": [{"author": "abc"}]}`,
 		"dup label":       `{"users": [{"handle": "abc"}], "posts": [{"label": "x", "author": "abc"}, {"label": "x", "author": "abc"}]}`,
 		"bad audience":    `{"users": [{"handle": "abc"}], "posts": [{"label": "x", "author": "abc", "audience": "all"}]}`,

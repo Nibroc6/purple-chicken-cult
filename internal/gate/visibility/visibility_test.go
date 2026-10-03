@@ -539,3 +539,38 @@ func TestAgreesWithReference(t *testing.T) {
 }
 
 func coretestRef(e *env) core.Visibility { return &coreref.MemVisibility{D: e.m.D} }
+
+// racyGraph commits a block between the Exclusions read and the Search, once.
+type racyGraph struct {
+	core.Graph
+	fire func()
+}
+
+func (g *racyGraph) Search(ctx context.Context, v core.UserID, ex core.Exclusions) (core.Search, error) {
+	if f := g.fire; f != nil {
+		g.fire = nil
+		f()
+	}
+	return g.Graph.Search(ctx, v, ex)
+}
+
+// A block committed between reading exclusions and running the BFS must not
+// produce a post-block epoch that still includes the blocked user.
+func TestSearchForConsistentWithConcurrentBlock(t *testing.T) {
+	e := newEnv(t)
+	v, x := e.w.User("v"), e.w.User("x")
+	e.w.User("y")
+	e.w.Friends("v", "x")
+	e.w.Friends("v", "y")
+	e.w.Friends("y", "x") // x stays reachable via y unless excluded
+	rg := &racyGraph{Graph: e.m.D.Graph}
+	rg.fire = func() { rg.Graph.RemoveEdge(v, x); rg.Graph.SetBlock(v, x, true) }
+	e.m.D.Graph = rg
+	s := e.search(v)
+	if s.Epoch() != rg.Epoch() {
+		t.Fatalf("search epoch %d, graph epoch %d", s.Epoch(), rg.Epoch())
+	}
+	if e.vis.CanSeeUser(s, x) {
+		t.Fatal("a search at the post-block epoch must exclude the blocked user")
+	}
+}

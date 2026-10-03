@@ -235,6 +235,10 @@ func (f *Fixture) build(ctx context.Context, d *core.Deps, name string) (*batch,
 			if a == c {
 				return nil, fmt.Errorf("devseed: %s cannot block or mute themself", p[0])
 			}
+			if t.out == &b.blocks && pairs[[2]core.UserID{min(a, c), max(a, c)}] {
+				// A block always unfriends (P0-W03): a pair is never both.
+				return nil, fmt.Errorf("devseed: %s and %s are friends and cannot also be blocked", p[0], p[1])
+			}
 			*t.out = append(*t.out, [2]core.UserID{a, c})
 		}
 	}

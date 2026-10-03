@@ -38,7 +38,16 @@ func (s *Service) SearchFor(ctx context.Context, v core.UserID) (core.Search, er
 	if v == 0 {
 		return nil, gate.ErrNotFound
 	}
-	return s.d.Graph.Search(ctx, v, s.d.Graph.Exclusions(v))
+	// Exclusions and Search take the graph lock separately; a block committed in
+	// between would yield a post-block epoch without the new exclusion. Read the
+	// epoch first and retry until both observed the same graph state.
+	for {
+		e := s.d.Graph.Epoch()
+		sr, err := s.d.Graph.Search(ctx, v, s.d.Graph.Exclusions(v))
+		if err != nil || sr.Epoch() == e {
+			return sr, err
+		}
+	}
 }
 
 // CanSeeUser ⇔ a finite distance in sr. Nothing else.
