@@ -253,11 +253,21 @@ func writeLikes(ctx context.Context, tx pgx.Tx, likes []likeRow) error {
 // the facts are also pushed into them directly; modules that cache their own
 // tables reload them.
 type (
-	reloader      interface{ Reload(ctx context.Context) error }
-	loader        interface{ Load(ctx context.Context) error }
-	bodySetter    interface{ SetBody(id core.PostID, body string) }
-	likeSetter    interface{ SetLike(u core.UserID, p core.PostID, on bool) }
-	muteSetter    interface{ SetMute(v, author core.UserID, on bool) }
+	reloader interface {
+		Reload(ctx context.Context) error
+	}
+	loader interface {
+		Load(ctx context.Context) error
+	}
+	bodySetter interface {
+		SetBody(id core.PostID, body string)
+	}
+	likeSetter interface {
+		SetLike(u core.UserID, p core.PostID, on bool)
+	}
+	muteSetter interface {
+		SetMute(v, author core.UserID, on bool)
+	}
 	userInvalider interface{ Invalidate(id core.UserID) }
 	userPutter    interface{ Put(m core.UserMeta) }
 )

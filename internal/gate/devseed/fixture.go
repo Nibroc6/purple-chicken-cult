@@ -32,12 +32,12 @@ import (
 //	  "likes":   [{"user": "bob", "post": "p1"}]
 //	}
 type Fixture struct {
-	Users   []FixtureUser   `json:"users"`
-	Friends []FixtureEdge   `json:"friends"`
-	Blocks  [][2]string     `json:"blocks"`
-	Mutes   [][2]string     `json:"mutes"`
-	Posts   []FixturePost   `json:"posts"`
-	Likes   []FixtureLike   `json:"likes"`
+	Users   []FixtureUser `json:"users"`
+	Friends []FixtureEdge `json:"friends"`
+	Blocks  [][2]string   `json:"blocks"`
+	Mutes   [][2]string   `json:"mutes"`
+	Posts   []FixturePost `json:"posts"`
+	Likes   []FixtureLike `json:"likes"`
 }
 
 // FixtureUser is one fixture user. Without invited_by the user is genesis.
