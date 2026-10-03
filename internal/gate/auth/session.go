@@ -352,15 +352,75 @@ func endCaller(ctx context.Context, q store.Q) ([]core.SessionEnded, error) {
 	return endSessions(ctx, q, sqlEndSession, si.idHash[:])
 }
 
-// RevokeAll deletes every session of user (core.Passkeys) and publishes
-// SessionEnded for each (callers invoke it as the last step of their tx).
+// RevokeAll deletes every session of user inside the caller's tx
+// (core.Passkeys). SessionEnded is published only after that tx commits, and
+// never if it rolls back: see publishAfterCommit.
 func (s *Service) RevokeAll(ctx context.Context, tx store.Q, user core.UserID) error {
 	evs, err := endSessions(ctx, tx, sqlEndUser, int64(user))
 	if err != nil {
 		return err
 	}
-	s.publishEnded(evs)
+	s.publishAfterCommit(ctx, evs)
 	return nil
+}
+
+// revokeWait bounds how long a RevokeAll publisher waits for the caller's tx.
+const revokeWait = 5 * time.Minute
+
+// publishAfterCommit publishes evs once the transaction that deleted their
+// session rows has ended, for the rows whose deletion committed. The deleting
+// tx holds those rows' locks until it ends, so a FOR KEY SHARE read of them
+// from another connection blocks until then: a row that is still there means
+// the tx rolled back (no event); a missing row means the delete committed.
+// core.Passkeys.RevokeAll hands us no commit hook (store.Tx has none), so this
+// is how "publish after commit" holds for a delete in someone else's tx.
+func (s *Service) publishAfterCommit(ctx context.Context, evs []core.SessionEnded) {
+	if len(evs) == 0 {
+		return
+	}
+	ids := make([][]byte, len(evs))
+	for i := range evs {
+		ids[i] = evs[i].Session[:]
+	}
+	s.pending.Add(1)
+	go func() {
+		defer s.pending.Done()
+		wctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), revokeWait)
+		defer cancel()
+		rows, err := s.d.DB.Q().Query(wctx, "SELECT id_hash FROM sessions WHERE id_hash = ANY($1) FOR KEY SHARE", ids)
+		if err != nil {
+			s.logRevokeErr(err)
+			return
+		}
+		alive := map[[32]byte]bool{}
+		for rows.Next() {
+			var h []byte
+			if err := rows.Scan(&h); err != nil {
+				rows.Close()
+				s.logRevokeErr(err)
+				return
+			}
+			var k [32]byte
+			copy(k[:], h)
+			alive[k] = true
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			s.logRevokeErr(err)
+			return
+		}
+		for _, e := range evs {
+			if !alive[e.Session] {
+				s.d.Bus.Publish(e)
+			}
+		}
+	}()
+}
+
+func (s *Service) logRevokeErr(err error) {
+	if s.d.Log != nil {
+		s.d.Log.Warn("auth: SessionEnded after RevokeAll not published", "err", err)
+	}
 }
 
 // purgeExpired deletes expired sessions and publishes SessionEnded for each.

@@ -240,11 +240,29 @@ func (s *Service) checkAssertion(parsed *protocol.ParsedCredentialAssertionData,
 	return nil
 }
 
-// recordUse stores the counter, backup state and last use of a credential.
+// errCredentialGone: the asserted credential was removed (or is not the
+// asserting user's) by the time its use is recorded; the ceremony is refused.
+var errCredentialGone = errors.New("auth: credential removed")
+
+// recordUse stores the counter, backup state and last use of a credential. It
+// is also the existence check that makes "removing a passkey ends its sessions"
+// race-free: the UPDATE row-locks the credential until q commits, so a
+// concurrent RemovePasskey (which locks the credentials FOR UPDATE, deletes,
+// then ends sessions) either waits and then ends the session this tx creates,
+// or has already committed and this UPDATE finds no row (errCredentialGone).
 func (s *Service) recordUse(ctx context.Context, q store.Q, a assertionResult) error {
-	_, err := q.Exec(ctx, `UPDATE webauthn_credentials SET sign_count = GREATEST(sign_count, $2), backup_state = $3,
-		last_used_at = $4 WHERE id = $1`, a.credID, int64(a.signCount), a.backup, s.d.Clock.Now())
-	return err
+	s.hook(hookBeforeUse)
+	tag, err := q.Exec(ctx, `UPDATE webauthn_credentials SET sign_count = GREATEST(sign_count, $2), backup_state = $3,
+		last_used_at = $4 WHERE id = $1 AND user_id = $5`, a.credID, int64(a.signCount), a.backup, s.d.Clock.Now(),
+		int64(a.user))
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() != 1 {
+		return errCredentialGone
+	}
+	s.hook(hookAfterUse)
+	return nil
 }
 
 // ---- core.Passkeys ----
@@ -328,9 +346,19 @@ func (s *Service) BeginAssertion(ctx context.Context, v core.Viewer, challenge [
 // VerifyAssertion verifies an assertion for v's pending ceremony of purpose:
 // the credential must be one of v's own (allowCredentials), UP=1 and UV=1, type
 // webauthn.get, exact origin, no crossOrigin/topOrigin, rpIdHash, the BE flag
-// unchanged and the sign-count rule. The ceremony is cleared whatever the
-// outcome. Failure is Problem passkey_rejected.
+// unchanged and the sign-count rule; a credential removed meanwhile is refused.
+// The ceremony is cleared whatever the outcome. Failure is Problem
+// passkey_rejected.
 func (s *Service) VerifyAssertion(ctx context.Context, v core.Viewer, purpose string, body []byte) (core.Assertion, error) {
+	return s.verifyAssertion(ctx, v, purpose, body, func(use assertionResult) error {
+		return s.recordUse(ctx, s.d.DB.Q(), use)
+	})
+}
+
+// verifyAssertion is VerifyAssertion with the use recorded by record, which
+// must call recordUse (the existence check), possibly inside a larger tx.
+func (s *Service) verifyAssertion(ctx context.Context, v core.Viewer, purpose string, body []byte,
+	record func(assertionResult) error) (core.Assertion, error) {
 	if v.Kind != core.SessUser || v.ID == 0 {
 		return core.Assertion{}, gate.ErrNotFound
 	}
@@ -359,7 +387,10 @@ func (s *Service) VerifyAssertion(ctx context.Context, v core.Viewer, purpose st
 	}
 	res := assertionResult{user: v.ID, credID: cred.ID, signCount: cred.Authenticator.SignCount,
 		backup: parsed.Response.AuthenticatorData.Flags.HasBackupState(), parsed: parsed}
-	if err := s.recordUse(ctx, s.d.DB.Q(), res); err != nil {
+	if err := record(res); err != nil {
+		if errors.Is(err, errCredentialGone) {
+			return core.Assertion{}, rejected()
+		}
 		return core.Assertion{}, err
 	}
 	raw := parsed.Raw.AssertionResponse

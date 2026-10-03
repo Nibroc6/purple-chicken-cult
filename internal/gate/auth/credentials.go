@@ -61,7 +61,7 @@ type account struct {
 func (s *Service) loadAccount(ctx context.Context, q store.Q, id core.UserID, lock bool) (account, error) {
 	sql := "SELECT webauthn_user_id, handle, display_name, status FROM users WHERE id = $1"
 	if lock {
-		sql = "SELECT webauthn_user_id, handle, display_name, status FROM users WHERE id = $1 FOR UPDATE"
+		sql = "SELECT webauthn_user_id, handle, display_name, status FROM users WHERE id = $1 FOR NO KEY UPDATE"
 	}
 	a := account{id: id}
 	var status int16

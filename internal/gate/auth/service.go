@@ -28,6 +28,23 @@ type Service struct {
 	rpOnce sync.Once
 	wa     *webauthn.WebAuthn
 	waErr  error
+
+	// testHook, when set (tests only), runs at the named points of a flow.
+	testHook func(point string)
+	// pending tracks the post-commit SessionEnded publishers of RevokeAll.
+	pending sync.WaitGroup
+}
+
+// Test hook points.
+const (
+	hookBeforeUse = "before-use" // recordUse, before the credential UPDATE
+	hookAfterUse  = "after-use"  // recordUse, credential row locked
+)
+
+func (s *Service) hook(point string) {
+	if s.testHook != nil {
+		s.testHook(point)
+	}
 }
 
 var (

@@ -112,7 +112,11 @@ func (s *Service) LoginFinish(ctx context.Context, body []byte) (string, gate.Se
 		backup: parsed.Response.AuthenticatorData.Flags.HasBackupState(), parsed: parsed}
 	var tok string
 	err = s.d.DB.Tx(ctx, func(tx pgx.Tx) error {
+		// Credential row locked from here to commit (see recordUse).
 		if err := s.recordUse(ctx, tx, use); err != nil {
+			if errors.Is(err, errCredentialGone) {
+				return gate.ErrNotFound
+			}
 			return err
 		}
 		tag, err := tx.Exec(ctx, "DELETE FROM sessions WHERE id_hash = $1 AND kind = $2", si.idHash[:], int16(core.SessGuest))
@@ -149,11 +153,18 @@ func (s *Service) StepUpFinish(ctx context.Context, body []byte) error {
 	if err != nil {
 		return err
 	}
-	if _, err := s.VerifyAssertion(ctx, v, purposeStepUp, body); err != nil {
-		return err
-	}
-	_, err = s.d.DB.Q().Exec(ctx, "UPDATE sessions SET auth_at = $2, stepup_required = false WHERE id_hash = $1",
-		v.Session[:], s.d.Clock.Now())
+	// One tx: the credential row stays locked until auth_at is set, so a passkey
+	// removed concurrently never leaves a freshly stepped-up session behind.
+	_, err = s.verifyAssertion(ctx, v, purposeStepUp, body, func(use assertionResult) error {
+		return s.d.DB.Tx(ctx, func(tx pgx.Tx) error {
+			if err := s.recordUse(ctx, tx, use); err != nil {
+				return err
+			}
+			_, err := tx.Exec(ctx, "UPDATE sessions SET auth_at = $2, stepup_required = false WHERE id_hash = $1",
+				v.Session[:], s.d.Clock.Now())
+			return err
+		})
+	})
 	return err
 }
 
@@ -498,13 +509,20 @@ func (s *Service) EnrollFinish(ctx context.Context, body []byte, removeOld bool,
 				return err
 			}
 		case purposeRecovery:
-			if ended, err = endSessions(ctx, tx, sqlEndUser, int64(t.user)); err != nil {
-				return err
-			}
+			// Lock (or remove) the old credentials BEFORE ending the sessions: a
+			// login racing with an old passkey holds its credential row lock
+			// (recordUse) until it commits, so either it commits first and its
+			// new session is visible to the DELETE below, or it waits and then
+			// finds the credential gone (removeOld) or logs in after recovery.
 			if removeOld {
 				if err := s.removeAll(ctx, tx, t.user, now); err != nil {
 					return err
 				}
+			} else if _, err := s.credentials(ctx, tx, t.user, true); err != nil {
+				return err
+			}
+			if ended, err = endSessions(ctx, tx, sqlEndUser, int64(t.user)); err != nil {
+				return err
 			}
 		}
 		if err := s.bindCredential(ctx, tx, t.user, cred, ""); err != nil {
