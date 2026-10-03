@@ -84,6 +84,7 @@ type Mem struct {
 	Metrics  *coreref.MemMetrics
 	Signer   *coreref.ServerSigner
 	ModQueue *coreref.MemModQueue
+	Requests *coreref.MemRequests
 }
 
 // NewMem builds a memory-backed core.Deps (no database) wired to coreref.
@@ -92,7 +93,7 @@ func NewMem(t testing.TB) *Mem {
 	r, key := FixedKeys(t)
 	m := &Mem{Clock: Clock(), Users: coreref.NewMemUsers(), Graph: coreref.NewMemGraph(), Engage: coreref.NewMemEngage(),
 		Edges: coreref.NewMemEdges(), Mutes: &coreref.MemMutes{}, Metrics: &coreref.MemMetrics{},
-		Signer: coreref.NewServerSigner(key), ModQueue: &coreref.MemModQueue{}}
+		Signer: coreref.NewServerSigner(key), ModQueue: &coreref.MemModQueue{}, Requests: &coreref.MemRequests{}}
 	d := &core.Deps{Clock: m.Clock, IDs: &ids.Seq{}, Refs: r, Cfg: Config(t, nil), Bus: &core.Bus{}}
 	m.Posts = coreref.NewMemPosts(d)
 	m.Notifier = &coreref.RecordingNotifier{D: d}
@@ -106,6 +107,7 @@ func NewMem(t testing.TB) *Mem {
 	d.ModQueue, d.StepUp = m.ModQueue, &coreref.MemStepUp{D: d}
 	d.DisplayNames = coreref.DisplayNameFunc(func(s string) (string, bool) { return s, true })
 	d.RecordExporter, d.PostAdmin, d.Enrollments = m.Signer, &coreref.MemPostAdmin{D: d}, &coreref.MemEnrollments{}
+	d.Mentions, d.Requests = m.Posts, m.Requests
 	m.D = d
 	return m
 }

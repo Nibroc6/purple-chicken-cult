@@ -145,6 +145,14 @@ type Mutes interface {
 	MutedAuthors(ctx context.Context, v UserID) map[UserID]struct{}
 }
 
+// RequestStates exposes the friend-request state between v and u as v sees it
+// (impl: gate/friends): "outgoing" (v asked u; a declined request still reads
+// "outgoing"), "incoming" (u asked v, pending) or "".
+// Steward: contract request p0-w02-1.
+type RequestStates interface {
+	RequestState(ctx context.Context, v, u UserID) string
+}
+
 // ---- posts index (impl: gate/postindex) ----
 
 // PostMeta is the ranking/visibility metadata of a post (no body).
@@ -189,6 +197,14 @@ type PostIndex interface {
 	Delete(id PostID)
 	PutLink(l LinkMeta)
 	UpdateLink(l LinkMeta)
+}
+
+// MentionIndex resolves a post's stored mentions (impl: gate/postindex). The map is
+// ord (index of the @handle occurrence in the body) → target; it holds only the
+// mentions resolved at write time within the author's horizon (mentions table).
+// Steward: contract request p0-w02-1.
+type MentionIndex interface {
+	MentionTargets(ctx context.Context, p PostID) map[int]UserID
 }
 
 // PostAdmin deletes posts on behalf of the system (impl: gate/posts).

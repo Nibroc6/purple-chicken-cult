@@ -17,7 +17,8 @@ import (
 )
 
 // Reference implementations of the steward additions from contract requests
-// p0-w11-1 (DisplayNames, RecordExporter) and p0-w11-2 (PostAdmin, Enrollments).
+// p0-w11-1 (DisplayNames, RecordExporter), p0-w11-2 (PostAdmin, Enrollments) and
+// p0-w02-1 (MentionIndex on MemPosts, RequestStates).
 
 // DisplayNameFunc adapts a function to core.DisplayNames.
 type DisplayNameFunc func(name string) (string, bool)
@@ -128,4 +129,34 @@ type memTombstone struct {
 	Target uuid.UUID `json:"target"`
 	By     uuid.UUID `json:"by"`
 	At     sigs.Time `json:"at"`
+}
+
+// MemRequests is the reference core.RequestStates (contract request p0-w02-1):
+// a map from (v, u) to the state v sees ("outgoing", "incoming" or "").
+type MemRequests struct {
+	mu sync.RWMutex
+	m  map[[2]core.UserID]string
+}
+
+var _ core.RequestStates = (*MemRequests)(nil)
+
+// Set records the state v sees towards u ("" clears it).
+func (r *MemRequests) Set(v, u core.UserID, state string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.m == nil {
+		r.m = map[[2]core.UserID]string{}
+	}
+	if state == "" {
+		delete(r.m, [2]core.UserID{v, u})
+		return
+	}
+	r.m[[2]core.UserID{v, u}] = state
+}
+
+// RequestState returns the state v sees towards u.
+func (r *MemRequests) RequestState(_ context.Context, v, u core.UserID) string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.m[[2]core.UserID{v, u}]
 }

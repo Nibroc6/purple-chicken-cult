@@ -65,4 +65,9 @@ type Deps struct {
 	RecordExporter RecordExporter
 	PostAdmin      PostAdmin
 	Enrollments    Enrollments
+
+	// Steward additions (contract request p0-w02-1). Optional: nil until the
+	// implementing WP lands; gate/views treats nil as "none".
+	Mentions MentionIndex
+	Requests RequestStates
 }

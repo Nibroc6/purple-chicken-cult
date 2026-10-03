@@ -12,7 +12,6 @@ import (
 
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/internal/core"
-	"github.com/Nibroc6/purple-chicken-cult/internal/gate/internal/coreref"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/internal/coretest"
 	"github.com/Nibroc6/purple-chicken-cult/internal/store"
 	"github.com/Nibroc6/purple-chicken-cult/internal/store/storetest"
@@ -25,39 +24,15 @@ type env struct {
 	m     *coretest.Mem
 	w     *coretest.World
 	views *Service
-	posts *mentionPosts
-}
-
-// mentionPosts is a PostIndex with stored mentions (the shape contract request
-// p0-w02-1 asks gate/postindex to implement).
-type mentionPosts struct {
-	*coreref.MemPosts
-	mentions map[core.PostID]map[int]core.UserID
-}
-
-func (p *mentionPosts) MentionTargets(_ context.Context, id core.PostID) map[int]core.UserID {
-	return p.mentions[id]
-}
-
-// requests is a fake friends module exposing request states.
-type requests struct {
-	*coreref.MemMutes
-	state map[[2]core.UserID]string
-}
-
-func (r *requests) RequestState(_ context.Context, v, u core.UserID) string {
-	return r.state[[2]core.UserID{v, u}]
 }
 
 func newEnv(t *testing.T, db *store.DB) *env {
 	t.Helper()
 	m := coretest.NewMem(t)
-	mp := &mentionPosts{MemPosts: m.Posts, mentions: map[core.PostID]map[int]core.UserID{}}
-	m.D.Posts = mp
 	m.D.DB = db
 	v := New(m.D)
 	m.D.Views = v
-	return &env{t: t, m: m, w: coretest.NewWorld(t, m.D, db), views: v, posts: mp}
+	return &env{t: t, m: m, w: coretest.NewWorld(t, m.D, db), views: v}
 }
 
 func (e *env) search(v core.UserID) core.Search {
@@ -328,17 +303,20 @@ func TestMentionsRefOnlyWhenVisible(t *testing.T) {
 	e.w.Friends("v", "a")
 	e.w.Friends("v", "friend")
 	e.w.Post("a", "p", "hi @friend and @far")
-	e.posts.mentions[e.w.PostID("p")] = map[int]core.UserID{1: far, 0: friend}
+	e.m.Posts.SetMentions(e.w.PostID("p"), map[int]core.UserID{1: far, 0: friend})
 	m := e.view(v, core.ViewOpts{}, "p").Mentions
 	if len(m) != 2 || m[0].Ord != 0 || m[0].Ref != e.m.D.Refs.User(v, friend) || m[1].Ord != 1 || m[1].Ref != "" {
 		t.Fatalf("mentions: %+v", m)
+	}
+	// d.Mentions is optional (contract request p0-w02-1): nil renders no mentions.
+	e.m.D.Mentions = nil
+	if m := e.view(v, core.ViewOpts{}, "p").Mentions; len(m) != 0 {
+		t.Fatalf("mentions without index: %+v", m)
 	}
 }
 
 func TestPersonView(t *testing.T) {
 	e := newEnv(t, nil)
-	rq := &requests{MemMutes: e.m.Mutes, state: map[[2]core.UserID]string{}}
-	e.m.D.Mutes = rq
 	v := e.w.User("v")
 	f := e.w.User("f")
 	fp := e.w.User("fp")
@@ -348,8 +326,8 @@ func TestPersonView(t *testing.T) {
 	e.m.Graph.AddEdge(v, fp, core.LevelFriendPlus, coretest.Epoch)
 	e.w.Friends("f", "c")
 	e.m.Mutes.SetMute(v, f, true)
-	rq.state[[2]core.UserID{v, c}] = "outgoing"
-	rq.state[[2]core.UserID{v, f}] = "incoming" // ignored: already friends
+	e.m.Requests.Set(v, c, "outgoing")
+	e.m.Requests.Set(v, f, "incoming") // ignored: already friends
 	s := e.search(v)
 
 	self, err := e.views.Person(ctx, s, v)

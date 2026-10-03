@@ -20,9 +20,13 @@ type MemPosts struct {
 	bodies   map[core.PostID]string
 	children map[core.PostID][]core.LinkMeta
 	parents  map[core.PostID][]core.LinkMeta
+	mentions map[core.PostID]map[int]core.UserID
 }
 
-var _ core.PostIndex = (*MemPosts)(nil)
+var (
+	_ core.PostIndex    = (*MemPosts)(nil)
+	_ core.MentionIndex = (*MemPosts)(nil)
+)
 
 // NewMemPosts returns an empty index.
 func NewMemPosts(d *core.Deps) *MemPosts {
@@ -155,6 +159,40 @@ func (p *MemPosts) SetBody(id core.PostID, body string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.bodies[id] = body
+}
+
+// SetMentions stores a post's resolved mentions (ord → target); nil clears them
+// (contract request p0-w02-1).
+func (p *MemPosts) SetMentions(id core.PostID, m map[int]core.UserID) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.mentions == nil {
+		p.mentions = map[core.PostID]map[int]core.UserID{}
+	}
+	if m == nil {
+		delete(p.mentions, id)
+		return
+	}
+	c := make(map[int]core.UserID, len(m))
+	for k, v := range m {
+		c[k] = v
+	}
+	p.mentions[id] = c
+}
+
+// MentionTargets returns a copy of the post's stored mentions (core.MentionIndex).
+func (p *MemPosts) MentionTargets(_ context.Context, id core.PostID) map[int]core.UserID {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	src := p.mentions[id]
+	if src == nil {
+		return nil
+	}
+	out := make(map[int]core.UserID, len(src))
+	for k, v := range src {
+		out[k] = v
+	}
+	return out
 }
 
 // Delete marks a post deleted and drops its body.

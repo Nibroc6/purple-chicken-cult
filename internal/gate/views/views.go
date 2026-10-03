@@ -53,32 +53,8 @@ func New(d *core.Deps) *Service { return &Service{d: d} }
 // Init does nothing: views are built on demand from the other modules.
 func (s *Service) Init(context.Context) error { return nil }
 
-// Local adapters until contract request p0-w02-1 lands (core.MentionIndex and
-// core.RequestStates): implementers are found by type assertion and their
-// absence degrades to "no mentions" / "no request" (fail closed).
-type mentionIndex interface {
-	MentionTargets(ctx context.Context, p core.PostID) map[int]core.UserID
-}
-
-type requestStates interface {
-	RequestState(ctx context.Context, v, u core.UserID) string
-}
-
-func (s *Service) mentionIndex() mentionIndex {
-	if m, ok := s.d.Posts.(mentionIndex); ok {
-		return m
-	}
-	return nil
-}
-
-func (s *Service) requestStates() requestStates {
-	for _, x := range []any{s.d.Edges, s.d.Mutes} {
-		if r, ok := x.(requestStates); ok {
-			return r
-		}
-	}
-	return nil
-}
+// d.Mentions and d.Requests (contract request p0-w02-1) are optional: nil
+// degrades to "no mentions" / "no request" (fail closed).
 
 // ---- people ----
 
@@ -133,7 +109,7 @@ func (s *Service) Person(ctx context.Context, sr core.Search, u core.UserID) (ga
 		}
 	}
 	if pv.Relation == "connected" {
-		if rs := s.requestStates(); rs != nil {
+		if rs := s.d.Requests; rs != nil {
 			switch st := rs.RequestState(ctx, v, u); st {
 			case "outgoing", "incoming":
 				pv.Request = st
@@ -208,7 +184,7 @@ func (s *Service) Posts(ctx context.Context, sr core.Search, ps []core.Checked, 
 	if err != nil {
 		return nil, err
 	}
-	mi := s.mentionIndex()
+	mi := s.d.Mentions
 
 	for _, c := range ps {
 		pm := c.Meta()
