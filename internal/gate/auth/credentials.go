@@ -229,7 +229,7 @@ func (s *Service) notifyFriends(ctx context.Context, tx store.Q, user core.UserI
 const (
 	sqlEndSession    = "DELETE FROM sessions WHERE id_hash = $1 RETURNING id_hash, user_id"
 	sqlEndUser       = "DELETE FROM sessions WHERE user_id = $1 RETURNING id_hash, user_id"
-	sqlEndCredential = "DELETE FROM sessions WHERE user_id = $1 AND credential_id = $2 RETURNING id_hash, user_id"
+	sqlEndCredential = "DELETE FROM sessions WHERE user_id = $1 AND credential_id = $2 RETURNING id_hash, user_id" //nolint:gosec // SQL, not a credential
 	sqlEndExpired    = "DELETE FROM sessions WHERE expires_at <= $1 RETURNING id_hash, user_id"
 )
 
