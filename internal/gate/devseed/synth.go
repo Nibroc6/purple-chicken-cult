@@ -26,9 +26,11 @@ const (
 	synthEdgeBase = 390 * 24 * time.Hour // edges form within the year after the users joined
 )
 
-var synthWords = strings.Fields(`the a purple chicken cult meets at dawn bread garden river walk letter coffee rain
-	tomorrow quiet loud bright small field song friend market map window early late kitchen bicycle lantern
-	mountain thread story question answer picnic harbor library orchard`)
+// synthWords is the vocabulary of synthetic post bodies (user content, not UI
+// text; comma-separated so it is one token list, not a sentence).
+var synthWords = strings.Split("the,a,purple,chicken,cult,meets,at,dawn,bread,garden,river,walk,letter,coffee,rain,"+
+	"tomorrow,quiet,loud,bright,small,field,song,friend,market,map,window,early,late,kitchen,bicycle,lantern,"+
+	"mountain,thread,story,question,answer,picnic,harbor,library,orchard", ",")
 
 // synthetic builds the batch for Synthetic: users first … first+n-1 mirror the
 // nodes of graph.Synth(n, model, seed).
