@@ -210,7 +210,7 @@ func (a *Authenticator) Create(options []byte) (json.RawMessage, error) {
 		return nil, err
 	}
 	ad := authData(o.RP.ID, a.flags(true), c.Counter)
-	ad = append(ad, make([]byte, 16)...) // AAGUID (zero: no attestation)
+	ad = append(ad, make([]byte, 16)...)                    // AAGUID (zero: no attestation)
 	ad = binary.BigEndian.AppendUint16(ad, uint16(len(id))) //nolint:gosec // 32-byte IDs
 	ad = append(ad, id...)
 	ad = append(ad, cose...)

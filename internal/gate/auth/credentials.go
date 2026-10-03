@@ -52,10 +52,10 @@ type passkeyChangeBody struct {
 // and the status directly and activates genesis accounts at enrollment until a
 // core interface for both exists.
 type account struct {
-	id            core.UserID
-	webauthnID    []byte
-	handle, name  string
-	status        uint8
+	id           core.UserID
+	webauthnID   []byte
+	handle, name string
+	status       uint8
 }
 
 func (s *Service) loadAccount(ctx context.Context, q store.Q, id core.UserID, lock bool) (account, error) {
@@ -92,15 +92,15 @@ func (s *Service) activateGenesis(ctx context.Context, tx store.Q, id core.UserI
 
 // storedCred is one webauthn_credentials row.
 type storedCred struct {
-	id, publicKey     []byte
-	alg               int
-	signCount         int64
-	aaguid            []byte
-	transports        []string
-	be, bs            bool
-	name              string
-	createdAt         time.Time
-	lastUsedAt        *time.Time
+	id, publicKey []byte
+	alg           int
+	signCount     int64
+	aaguid        []byte
+	transports    []string
+	be, bs        bool
+	name          string
+	createdAt     time.Time
+	lastUsedAt    *time.Time
 }
 
 func (c storedCred) webauthn() webauthn.Credential {
