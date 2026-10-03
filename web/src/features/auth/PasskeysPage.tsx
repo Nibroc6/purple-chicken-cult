@@ -64,9 +64,13 @@ function Passkeys() {
 
   const add = useMutation({
     mutationFn: async () => {
-      const options = await withStepUp(addPasskeyBegin);
-      const credential = await createPasskey(options);
-      await withStepUp(() => addPasskeyFinish(credential, name));
+      // The whole add flow is retried after a step-up, never finish alone: a
+      // session holds one ceremony, which the step-up replaces (begin again).
+      await withStepUp(async () => {
+        const options = await addPasskeyBegin();
+        const credential = await createPasskey(options);
+        await addPasskeyFinish(credential, name);
+      });
     },
     onMutate: () => {
       setNotice(undefined);

@@ -347,6 +347,43 @@ describe('PasskeysPage', () => {
     expect((await screen.findByRole('alert')).textContent).toBe(i18n.t('auth:passkey.exists'));
   });
 
+  it('restarts the whole add flow when finish asks for a step-up', async () => {
+    // Server model: one ceremony per session; the step-up replaces the pending
+    // add ceremony, so a finish retried without a new begin would be rejected.
+    let fresh = false;
+    let ceremony: 'add' | 'stepup' | undefined;
+    const calls = stubAPI(signedIn, (c) => {
+      if (c.path === '/auth/passkeys') return json(200, { items: one });
+      if (c.path === '/auth/passkeys/begin') {
+        ceremony = 'add';
+        return json(200, { options: createOptions });
+      }
+      if (c.path === '/auth/passkeys/finish') {
+        if (!fresh) return json(401, { error: 'step_up_required' });
+        const ok = ceremony === 'add';
+        ceremony = undefined;
+        return ok ? json(204, null) : json(400, { error: 'passkey_rejected' });
+      }
+      if (c.path === '/auth/stepup/begin') {
+        ceremony = 'stepup';
+        return json(200, { options: loginOptions });
+      }
+      if (c.path === '/auth/stepup/finish') {
+        ceremony = undefined;
+        fresh = true;
+        return json(204, null);
+      }
+      return undefined;
+    });
+    renderAt('/settings/passkeys', <PasskeysPage />);
+    fireEvent.click(await screen.findByTestId('passkey-add'));
+    fireEvent.click(await screen.findByTestId('stepup-verify'));
+    expect(await screen.findByText(i18n.t('auth:passkeys.added'))).toBeTruthy();
+    expect(calls.filter((c) => c.path === '/auth/passkeys/begin')).toHaveLength(2);
+    expect(calls.filter((c) => c.path === '/auth/passkeys/finish')).toHaveLength(2);
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
   it('signs out and points a signed-out visitor to the login page', async () => {
     const calls = stubAPI(signedIn, (c) => {
       if (c.path === '/auth/passkeys') return json(200, { items: one });

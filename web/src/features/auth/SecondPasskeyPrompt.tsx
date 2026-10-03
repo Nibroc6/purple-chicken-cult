@@ -22,9 +22,12 @@ export function SecondPasskeyPrompt({ onDone }: { onDone: () => void }) {
     setBusy(true);
     setErr(undefined);
     try {
-      const options = await withStepUp(addPasskeyBegin);
-      const credential = await createPasskey(options);
-      await addPasskeyFinish(credential, name);
+      // Retry the whole flow after a step-up (one ceremony per session).
+      await withStepUp(async () => {
+        const options = await addPasskeyBegin();
+        const credential = await createPasskey(options);
+        await addPasskeyFinish(credential, name);
+      });
       setAdded(true);
     } catch (e) {
       setErr(authErrorKey(e));
