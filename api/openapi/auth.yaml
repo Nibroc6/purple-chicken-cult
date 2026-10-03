@@ -1,6 +1,9 @@
 # OpenAPI fragment of the auth module (plan §5.3). Owner: P0-W01 → P1-W07.
-# Paths are relative to /api. The scaffold registered /session, /auth/logout and
-# the login routes.
+# Paths are relative to /api. Every unsafe request needs Sec-Fetch-Site
+# same-origin (or absent), Origin equal to the configured origin and, once a
+# session exists, X-PCC-CSRF; any failure is the uniform 404. WebAuthn options
+# are the server's {"publicKey": {...}, "mediation"?} objects; credentials are
+# PublicKeyCredential JSON (base64url fields).
 openapi: 3.0.3
 info:
   title: pcc internal API (auth)
@@ -19,11 +22,15 @@ paths:
     post:
       operationId: logout
       responses:
-        "204": { description: Logged out. }
+        "204": { description: Logged out (the session ends and the cookie is cleared). }
         "404": { $ref: '_common.yaml#/components/responses/NotFound' }
   /auth/login/begin:
     post:
       operationId: loginBegin
+      description: >-
+        Starts a discoverable passkey login (conditional mediation). Sets a new guest
+        session cookie that holds the challenge for two minutes; the previous session
+        of the caller ends.
       requestBody:
         required: true
         content:
@@ -31,19 +38,108 @@ paths:
             schema: { type: object, additionalProperties: false }
       responses:
         "200":
-          description: WebAuthn request options.
+          description: WebAuthn request options and the CSRF token of the guest session.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthBegin' }
+        "400": { $ref: '_common.yaml#/components/responses/Problem' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/AuthRateLimited' }
+  /auth/login/finish:
+    post:
+      operationId: loginFinish
+      description: >-
+        Verifies the assertion and replaces the guest session with a new user session.
+        Any failure (bad, replayed or expired assertion, unknown credential, account not
+        active) is the uniform 404.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AuthCredentialIn' }
+      responses:
+        "200":
+          description: The new session.
+          content:
+            application/json:
+              schema: { $ref: '_common.yaml#/components/schemas/SessionView' }
+        "400": { $ref: '_common.yaml#/components/responses/Problem' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/AuthRateLimited' }
+  /auth/stepup/begin:
+    post:
+      operationId: stepUpBegin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: false }
+      responses:
+        "200":
+          description: WebAuthn request options (allowCredentials = the own passkeys of the viewer).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthOptions' }
+        "400": { $ref: '_common.yaml#/components/responses/Problem' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/AuthRateLimited' }
+  /auth/stepup/finish:
+    post:
+      operationId: stepUpFinish
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AuthCredentialIn' }
+      responses:
+        "204": { description: Verified; the session is fresh for five minutes. }
+        "400":
+          description: passkey_rejected (or bad_request).
+          content:
+            application/json:
+              schema: { $ref: '_common.yaml#/components/schemas/Error' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/AuthRateLimited' }
+  /auth/passkeys:
+    get:
+      operationId: listPasskeys
+      responses:
+        "200":
+          description: The passkeys of the viewer, oldest first.
           content:
             application/json:
               schema:
                 type: object
-                required: [options]
+                additionalProperties: false
+                required: [items]
                 properties:
-                  options: { type: object, additionalProperties: true }
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/AuthPasskey' }
+        "401": { $ref: '#/components/responses/AuthStepUp' }
         "404": { $ref: '_common.yaml#/components/responses/NotFound' }
-        "501": { $ref: '_common.yaml#/components/responses/NotImplemented' }
-  /auth/login/finish:
+        "429": { $ref: '#/components/responses/AuthRateLimited' }
+  /auth/passkeys/begin:
     post:
-      operationId: loginFinish
+      operationId: addPasskeyBegin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: false }
+      responses:
+        "200":
+          description: WebAuthn creation options (excludeCredentials = the passkeys of the viewer).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthOptions' }
+        "400": { $ref: '_common.yaml#/components/responses/Problem' }
+        "401": { $ref: '#/components/responses/AuthStepUp' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/AuthRateLimited' }
+  /auth/passkeys/finish:
+    post:
+      operationId: addPasskeyFinish
       requestBody:
         required: true
         content:
@@ -54,12 +150,146 @@ paths:
               required: [credential]
               properties:
                 credential: { type: object, additionalProperties: true }
+                name: { type: string, maxLength: 200 }
+      responses:
+        "204": { description: The passkey was added; friends are notified. }
+        "400":
+          description: passkey_rejected (or bad_request).
+          content:
+            application/json:
+              schema: { $ref: '_common.yaml#/components/schemas/Error' }
+        "401": { $ref: '#/components/responses/AuthStepUp' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "422":
+          description: passkey_name_invalid.
+          content:
+            application/json:
+              schema: { $ref: '_common.yaml#/components/schemas/Error' }
+        "429": { $ref: '#/components/responses/AuthRateLimited' }
+  /auth/passkeys/{id}:
+    delete:
+      operationId: removePasskey
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { $ref: '_common.yaml#/components/schemas/Ref' }
+      responses:
+        "204": { description: Removed; every session it authenticated ended. }
+        "401": { $ref: '#/components/responses/AuthStepUp' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409":
+          description: last_passkey.
+          content:
+            application/json:
+              schema: { $ref: '_common.yaml#/components/schemas/Error' }
+        "429": { $ref: '#/components/responses/AuthRateLimited' }
+  /enroll/begin:
+    post:
+      operationId: enrollBegin
+      description: >-
+        Redeems the enrollment token from the URL fragment (never a path or query) and
+        binds it to an enrollment session (a new cookie unless the current session is
+        already bound to it). An invalid, used, cancelled, held or expired token is the
+        uniform 404.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [token]
+              properties:
+                token: { type: string, maxLength: 64 }
       responses:
         "200":
-          description: The new session.
+          description: Registration options, the purpose and (recovery) the existing passkeys.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [options, purpose]
+                properties:
+                  options: { type: object, additionalProperties: true }
+                  csrf: { type: string }
+                  purpose: { type: string, enum: [genesis, recovery] }
+                  existing_passkeys:
+                    type: array
+                    items: { $ref: '#/components/schemas/AuthPasskey' }
+        "400": { $ref: '_common.yaml#/components/responses/Problem' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/AuthRateLimited' }
+  /enroll/finish:
+    post:
+      operationId: enrollFinish
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [credential]
+              properties:
+                credential: { type: object, additionalProperties: true }
+                remove_old: { type: boolean }
+                tos_version: { type: integer }
+                age_attested: { type: boolean }
+      responses:
+        "200":
+          description: The new user session.
           content:
             application/json:
               schema: { $ref: '_common.yaml#/components/schemas/SessionView' }
         "400": { $ref: '_common.yaml#/components/responses/Problem' }
         "404": { $ref: '_common.yaml#/components/responses/NotFound' }
-        "501": { $ref: '_common.yaml#/components/responses/NotImplemented' }
+        "422":
+          description: tos_required or age_required (genesis enrollment).
+          content:
+            application/json:
+              schema: { $ref: '_common.yaml#/components/schemas/Error' }
+        "429": { $ref: '#/components/responses/AuthRateLimited' }
+components:
+  schemas:
+    AuthOptions:
+      type: object
+      additionalProperties: false
+      required: [options]
+      properties:
+        options: { type: object, additionalProperties: true }
+    AuthBegin:
+      type: object
+      additionalProperties: false
+      required: [options]
+      properties:
+        options: { type: object, additionalProperties: true }
+        csrf: { type: string }
+    AuthCredentialIn:
+      type: object
+      additionalProperties: false
+      required: [credential]
+      properties:
+        credential: { type: object, additionalProperties: true }
+    AuthPasskey:
+      type: object
+      additionalProperties: false
+      required: [id, name, created_at, current]
+      properties:
+        id: { $ref: '_common.yaml#/components/schemas/Ref' }
+        name: { type: string }
+        created_at: { type: string, format: date-time }
+        last_used_at: { type: string, format: date-time }
+        current: { type: boolean }
+  responses:
+    AuthStepUp:
+      description: step_up_required (a fresh passkey verification is needed).
+      content:
+        application/json:
+          schema: { $ref: '_common.yaml#/components/schemas/Error' }
+    AuthRateLimited:
+      description: rate_limited.
+      content:
+        application/json:
+          schema: { $ref: '_common.yaml#/components/schemas/Error' }

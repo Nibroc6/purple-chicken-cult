@@ -200,11 +200,12 @@ func (s *Service) bindCredential(ctx context.Context, tx store.Q, user core.User
 
 // signChange writes a PasskeyChange record (party: the account).
 func (s *Service) signChange(ctx context.Context, tx store.Q, user core.UserID, op string, id, pub []byte, alg int, at time.Time) error {
-	m, err := s.d.Users.Get(ctx, user)
-	if err != nil {
+	// Read through tx: the account may have been created in this transaction (join).
+	var ext uuid.UUID
+	if err := tx.QueryRow(ctx, "SELECT ext_id FROM users WHERE id = $1", int64(user)).Scan(&ext); err != nil {
 		return err
 	}
-	_, err = s.d.Signer.Sign(ctx, tx, core.RecPasskeyChange, user, passkeyChangeBody{User: m.ExtID, Op: op,
+	_, err := s.d.Signer.Sign(ctx, tx, core.RecPasskeyChange, user, passkeyChangeBody{User: ext, Op: op,
 		CredentialID: id, PublicKey: pub, Alg: alg, At: sigs.T(at)}, []core.UserID{user})
 	return err
 }
