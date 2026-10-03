@@ -586,6 +586,7 @@ func TestRemovePasskey(t *testing.T) {
 	a := e.authn()
 	c, alice := e.enroll("alice", a)
 	a2 := e.authn()
+	e.advance(time.Second) // distinct created_at: passkeys list oldest first
 	if err := e.addPasskey(c, a2, "second"); err != nil {
 		t.Fatal(err)
 	}

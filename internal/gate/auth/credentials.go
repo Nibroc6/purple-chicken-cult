@@ -61,7 +61,7 @@ type account struct {
 func (s *Service) loadAccount(ctx context.Context, q store.Q, id core.UserID, lock bool) (account, error) {
 	sql := "SELECT webauthn_user_id, handle, display_name, status FROM users WHERE id = $1"
 	if lock {
-		sql += " FOR UPDATE"
+		sql = "SELECT webauthn_user_id, handle, display_name, status FROM users WHERE id = $1 FOR UPDATE"
 	}
 	a := account{id: id}
 	var status int16
@@ -117,11 +117,12 @@ func (c storedCred) webauthn() webauthn.Credential {
 
 // credentials lists user's credentials, oldest first.
 func (s *Service) credentials(ctx context.Context, q store.Q, user core.UserID, lock bool) ([]storedCred, error) {
-	sql := `SELECT id, public_key, alg, sign_count, aaguid, transports, backup_eligible, backup_state, name, created_at,
-		last_used_at FROM webauthn_credentials WHERE user_id = $1 ORDER BY created_at, id`
+	order := "ORDER BY created_at, id"
 	if lock {
-		sql += " FOR UPDATE"
+		order = "ORDER BY created_at, id FOR UPDATE"
 	}
+	sql := `SELECT id, public_key, alg, sign_count, aaguid, transports, backup_eligible, backup_state, name, created_at,
+		last_used_at FROM webauthn_credentials WHERE user_id = $1 ` + order
 	rows, err := q.Query(ctx, sql, int64(user))
 	if err != nil {
 		return nil, err
@@ -224,10 +225,18 @@ func (s *Service) notifyFriends(ctx context.Context, tx store.Q, user core.UserI
 	return nil
 }
 
-// endSessions deletes sessions matching where (with arg) and returns the
-// SessionEnded events to publish after commit.
-func endSessions(ctx context.Context, q store.Q, where string, args ...any) ([]core.SessionEnded, error) {
-	rows, err := q.Query(ctx, "DELETE FROM sessions WHERE "+where+" RETURNING id_hash, user_id", args...)
+// Session deletions; each returns (id_hash, user_id) for SessionEnded.
+const (
+	sqlEndSession    = "DELETE FROM sessions WHERE id_hash = $1 RETURNING id_hash, user_id"
+	sqlEndUser       = "DELETE FROM sessions WHERE user_id = $1 RETURNING id_hash, user_id"
+	sqlEndCredential = "DELETE FROM sessions WHERE user_id = $1 AND credential_id = $2 RETURNING id_hash, user_id"
+	sqlEndExpired    = "DELETE FROM sessions WHERE expires_at <= $1 RETURNING id_hash, user_id"
+)
+
+// endSessions runs one of the sqlEnd* deletions and returns the SessionEnded
+// events to publish after commit.
+func endSessions(ctx context.Context, q store.Q, sql string, args ...any) ([]core.SessionEnded, error) {
+	rows, err := q.Query(ctx, sql, args...)
 	if err != nil {
 		return nil, err
 	}

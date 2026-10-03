@@ -57,7 +57,7 @@ func (s *Service) Init(ctx context.Context) error {
 // forget deletes a deleted account's sessions and credentials (plan §4.7:
 // every owner deletes its own rows on AccountDeleted).
 func (s *Service) forget(ctx context.Context, user core.UserID) {
-	evs, err := endSessions(ctx, s.d.DB.Q(), "user_id = $1", int64(user))
+	evs, err := endSessions(ctx, s.d.DB.Q(), sqlEndUser, int64(user))
 	if err == nil {
 		s.publishEnded(evs)
 	}

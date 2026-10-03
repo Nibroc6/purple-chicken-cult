@@ -334,7 +334,7 @@ func (s *Service) Logout(ctx context.Context) error {
 	if !ok {
 		return nil
 	}
-	evs, err := endSessions(ctx, s.d.DB.Q(), "id_hash = $1", si.idHash[:])
+	evs, err := endSessions(ctx, s.d.DB.Q(), sqlEndSession, si.idHash[:])
 	if err != nil {
 		return err
 	}
@@ -349,13 +349,13 @@ func endCaller(ctx context.Context, q store.Q) ([]core.SessionEnded, error) {
 	if !ok {
 		return nil, nil
 	}
-	return endSessions(ctx, q, "id_hash = $1", si.idHash[:])
+	return endSessions(ctx, q, sqlEndSession, si.idHash[:])
 }
 
 // RevokeAll deletes every session of user (core.Passkeys) and publishes
 // SessionEnded for each (callers invoke it as the last step of their tx).
 func (s *Service) RevokeAll(ctx context.Context, tx store.Q, user core.UserID) error {
-	evs, err := endSessions(ctx, tx, "user_id = $1", int64(user))
+	evs, err := endSessions(ctx, tx, sqlEndUser, int64(user))
 	if err != nil {
 		return err
 	}
@@ -365,7 +365,7 @@ func (s *Service) RevokeAll(ctx context.Context, tx store.Q, user core.UserID) e
 
 // purgeExpired deletes expired sessions and publishes SessionEnded for each.
 func (s *Service) purgeExpired(ctx context.Context) error {
-	evs, err := endSessions(ctx, s.d.DB.Q(), "expires_at <= $1", s.d.Clock.Now())
+	evs, err := endSessions(ctx, s.d.DB.Q(), sqlEndExpired, s.d.Clock.Now())
 	if err != nil {
 		return err
 	}

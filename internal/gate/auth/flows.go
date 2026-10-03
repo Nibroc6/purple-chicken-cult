@@ -278,7 +278,7 @@ func (s *Service) RemovePasskey(ctx context.Context, id gate.Ref) error {
 		if err := s.signChange(ctx, tx, v.ID, opRemove, target.id, target.publicKey, target.alg, s.d.Clock.Now()); err != nil {
 			return err
 		}
-		if ended, err = endSessions(ctx, tx, "user_id = $1 AND credential_id = $2", int64(v.ID), credID); err != nil {
+		if ended, err = endSessions(ctx, tx, sqlEndCredential, int64(v.ID), credID); err != nil {
 			return err
 		}
 		return s.notifyFriends(ctx, tx, v.ID, reasonPasskeyRemoved)
@@ -302,11 +302,12 @@ type tokenRow struct {
 
 // usableToken loads an unused, uncancelled enrollment token inside its window.
 func (s *Service) usableToken(ctx context.Context, q store.Q, where string, arg any, lock bool) (tokenRow, error) {
-	sql := `SELECT token_hash, user_id, purpose, bound_session FROM enrollment_tokens
-		WHERE ` + where + ` AND used_at IS NULL AND cancelled_at IS NULL AND usable_from <= $2 AND expires_at > $2`
+	tail := ` AND used_at IS NULL AND cancelled_at IS NULL AND usable_from <= $2 AND expires_at > $2`
 	if lock {
-		sql += " FOR UPDATE"
+		tail = ` AND used_at IS NULL AND cancelled_at IS NULL AND usable_from <= $2 AND expires_at > $2 FOR UPDATE`
 	}
+	sql := `SELECT token_hash, user_id, purpose, bound_session FROM enrollment_tokens
+		WHERE ` + where + tail
 	var (
 		r       tokenRow
 		h       []byte
@@ -494,7 +495,7 @@ func (s *Service) EnrollFinish(ctx context.Context, body []byte, removeOld bool,
 				return err
 			}
 		case purposeRecovery:
-			if ended, err = endSessions(ctx, tx, "user_id = $1", int64(t.user)); err != nil {
+			if ended, err = endSessions(ctx, tx, sqlEndUser, int64(t.user)); err != nil {
 				return err
 			}
 			if removeOld {
