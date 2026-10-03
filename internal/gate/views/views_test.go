@@ -108,8 +108,8 @@ func (e *env) setUser(u core.UserID, fn func(*core.UserMeta)) {
 // Views.Posts accepts only core.Checked, which cannot be built outside core
 // (unexported fields) and is minted only by visibility (archtest A10).
 func TestPostsAcceptsOnlyChecked(t *testing.T) {
-	var fn func(*Service, context.Context, core.Search, []core.Checked, core.ViewOpts) ([]gate.PostView, error) = (*Service).Posts
-	_ = fn
+	// Compile-time: the conversion only type-checks while Posts takes []core.Checked.
+	_ = (func(*Service, context.Context, core.Search, []core.Checked, core.ViewOpts) ([]gate.PostView, error))((*Service).Posts)
 	ct := reflect.TypeFor[core.Checked]()
 	for i := range ct.NumField() {
 		if ct.Field(i).IsExported() {
