@@ -110,6 +110,11 @@ test('genesis enrollment, passkey login and step-up with a virtual authenticator
   await expect(page).toHaveURL(`${origin}/`);
   expect((await session(page)).me?.handle).toBe('alice');
 
+  // From here on autofill is off, so the login below goes through the button.
+  await page.addInitScript(() => {
+    PublicKeyCredential.isConditionalMediationAvailable = () => Promise.resolve(false);
+  });
+
   // Step-up: after five minutes, adding a passkey asks for a fresh check.
   await world.advance('6m');
   await page.goto(`${origin}/settings/passkeys`);
@@ -135,11 +140,7 @@ test('genesis enrollment, passkey login and step-up with a virtual authenticator
   await expect(page).toHaveURL(`${origin}/login`);
   expect((await session(page)).authenticated).toBe(false);
 
-  // The remaining passkey signs in through the button (autofill switched off).
-  await page.addInitScript(() => {
-    PublicKeyCredential.isConditionalMediationAvailable = () => Promise.resolve(false);
-  });
-  await page.goto(`${origin}/login`);
+  // The remaining passkey signs in through the button (autofill is off).
   await expect(page.locator('input[autocomplete="username webauthn"]')).toBeVisible();
   await page.getByTestId('login-passkey').click();
   await expect(page).toHaveURL(`${origin}/`);
