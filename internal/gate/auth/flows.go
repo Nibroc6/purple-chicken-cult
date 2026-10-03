@@ -382,6 +382,9 @@ func (s *Service) EnrollBegin(ctx context.Context, token string) (EnrollView, er
 			return err
 		}
 		view.Purpose = purposeName(t.purpose)
+		if t.purpose == purposeGenesis {
+			view.TOSVersion, view.MinAge = s.d.Cfg.TOSVersion, s.d.Cfg.MinAge
+		}
 		if t.purpose == purposeRecovery {
 			view.ExistingPasskeys = s.views(t.user, creds, nil)
 		}

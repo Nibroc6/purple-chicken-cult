@@ -88,6 +88,9 @@ type EnrollView struct {
 	CSRF             string          `json:"csrf,omitempty"`
 	Purpose          string          `json:"purpose"` // "genesis" | "recovery"
 	ExistingPasskeys []PasskeyView   `json:"existing_passkeys,omitempty"`
+	// Genesis only: the terms version to accept and the minimum age to attest.
+	TOSVersion int `json:"tos_version,omitempty"`
+	MinAge     int `json:"min_age,omitempty"`
 }
 
 // signedIn returns the signed-in viewer, also while a P1 step-up is pending

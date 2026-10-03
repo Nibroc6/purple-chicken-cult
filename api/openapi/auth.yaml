@@ -215,6 +215,8 @@ paths:
                   options: { type: object, additionalProperties: true }
                   csrf: { type: string }
                   purpose: { type: string, enum: [genesis, recovery] }
+                  tos_version: { type: integer, description: Genesis only; the terms version to accept. }
+                  min_age: { type: integer, description: Genesis only; the minimum age to attest. }
                   existing_passkeys:
                     type: array
                     items: { $ref: '#/components/schemas/AuthPasskey' }

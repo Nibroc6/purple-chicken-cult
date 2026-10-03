@@ -150,6 +150,8 @@ type enrollOut struct {
 	Options  json.RawMessage `json:"options"`
 	CSRF     string          `json:"csrf"`
 	Purpose  string          `json:"purpose"`
+	TOS      int             `json:"tos_version"`
+	MinAge   int             `json:"min_age"`
 	Existing []struct {
 		ID string `json:"id"`
 	} `json:"existing_passkeys"`
@@ -192,7 +194,7 @@ func (s *suite) enroll(handle string, a *authtest.Authenticator) *browser {
 	rec := b.do(http.MethodPost, "/api/enroll/begin", map[string]string{"token": tok}, nil)
 	want(s.t, rec, http.StatusOK, "")
 	ev := decode[enrollOut](s.t, rec)
-	if ev.Purpose != "genesis" || ev.CSRF == "" || b.cookie == "" {
+	if ev.Purpose != "genesis" || ev.CSRF == "" || b.cookie == "" || ev.TOS != s.h.App.Config().TOSVersion || ev.MinAge != s.h.App.Config().MinAge {
 		s.t.Fatalf("enroll begin %s", rec.Body)
 	}
 	b.csrf = ev.CSRF
