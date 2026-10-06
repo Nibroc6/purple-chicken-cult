@@ -1,0 +1,15 @@
+{
+  "users": [
+    { "handle": "alice", "name": "Alice" },
+    { "handle": "bob", "name": "Bob" },
+    { "handle": "carol", "name": "Carol" },
+    { "handle": "erin", "name": "Erin" },
+    { "handle": "xavier", "name": "Xavier" }
+  ],
+  "friends": [
+    { "a": "alice", "b": "carol" },
+    { "a": "alice", "b": "erin" },
+    { "a": "carol", "b": "bob" },
+    { "a": "erin", "b": "bob" }
+  ]
+}

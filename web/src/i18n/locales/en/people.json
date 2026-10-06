@@ -1,17 +1,61 @@
 {
+  "handle": "@{handle}",
+  "nav": {
+    "label": "People"
+  },
   "person": {
-    "title": "Person"
+    "title": "Person",
+    "relation": {
+      "self": "This is you",
+      "friend": "Friend",
+      "friend_plus": "Friend+ (met in person)",
+      "connected": "Connected through your friends",
+      "outgoing": "Friend request sent",
+      "incoming": "Wants to be your friend",
+      "blocked": "Blocked"
+    }
   },
   "friends": {
-    "title": "Friends"
+    "title": "Friends",
+    "empty": "No friends yet. Friendships start in person, with an invite, or with a request to someone you are connected to.",
+    "more": "Show more"
   },
   "requests": {
-    "title": "Friend requests"
+    "title": "Friend requests",
+    "incoming": "Asking you",
+    "outgoing": "You asked",
+    "incomingEmpty": "No one is asking right now.",
+    "outgoingEmpty": "You have no open requests."
   },
   "suggestions": {
-    "title": "People you may know"
+    "title": "People you may know",
+    "empty": "No suggestions right now.",
+    "mutual": "{count, plural, one {# mutual friend} other {# mutual friends}}"
   },
   "blocks": {
-    "title": "Blocked people"
+    "title": "Blocked people",
+    "help": "Blocked people never see that you blocked them. Your posts and paths no longer reach them through you, and theirs no longer reach you.",
+    "empty": "You have not blocked anyone."
+  },
+  "action": {
+    "request": "Add friend",
+    "withdraw": "Cancel request",
+    "accept": "Accept",
+    "decline": "Decline",
+    "unfriend": "Unfriend",
+    "block": "Block",
+    "unblock": "Unblock",
+    "mute": "Mute",
+    "unmute": "Unmute"
+  },
+  "confirm": {
+    "unfriend": "Unfriend @{handle}? Who invited whom stays visible.",
+    "block": "Block @{handle}? This also unfriends them. They are not told.",
+    "cancel": "Cancel"
+  },
+  "errors": {
+    "already_friends": "You are already friends.",
+    "friend_cap": "You have reached 1,000 friends and open requests. Cancel a request or unfriend someone first.",
+    "self_not_allowed": "You cannot do that to yourself."
   }
 }

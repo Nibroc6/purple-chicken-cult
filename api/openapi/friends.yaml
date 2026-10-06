@@ -10,7 +10,7 @@ paths:
     get:
       operationId: listFriends
       parameters:
-        - { $ref: '#/components/parameters/FriendsCursor' }
+        - { name: cursor, in: query, required: false, schema: { type: string, maxLength: 256 } }
       responses:
         "200":
           description: The caller's friends, friend+ first, then oldest friendship first.
@@ -34,7 +34,7 @@ paths:
         "429": { $ref: '#/components/responses/FriendsRateLimited' }
   /people/{ref}/request:
     parameters:
-      - { $ref: '#/components/parameters/FriendsRef' }
+      - { name: ref, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
     post:
       operationId: sendFriendRequest
       responses:
@@ -57,7 +57,7 @@ paths:
         "429": { $ref: '#/components/responses/FriendsRateLimited' }
   /friends/requests/{ref}/accept:
     parameters:
-      - { $ref: '#/components/parameters/FriendsRef' }
+      - { name: ref, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
     post:
       operationId: acceptFriendRequest
       responses:
@@ -67,7 +67,7 @@ paths:
         "429": { $ref: '#/components/responses/FriendsRateLimited' }
   /friends/requests/{ref}/decline:
     parameters:
-      - { $ref: '#/components/parameters/FriendsRef' }
+      - { name: ref, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
     post:
       operationId: declineFriendRequest
       responses:
@@ -76,7 +76,7 @@ paths:
         "429": { $ref: '#/components/responses/FriendsRateLimited' }
   /friends/{ref}:
     parameters:
-      - { $ref: '#/components/parameters/FriendsRef' }
+      - { name: ref, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
     delete:
       operationId: unfriend
       responses:
@@ -85,7 +85,7 @@ paths:
         "429": { $ref: '#/components/responses/FriendsRateLimited' }
   /people/{ref}/block:
     parameters:
-      - { $ref: '#/components/parameters/FriendsRef' }
+      - { name: ref, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
     put:
       operationId: blockPerson
       responses:
@@ -112,7 +112,7 @@ paths:
         "429": { $ref: '#/components/responses/FriendsRateLimited' }
   /people/{ref}/mute:
     parameters:
-      - { $ref: '#/components/parameters/FriendsRef' }
+      - { name: ref, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
     put:
       operationId: mutePerson
       responses:
@@ -128,7 +128,7 @@ paths:
         "429": { $ref: '#/components/responses/FriendsRateLimited' }
   /people/{ref}:
     parameters:
-      - { $ref: '#/components/parameters/FriendsRef' }
+      - { name: ref, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
     get:
       operationId: getPerson
       responses:
@@ -141,11 +141,11 @@ paths:
         "429": { $ref: '#/components/responses/FriendsRateLimited' }
   /people/{ref}/posts:
     parameters:
-      - { $ref: '#/components/parameters/FriendsRef' }
+      - { name: ref, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
     get:
       operationId: listPersonPosts
       parameters:
-        - { $ref: '#/components/parameters/FriendsCursor' }
+        - { name: cursor, in: query, required: false, schema: { type: string, maxLength: 256 } }
       responses:
         "200":
           description: The person's posts the caller can see, newest first.
@@ -166,17 +166,6 @@ paths:
         "404": { $ref: '_common.yaml#/components/responses/NotFound' }
         "429": { $ref: '#/components/responses/FriendsRateLimited' }
 components:
-  parameters:
-    FriendsRef:
-      name: ref
-      in: path
-      required: true
-      schema: { $ref: '_common.yaml#/components/schemas/Ref' }
-    FriendsCursor:
-      name: cursor
-      in: query
-      required: false
-      schema: { type: string, maxLength: 256 }
   schemas:
     FriendsPeoplePage:
       type: object
