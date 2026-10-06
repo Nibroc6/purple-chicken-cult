@@ -209,12 +209,22 @@ func (s *Service) exts(ctx context.Context, a, b core.UserID) (uuid.UUID, uuid.U
 	return ma.ExtID, mb.ExtID, nil
 }
 
+// q returns tx, or the pool when tx is nil (the convention of every core
+// interface that takes a store.Q).
+func (s *Service) q(tx store.Q) store.Q {
+	if tx != nil {
+		return tx
+	}
+	return s.d.DB.Q()
+}
+
 // Create records the edge a–b (both directions) and its create event. The
 // caller has signed the Friendship record; a duplicate is Problem already_friends.
 func (s *Service) Create(ctx context.Context, tx store.Q, a, b core.UserID, lvl core.EdgeLevel, recordHash []byte) error {
 	if a == b || a == 0 || b == 0 {
 		return gate.ErrNotFound
 	}
+	tx = s.q(tx)
 	now := s.d.Clock.Now()
 	tag, err := tx.Exec(ctx, `INSERT INTO edges (user_id, friend_id, level, since, record_hash)
 		VALUES ($1, $2, $3, $4, $5), ($2, $1, $3, $4, $5) ON CONFLICT DO NOTHING`,
@@ -237,6 +247,7 @@ func (s *Service) edgeEvent(ctx context.Context, tx store.Q, a, b core.UserID, k
 // Revoke deletes the edge a–b, writes its Revocation record and schedules both
 // records for purging after Retention (§2.3). The Invite record is untouched.
 func (s *Service) Revoke(ctx context.Context, tx store.Q, a, b, by core.UserID) error {
+	tx = s.q(tx)
 	rows, err := tx.Query(ctx, `DELETE FROM edges WHERE (user_id = $1 AND friend_id = $2) OR (user_id = $2 AND friend_id = $1)
 		RETURNING record_hash`, int64(a), int64(b))
 	if err != nil {
@@ -280,6 +291,7 @@ func (s *Service) Revoke(ctx context.Context, tx store.Q, a, b, by core.UserID) 
 
 // Upgrade makes a–b friend+ (P1).
 func (s *Service) Upgrade(ctx context.Context, tx store.Q, a, b core.UserID, recordHash []byte) error {
+	tx = s.q(tx)
 	tag, err := tx.Exec(ctx, `UPDATE edges SET level = $3, record_hash = $4
 		WHERE (user_id = $1 AND friend_id = $2) OR (user_id = $2 AND friend_id = $1)`,
 		int64(a), int64(b), int16(core.LevelFriendPlus), recordHash)
