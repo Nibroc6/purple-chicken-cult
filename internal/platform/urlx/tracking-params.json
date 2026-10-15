@@ -1,0 +1,9 @@
+{
+  "$comment": "Tracking query parameters stripped from every URL before it is stored or shown (ARCHITECTURE §10.1.6, plan §4.2 urlx). Shared by internal/platform/urlx (Go) and web/src/markdown (TS); both embed a copy and their tests fail when the copy differs from this file. Keys match case-insensitively: `exact` whole names, `prefixes` any name starting with them.",
+  "exact": [
+    "fbclid", "gclid", "gclsrc", "dclid", "gbraid", "wbraid", "msclkid", "yclid", "twclid", "ttclid", "li_fat_id",
+    "igshid", "igsh", "si", "mc_cid", "mc_eid", "ref_src", "ref_url", "_hsenc", "_hsmi", "mkt_tok", "oly_anon_id",
+    "oly_enc_id", "vero_id", "vero_conv", "wickedid", "rb_clickid", "s_cid", "_ga", "_gl", "srsltid", "epik"
+  ],
+  "prefixes": ["utm_", "pk_", "mtm_", "hsa_"]
+}
