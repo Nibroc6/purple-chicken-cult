@@ -1,0 +1,123 @@
+/* Cards (and shared) feed and post layout styles (P0-W07). Logical properties only. */
+.feed {
+  max-inline-size: var(--content-width);
+}
+
+.feed-list,
+.feed-thread-earlier,
+.feed-context,
+.feed-previews {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Only the opening header of a tier sticks; the closing one scrolls away. */
+.feed-tier > .tier-header {
+  z-index: 1;
+}
+.feed-tier > .tier-header:not(:first-child) {
+  position: static;
+  font-weight: 400;
+}
+
+.post-card .post-author {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+}
+
+.post-who {
+  color: inherit;
+  text-decoration: none;
+}
+
+.post-name {
+  font-weight: 600;
+}
+
+.post-handle,
+.post-time,
+.post-thread {
+  color: var(--color-muted);
+}
+
+.post-head-end {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-inline-start: auto;
+}
+
+.feed-context-row {
+  margin-block: var(--space-1);
+  overflow-wrap: anywhere;
+}
+
+.post-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-block-start: var(--space-2);
+}
+
+.post-links {
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* Folding (§10.1.5): 6 lines on a feed card, 10 in the tree. */
+.fold-clamp {
+  overflow: hidden;
+}
+.fold-card {
+  max-block-size: calc(6lh + var(--space-2));
+}
+.fold-tree {
+  max-block-size: calc(10lh + var(--space-2));
+}
+.fold-toggle {
+  margin-block-start: var(--space-1);
+}
+
+.feed-preview {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-2) var(--space-3);
+  margin-block: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.preview-host {
+  font-size: 0.875rem;
+}
+.preview-host[data-lookalike='true'] {
+  font-weight: 600;
+}
+
+.feed-thread {
+  margin-block-end: var(--space-3);
+}
+.feed-thread .post[data-part='context'] {
+  opacity: 0.85;
+  margin-block-end: var(--space-1);
+}
+.feed-thread-toggle {
+  margin-block-end: var(--space-1);
+}
+
+.feed-collapsed {
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-3) var(--space-4);
+  margin-block-end: var(--space-3);
+}
+.feed-collapsed p {
+  margin-block: 0 var(--space-1);
+}
+
+.feed-more {
+  margin-block: var(--space-4);
+}

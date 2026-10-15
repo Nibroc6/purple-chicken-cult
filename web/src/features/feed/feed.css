@@ -1,0 +1,43 @@
+/* The feed page (P0-W07). Logical properties only. */
+.feed-page {
+  max-inline-size: var(--content-width);
+}
+
+.feed-presets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-block-end: var(--space-3);
+}
+
+.feed-presets button[aria-pressed='true'] {
+  font-weight: 600;
+  border-color: var(--color-accent);
+}
+
+.feed-preset-hint {
+  font-size: 0.875rem;
+}
+
+.feed-new-above {
+  position: sticky;
+  inset-block-start: var(--space-2);
+  z-index: 2;
+  display: block;
+  margin-inline: auto;
+  margin-block-end: var(--space-2);
+}
+
+.feed-error {
+  color: var(--post-over, #a3122a);
+}
+
+.visually-hidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

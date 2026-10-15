@@ -1,0 +1,42 @@
+/* Compact feed and post layout (P0-W07): dense rows, indented thread outline.
+   Builds on the shared feed styles in formats/cards/feed/cards.css. */
+@import '../../cards/feed/cards.css';
+
+.feed-compact .tier-header {
+  margin-block: var(--space-2) var(--space-1);
+}
+
+.post-row {
+  padding: var(--space-2) var(--space-3);
+  margin-block-end: 0;
+  border-radius: 0;
+  border-inline: 0;
+  border-block-start: 0;
+}
+
+.row-head,
+.row-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+}
+
+.row-body .post-body p {
+  margin-block: var(--space-1);
+}
+
+.row-foot .post-links {
+  margin-inline-start: auto;
+}
+
+.feed-compact .feed-thread-earlier {
+  padding-inline-start: var(--space-4);
+  border-inline-start: 2px solid var(--color-border);
+}
+
+.feed-compact .feed-collapsed {
+  border-radius: 0;
+  margin-block-end: 0;
+  padding: var(--space-2) var(--space-3);
+}
