@@ -62,7 +62,8 @@
       "p0-w09": [
         "internal/platform/{safefetch,urlx,mdscan}/**", "internal/gate/previews/**", "testdata/markdown/**",
         "testdata/tracking-params.json", "web/src/markdown/**", "web/src/i18n/locales/en/markdown.json",
-        "deploy/runbooks/egress.md", "internal/store/migrations/109?_*.sql"
+        "deploy/runbooks/egress.md", "internal/store/migrations/109?_*.sql", "web/e2e/p0-w09.spec.ts",
+        "testdata/fixtures/p0-w09.json"
       ],
       "p0-w10": [
         "internal/gate/{notify,metrics}/**", "internal/api/notifyapi/**", "api/openapi/notify.yaml", "web/src/api/sse.ts",
