@@ -87,6 +87,14 @@ type DisplayNames interface {
 	CleanDisplayName(name string) (clean string, ok bool)
 }
 
+// HandleRules canonicalizes handles (impl: gate/users): NFKC, lowercase, an
+// optional leading "@" dropped, then ^[a-z0-9_]{3,20}$ and not reserved. The join
+// flow checks a handle before it starts the passkey ceremony.
+// Steward: contract request p0-w04-1.
+type HandleRules interface {
+	CanonHandle(h string) (canon string, ok bool)
+}
+
 // Accounts exposes the account facts auth needs inside a transaction
 // (impl: gate/users). Steward: contract request p0-w01-1.
 type Accounts interface {
