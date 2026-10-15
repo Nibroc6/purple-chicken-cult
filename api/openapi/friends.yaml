@@ -1,8 +1,236 @@
-# OpenAPI fragment of the friends module (plan §5.3). Owner: P0-W03.
+# OpenAPI fragment of the friends module (plan §5.3). Owner: P0-W03 → P1-W03.
 # Paths are relative to /api. Schemas: module-prefixed names in this file, or
 # $ref: '_common.yaml#/components/schemas/X'. Validated on its own by apitest.
 openapi: 3.0.3
 info:
   title: pcc internal API (friends)
   version: "0"
-paths: {}
+paths:
+  /friends:
+    get:
+      operationId: listFriends
+      parameters:
+        - { name: cursor, in: query, required: false, schema: { type: string, maxLength: 256 } }
+      responses:
+        "200":
+          description: The caller's friends, friend+ first, then oldest friendship first.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FriendsPeoplePage' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/FriendsRateLimited' }
+  /friends/requests:
+    get:
+      operationId: listFriendRequests
+      responses:
+        "200":
+          description: >-
+            Incoming pending requests and outgoing requests, newest first. A declined
+            request still shows as outgoing to its sender.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FriendsRequests' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/FriendsRateLimited' }
+  /people/{ref}/request:
+    parameters:
+      - { name: ref, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
+    post:
+      operationId: sendFriendRequest
+      responses:
+        "202":
+          description: >-
+            The request is outgoing. The answer is identical whether the request is
+            pending, declined or silently dropped because the target blocked the caller.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FriendsRequestSent' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409": { $ref: '#/components/responses/FriendsConflict' }
+        "422": { $ref: '#/components/responses/FriendsSelf' }
+        "429": { $ref: '#/components/responses/FriendsRateLimited' }
+    delete:
+      operationId: withdrawFriendRequest
+      responses:
+        "204": { description: The outgoing request was withdrawn. }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/FriendsRateLimited' }
+  /friends/requests/{ref}/accept:
+    parameters:
+      - { name: ref, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
+    post:
+      operationId: acceptFriendRequest
+      responses:
+        "204": { description: You are now friends. }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409": { $ref: '#/components/responses/FriendsConflict' }
+        "429": { $ref: '#/components/responses/FriendsRateLimited' }
+  /friends/requests/{ref}/decline:
+    parameters:
+      - { name: ref, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
+    post:
+      operationId: declineFriendRequest
+      responses:
+        "204": { description: The request was declined (it keeps looking pending to its sender). }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/FriendsRateLimited' }
+  /friends/{ref}:
+    parameters:
+      - { name: ref, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
+    delete:
+      operationId: unfriend
+      responses:
+        "204": { description: The friendship was revoked; the inviter label stays. }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/FriendsRateLimited' }
+  /people/{ref}/block:
+    parameters:
+      - { name: ref, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
+    put:
+      operationId: blockPerson
+      responses:
+        "204": { description: Blocked (and unfriended). Never revealed to the blocked person. }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "422": { $ref: '#/components/responses/FriendsSelf' }
+        "429": { $ref: '#/components/responses/FriendsRateLimited' }
+    delete:
+      operationId: unblockPerson
+      responses:
+        "204": { description: Unblocked; the Block record is deleted. }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/FriendsRateLimited' }
+  /blocks:
+    get:
+      operationId: listBlocks
+      responses:
+        "200":
+          description: The people the caller blocked, newest first.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FriendsPeople' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/FriendsRateLimited' }
+  /people/{ref}/mute:
+    parameters:
+      - { name: ref, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
+    put:
+      operationId: mutePerson
+      responses:
+        "204": { description: Muted in the caller's own feed. }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "422": { $ref: '#/components/responses/FriendsSelf' }
+        "429": { $ref: '#/components/responses/FriendsRateLimited' }
+    delete:
+      operationId: unmutePerson
+      responses:
+        "204": { description: Unmuted. }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/FriendsRateLimited' }
+  /people/{ref}:
+    parameters:
+      - { name: ref, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
+    get:
+      operationId: getPerson
+      responses:
+        "200":
+          description: A person the caller can see (or has blocked).
+          content:
+            application/json:
+              schema: { $ref: '_common.yaml#/components/schemas/PersonView' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/FriendsRateLimited' }
+  /people/{ref}/posts:
+    parameters:
+      - { name: ref, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
+    get:
+      operationId: listPersonPosts
+      parameters:
+        - { name: cursor, in: query, required: false, schema: { type: string, maxLength: 256 } }
+      responses:
+        "200":
+          description: The person's posts the caller can see, newest first.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FriendsPostsPage' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/FriendsRateLimited' }
+  /suggestions:
+    get:
+      operationId: listSuggestions
+      responses:
+        "200":
+          description: People you may know (mutual friend count only).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FriendsSuggestions' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/FriendsRateLimited' }
+components:
+  schemas:
+    FriendsPeoplePage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '_common.yaml#/components/schemas/PersonView' }
+        next: { type: string }
+    FriendsPostsPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '_common.yaml#/components/schemas/PostView' }
+        next: { type: string }
+    FriendsPeople:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '_common.yaml#/components/schemas/PersonView' }
+    FriendsRequests:
+      type: object
+      required: [incoming, outgoing]
+      properties:
+        incoming:
+          type: array
+          items: { $ref: '_common.yaml#/components/schemas/PersonView' }
+        outgoing:
+          type: array
+          items: { $ref: '_common.yaml#/components/schemas/PersonView' }
+    FriendsRequestSent:
+      type: object
+      required: [state]
+      properties:
+        state: { type: string, enum: [outgoing] }
+    FriendsSuggestion:
+      type: object
+      required: [person, mutual]
+      properties:
+        person: { $ref: '_common.yaml#/components/schemas/PersonView' }
+        mutual: { type: integer, minimum: 2 }
+    FriendsSuggestions:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/FriendsSuggestion' }
+  responses:
+    FriendsConflict:
+      description: already_friends, or friend_cap (the caller's own friends plus outgoing requests reached 1,000).
+      content:
+        application/json:
+          schema: { $ref: '_common.yaml#/components/schemas/Error' }
+    FriendsSelf:
+      description: self_not_allowed (the target is the caller).
+      content:
+        application/json:
+          schema: { $ref: '_common.yaml#/components/schemas/Error' }
+    FriendsRateLimited:
+      description: rate_limited.
+      content:
+        application/json:
+          schema: { $ref: '_common.yaml#/components/schemas/Error' }
