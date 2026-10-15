@@ -35,7 +35,7 @@
   },
   "done": {
     "title": "Welcome!",
-    "invitedBy": "You were invited by @{handle}. You're now friends."
+    "invitedBy": "You were invited by {handle}. You're now friends."
   },
   "errors": {
     "handle_invalid": "Usernames are 3 to 20 letters, digits or underscores, and some are reserved.",

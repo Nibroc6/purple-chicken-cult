@@ -198,7 +198,7 @@ describe('join page', () => {
 
     fireEvent.change(screen.getByLabelText(tr('join:form.handle')), { target: { value: ' newbie ' } });
     fireEvent.click(screen.getByTestId('join-submit'));
-    expect((await screen.findByTestId('join-invited-by')).textContent).toBe(tr('join:done.invitedBy', { handle: 'alice' }));
+    expect((await screen.findByTestId('join-invited-by')).textContent).toBe(tr('join:done.invitedBy', { handle: '@alice' }));
     expect(screen.getByRole('heading', { name: tr('auth:second.title') })).toBeTruthy();
 
     const begin = calls.filter((c) => c.path === '/join/register/begin').map((c) => c.body);

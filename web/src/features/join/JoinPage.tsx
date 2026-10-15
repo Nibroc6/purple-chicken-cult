@@ -103,7 +103,7 @@ export default function JoinPage() {
       {step.kind === 'done' ? (
         <>
           {step.inviter ? (
-            <p data-testid="join-invited-by">{t('done.invitedBy', { handle: step.inviter })}</p>
+            <p data-testid="join-invited-by">{t('done.invitedBy', { handle: `@${step.inviter}` })}</p>
           ) : null}
           <SecondPasskeyPrompt
             onDone={() => {
