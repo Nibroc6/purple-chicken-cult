@@ -1,0 +1,16 @@
+{
+  "users": [
+    { "handle": "alice", "name": "Alice", "preset": "latest" },
+    { "handle": "bob", "name": "Bob" }
+  ],
+  "friends": [{ "a": "alice", "b": "bob" }],
+  "posts": [
+    { "label": "heading", "author": "bob", "body": "# Only a heading", "age": "6h" },
+    { "label": "plain", "author": "bob", "body": "Just a normal paragraph", "age": "5h50m" },
+    { "label": "html", "author": "bob", "body": "Raw <b>bold</b> and <img src=x onerror=alert(1)> stay text", "age": "5h40m" },
+    { "label": "schemes", "author": "bob", "body": "Bad links [js link](javascript:alert(1)) and [data link](data:text/html,hi) here", "age": "5h30m" },
+    { "label": "links", "author": "bob", "body": "Tracked [the article](https://news.example/a?utm_source=feed&id=7&fbclid=x) and https://xn--pple-43d.com/login and www.example.com", "age": "5h20m" },
+    { "label": "image", "author": "bob", "body": "Picture ![a cat](https://img.example/cat.png) here", "age": "5h10m" },
+    { "label": "code", "author": "bob", "body": "Code below\n\n```\nl01\nl02\nl03\nl04\nl05\nl06\nl07\nl08\nl09\nl10\nl11\nl12\n```", "age": "5h" }
+  ]
+}
