@@ -1,0 +1,54 @@
+{
+  "users": [
+    { "handle": "alice", "name": "Alice" },
+    { "handle": "bob", "name": "Bob" },
+    { "handle": "fran", "name": "Fran" },
+    { "handle": "carol", "name": "Carol" },
+    { "handle": "dave", "name": "Dave", "age": "2160h" },
+    { "handle": "zoe", "name": "Zoe", "age": "240h" },
+    { "handle": "xavier", "name": "Xavier" }
+  ],
+  "friends": [
+    { "a": "alice", "b": "bob" },
+    { "a": "alice", "b": "fran" },
+    { "a": "bob", "b": "carol" },
+    { "a": "carol", "b": "dave" },
+    { "a": "carol", "b": "zoe" }
+  ],
+  "posts": [
+    { "label": "t1-00", "author": "bob", "body": "Tier one post 00 by bob", "age": "180m" },
+    { "label": "t1-01", "author": "fran", "body": "Tier one post 01 by fran", "age": "185m" },
+    { "label": "t1-02", "author": "bob", "body": "Tier one post 02 by bob", "age": "190m" },
+    { "label": "t1-03", "author": "fran", "body": "Tier one post 03 by fran", "age": "195m" },
+    { "label": "t1-04", "author": "bob", "body": "Tier one post 04 by bob", "age": "200m" },
+    { "label": "t1-05", "author": "fran", "body": "Tier one post 05 by fran", "age": "205m" },
+    { "label": "t1-06", "author": "bob", "body": "Tier one post 06 by bob", "age": "210m" },
+    { "label": "t1-07", "author": "fran", "body": "Tier one post 07 by fran", "age": "215m" },
+    { "label": "t1-08", "author": "bob", "body": "Tier one post 08 by bob", "age": "220m" },
+    { "label": "t1-09", "author": "fran", "body": "Tier one post 09 by fran", "age": "225m" },
+    { "label": "t1-10", "author": "bob", "body": "Tier one post 10 by bob", "age": "230m" },
+    { "label": "t1-11", "author": "fran", "body": "Tier one post 11 by fran", "age": "235m" },
+    { "label": "t1-12", "author": "bob", "body": "Tier one post 12 by bob", "age": "240m" },
+    { "label": "t1-13", "author": "fran", "body": "Tier one post 13 by fran", "age": "245m" },
+    { "label": "t1-14", "author": "bob", "body": "Tier one post 14 by bob", "age": "250m" },
+    { "label": "t1-15", "author": "fran", "body": "Tier one post 15 by fran", "age": "255m" },
+    { "label": "t1-16", "author": "bob", "body": "Tier one post 16 by bob", "age": "260m" },
+    { "label": "t1-17", "author": "fran", "body": "Tier one post 17 by fran", "age": "265m" },
+    { "label": "t1-18", "author": "bob", "body": "Tier one post 18 by bob", "age": "270m" },
+    { "label": "t1-19", "author": "fran", "body": "Tier one post 19 by fran", "age": "275m" },
+    { "label": "long", "author": "fran", "body": "Line 1 of a long post\nLine 2 of a long post\nLine 3 of a long post\nLine 4 of a long post\nLine 5 of a long post\nLine 6 of a long post\nLine 7 of a long post\nLine 8 of a long post\nLine 9 of a long post", "age": "40m" },
+    { "label": "th1", "author": "fran", "body": "Thread part one", "age": "30m" },
+    { "label": "th2", "author": "fran", "body": "Thread part two", "age": "30m", "parents": [{ "post": "th1", "kind": "cont" }] },
+    { "label": "th3", "author": "fran", "body": "Thread part three", "age": "30m", "parents": [{ "post": "th2", "kind": "cont" }] },
+    { "label": "carol-root", "author": "carol", "body": "Carol says hi", "age": "5h" },
+    { "label": "bob-reply", "author": "bob", "body": "Bob replies to carol", "age": "20m", "parents": [{ "post": "carol-root" }] },
+    { "label": "dave", "author": "dave", "body": "Dave is three steps away", "age": "2h" },
+    { "label": "zoe1", "author": "zoe", "body": "Zoe is new here", "age": "2h" },
+    { "label": "zoe2", "author": "zoe", "body": "Zoe posts again", "age": "1h" },
+    { "label": "xavier", "author": "xavier", "body": "Xavier is never shown", "age": "10m" },
+    { "label": "mine", "author": "alice", "body": "Alice's own post", "age": "10m" }
+  ],
+  "likes": [
+    { "user": "fran", "post": "carol-root" }
+  ]
+}
