@@ -1,0 +1,85 @@
+{
+  "$comment": "Shared display-host fixtures (plan §4.2 urlx, §6.6 host.ts): the ASCII host, what is shown and the mixed-script flag. Checked by internal/platform/urlx and web/src/markdown.",
+  "cases": [
+    {
+      "host": "example.com",
+      "unicode": "example.com",
+      "lookalike": false
+    },
+    {
+      "host": "xn--bcher-kva.example",
+      "unicode": "bücher.example",
+      "lookalike": false
+    },
+    {
+      "host": "xn--80ak6aa92e.com",
+      "unicode": "аррӏе.com",
+      "lookalike": true
+    },
+    {
+      "host": "xn--pple-43d.com",
+      "unicode": "аpple.com",
+      "lookalike": true
+    },
+    {
+      "host": "xn--e1afmkfd.xn--p1ai",
+      "unicode": "пример.рф",
+      "lookalike": false
+    },
+    {
+      "host": "xn--mxahbxey0c.gr",
+      "unicode": "εχαμπλε.gr",
+      "lookalike": false
+    },
+    {
+      "host": "xn--wgv71a119e.jp",
+      "unicode": "日本語.jp",
+      "lookalike": false
+    },
+    {
+      "host": "xn--eckwd4c7c.xn--zckzah",
+      "unicode": "ドメイン.テスト",
+      "lookalike": false
+    },
+    {
+      "host": "xn--fsq.xn--3e0b707e",
+      "unicode": "例.한국",
+      "lookalike": false
+    },
+    {
+      "host": "xn--n3h.example",
+      "unicode": "☃.example",
+      "lookalike": false
+    },
+    {
+      "host": "xn--invalid-.example",
+      "unicode": "xn--invalid-.example",
+      "lookalike": true
+    },
+    {
+      "host": "xn--.example",
+      "unicode": "xn--.example",
+      "lookalike": true
+    },
+    {
+      "host": "127.0.0.1",
+      "unicode": "127.0.0.1",
+      "lookalike": false
+    },
+    {
+      "host": "WWW.Example.COM",
+      "unicode": "www.example.com",
+      "lookalike": false
+    },
+    {
+      "host": "xn--gogle-jye.com",
+      "unicode": "gоogle.com",
+      "lookalike": true
+    },
+    {
+      "host": "xn--mnchen-3ya.de",
+      "unicode": "münchen.de",
+      "lookalike": false
+    }
+  ]
+}

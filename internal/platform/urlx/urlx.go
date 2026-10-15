@@ -171,16 +171,36 @@ func DisplayHost(u *url.URL) (string, bool) {
 	if _, err := netip.ParseAddr(host); err == nil {
 		return host, false
 	}
-	uni, err := idna.Display.ToUnicode(host)
-	if err != nil {
-		return host, true
+	labels := strings.Split(host, ".")
+	for i, l := range labels {
+		if !strings.HasPrefix(l, "xn--") {
+			continue
+		}
+		// Strict: the label decodes, holds a non-ASCII character and encodes
+		// back to itself (host.ts applies the same rule).
+		d, err := idna.Punycode.ToUnicode(l)
+		if err != nil || d == l || isASCII(d) {
+			return host, true
+		}
+		if back, err := idna.Punycode.ToASCII(d); err != nil || back != l {
+			return host, true
+		}
+		labels[i] = d
 	}
-	for _, label := range strings.Split(uni, ".") {
-		if Lookalike(label) {
-			return uni, true
+	look := false
+	for _, l := range labels {
+		look = look || Lookalike(l)
+	}
+	return strings.Join(labels, "."), look
+}
+
+func isASCII(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] >= utf8.RuneSelf {
+			return false
 		}
 	}
-	return uni, false
+	return true
 }
 
 // Scripts considered by Lookalike, in a fixed order shared with host.ts. A

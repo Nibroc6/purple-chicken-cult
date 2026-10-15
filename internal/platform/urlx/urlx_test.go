@@ -184,3 +184,26 @@ func TestCleanText(t *testing.T) {
 		}
 	})
 }
+
+// TestSharedHostFixtures: the cases web/src/markdown/host.ts is checked against.
+func TestSharedHostFixtures(t *testing.T) {
+	b, err := os.ReadFile("../../../testdata/markdown/hosts.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc struct {
+		Cases []struct {
+			Host, Unicode string
+			Lookalike     bool
+		}
+	}
+	if err := json.Unmarshal(b, &doc); err != nil || len(doc.Cases) == 0 {
+		t.Fatal(err)
+	}
+	for _, c := range doc.Cases {
+		h, l := DisplayHost(&url.URL{Scheme: "https", Host: c.Host})
+		if h != c.Unicode || l != c.Lookalike {
+			t.Errorf("%s: %q %v, want %q %v", c.Host, h, l, c.Unicode, c.Lookalike)
+		}
+	}
+}

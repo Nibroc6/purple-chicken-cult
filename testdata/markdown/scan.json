@@ -1012,6 +1012,24 @@
       ]
     },
     {
+      "name": "image inside link text",
+      "body": "[![logo @x](https://img.example/l.png)](https://site.example) @yolo",
+      "links": [
+        {
+          "raw": "https://site.example",
+          "no_preview": false,
+          "offset": 0
+        }
+      ],
+      "mentions": [
+        {
+          "handle": "yolo",
+          "ord": 0,
+          "offset": 62
+        }
+      ]
+    },
+    {
       "name": "mixed everything",
       "body": "Hey @alice, read [this](https://example.com/a?utm_medium=x) or <https://example.com/b> or https://example.com/c.\n\n```\nhttps://code.example\n```\n\n> @bob ~~old~~ https://quote.example/(x)",
       "links": [
