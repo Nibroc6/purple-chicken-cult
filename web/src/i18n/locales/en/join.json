@@ -1,5 +1,47 @@
 {
   "page": {
-    "title": "Join with an in-person invite"
+    "title": "Join with an in-person invite",
+    "intro": "Someone you know invites you in person: scan the code on their screen."
+  },
+  "signedIn": "You already have an account.",
+  "home": "Go to your feed",
+  "scan": {
+    "start": "Scan invite code",
+    "hint": "Point your camera at the code on their screen.",
+    "videoLabel": "Camera preview",
+    "noCamera": "We couldn't use your camera. Allow camera access and try again.",
+    "bad": "That code didn't work. Ask them to show a fresh one."
+  },
+  "sas": {
+    "title": "Your code",
+    "body": "Show this number to the person inviting you. They confirm that it matches theirs.",
+    "waiting": "Waiting for them to confirm…"
+  },
+  "ended": {
+    "cancelled": "The invite was cancelled. If the numbers didn't match, scan a fresh code.",
+    "expired": "The invite expired. Ask for a fresh code.",
+    "again": "Scan again"
+  },
+  "form": {
+    "title": "Create your account",
+    "handle": "Username",
+    "handleHint": "3 to 20 letters, digits or underscores.",
+    "name": "Display name (optional)",
+    "terms": "Terms",
+    "tos": "I accept the terms of service (version {version}).",
+    "age": "I am at least {age} years old.",
+    "submit": "Create account with a passkey",
+    "working": "Creating your account…"
+  },
+  "done": {
+    "title": "Welcome!",
+    "invitedBy": "You were invited by @{handle}. You're now friends."
+  },
+  "errors": {
+    "handle_invalid": "Usernames are 3 to 20 letters, digits or underscores, and some are reserved.",
+    "handle_taken": "That username is taken. Try another one.",
+    "display_name_invalid": "That display name can't be used.",
+    "tos_required": "Accept the terms of service to continue.",
+    "age_required": "Confirm your age to continue."
   }
 }
