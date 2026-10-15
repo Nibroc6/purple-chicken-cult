@@ -16,7 +16,7 @@ import (
 type Hooks struct{ a *App }
 
 // Reset truncates every table (except schema_migrations) and reloads caches
-// (users, the post index and the graph).
+// (users, the post index, liker sets and the graph).
 func (h *Hooks) Reset(ctx context.Context) error {
 	d := h.a.d
 	rows, err := d.DB.Q().Query(ctx, `SELECT tablename FROM pg_tables
@@ -46,6 +46,9 @@ func (h *Hooks) Reset(ctx context.Context) error {
 		return err
 	}
 	if err := h.a.PostIndex.Load(ctx); err != nil {
+		return err
+	}
+	if err := h.a.Engage.Load(ctx); err != nil {
 		return err
 	}
 	return h.a.Graph.Load(ctx)
