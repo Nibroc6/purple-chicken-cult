@@ -1,1 +1,30 @@
-{}
+{
+  "actions": {
+    "label": "Post actions"
+  },
+  "like": {
+    "action": "Like",
+    "undo": "Unlike"
+  },
+  "likes": {
+    "none": "No likes in your network yet",
+    "inNetwork": "{count, plural, one {# like in your network} other {# likes in your network}}",
+    "likedBy": "Liked by",
+    "you": "you",
+    "others": "{count, plural, one {# other} other {# others}}",
+    "explain": "Only likes from people within 2 steps of you count here. Only your own friends are named, and only if they allow it."
+  },
+  "hide": {
+    "action": "Hide",
+    "done": "Hidden. This post won't appear in your feed again."
+  },
+  "showLess": {
+    "action": "Show less from @{handle}",
+    "done": "Hidden. You'll see less from @{handle} in your feed."
+  },
+  "page": {
+    "title": "Likes",
+    "open": "Open in the family tree",
+    "seen": "Recently seen"
+  }
+}

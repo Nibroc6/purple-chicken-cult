@@ -1,0 +1,287 @@
+// Engage feature: like-summary mapping, the structural cache patcher, the like
+// summary text, and usePostActions on the likes page against a stubbed API.
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { createMemoryRouter, MemoryRouter, RouterProvider, useLocation } from 'react-router';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { makeQueryClient } from '../../app/App';
+import { i18n } from '../../i18n/setup';
+import { postVM } from '../../test/fixtures';
+import { asRef, type LikesVM } from '../../vm/types';
+import { postJSON } from '../post/testdata';
+import { pendingSeen, resetSeenQueue } from '../seen/tracker';
+import { LikeSummary } from './EngageBar';
+import LikesPage from './LikesPage';
+import { resetEngageStore } from './store';
+import { applyLikes, usePostActions } from './usePostActions';
+import { optimistic, patchLikes, toLikesVM } from './vm';
+
+interface Call {
+  method: string;
+  path: string;
+  body: unknown;
+}
+
+function json(status: number, body: unknown): Response {
+  return new Response(status === 204 ? null : JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
+function stubAPI(handler: (c: Call) => Response | Promise<Response> | undefined): Call[] {
+  const calls: Call[] = [];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (req: Request) => {
+      const text = await req.clone().text();
+      const c = { method: req.method, path: new URL(req.url).pathname.replace(/^\/api/, ''), body: text ? (JSON.parse(text) as unknown) : undefined };
+      calls.push(c);
+      return (await handler(c)) ?? json(404, { error: 'not_found' });
+    }),
+  );
+  return calls;
+}
+
+function renderAt(path: string) {
+  const router = createMemoryRouter(
+    [
+      { path: '/p/:ref/likes', element: <LikesPage /> },
+      { path: '/p/:ref', element: <p>tree page</p> },
+      { path: '/people/:ref', element: <p>person page</p> },
+    ],
+    { initialEntries: [path] },
+  );
+  return render(
+    <QueryClientProvider client={makeQueryClient()}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>,
+  );
+}
+
+const tr = i18n.t.bind(i18n) as unknown as (k: string, o?: Record<string, unknown>) => string;
+
+const likes = (over: Partial<LikesVM> = {}): LikesVM => ({ inNetwork: 0, names: [], others: 0, byMe: false, ...over });
+
+beforeEach(() => {
+  resetEngageStore();
+  resetSeenQueue();
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+describe('engage view-models', () => {
+  it('maps a LikeSummary', () => {
+    expect(toLikesVM({ in_network: 4, names: [{ ref: 'u2', handle: 'bob' }], others: 3, by_me: false })).toEqual({
+      inNetwork: 4,
+      names: [{ ref: asRef('u2'), handle: 'bob' }],
+      others: 3,
+      byMe: false,
+    });
+    expect(toLikesVM({ in_network: 0, others: 0, by_me: false }).names).toEqual([]);
+  });
+
+  it('counts the viewer in their own network while a like is in flight', () => {
+    expect(optimistic(likes({ inNetwork: 2 }), true)).toEqual(likes({ inNetwork: 3, byMe: true }));
+    expect(optimistic(likes({ inNetwork: 3, byMe: true }), false)).toEqual(likes({ inNetwork: 2 }));
+    const same = likes({ inNetwork: 1, byMe: true });
+    expect(optimistic(same, true)).toBe(same);
+    expect(optimistic(likes(), false).inNetwork).toBe(0);
+  });
+
+  it('patches every cached post with the ref and shares the rest', () => {
+    const a = postVM({ ref: asRef('a') });
+    const b = postVM({ ref: asRef('b') });
+    const page = { session: 's', items: [{ type: 'post', post: a }, { type: 'thread', parts: [b, a] }], other: { n: 1 } };
+    const next = patchLikes(page, 'a', likes({ inNetwork: 9 }));
+    expect(next).not.toBe(page);
+    expect(next.items[0]).toEqual({ type: 'post', post: { ...a, likes: likes({ inNetwork: 9 }) } });
+    const thread = next.items[1] as { parts: (typeof a)[] };
+    expect(thread.parts[0]).toBe(b);
+    expect(thread.parts[1]?.likes.inNetwork).toBe(9);
+    expect(thread.parts[1]?.createdAt).toBeInstanceOf(Date);
+    expect(next.other).toBe(page.other);
+    expect(patchLikes(page, 'zzz', likes())).toBe(page);
+    expect(patchLikes<unknown>(null, 'a', likes())).toBeNull();
+  });
+
+  it('applies a summary to every query that caches the post', () => {
+    const qc = new QueryClient();
+    qc.setQueryData(['post', 'a'], postVM({ ref: asRef('a') }));
+    qc.setQueryData(['feed', 's1'], { pages: [{ items: [{ type: 'post', post: postVM({ ref: asRef('a') }) }] }] });
+    qc.setQueryData(['other'], { n: 1 });
+    applyLikes(qc, 'a', likes({ inNetwork: 5, byMe: true }));
+    expect(qc.getQueryData<ReturnType<typeof postVM>>(['post', 'a'])?.likes.inNetwork).toBe(5);
+    expect(JSON.stringify(qc.getQueryData(['feed', 's1']))).toContain('"inNetwork":5');
+    expect(qc.getQueryData(['likes', 'a'])).toEqual(likes({ inNetwork: 5, byMe: true }));
+    expect(qc.getQueryData(['other'])).toEqual({ n: 1 });
+  });
+});
+
+describe('like summary', () => {
+  function show(l: LikesVM) {
+    return render(
+      <MemoryRouter>
+        <LikeSummary likes={l} />
+      </MemoryRouter>,
+    );
+  }
+
+  it('says when nobody in the network liked it', () => {
+    show(likes());
+    expect(screen.getByTestId('engage-likes').textContent).toBe(tr('engage:likes.none'));
+  });
+
+  it('counts in-network likes without names', () => {
+    show(likes({ inNetwork: 14, others: 14 }));
+    expect(screen.getByTestId('engage-likes').textContent).toBe(tr('engage:likes.inNetwork', { count: 14 }));
+  });
+
+  it('names friends, the viewer and the others', () => {
+    show(likes({ inNetwork: 5, byMe: true, others: 2, names: [{ ref: asRef('u2'), handle: 'bob' }, { ref: asRef('u3'), handle: 'carol' }] }));
+    const text = screen.getByTestId('engage-likes').textContent;
+    expect(text).toContain(tr('engage:likes.likedBy'));
+    expect(text).toContain(tr('engage:likes.you'));
+    expect(text).toContain('@bob');
+    expect(text).toContain(tr('engage:likes.others', { count: 2 }));
+    const links = screen.getAllByTestId('engage-liker');
+    expect(links.map((l) => l.getAttribute('href'))).toEqual(['/people/u2', '/people/u3']);
+  });
+});
+
+describe('likes page and post actions', () => {
+  it('likes optimistically, then shows the server summary; unlikes', async () => {
+    let release: (() => void) | undefined;
+    const calls = stubAPI((c) => {
+      if (c.method === 'GET' && c.path === '/posts/p1') return json(200, postJSON({ mine: false, likes: { in_network: 2, others: 2, by_me: false } }));
+      if (c.method === 'PUT' && c.path === '/posts/p1/like') {
+        return new Promise<Response>((resolve) => {
+          release = () => {
+            resolve(json(200, { likes: { in_network: 3, names: [{ ref: 'u2', handle: 'bob' }], others: 1, by_me: true } }));
+          };
+        });
+      }
+      if (c.method === 'DELETE' && c.path === '/posts/p1/like') return json(200, { likes: { in_network: 2, others: 2, by_me: false } });
+      return undefined;
+    });
+    renderAt('/p/p1/likes');
+    const btn = await screen.findByTestId('engage-like');
+    expect(btn.getAttribute('aria-pressed')).toBe('false');
+    fireEvent.click(btn);
+    // Optimistic: pressed and counted before the server answers.
+    await waitFor(() => {
+      expect(screen.getByTestId('engage-like').getAttribute('aria-pressed')).toBe('true');
+    });
+    expect(screen.getByTestId('engage-likes').dataset.count).toBe('3');
+    await waitFor(() => {
+      expect(release).toBeDefined();
+    });
+    act(() => {
+      release?.();
+    });
+    expect(await screen.findByTestId('engage-liker')).toBeTruthy();
+    fireEvent.click(screen.getByTestId('engage-like'));
+    await waitFor(() => {
+      expect(screen.getByTestId('engage-like').getAttribute('aria-pressed')).toBe('false');
+    });
+    expect(calls.filter((c) => c.path === '/posts/p1/like').map((c) => c.method)).toEqual(['PUT', 'DELETE']);
+  });
+
+  it('rolls a failed like back and says why', async () => {
+    stubAPI((c) => {
+      if (c.method === 'GET' && c.path === '/posts/p1') return json(200, postJSON({ mine: false }));
+      if (c.path === '/posts/p1/like') return json(429, { error: 'rate_limited', retry_after_s: 30 });
+      return undefined;
+    });
+    renderAt('/p/p1/likes');
+    fireEvent.click(await screen.findByTestId('engage-like'));
+    expect(await screen.findByTestId('engage-error')).toBeTruthy();
+    expect(screen.getByTestId('engage-like').getAttribute('aria-pressed')).toBe('false');
+    expect(screen.getByTestId('engage-likes').dataset.count).toBe('0');
+  });
+
+  it('hides and shows less, rolling back on failure', async () => {
+    const calls = stubAPI((c) => {
+      if (c.method === 'GET' && c.path === '/posts/p1') return json(200, postJSON({ mine: false }));
+      if (c.method === 'GET' && c.path === '/posts/p2') return json(200, postJSON({ ref: 'p2', mine: false }));
+      if (c.path === '/posts/p1/show-less') return json(204, null);
+      if (c.path === '/posts/p2/hide') return json(404, { error: 'not_found' });
+      return undefined;
+    });
+    renderAt('/p/p1/likes');
+    fireEvent.click(await screen.findByTestId('engage-show-less'));
+    const done = await screen.findByTestId('engage-hidden');
+    expect(done.dataset.kind).toBe('show_less');
+    expect(done.textContent).toBe(tr('engage:showLess.done', { handle: 'alice' }));
+    expect(calls.some((c) => c.method === 'POST' && c.path === '/posts/p1/show-less')).toBe(true);
+
+    renderAt('/p/p2/likes');
+    const hides = await screen.findAllByTestId('engage-hide');
+    fireEvent.click(hides[hides.length - 1] as HTMLElement);
+    expect(await screen.findByTestId('engage-error')).toBeTruthy();
+    expect(screen.queryAllByTestId('engage-hidden')).toHaveLength(1); // only p1 stays hidden
+  });
+
+  it('offers no hide or show-less on your own post', async () => {
+    stubAPI((c) => (c.method === 'GET' && c.path === '/posts/p1' ? json(200, postJSON()) : undefined));
+    renderAt('/p/p1/likes');
+    await screen.findByTestId('engage-like');
+    expect(screen.queryByTestId('engage-hide')).toBeNull();
+    expect(screen.queryByTestId('engage-show-less')).toBeNull();
+  });
+
+  it('marks only the card itself for the seen tracker', async () => {
+    stubAPI((c) =>
+      c.method === 'GET' && c.path === '/posts/p1'
+        ? json(200, postJSON({ mine: false, context: [{ ref: 'p0', kind: 'ref', author_handle: 'bob', excerpt: 'parent' }] }))
+        : undefined,
+    );
+    const { container } = renderAt('/p/p1/likes');
+    await screen.findByTestId('engage-card');
+    const marked = container.querySelectorAll('[data-seen-ref]');
+    expect([...marked].map((e) => e.getAttribute('data-seen-ref'))).toEqual(['p1']);
+    expect(screen.getByTestId('post-context').closest('[data-seen-ref]')?.getAttribute('data-seen-ref')).toBe('p1');
+    expect(screen.getByTestId('post-context').hasAttribute('data-seen-ref')).toBe(false);
+  });
+
+  it('is not found for refs the server does not know', async () => {
+    stubAPI(() => undefined);
+    renderAt('/p/zz/likes');
+    expect(await screen.findByText(tr('common:notFound.title'))).toBeTruthy();
+  });
+
+  it('navigates for reply, tree and report, and queues seen posts', () => {
+    let actions: ReturnType<typeof usePostActions> | undefined;
+    function Probe() {
+      actions = usePostActions();
+      const loc = useLocation();
+      return <output data-testid="loc">{loc.pathname + loc.search}</output>;
+    }
+    render(
+      <QueryClientProvider client={makeQueryClient()}>
+        <MemoryRouter>
+          <Probe />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    act(() => {
+      actions?.markSeen?.(asRef('p9'));
+    });
+    expect(pendingSeen()).toEqual(['p9']);
+    const at = () => screen.getByTestId('loc').textContent;
+    act(() => {
+      actions?.reply(asRef('p9'));
+    });
+    expect(at()).toBe('/compose?parent=p9&kind=ref');
+    act(() => {
+      actions?.openTree(asRef('p9'));
+    });
+    expect(at()).toBe('/p/p9');
+    act(() => {
+      actions?.report({ kind: 'post', ref: asRef('p9') });
+    });
+    expect(at()).toBe('/report?kind=post&ref=p9');
+  });
+});

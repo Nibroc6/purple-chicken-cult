@@ -1,0 +1,22 @@
+/* Recently seen (P0-W06). Logical properties only. */
+.seen-page {
+  max-inline-size: var(--content-width);
+}
+
+.seen-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.seen-item {
+  border-block-end: 1px solid var(--border, currentColor);
+  padding-block-end: var(--space-3);
+}
+
+.seen-error {
+  color: var(--post-over, #a3122a);
+}

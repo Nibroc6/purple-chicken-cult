@@ -1,0 +1,32 @@
+/* Engagement controls (P0-W06). Logical properties only. */
+.engage-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-block: var(--space-2);
+}
+
+.engage-bar button[aria-pressed='true'] {
+  font-weight: 600;
+}
+
+.engage-likes {
+  margin: 0;
+}
+
+.engage-likes a {
+  text-decoration: underline;
+}
+
+.engage-hidden {
+  margin-block: var(--space-2);
+}
+
+.engage-page {
+  max-inline-size: var(--content-width);
+}
+
+.engage-error {
+  color: var(--post-over, #a3122a);
+}
