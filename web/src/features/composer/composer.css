@@ -1,0 +1,49 @@
+/* Composer (P0-W05). Logical properties only; shares post.css. */
+.composer,
+.composer-published {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.composer-options,
+.composer-actions,
+.composer-split-offer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+.composer-split-offer p {
+  margin: 0;
+}
+
+.composer-check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.composer-parent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.composer-parent p {
+  margin: 0;
+}
+
+.composer-warning {
+  border-inline-start: 4px solid var(--post-amber);
+  padding-inline-start: var(--space-3);
+}
+
+.composer-parts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding-inline-start: var(--space-4);
+}

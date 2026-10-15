@@ -1,5 +1,34 @@
 {
   "page": {
     "title": "New post"
+  },
+  "body": {
+    "label": "What's on your mind?"
+  },
+  "split": {
+    "offer": "This is getting long. You can split it into a thread.",
+    "button": "Split into a thread",
+    "undo": "Back to one post",
+    "part": "Part {index, number} of {total, number}",
+    "tooMany": "A thread can have at most {max, number} parts."
+  },
+  "noPreview": "Don't show link previews",
+  "publish": {
+    "one": "Publish",
+    "thread": "Publish the thread ({count, plural, one {# part} other {# parts}})"
+  },
+  "parent": {
+    "ref": "Replying to @{handle}",
+    "cont": "Continuing your post",
+    "missing": "That post can't be found.",
+    "closed": "Replies to this post are off for you.",
+    "notOwn": "You can only continue your own posts.",
+    "limited": "Some people who see your post won't see what it replies to."
+  },
+  "published": {
+    "done": "{count, plural, one {Published.} other {Published a thread of # parts.}}",
+    "open": "Open it",
+    "manage": "Edit or delete",
+    "again": "Write another post"
   }
 }

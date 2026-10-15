@@ -1,8 +1,10 @@
 // toPostVM maps the API PostView to the PostVM every format renders (shared by
-// feed, tree and people). SCAFFOLD hand-off stub; owner P0-W05 → P1-W12.
+// feed, tree and people), plus the pure helpers of the post and composer
+// features. Owner: P0-W05 → P1-W12.
+import { ApiError, errorKey } from '../../api/errors';
 import type { components } from '../../api/schema.gen';
 import { parse } from '../../markdown';
-import type { AuthorVM, ChainVM, HopVM, PostVM } from '../../vm/types';
+import type { Audience, AuthorVM, ChainVM, HopVM, PostVM, RefPolicy } from '../../vm/types';
 import { asRef } from '../../vm/types';
 
 type S = components['schemas'];
@@ -85,4 +87,62 @@ export function toPostVM(p: S['PostView']): PostVM {
     media: (p.media ?? []).map((m) => ({ ref: asRef(m.ref), w: m.w, h: m.h, ...(m.alt ? { alt: m.alt } : {}) })),
     fold: long ? 'card' : 'none',
   };
+}
+
+// ---- length rules (§10.1.5): code points, never UTF-16 units ----
+
+export const COUNTER_FROM = 280;
+export const SOFT_LIMIT = 500;
+export const HARD_LIMIT = 20_000;
+export const MAX_PARTS = 25;
+export const MAX_PARENTS = 3;
+
+// CounterState: hidden below 280, shown up to 500, amber above the soft limit,
+// over above the hard cap (publishing is refused).
+export type CounterState = 'hidden' | 'normal' | 'amber' | 'over';
+
+export function counterState(n: number): CounterState {
+  if (n > HARD_LIMIT) return 'over';
+  if (n > SOFT_LIMIT) return 'amber';
+  if (n >= COUNTER_FROM) return 'normal';
+  return 'hidden';
+}
+
+export const audiences: readonly Audience[] = ['connected', 'd1', 'd2', 'd3'];
+export const refPolicies: readonly RefPolicy[] = ['anyone', 'two_hops', 'friends', 'nobody'];
+
+// hasAudienceLimit: replying to such a post hides the context from some of
+// your readers (§10.1.3; a probation-forced post reads d1 to everyone else).
+export function hasAudienceLimit(p: PostVM): boolean {
+  return p.audience !== 'connected' || p.audienceForced;
+}
+
+// The posts Problem codes localized in the post namespace.
+// i18n-dynamic: post:errors.
+const postCodes = new Set([
+  'body_empty',
+  'body_too_long',
+  'lang_invalid',
+  'audience_invalid',
+  'ref_policy_invalid',
+  'too_many_parents',
+  'duplicate_parent',
+  'cont_multiple',
+  'cont_not_own',
+  'cont_taken',
+  'ref_not_allowed',
+  'ref_cap',
+  'too_many_parts',
+  'cont_not_detachable',
+]);
+
+// postErrorKey returns the catalog key for a posts API error.
+export function postErrorKey(err: unknown): string {
+  if (err instanceof ApiError && postCodes.has(err.code)) return `post:errors.${err.code}`;
+  return errorKey(err);
+}
+
+// errorParams are the ICU arguments of an error message.
+export function errorParams(err: unknown): Record<string, number> {
+  return err instanceof ApiError && err.retryAfterS !== undefined ? { seconds: err.retryAfterS } : {};
 }
