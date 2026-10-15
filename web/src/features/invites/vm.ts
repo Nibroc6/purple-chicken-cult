@@ -1,0 +1,101 @@
+// View-models and pure helpers of the invites feature. Owner: P0-W04 → P1-W02.
+// i18n-dynamic: invites:errors.
+// i18n-dynamic: invites:countdown.
+import { ApiError, errorKey } from '../../api/errors';
+import type { components } from '../../api/schema.gen';
+import type { PersonVM } from '../../vm/types';
+import { toPersonVM } from '../people/vm';
+
+type BudgetView = components['schemas']['BudgetView'];
+type InviteeView = components['schemas']['InviteeView'];
+type FrameView = components['schemas']['FrameView'];
+
+export type HandshakeState = components['schemas']['HandshakeStatus']['state'];
+
+export interface BudgetVM {
+  available: number;
+  cap: number;
+  nextAt?: Date;
+  probation?: { until: Date; needOutsideFriends: number };
+  pausedUntil?: Date;
+  revoked: boolean;
+}
+
+export function toBudgetVM(b: BudgetView): BudgetVM {
+  return {
+    available: b.available,
+    cap: b.cap,
+    ...(b.next_at ? { nextAt: new Date(b.next_at) } : {}),
+    ...(b.probation
+      ? { probation: { until: new Date(b.probation.until), needOutsideFriends: b.probation.need_outside_friends } }
+      : {}),
+    ...(b.paused_until ? { pausedUntil: new Date(b.paused_until) } : {}),
+    revoked: b.revoked === true,
+  };
+}
+
+// canOpen reports whether the inviter may show a code now.
+export function canOpen(b: BudgetVM): boolean {
+  return b.available > 0 && !b.probation && !b.pausedUntil && !b.revoked;
+}
+
+export interface InviteeVM {
+  person: PersonVM;
+  joinedAt: Date;
+  onProbation: boolean;
+  probationUntil?: Date;
+}
+
+export function toInviteeVM(v: InviteeView): InviteeVM {
+  return {
+    person: toPersonVM(v.person),
+    joinedAt: new Date(v.joined_at),
+    onProbation: v.on_probation,
+    ...(v.on_probation && v.probation_until ? { probationUntil: new Date(v.probation_until) } : {}),
+  };
+}
+
+export interface FrameVM {
+  payload: string;
+  validUntil: Date;
+}
+
+export function toFrameVM(f: FrameView): FrameVM {
+  return { payload: f.payload, validUntil: new Date(f.valid_until) };
+}
+
+// Countdown is a remaining duration split for the countdown messages.
+export interface Countdown {
+  key: 'countdown.days' | 'countdown.hours' | 'countdown.minutes';
+  values: { d: number; h: number; m: number; s: number };
+}
+
+// countdown splits the time from now to target (never negative) and picks the
+// message with the two largest units.
+export function countdown(target: Date, now: Date): Countdown {
+  const total = Math.max(0, Math.ceil((target.getTime() - now.getTime()) / 1000));
+  const d = Math.floor(total / 86400);
+  const h = Math.floor((total % 86400) / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const key = d > 0 ? 'countdown.days' : h > 0 ? 'countdown.hours' : 'countdown.minutes';
+  return { key, values: { d, h, m, s } };
+}
+
+// Codes with invites-specific wording (invites:errors.<code>); the rest use errors:<code>.
+const codes = new Set(['no_invites', 'on_probation', 'invites_paused', 'friend_cap', 'mode_unsupported']);
+
+export function invitesErrorKey(err: unknown): string {
+  if (err instanceof ApiError && codes.has(err.code)) return `invites:errors.${err.code}`;
+  return errorKey(err);
+}
+
+export function errorParams(err: unknown): Record<string, number> {
+  if (err instanceof ApiError && err.retryAfterS !== undefined) return { seconds: err.retryAfterS };
+  return {};
+}
+
+// joinURL is the address an invitee opens to scan the code.
+export function joinURL(origin: string): string {
+  return `${new URL(origin).host}/join`;
+}

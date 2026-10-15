@@ -35,6 +35,7 @@ type Service struct {
 var (
 	_ core.Users        = (*Service)(nil)
 	_ core.DisplayNames = (*Service)(nil)
+	_ core.HandleRules  = (*Service)(nil)
 )
 
 // New returns the service.
@@ -266,3 +267,6 @@ func Canon(h string) (string, bool) {
 	}
 	return c, true
 }
+
+// CanonHandle is Canon (core.HandleRules).
+func (s *Service) CanonHandle(h string) (string, bool) { return Canon(h) }
