@@ -1,0 +1,122 @@
+/* Global styles (SCAFFOLD). Logical properties only, so RTL works without forks. */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-family: var(--font-body);
+  font-size: var(--font-size);
+  color: var(--color-text);
+  background: var(--color-bg);
+}
+
+body {
+  margin: 0;
+  line-height: 1.5;
+}
+
+:root[data-reduced-motion='true'] *,
+:root[data-reduced-motion='true'] *::before,
+:root[data-reduced-motion='true'] *::after {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
+
+a {
+  color: var(--color-accent);
+}
+
+.skip-link {
+  position: absolute;
+  inset-inline-start: -9999px;
+}
+.skip-link:focus {
+  inset-inline-start: var(--space-2);
+  inset-block-start: var(--space-2);
+}
+
+.shell-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+  padding-block: var(--space-3);
+  padding-inline: var(--space-4);
+  border-block-end: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.brand {
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.nav-list,
+.link-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.link-list {
+  flex-direction: column;
+}
+
+.shell-main {
+  max-inline-size: var(--content-width);
+  margin-inline: auto;
+  padding: var(--space-4);
+}
+
+.page h1 {
+  font-size: 1.4rem;
+  margin-block: 0 var(--space-3);
+}
+
+.muted {
+  color: var(--color-muted);
+}
+
+.post {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-4);
+  margin-block-end: var(--space-3);
+}
+
+/* Integrity elements (§15.5): reserved styles, never available to user content. */
+.integrity {
+  color: var(--color-integrity-text);
+  background: var(--color-integrity-bg);
+  border-radius: 6px;
+  padding-inline: var(--space-1);
+  font-size: 0.875rem;
+}
+.tier-header {
+  position: sticky;
+  inset-block-start: 0;
+  margin-block: var(--space-4) var(--space-2);
+  padding-block: var(--space-1);
+}
+
+/* Markdown headings render at body size (§10.1.6). */
+.post-body h1,
+.post-body h2,
+.post-body h3,
+.post-body h4,
+.post-body h5,
+.post-body h6 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.why::before {
+  content: 'ⓘ';
+}

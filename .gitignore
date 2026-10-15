@@ -1,0 +1,34 @@
+# Build outputs
+/var/
+/bin/
+*.exe
+*.test
+*.out
+coverage.*
+
+# Web
+/web/node_modules/
+/web/dist/*
+!/web/dist/.keep
+/web/.gen.lock
+/web/src/api/schema.gen.ts
+/web/src/i18n/locales/en-XA/
+/web/test-results/
+/web/playwright-report/
+/web/blob-report/
+/web/.vite/
+/web/*.tsbuildinfo
+/api/openapi.gen.yaml
+
+# Local config and secrets
+.env
+.env.*
+*.key
+*.pem
+
+# Editors / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db

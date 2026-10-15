@@ -1,0 +1,60 @@
+# golangci-lint v2 config (plan §1.1). archtest (go test ./internal/archtest) is the
+# authoritative architecture check; depguard mirrors A1–A3 for fast editor feedback.
+version: "2"
+run:
+  timeout: 5m
+  tests: true
+linters:
+  default: standard # errcheck, govet, ineffassign, staticcheck, unused
+  enable: [depguard, forbidigo, gosec, bodyclose, sqlclosecheck, rowserrcheck]
+  settings:
+    depguard:
+      rules:
+        api-no-store:
+          files: ["**/internal/api/**/*.go"]
+          deny:
+            - pkg: "github.com/Nibroc6/purple-chicken-cult/internal/store"
+              desc: "handlers talk to gate only (§13)"
+            - pkg: "github.com/jackc/pgx/v5"
+              desc: "no SQL in handlers"
+            - pkg: "github.com/Nibroc6/purple-chicken-cult/internal/platform/refs"
+              desc: "only gate mints refs"
+            - pkg: "github.com/Nibroc6/purple-chicken-cult/internal/platform/sigs"
+              desc: "only gate signs"
+        platform-leaf:
+          files: ["**/internal/platform/**/*.go"]
+          deny:
+            - pkg: "github.com/Nibroc6/purple-chicken-cult/internal/gate"
+              desc: "platform is leaf infrastructure"
+            - pkg: "github.com/Nibroc6/purple-chicken-cult/internal/store"
+              desc: "platform is leaf infrastructure"
+            - pkg: "github.com/Nibroc6/purple-chicken-cult/internal/api"
+              desc: "platform is leaf infrastructure"
+        gate-no-api:
+          files: ["**/internal/gate/**/*.go"]
+          deny:
+            - pkg: "github.com/Nibroc6/purple-chicken-cult/internal/api"
+              desc: "gate never depends on the HTTP layer"
+    forbidigo:
+      forbid:
+        - pattern: '^http\.Error$'
+          msg: "use apix error mapping (uniform responses)"
+        - pattern: '^fmt\.Fprint.*$'
+          msg: "no ad-hoc response bodies"
+    gosec:
+      excludes:
+        - G104 # covered by errcheck
+        - G115 # integer conversions are bounded by DB CHECKs (user IDs < 2^32)
+        - G304 # file paths come from operator config, not users
+  exclusions:
+    generated: lax
+    presets: [std-error-handling]
+    rules:
+      - path: '^(cmd|internal/(platform|store|archtest))/'
+        linters: [forbidigo]
+      - path: '_test\.go$'
+        linters: [gosec]
+    paths:
+      - web/node_modules
+formatters:
+  enable: [gofmt]

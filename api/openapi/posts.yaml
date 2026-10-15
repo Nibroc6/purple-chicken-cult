@@ -1,0 +1,8 @@
+# OpenAPI fragment of the posts module (plan §5.3). Owner: P0-W05.
+# Paths are relative to /api. Schemas: module-prefixed names in this file, or
+# $ref: '_common.yaml#/components/schemas/X'. Validated on its own by apitest.
+openapi: 3.0.3
+info:
+  title: pcc internal API (posts)
+  version: "0"
+paths: {}

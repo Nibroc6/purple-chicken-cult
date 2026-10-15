@@ -1,0 +1,17 @@
+{
+  "person": {
+    "title": "Person"
+  },
+  "friends": {
+    "title": "Friends"
+  },
+  "requests": {
+    "title": "Friend requests"
+  },
+  "suggestions": {
+    "title": "People you may know"
+  },
+  "blocks": {
+    "title": "Blocked people"
+  }
+}

@@ -1,0 +1,99 @@
+{
+  "index": {
+    "title": "Settings"
+  },
+  "form": {
+    "save": "Save",
+    "saving": "Saving…",
+    "saved": "Saved."
+  },
+  "display": {
+    "title": "Display",
+    "name": {
+      "label": "Display name",
+      "help": "Up to 50 characters. Leave it empty to show only your handle."
+    },
+    "format": {
+      "legend": "Layout",
+      "cards": "Cards",
+      "compact": "Compact"
+    },
+    "density": {
+      "legend": "Density",
+      "comfortable": "Comfortable",
+      "compact": "Dense"
+    },
+    "a11y": {
+      "legend": "Accessibility",
+      "contrast": "Contrast",
+      "contrastNormal": "Normal",
+      "contrastHigh": "High",
+      "textScale": "Text size",
+      "textSmall": "Small",
+      "textNormal": "Normal",
+      "textLarge": "Large",
+      "textXlarge": "Extra large",
+      "reducedMotion": "Reduce motion",
+      "dyslexiaFont": "Dyslexia-friendly font"
+    },
+    "preset": {
+      "legend": "Feed order",
+      "latest": "Latest first",
+      "balanced": "Balanced",
+      "help": "Both orders only ever show people in your network."
+    }
+  },
+  "languages": {
+    "title": "Languages",
+    "uiLocale": {
+      "label": "App language",
+      "help": "A language tag such as en, fr-CA or pt-BR."
+    },
+    "list": {
+      "legend": "Languages you read",
+      "help": "The first one is the default language of your posts.",
+      "add": "Add language",
+      "newLabel": "Language tag",
+      "remove": "Remove {lang}"
+    },
+    "translateTo": {
+      "label": "Translate posts into",
+      "none": "Don't translate"
+    },
+    "autotranslate": "Translate automatically"
+  },
+  "privacy": {
+    "title": "Privacy",
+    "nameInChains": {
+      "label": "Show my name in connection chains",
+      "help": "Otherwise people further away see “a friend of a friend”."
+    },
+    "suggestible": {
+      "label": "Suggest me to friends of friends",
+      "help": "Only people already connected to you through a friend can see the suggestion."
+    },
+    "namedInLikes": {
+      "label": "Show my name on posts I like",
+      "help": "Otherwise your like only counts."
+    },
+    "slipperyDefault": {
+      "label": "Make new posts slippery by default",
+      "help": "Nobody can reference a slippery post."
+    }
+  },
+  "export": {
+    "title": "Export your data",
+    "intro": "Download every signed record you are part of, the server's public keys, your posts and your passkeys' public parts.",
+    "verify": "Anyone can check the signatures offline, without trusting this server.",
+    "button": "Download export",
+    "working": "Preparing your export…",
+    "done": "Your export has been downloaded."
+  },
+  "delete": {
+    "title": "Delete your account",
+    "warning": "This removes all your posts and friendships and signs you out everywhere. It cannot be undone, and your handle can never be used again.",
+    "confirmLabel": "Type your handle ({handle}) to confirm",
+    "button": "Delete my account",
+    "working": "Deleting…"
+  }
+}

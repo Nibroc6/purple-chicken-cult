@@ -1,0 +1,7 @@
+{
+  "title": "Confirm it is you",
+  "body": "This change needs a fresh check with one of your passkeys.",
+  "verify": "Confirm with a passkey",
+  "working": "Waiting for your passkey…",
+  "cancel": "Cancel"
+}

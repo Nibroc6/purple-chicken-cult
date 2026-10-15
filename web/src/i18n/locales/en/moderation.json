@@ -1,0 +1,14 @@
+{
+  "blame": {
+    "title": "Blame inbox"
+  },
+  "queue": {
+    "title": "Moderation queue"
+  },
+  "log": {
+    "title": "Moderation log"
+  },
+  "report": {
+    "title": "Report"
+  }
+}

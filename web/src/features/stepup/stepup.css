@@ -1,0 +1,38 @@
+/* Step-up modal (P0-W01). Logical properties only. */
+.stepup-backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(0 0 0 / 45%);
+  z-index: 100;
+  padding: var(--space-4);
+}
+
+.stepup-dialog {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-4);
+  max-inline-size: 28rem;
+  inline-size: 100%;
+}
+
+.stepup-dialog h2 {
+  margin-block-start: 0;
+}
+
+.stepup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-block-start: var(--space-4);
+}
+
+.stepup-error {
+  color: var(--color-text);
+  border-inline-start: 4px solid var(--color-accent);
+  padding-inline-start: var(--space-2);
+}

@@ -1,0 +1,55 @@
+/* Design tokens (SCAFFOLD; plan §15.2 A themes override these from P1). Logical
+   properties only (scripts/check-css-logical.mjs). No CSS-in-JS, no inline styles. */
+:root {
+  --color-bg: #fbfaff;
+  --color-surface: #ffffff;
+  --color-text: #1b1530;
+  --color-muted: #5c5470;
+  --color-accent: #6b2fd6;
+  --color-border: #e3dcf3;
+  --color-integrity-bg: #efe8ff;
+  --color-integrity-text: #2c1470;
+  --radius: 12px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --font-body: system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', sans-serif;
+  --font-size: 16px;
+  --content-width: 40rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #120e1c;
+    --color-surface: #1b1529;
+    --color-text: #f1edfa;
+    --color-muted: #b3a9c9;
+    --color-accent: #b892ff;
+    --color-border: #2f2742;
+    --color-integrity-bg: #2a1d4d;
+    --color-integrity-text: #e9e0ff;
+  }
+}
+
+:root[data-contrast='high'] {
+  --color-text: #000000;
+  --color-bg: #ffffff;
+  --color-muted: #222222;
+  --color-border: #000000;
+}
+
+:root[data-text-scale='small'] {
+  --font-size: 14px;
+}
+:root[data-text-scale='large'] {
+  --font-size: 18px;
+}
+:root[data-text-scale='xlarge'] {
+  --font-size: 21px;
+}
+
+:root[data-dyslexia-font='true'] {
+  --font-body: 'OpenDyslexic', 'Comic Sans MS', system-ui, sans-serif;
+}

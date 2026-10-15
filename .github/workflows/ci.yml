@@ -1,0 +1,106 @@
+# CI (SCAFFOLD; plan "SCAFFOLD-0a" deliverable 3). Actions are pinned by commit SHA
+# (tags resolved 2026-10-01).
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 3 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PCC_ENV: test
+  PCC_TEST_DATABASE_URL: postgres://pcc:pcc@localhost:54329/pcc_test?sslmode=disable
+  PCC_ADMIN_DATABASE_URL: postgres://pcc:pcc@localhost:54329/pcc_test?sslmode=disable
+  PCC_REQUIRE_DB: "1"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: pcc
+          POSTGRES_PASSWORD: pcc
+          POSTGRES_DB: pcc_test
+        ports: ["54329:5432"]
+        options: >-
+          --health-cmd "pg_isready -U pcc -d pcc_test"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version: "1.27.x"
+          cache: true
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: npm ci
+        run: npm ci --prefix web
+      - name: generate
+        run: bash scripts/gen.sh
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          version: v2.14.0
+      - name: go vet
+        run: go vet ./...
+      - name: go test (race)
+        run: go test -race -count=1 -p 4 ./...
+      - name: ownership self-test
+        run: node scripts/ownership.mjs selftest
+      - name: web lint / typecheck / unit
+        run: |
+          npm --prefix web run lint
+          npm --prefix web run typecheck
+          npm --prefix web test
+      - name: build
+        run: bash scripts/build.sh
+      - name: playwright browsers
+        run: npx --prefix web playwright install --with-deps chromium
+      - name: e2e
+        run: bash scripts/e2e.sh
+      - name: playwright report
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: playwright-report
+          path: web/playwright-report
+          retention-days: 7
+
+  perf:
+    if: github.event_name == 'schedule' || contains(github.event.head_commit.message, '[perf]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: pcc
+          POSTGRES_PASSWORD: pcc
+          POSTGRES_DB: pcc_test
+        ports: ["54329:5432"]
+        options: >-
+          --health-cmd "pg_isready -U pcc -d pcc_test"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version: "1.27.x"
+          cache: true
+      - name: perf + simulations
+        run: go test -tags perf -count=1 -run 'TestPerf|TestSim' ./internal/gate/...

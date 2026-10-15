@@ -1,0 +1,24 @@
+{
+  "tier": {
+    "start": "{tier, select, 1 {Friends} 2 {Friends of friends} other {{tier} steps away}}",
+    "end": "{tier, select, 1 {You're caught up with friends} 2 {You're caught up with friends of friends} other {You're caught up with people {tier} steps away}}",
+    "caughtUp": "You're caught up"
+  },
+  "chain": {
+    "label": "How you are connected",
+    "hidden": "{count, plural, one {# other} other {# others}}"
+  },
+  "inviter": {
+    "label": "{kind, select, genesis {genesis} deleted {invited by a deleted account} other {invited by @{handle}}}"
+  },
+  "why": {
+    "button": "Why am I seeing this?"
+  },
+  "audience": {
+    "label": "{audience, select, d1 {Friends only} d2 {Within 2 steps} d3 {Within 3 steps} friend_plus {Friend+ only} other {Everyone connected}}"
+  },
+  "edited": "edited",
+  "report": {
+    "action": "Report"
+  }
+}

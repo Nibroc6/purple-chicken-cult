@@ -1,0 +1,397 @@
+# Shared schemas of the internal API (plan §4.4, §5). CONTRACT (SCAFFOLD-owned):
+# additive changes only, through the contract steward. Module fragments
+# (<module>.yaml) reference these with $ref: '_common.yaml#/components/schemas/X'.
+# The API is first-party only and unpublished (ARCHITECTURE §16.1).
+openapi: 3.0.3
+info:
+  title: pcc internal API (common)
+  version: "0"
+paths: {}
+components:
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string, pattern: '^[a-z][a-z0-9_]*$' }
+        field: { type: string }
+        retry_after_s: { type: integer }
+        feature: { type: string }
+    Ref:
+      type: string
+      pattern: '^[A-Za-z0-9_-]+$'
+    Page:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: {} }
+        next: { type: string }
+    InviterLabel:
+      type: object
+      required: [kind]
+      properties:
+        kind: { type: string, enum: [user, genesis, deleted] }
+        handle: { type: string }
+    ChainHop:
+      type: object
+      required: [ref, handle]
+      properties:
+        ref: { $ref: '#/components/schemas/Ref' }
+        handle: { type: string }
+    ChainView:
+      type: object
+      required: [dist, hidden_middle, first_hop_plus]
+      properties:
+        dist: { type: integer, minimum: 0 }
+        first_hop: { $ref: '#/components/schemas/ChainHop' }
+        middle: { type: array, items: { $ref: '#/components/schemas/ChainHop' } }
+        hidden_middle: { type: integer, minimum: 0 }
+        first_hop_plus: { type: boolean }
+    PersonView:
+      type: object
+      required: [ref, handle, display_name, inviter, relation, chain]
+      properties:
+        ref: { $ref: '#/components/schemas/Ref' }
+        handle: { type: string }
+        display_name: { type: string }
+        inviter: { $ref: '#/components/schemas/InviterLabel' }
+        relation: { type: string, enum: [self, friend, friend_plus, connected] }
+        request: { type: string, enum: [outgoing, incoming] }
+        chain: { $ref: '#/components/schemas/ChainView' }
+        blocked: { type: boolean }
+        muted: { type: boolean }
+        hidden_via: { type: boolean }
+    AuthorView:
+      type: object
+      required: [ref, handle, display_name, inviter, chain]
+      properties:
+        ref: { $ref: '#/components/schemas/Ref' }
+        handle: { type: string }
+        display_name: { type: string }
+        inviter: { $ref: '#/components/schemas/InviterLabel' }
+        chain: { $ref: '#/components/schemas/ChainView' }
+    ContextRow:
+      type: object
+      required: [ref, kind, author_handle, excerpt]
+      properties:
+        ref: { $ref: '#/components/schemas/Ref' }
+        kind: { type: string, enum: [ref, cont] }
+        author_handle: { type: string }
+        excerpt: { type: string }
+    ThreadPos:
+      type: object
+      required: [index, total]
+      properties:
+        index: { type: integer }
+        total: { type: integer }
+    MediaView:
+      type: object
+      required: [ref, w, h]
+      properties:
+        ref: { $ref: '#/components/schemas/Ref' }
+        w: { type: integer }
+        h: { type: integer }
+        alt: { type: string }
+    PreviewView:
+      type: object
+      required: [url, host, host_unicode, lookalike]
+      properties:
+        url: { type: string }
+        host: { type: string }
+        host_unicode: { type: string }
+        lookalike: { type: boolean }
+        title: { type: string }
+        description: { type: string }
+        image: { $ref: '#/components/schemas/MediaView' }
+    MentionView:
+      type: object
+      required: [ord]
+      properties:
+        ord: { type: integer }
+        ref: { $ref: '#/components/schemas/Ref' }
+    LikeSummary:
+      type: object
+      required: [in_network, others, by_me]
+      properties:
+        in_network: { type: integer, minimum: 0 }
+        names: { type: array, items: { $ref: '#/components/schemas/ChainHop' } }
+        others: { type: integer, minimum: 0 }
+        by_me: { type: boolean }
+    PostView:
+      type: object
+      required: [ref, author, tier, body, lang, created_at, audience, ref_policy, can_reference, mine, likes, reply_count]
+      properties:
+        ref: { $ref: '#/components/schemas/Ref' }
+        author: { $ref: '#/components/schemas/AuthorView' }
+        tier: { type: integer, minimum: 0 }
+        body: { type: string }
+        lang: { type: string }
+        created_at: { type: string, format: date-time }
+        edited_at: { type: string, format: date-time }
+        audience: { type: string, enum: [connected, d1, d2, d3, friend_plus] }
+        audience_forced: { type: boolean }
+        ref_policy: { type: string, enum: [anyone, two_hops, friends, nobody] }
+        can_reference: { type: boolean }
+        mine: { type: boolean }
+        context: { type: array, items: { $ref: '#/components/schemas/ContextRow' } }
+        thread: { $ref: '#/components/schemas/ThreadPos' }
+        previews: { type: array, items: { $ref: '#/components/schemas/PreviewView' } }
+        mentions: { type: array, items: { $ref: '#/components/schemas/MentionView' } }
+        likes: { $ref: '#/components/schemas/LikeSummary' }
+        saved_by_me: { type: boolean }
+        reply_count: { type: integer, minimum: 0 }
+        media: { type: array, items: { $ref: '#/components/schemas/MediaView' } }
+    Collapsed:
+      type: object
+      required: [count, token, reason]
+      properties:
+        count: { type: integer }
+        token: { type: string }
+        reason: { type: string, enum: [low_trust_distant] }
+    FeedItem:
+      type: object
+      required: [type]
+      properties:
+        type: { type: string, enum: [tier_start, post, thread, collapsed, tier_end, caught_up] }
+        tier: { type: integer }
+        post: { $ref: '#/components/schemas/PostView' }
+        thread: { type: array, items: { $ref: '#/components/schemas/PostView' } }
+        collapsed: { $ref: '#/components/schemas/Collapsed' }
+    FeedPage:
+      type: object
+      required: [session, preset, items]
+      properties:
+        session: { type: string }
+        preset: { type: string, enum: [latest, balanced, top] }
+        items: { type: array, items: { $ref: '#/components/schemas/FeedItem' } }
+        next: { type: string }
+    WhyView:
+      type: object
+      required: [tier, via, posted_at, preset, shift_minutes, reasons]
+      properties:
+        tier: { type: integer }
+        via: { $ref: '#/components/schemas/ChainView' }
+        posted_at: { type: string, format: date-time }
+        preset: { type: string, enum: [latest, balanced, top] }
+        shift_minutes: { type: integer }
+        reasons:
+          type: array
+          items:
+            type: string
+            enum: [network_likes, below_author_usual, reply_penalty, good_replies, cold_start, show_less, chronological]
+    TreeItem:
+      type: object
+      required: [post]
+      properties:
+        post: { $ref: '#/components/schemas/PostView' }
+        tier_divider: { type: boolean }
+        shown_above: { type: boolean }
+        also_replies_to: { type: array, items: { $ref: '#/components/schemas/ChainHop' } }
+        also_parents: { type: array, items: { $ref: '#/components/schemas/Ref' } }
+    TreeRow:
+      type: object
+      required: [gen, label, center, items, more]
+      properties:
+        gen: { type: integer }
+        label:
+          type: string
+          enum: [earlier, replying_to, this_post, replies, replies_to_replies, generations_down, generations_up]
+        center: { $ref: '#/components/schemas/Ref' }
+        items: { type: array, items: { $ref: '#/components/schemas/TreeItem' } }
+        more: { type: integer, minimum: 0 }
+        cursor: { type: string }
+    TreeView:
+      type: object
+      required: [snapshot, focal, rows, has_earlier, has_later]
+      properties:
+        snapshot: { type: string }
+        focal: { $ref: '#/components/schemas/Ref' }
+        rows: { type: array, items: { $ref: '#/components/schemas/TreeRow' } }
+        has_earlier: { type: boolean }
+        has_later: { type: boolean }
+    SettingsView:
+      type: object
+      required: [ui_locale, languages, autotranslate, rank_preset, name_in_chains, suggestible, named_in_likes, slippery_default, ui_prefs]
+      properties:
+        ui_locale: { type: string }
+        languages: { type: array, items: { type: string } }
+        translate_to: { type: string }
+        autotranslate: { type: boolean }
+        rank_preset: { type: string, enum: [latest, balanced, top] }
+        name_in_chains: { type: boolean }
+        suggestible: { type: boolean }
+        named_in_likes: { type: boolean }
+        slippery_default: { type: boolean }
+        ui_prefs: { type: object, additionalProperties: true }
+    SettingsPatch:
+      type: object
+      additionalProperties: false
+      properties:
+        ui_locale: { type: string }
+        languages: { type: array, items: { type: string } }
+        translate_to: { type: string }
+        autotranslate: { type: boolean }
+        rank_preset: { type: string }
+        name_in_chains: { type: boolean }
+        suggestible: { type: boolean }
+        named_in_likes: { type: boolean }
+        slippery_default: { type: boolean }
+        ui_prefs: { type: object, additionalProperties: true }
+        display_name: { type: string }
+    MeView:
+      type: object
+      required: [ref, handle, display_name, role, inviter, settings]
+      properties:
+        ref: { $ref: '#/components/schemas/Ref' }
+        handle: { type: string }
+        display_name: { type: string }
+        role: { type: string, enum: [member, moderator, admin] }
+        inviter: { $ref: '#/components/schemas/InviterLabel' }
+        settings: { $ref: '#/components/schemas/SettingsView' }
+    SessionView:
+      type: object
+      required: [authenticated, kind]
+      properties:
+        authenticated: { type: boolean }
+        kind: { type: string, enum: [none, guest, user, enrollment] }
+        csrf: { type: string }
+        me: { $ref: '#/components/schemas/MeView' }
+        step_up: { type: boolean }
+    NotificationView:
+      type: object
+      required: [id, kind, count, at, read]
+      properties:
+        id: { $ref: '#/components/schemas/Ref' }
+        kind:
+          type: string
+          enum: [friend_request, request_accepted, post_referenced, mention, invitee_action, friend_security, invite_redeemed, recovery_approval]
+        count: { type: integer }
+        person: { $ref: '#/components/schemas/ChainHop' }
+        post: { $ref: '#/components/schemas/Ref' }
+        data: { type: object, additionalProperties: true }
+        at: { type: string, format: date-time }
+        read: { type: boolean }
+    ProbationView:
+      type: object
+      required: [until, need_outside_friends]
+      properties:
+        until: { type: string, format: date-time }
+        need_outside_friends: { type: integer }
+    BudgetView:
+      type: object
+      required: [available, cap]
+      properties:
+        available: { type: integer }
+        cap: { type: integer }
+        next_at: { type: string, format: date-time }
+        probation: { $ref: '#/components/schemas/ProbationView' }
+        paused_until: { type: string, format: date-time }
+        revoked: { type: boolean }
+    HandshakeView:
+      type: object
+      required: [hs, mode, frame_ttl_ms]
+      properties:
+        hs: { $ref: '#/components/schemas/Ref' }
+        mode: { type: string, enum: [qr, qr_audio, dual_qr] }
+        frame_ttl_ms: { type: integer }
+        frame_key: { type: string }
+    HandshakeStatus:
+      type: object
+      required: [state]
+      properties:
+        state: { type: string, enum: [open, claimed, confirmed, done, cancelled, expired] }
+        sas: { type: string, pattern: '^[0-9]{6}$' }
+    FrameView:
+      type: object
+      required: [payload, valid_until]
+      properties:
+        payload: { type: string }
+        valid_until: { type: string, format: date-time }
+    InviteeView:
+      type: object
+      required: [person, joined_at, on_probation]
+      properties:
+        person: { $ref: '#/components/schemas/PersonView' }
+        joined_at: { type: string, format: date-time }
+        on_probation: { type: boolean }
+        probation_until: { type: string, format: date-time }
+    KeyView:
+      type: object
+      required: [key_id, alg, public_key, fingerprint, valid_from]
+      properties:
+        key_id: { type: string }
+        alg: { type: string }
+        public_key: { type: string }
+        fingerprint: { type: string }
+        valid_from: { type: string, format: date-time }
+        valid_until: { type: string, format: date-time }
+    PushSub:
+      type: object
+      required: [endpoint, keys, hide_content]
+      properties:
+        endpoint: { type: string }
+        keys:
+          type: object
+          required: [p256dh, auth]
+          properties:
+            p256dh: { type: string }
+            auth: { type: string }
+        hide_content: { type: boolean }
+    ModItem:
+      type: object
+      required: [id, source, priority, reason, subject_probation, at, claimed_by_me, awaiting_second]
+      properties:
+        id: { $ref: '#/components/schemas/Ref' }
+        source: { type: string, enum: [report, signal, csam, stepup, invite_cluster] }
+        priority: { type: integer }
+        reason: { type: string }
+        subject: { $ref: '#/components/schemas/ChainHop' }
+        subject_inviter: { $ref: '#/components/schemas/InviterLabel' }
+        subject_probation: { type: boolean }
+        post: { $ref: '#/components/schemas/PostView' }
+        summary: { type: object, additionalProperties: { type: integer } }
+        at: { type: string, format: date-time }
+        claimed_by_me: { type: boolean }
+        awaiting_second: { type: boolean }
+    BlameItem:
+      type: object
+      required: [id, action, reason, invitee_handle, at, read]
+      properties:
+        id: { $ref: '#/components/schemas/Ref' }
+        action: { type: string, enum: [remove_post, suspend_user] }
+        reason: { type: string }
+        invitee_handle: { type: string }
+        post: { $ref: '#/components/schemas/PostView' }
+        at: { type: string, format: date-time }
+        read: { type: boolean }
+    LogSubject:
+      type: object
+      properties:
+        pseudonym: { type: string }
+        ref: { $ref: '#/components/schemas/Ref' }
+        handle: { type: string }
+    LogItem:
+      type: object
+      required: [day, action, reason, count]
+      properties:
+        day: { type: string }
+        action: { type: string }
+        reason: { type: string }
+        count: { type: integer }
+        subject: { $ref: '#/components/schemas/LogSubject' }
+  responses:
+    NotFound:
+      description: The uniform not-found response (§13).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Problem:
+      description: A problem with the caller's own input.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotImplemented:
+      description: Scaffold stub (removed when the owning work package lands).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
