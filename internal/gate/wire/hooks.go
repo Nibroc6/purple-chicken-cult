@@ -17,7 +17,7 @@ type Hooks struct{ a *App }
 
 // Reset truncates every table (except schema_migrations) and reloads caches
 // (users, the post index, liker sets and the graph) and forgets every feed
-// session.
+// session and tree snapshot.
 func (h *Hooks) Reset(ctx context.Context) error {
 	d := h.a.d
 	rows, err := d.DB.Q().Query(ctx, `SELECT tablename FROM pg_tables
@@ -53,6 +53,7 @@ func (h *Hooks) Reset(ctx context.Context) error {
 		return err
 	}
 	h.a.Feed.Reset()
+	h.a.Tree.Reset()
 	return h.a.Graph.Load(ctx)
 }
 
