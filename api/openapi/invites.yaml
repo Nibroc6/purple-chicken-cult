@@ -1,8 +1,252 @@
-# OpenAPI fragment of the invites module (plan §5.3). Owner: P0-W04.
+# OpenAPI fragment of the invites module (plan §5.3). Owner: P0-W04 → P1-W02.
 # Paths are relative to /api. Schemas: module-prefixed names in this file, or
 # $ref: '_common.yaml#/components/schemas/X'. Validated on its own by apitest.
 openapi: 3.0.3
 info:
   title: pcc internal API (invites)
   version: "0"
-paths: {}
+paths:
+  /invites/budget:
+    get:
+      operationId: inviteBudget
+      description: >-
+        The caller's own invite budget: saved invites, the cap, the time of the next
+        invite, and during probation what is left of it (§8).
+      responses:
+        "200":
+          description: The budget.
+          content:
+            application/json:
+              schema: { $ref: '_common.yaml#/components/schemas/BudgetView' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/InvitesRateLimited' }
+  /invites/invitees:
+    get:
+      operationId: listInvitees
+      description: The people the caller invited, newest first, with their probation state.
+      responses:
+        "200":
+          description: The caller's invitees.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InvitesInvitees' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/InvitesRateLimited' }
+  /invites/handshakes:
+    post:
+      operationId: openHandshake
+      description: Opens an in-person invite handshake (Phase 0 mode "qr"). Cancels the caller's unfinished ones.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InvitesOpenIn' }
+      responses:
+        "201":
+          description: The open handshake.
+          content:
+            application/json:
+              schema: { $ref: '_common.yaml#/components/schemas/HandshakeView' }
+        "400": { $ref: '_common.yaml#/components/responses/Problem' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409": { $ref: '#/components/responses/InvitesCannotInvite' }
+        "422": { $ref: '_common.yaml#/components/responses/Problem' }
+        "429": { $ref: '#/components/responses/InvitesRateLimited' }
+  /invites/handshakes/{hs}:
+    parameters:
+      - { name: hs, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
+    get:
+      operationId: handshakeStatus
+      description: The inviter-side state, with the 6-digit SAS once a guest claimed the handshake.
+      responses:
+        "200":
+          description: The handshake state.
+          content:
+            application/json:
+              schema: { $ref: '_common.yaml#/components/schemas/HandshakeStatus' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/InvitesRateLimited' }
+    delete:
+      operationId: cancelHandshake
+      description: Cancels an unfinished handshake ("codes don't match" also cancels).
+      responses:
+        "204": { description: Cancelled. }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/InvitesRateLimited' }
+  /invites/handshakes/{hs}/frame:
+    parameters:
+      - { name: hs, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
+    get:
+      operationId: handshakeFrame
+      description: The current QR frame of an open handshake (rotates every 10 s).
+      responses:
+        "200":
+          description: The frame.
+          content:
+            application/json:
+              schema: { $ref: '_common.yaml#/components/schemas/FrameView' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/InvitesRateLimited' }
+  /invites/handshakes/{hs}/confirm:
+    parameters:
+      - { name: hs, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
+    post:
+      operationId: confirmHandshake
+      description: The inviter saw the same code on both screens ("codes match").
+      responses:
+        "204": { description: Confirmed. }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/InvitesRateLimited' }
+  /join/start:
+    post:
+      operationId: joinStart
+      description: Starts a guest session for the join flow (Set-Cookie).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: false }
+      responses:
+        "200":
+          description: The guest session's CSRF token and what the join form attests.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InvitesJoinStart' }
+        "400": { $ref: '_common.yaml#/components/responses/Problem' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/InvitesRateLimited' }
+  /join/claim:
+    post:
+      operationId: joinClaim
+      description: >-
+        Binds a scanned QR frame to the caller's guest session. Every failure (stale or
+        forged frame, taken or finished handshake, no guest session) is the uniform 404.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InvitesClaimIn' }
+      responses:
+        "204": { description: Claimed. }
+        "400": { $ref: '_common.yaml#/components/responses/Problem' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/InvitesRateLimited' }
+  /join/status:
+    get:
+      operationId: joinStatus
+      description: The invitee-side state of the claimed handshake, with the SAS.
+      responses:
+        "200":
+          description: The handshake state.
+          content:
+            application/json:
+              schema: { $ref: '_common.yaml#/components/schemas/HandshakeStatus' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/InvitesRateLimited' }
+  /join/register/begin:
+    post:
+      operationId: joinRegisterBegin
+      description: >-
+        Validates the join form and starts the passkey ceremony. Needs the inviter's
+        "codes match"; otherwise 404. handle_taken is answered at most 10 times per
+        handshake (D21), then 404.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InvitesRegistration' }
+      responses:
+        "200":
+          description: WebAuthn creation options.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InvitesOptions' }
+        "400": { $ref: '_common.yaml#/components/responses/Problem' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409": { $ref: '_common.yaml#/components/responses/Problem' }
+        "422": { $ref: '_common.yaml#/components/responses/Problem' }
+        "429": { $ref: '#/components/responses/InvitesRateLimited' }
+  /join/register/finish:
+    post:
+      operationId: joinRegisterFinish
+      description: >-
+        Verifies the passkey, creates the account, the Invite and Friendship records and
+        the friendship with the inviter, and replaces the guest session with a user
+        session (Set-Cookie).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InvitesCredentialIn' }
+      responses:
+        "200":
+          description: The new session.
+          content:
+            application/json:
+              schema: { $ref: '_common.yaml#/components/schemas/SessionView' }
+        "400": { $ref: '_common.yaml#/components/responses/Problem' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409": { $ref: '_common.yaml#/components/responses/Problem' }
+        "429": { $ref: '#/components/responses/InvitesRateLimited' }
+components:
+  schemas:
+    InvitesInvitees:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '_common.yaml#/components/schemas/InviteeView' } }
+    InvitesOpenIn:
+      type: object
+      additionalProperties: false
+      required: [mode]
+      properties:
+        mode: { type: string, maxLength: 16 }
+        quiet: { type: boolean }
+    InvitesJoinStart:
+      type: object
+      required: [csrf, tos_version, min_age]
+      properties:
+        csrf: { type: string }
+        tos_version: { type: integer }
+        min_age: { type: integer }
+    InvitesClaimIn:
+      type: object
+      additionalProperties: false
+      required: [payload]
+      properties:
+        payload: { type: string, maxLength: 256 }
+    InvitesRegistration:
+      type: object
+      additionalProperties: false
+      required: [handle, tos_version, age_attested]
+      properties:
+        handle: { type: string, maxLength: 64 }
+        display_name: { type: string, maxLength: 256 }
+        locale: { type: string, maxLength: 35 }
+        languages: { type: array, maxItems: 20, items: { type: string, maxLength: 35 } }
+        tos_version: { type: integer }
+        age_attested: { type: boolean }
+    InvitesOptions:
+      type: object
+      required: [options]
+      properties:
+        options: { type: object, additionalProperties: true }
+    InvitesCredentialIn:
+      type: object
+      additionalProperties: false
+      required: [credential]
+      properties:
+        credential: { type: object, additionalProperties: true }
+  responses:
+    InvitesCannotInvite:
+      description: >-
+        on_probation, no_invites (the budget is empty), invites_paused (quarantine or
+        revoked) or friend_cap (the caller's own friends plus outgoing requests reached 1,000).
+      content:
+        application/json:
+          schema: { $ref: '_common.yaml#/components/schemas/Error' }
+    InvitesRateLimited:
+      description: rate_limited.
+      content:
+        application/json:
+          schema: { $ref: '_common.yaml#/components/schemas/Error' }
