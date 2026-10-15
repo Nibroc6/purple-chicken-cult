@@ -6,26 +6,13 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/internal/core"
-	"github.com/Nibroc6/purple-chicken-cult/internal/platform/sigs"
 	"github.com/Nibroc6/purple-chicken-cult/internal/store"
 )
 
-// Steward (contract request p0-w11-2): hand-off stub with a WORKING body so the
-// account.delete job tombstones posts before P0-W05 lands. W05 replaces it with
-// the same Tombstone path posts.Delete uses.
-
-var _ core.PostAdmin = (*Service)(nil)
-
-// tombstoneBody is the signed Tombstone record body (§10.2).
-type tombstoneBody struct {
-	Target uuid.UUID `json:"target"`
-	By     uuid.UUID `json:"by"`
-	At     sigs.Time `json:"at"`
-}
-
-// DeleteAllBy tombstones every live post of author in tx (Tombstone record;
-// body and salt hard-deleted) and returns their IDs. The caller runs
-// PostIndex.Delete and publishes PostDeleted after commit.
+// DeleteAllBy tombstones every live post of author in tx exactly like Delete
+// (Tombstone record; body, salt and mentions hard-deleted) and returns their IDs
+// (core.PostAdmin, contract request p0-w11-2; used by the account.delete job).
+// The caller runs PostIndex.Delete and publishes PostDeleted after commit.
 func (s *Service) DeleteAllBy(ctx context.Context, tx store.Q, author core.UserID) ([]core.PostID, error) {
 	rows, err := tx.Query(ctx, "SELECT id FROM posts WHERE author_id = $1 AND deleted_at IS NULL ORDER BY created_at, id",
 		int64(author))
@@ -52,16 +39,16 @@ func (s *Service) DeleteAllBy(ctx context.Context, tx store.Q, author core.UserI
 	if err != nil {
 		return nil, err
 	}
-	now := s.d.Clock.Now()
+	now := s.now()
+	out := make([]core.PostID, 0, len(ids))
 	for _, id := range ids {
-		if _, err := s.d.Signer.Sign(ctx, tx, core.RecTombstone, author,
-			tombstoneBody{Target: id, By: m.ExtID, At: sigs.T(now)}, []core.UserID{author}); err != nil {
+		ok, err := s.tombstone(ctx, tx, id, author, m.ExtID, now)
+		if err != nil {
 			return nil, err
 		}
-		if _, err := tx.Exec(ctx, `UPDATE posts SET body = NULL, body_salt = NULL, deleted_at = $2
-			WHERE id = $1 AND deleted_at IS NULL`, id, now); err != nil {
-			return nil, err
+		if ok {
+			out = append(out, id)
 		}
 	}
-	return ids, nil
+	return out, nil
 }

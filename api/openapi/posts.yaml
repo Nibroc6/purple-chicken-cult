@@ -1,8 +1,253 @@
-# OpenAPI fragment of the posts module (plan §5.3). Owner: P0-W05.
+# OpenAPI fragment of the posts module (plan §5.3). Owner: P0-W05 → P1-W12.
 # Paths are relative to /api. Schemas: module-prefixed names in this file, or
 # $ref: '_common.yaml#/components/schemas/X'. Validated on its own by apitest.
+#
+# Every parent ref is resolved before any Problem is evaluated: a ref that does
+# not open, names a missing post or one the caller cannot see answers with the
+# uniform 404, after the write was charged exactly like a valid one.
 openapi: 3.0.3
 info:
   title: pcc internal API (posts)
   version: "0"
-paths: {}
+paths:
+  /posts:
+    post:
+      operationId: createPost
+      description: >-
+        Body ≤ 20,000 code points (NFC-normalized). A probation author's post is
+        stored as d1 with audience_forced. A reference from someone the parent's
+        author blocked is accepted as a shadow link only its author sees.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PostsDraft' }
+      responses:
+        "201":
+          description: The new post, as the author sees it.
+          content:
+            application/json:
+              schema: { $ref: '_common.yaml#/components/schemas/PostView' }
+        "400": { $ref: '#/components/responses/PostsProblem' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409": { $ref: '#/components/responses/PostsConflict' }
+        "422": { $ref: '#/components/responses/PostsProblem' }
+        "429": { $ref: '#/components/responses/PostsRateLimited' }
+  /posts/thread:
+    post:
+      operationId: createThread
+      description: >-
+        Publishes a continuation thread in one write: the parents attach to the
+        first part, part i+1 continues part i. At most 25 parts.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PostsThreadIn' }
+      responses:
+        "201":
+          description: The thread's parts, in order.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PostsThreadOut' }
+        "400": { $ref: '#/components/responses/PostsProblem' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409": { $ref: '#/components/responses/PostsConflict' }
+        "422": { $ref: '#/components/responses/PostsProblem' }
+        "429": { $ref: '#/components/responses/PostsRateLimited' }
+  /posts/{ref}:
+    parameters:
+      - { name: ref, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
+    get:
+      operationId: getPost
+      responses:
+        "200":
+          description: A post the caller can see.
+          content:
+            application/json:
+              schema: { $ref: '_common.yaml#/components/schemas/PostView' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/PostsRateLimited' }
+    patch:
+      operationId: editPost
+      description: >-
+        A new version of the caller's own post (same ref, version + 1, new signed
+        record with a fresh salt). Parents never change. Someone else's post is not found.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PostsEditIn' }
+      responses:
+        "200":
+          description: The edited post.
+          content:
+            application/json:
+              schema: { $ref: '_common.yaml#/components/schemas/PostView' }
+        "400": { $ref: '#/components/responses/PostsProblem' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "422": { $ref: '#/components/responses/PostsProblem' }
+        "429": { $ref: '#/components/responses/PostsRateLimited' }
+    delete:
+      operationId: deletePost
+      description: Tombstones the caller's own post; body and salt are hard-deleted.
+      responses:
+        "204": { description: The post was deleted. }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/PostsRateLimited' }
+  /posts/{ref}/ref-policy:
+    parameters:
+      - { name: ref, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
+    put:
+      operationId: setRefPolicy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PostsRefPolicyIn' }
+      responses:
+        "200":
+          description: >-
+            The policy changed. offer_detach_all is true when the post turned
+            slippery (nobody) while references to it are attached.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PostsRefPolicyOut' }
+        "400": { $ref: '#/components/responses/PostsProblem' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "422": { $ref: '#/components/responses/PostsProblem' }
+        "429": { $ref: '#/components/responses/PostsRateLimited' }
+  /posts/{ref}/detach:
+    parameters:
+      - { name: ref, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
+    post:
+      operationId: detachChild
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PostsDetachIn' }
+      responses:
+        "204": { description: The child no longer links to the caller's post; the child stays. }
+        "400": { $ref: '#/components/responses/PostsProblem' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "422": { $ref: '#/components/responses/PostsProblem' }
+        "429": { $ref: '#/components/responses/PostsRateLimited' }
+  /posts/{ref}/detach-all:
+    parameters:
+      - { name: ref, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
+    post:
+      operationId: detachAllChildren
+      responses:
+        "204": { description: Every reference to the caller's post was detached (continuations stay). }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/PostsRateLimited' }
+components:
+  schemas:
+    PostsAudience:
+      type: string
+      enum: [connected, d1, d2, d3, friend_plus]
+    PostsRefPolicy:
+      type: string
+      enum: [anyone, two_hops, friends, nobody]
+    PostsParentIn:
+      type: object
+      required: [ref, kind]
+      additionalProperties: false
+      properties:
+        ref: { $ref: '_common.yaml#/components/schemas/Ref' }
+        kind: { type: string, enum: [ref, cont] }
+    PostsDraft:
+      type: object
+      required: [body, lang]
+      additionalProperties: false
+      properties:
+        body: { type: string }
+        lang: { type: string, maxLength: 35 }
+        audience: { $ref: '#/components/schemas/PostsAudience' }
+        ref_policy: { $ref: '#/components/schemas/PostsRefPolicy' }
+        no_preview: { type: boolean }
+        parents:
+          type: array
+          maxItems: 3
+          items: { $ref: '#/components/schemas/PostsParentIn' }
+        media:
+          description: Phase 1 (media attachments); Phase 0 answers feature_disabled.
+          type: array
+          items: { $ref: '_common.yaml#/components/schemas/Ref' }
+    PostsPartIn:
+      type: object
+      required: [body, lang]
+      additionalProperties: false
+      properties:
+        body: { type: string }
+        lang: { type: string, maxLength: 35 }
+    PostsThreadIn:
+      type: object
+      required: [parts]
+      additionalProperties: false
+      properties:
+        parts:
+          type: array
+          minItems: 1
+          maxItems: 25
+          items: { $ref: '#/components/schemas/PostsPartIn' }
+        audience: { $ref: '#/components/schemas/PostsAudience' }
+        ref_policy: { $ref: '#/components/schemas/PostsRefPolicy' }
+        no_preview: { type: boolean }
+        parents:
+          type: array
+          maxItems: 3
+          items: { $ref: '#/components/schemas/PostsParentIn' }
+    PostsThreadOut:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '_common.yaml#/components/schemas/PostView' }
+    PostsEditIn:
+      type: object
+      required: [body]
+      additionalProperties: false
+      properties:
+        body: { type: string }
+        lang: { type: string, maxLength: 35 }
+    PostsRefPolicyIn:
+      type: object
+      required: [ref_policy]
+      additionalProperties: false
+      properties:
+        ref_policy: { $ref: '#/components/schemas/PostsRefPolicy' }
+    PostsRefPolicyOut:
+      type: object
+      required: [offer_detach_all]
+      properties:
+        offer_detach_all: { type: boolean }
+    PostsDetachIn:
+      type: object
+      required: [child]
+      additionalProperties: false
+      properties:
+        child: { $ref: '_common.yaml#/components/schemas/Ref' }
+  responses:
+    PostsProblem:
+      description: >-
+        bad_request, body_empty, body_too_long, lang_invalid, audience_invalid,
+        ref_policy_invalid, too_many_parents, duplicate_parent, cont_multiple,
+        cont_not_own, ref_not_allowed, too_many_parts, cont_not_detachable.
+      content:
+        application/json:
+          schema: { $ref: '_common.yaml#/components/schemas/Error' }
+    PostsConflict:
+      description: >-
+        cont_taken (the post already has a continuation), ref_cap (a third reference
+        to the same post within 24 hours), or feature_disabled (media, Phase 1).
+      content:
+        application/json:
+          schema: { $ref: '_common.yaml#/components/schemas/Error' }
+    PostsRateLimited:
+      description: rate_limited.
+      content:
+        application/json:
+          schema: { $ref: '_common.yaml#/components/schemas/Error' }

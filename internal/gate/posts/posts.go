@@ -1,25 +1,35 @@
 // Package posts owns posts, parent references, continuation threads, edits,
 // deletion, reference policies, detach and mentions (ARCHITECTURE §10.1.1,
 // §10.1.4, §10.1.5, §10.2, §10.6). It is the sole writer of posts, post_versions,
-// post_parents and mentions.
+// post_parents and mentions; gate/postindex reads them and serves core.PostIndex.
 //
-// Owner: P0-W05 → P1-W12. Scaffold stub: every method returns
-// gate.ErrNotImplemented after checking the viewer.
+// Owner: P0-W05 → P1-W12.
 //
 // Check order (plan §0.8): the write was charged by apix → resolve every parent
-// ref (ErrNotFound) → only then Problems (body_empty, body_too_long, lang_invalid,
-// too_many_parents, duplicate_parent, cont_not_own, cont_taken, ref_not_allowed,
-// ref_cap, too_many_parts).
+// ref (ErrNotFound if it does not open or the caller cannot see the post) → only
+// then Problems (body_empty, body_too_long, lang_invalid, too_many_parents,
+// duplicate_parent, cont_not_own, cont_taken, ref_not_allowed, ref_cap,
+// too_many_parts).
+//
+// Records (D3): every version signs a Post record over body_commit =
+// sha256(salt ‖ utf8(NFC body)) with a fresh 16-byte salt; delete signs a
+// Tombstone and hard-deletes body and salt together.
 package posts
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/internal/core"
+	"github.com/Nibroc6/purple-chicken-cult/internal/platform/sigs"
 )
 
-// Limits (§10.1.5).
+// Limits (§10.1.5, §10.1.1).
 const (
 	MaxBodyCodePoints = 20000
 	SoftLimit         = 500
@@ -27,15 +37,29 @@ const (
 	MaxParents        = 3
 	MaxThreadParts    = 25
 	RefCapPerDay      = 2
+	// NotifyWithin is how close (hops, from the parent's author) a child's author
+	// must be for the parent's author to be notified (§10.1.1 default).
+	NotifyWithin = 2
+	saltLen      = 16
+)
+
+// Notification kinds and the preview job (plan §4.7 notify, previews).
+const (
+	NotifyReferenced = "post_referenced"
+	NotifyMention    = "mention"
+	JobPreviewFetch  = "preview.fetch"
 )
 
 // Service is the posts module.
 type Service struct{ d *core.Deps }
 
+var _ core.PostAdmin = (*Service)(nil)
+
 // New returns the service.
 func New(d *core.Deps) *Service { return &Service{d: d} }
 
-// Init registers jobs and Bus subscriptions in W05.
+// Init does nothing: posts has no jobs or subscriptions in Phase 0 (the post
+// index owns postindex.trim; previews owns preview.fetch).
 func (s *Service) Init(context.Context) error { return nil }
 
 // Draft is a post to create.
@@ -55,43 +79,123 @@ type ParentIn struct {
 	Kind string   `json:"kind"` // "ref" | "cont"
 }
 
-// Create creates a post.
-func (s *Service) Create(ctx context.Context, d Draft) (gate.PostView, error) {
-	return gate.PostView{}, s.todo(ctx)
+// ---- signed record bodies (plan §4.7 records) ----
+
+type parentRec struct {
+	ID   uuid.UUID `json:"id"`
+	Kind string    `json:"kind"`
 }
 
-// CreateThread creates a continuation thread (≤25 parts; one write charge).
-func (s *Service) CreateThread(ctx context.Context, parts []Draft) ([]gate.PostView, error) {
-	return nil, s.todo(ctx)
+// postRecord is Post{id, version, author, body_commit, lang, media:[], audience?,
+// parents:[{id,kind}], ref_policy?, no_preview?, created_at}.
+type postRecord struct {
+	ID         uuid.UUID   `json:"id"`
+	Version    int         `json:"version"`
+	Author     uuid.UUID   `json:"author"`
+	BodyCommit sigs.Bytes  `json:"body_commit"`
+	Lang       string      `json:"lang"`
+	Media      []string    `json:"media"`
+	Audience   *string     `json:"audience,omitempty"`
+	Parents    []parentRec `json:"parents"`
+	RefPolicy  *string     `json:"ref_policy,omitempty"`
+	NoPreview  *bool       `json:"no_preview,omitempty"`
+	CreatedAt  sigs.Time   `json:"created_at"`
+}
+
+// tombstoneBody is the signed Tombstone record body (§10.2).
+type tombstoneBody struct {
+	Target uuid.UUID `json:"target"`
+	By     uuid.UUID `json:"by"`
+	At     sigs.Time `json:"at"`
+}
+
+// bodyCommit is sha256(salt ‖ utf8(body)) (D3; records.BodyCommit).
+func bodyCommit(salt []byte, body string) []byte {
+	h := sha256.New()
+	h.Write(salt)
+	h.Write([]byte(body))
+	return h.Sum(nil)
+}
+
+func newSalt() ([]byte, error) {
+	b := make([]byte, saltLen)
+	if _, err := rand.Read(b); err != nil {
+		return nil, err
+	}
+	return b, nil
+}
+
+// ---- shared helpers ----
+
+// resolve opens a post ref for viewer sr.Viewer(): ErrNotFound unless the ref
+// opens, the post exists and the viewer can see it.
+func (s *Service) resolve(ctx context.Context, sr core.Search, ref gate.Ref) (core.PostMeta, error) {
+	id, ok := s.d.Refs.OpenPost(sr.Viewer(), ref)
+	if !ok {
+		return core.PostMeta{}, gate.ErrNotFound
+	}
+	m, ok := s.d.Posts.Meta(ctx, id)
+	if !ok {
+		return core.PostMeta{}, gate.ErrNotFound
+	}
+	if _, ok := s.d.Vis.CheckPost(ctx, sr, m); !ok {
+		return core.PostMeta{}, gate.ErrNotFound
+	}
+	return m, nil
+}
+
+// resolveOwn is resolve restricted to the viewer's own posts: someone else's
+// post answers exactly like an unknown one.
+func (s *Service) resolveOwn(ctx context.Context, sr core.Search, ref gate.Ref) (core.PostMeta, error) {
+	m, err := s.resolve(ctx, sr, ref)
+	if err != nil {
+		return m, err
+	}
+	if m.Author != sr.Viewer() {
+		return core.PostMeta{}, gate.ErrNotFound
+	}
+	return m, nil
+}
+
+// viewer returns the signed-in viewer and their search.
+func (s *Service) viewer(ctx context.Context) (core.Viewer, core.Search, error) {
+	v, err := core.RequireUser(ctx)
+	if err != nil {
+		return v, nil, err
+	}
+	sr, err := s.d.Vis.SearchFor(ctx, v.ID)
+	if err != nil {
+		return v, nil, err
+	}
+	return v, sr, nil
+}
+
+// views renders metas the viewer can see (with bodies and context rows).
+func (s *Service) views(ctx context.Context, sr core.Search, ms []core.PostMeta) ([]gate.PostView, error) {
+	cs := s.d.Vis.CheckPosts(ctx, sr, ms)
+	if len(cs) != len(ms) {
+		return nil, gate.ErrNotFound
+	}
+	return s.d.Views.Posts(ctx, sr, cs, core.ViewOpts{WithBody: true, WithContext: true})
 }
 
 // Get returns a visible post.
 func (s *Service) Get(ctx context.Context, p gate.Ref) (gate.PostView, error) {
-	return gate.PostView{}, s.todo(ctx)
-}
-
-// Edit creates a new version (parents are immutable).
-func (s *Service) Edit(ctx context.Context, p gate.Ref, body, lang string) (gate.PostView, error) {
-	return gate.PostView{}, s.todo(ctx)
-}
-
-// Delete tombstones a post and hard-deletes its body and salt.
-func (s *Service) Delete(ctx context.Context, p gate.Ref) error { return s.todo(ctx) }
-
-// SetRefPolicy changes who may reference a post.
-func (s *Service) SetRefPolicy(ctx context.Context, p gate.Ref, pol string) (bool, error) {
-	return false, s.todo(ctx)
-}
-
-// Detach detaches child from parent (parent's author only).
-func (s *Service) Detach(ctx context.Context, parent, child gate.Ref) error { return s.todo(ctx) }
-
-// DetachAll detaches every child of parent.
-func (s *Service) DetachAll(ctx context.Context, parent gate.Ref) error { return s.todo(ctx) }
-
-func (s *Service) todo(ctx context.Context) error {
-	if _, err := core.RequireUser(ctx); err != nil {
-		return err
+	_, sr, err := s.viewer(ctx)
+	if err != nil {
+		return gate.PostView{}, err
 	}
-	return gate.ErrNotImplemented
+	m, err := s.resolve(ctx, sr, p)
+	if err != nil {
+		return gate.PostView{}, err
+	}
+	vs, err := s.views(ctx, sr, []core.PostMeta{m})
+	if err != nil {
+		return gate.PostView{}, err
+	}
+	return vs[0], nil
 }
+
+// now is the clock truncated to the record precision (milliseconds), so the
+// stored times equal the signed ones.
+func (s *Service) now() time.Time { return s.d.Clock.Now().UTC().Truncate(time.Millisecond) }
