@@ -1,8 +1,8 @@
-// Report action (SCAFFOLD hand-off stub). Owner: P0-W10 → P1-W09.
-// Integrity element (§15.5): always rendered, visible and legible; reserved styles
-// and icons are not available to user content.
+// Report action (§10.4, §15.5). Owner: P0-W10 → P1-W09. Hands the target to the
+// page's report flow (the report modal belongs to moderation).
 import { useTranslation } from 'react-i18next';
 import type { ReportActionProps } from './types';
+import './integrity.css';
 
 export function ReportAction({ target, onReport }: ReportActionProps) {
   const { t } = useTranslation('integrity');
@@ -11,6 +11,7 @@ export function ReportAction({ target, onReport }: ReportActionProps) {
       type="button"
       className="integrity report"
       data-testid="integrity-report"
+      data-target={target.kind}
       onClick={() => {
         onReport(target);
       }}

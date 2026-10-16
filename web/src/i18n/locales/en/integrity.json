@@ -6,18 +6,45 @@
   },
   "chain": {
     "label": "How you are connected",
+    "self": "You",
+    "you": "you",
+    "sep": "→",
+    "handle": "@{handle}",
     "hidden": "{count, plural, one {# other} other {# others}}"
   },
   "inviter": {
-    "label": "{kind, select, genesis {genesis} deleted {invited by a deleted account} other {invited by @{handle}}}"
+    "label": "{kind, select, genesis {genesis} deleted {invited by a deleted account} other {invited by @{handle}}}",
+    "report": "Report the inviter"
   },
   "why": {
-    "button": "Why am I seeing this?"
+    "button": "Why am I seeing this?",
+    "title": "Why you're seeing this",
+    "close": "Close",
+    "closeGlyph": "×",
+    "loading": "Loading…",
+    "failed": "Couldn't load the explanation.",
+    "retry": "Try again",
+    "author": "the author",
+    "tier": "{tier, select, 0 {This is your own post} 1 {From a friend} 2 {From a friend of a friend} other {From someone {tier} steps away}}",
+    "posted": "Posted",
+    "preset": "{preset, select, latest {Order: Latest, newest first} top {Order: Top} other {Order: Balanced}}",
+    "shift": "{dir, select, none {Shown at the time it was posted} up {{unit, select, h {Moved up by about {hours, plural, one {# hour} other {# hours}}} other {Moved up by {minutes, plural, one {# minute} other {# minutes}}}}} other {{unit, select, h {Moved down by about {hours, plural, one {# hour} other {# hours}}} other {Moved down by {minutes, plural, one {# minute} other {# minutes}}}}}}",
+    "reason": {
+      "network_likes": "People in your network liked it",
+      "below_author_usual": "It's doing less well than this author's posts usually do",
+      "reply_penalty": "It's a reply, so it's shown a little lower",
+      "good_replies": "It has replies from your network",
+      "cold_start": "It's new, so there's little to go on yet",
+      "show_less": "You asked to see less from this author",
+      "chronological": "Sorted by time only"
+    }
   },
   "audience": {
-    "label": "{audience, select, d1 {Friends only} d2 {Within 2 steps} d3 {Within 3 steps} friend_plus {Friend+ only} other {Everyone connected}}"
+    "label": "{audience, select, d1 {Friends only} d2 {Within 2 steps} d3 {Within 3 steps} friend_plus {Friend+ only} other {Everyone connected}}",
+    "forced": "(while you're new)"
   },
   "edited": "edited",
+  "editedAt": "Edited {at}",
   "report": {
     "action": "Report"
   }

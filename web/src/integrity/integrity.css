@@ -1,0 +1,105 @@
+/* Integrity elements (§15.5), owner P0-W10 → P1-W09. These styles and glyphs are
+   reserved: user content renders as React elements without classes (Markdown,
+   previews, display names), and display names may not contain the glyphs used
+   here (gate/users CleanDisplayName). Logical properties only. Every element
+   keeps a legible size floor and wraps instead of truncating. */
+.integrity {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: max(0.875rem, 12px);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  font-family: var(--font-body);
+  font-weight: 500;
+  border: 1px solid transparent;
+}
+@media (forced-colors: active) {
+  .integrity {
+    border-color: CanvasText;
+  }
+}
+
+button.integrity {
+  cursor: pointer;
+  border-color: var(--color-integrity-text);
+  min-block-size: 24px;
+  min-inline-size: 24px;
+}
+button.integrity:focus-visible {
+  outline: 2px solid var(--color-integrity-text);
+  outline-offset: 2px;
+}
+button.integrity[aria-disabled='true'] {
+  cursor: default;
+  opacity: 0.75;
+}
+
+.integrity.tier-header {
+  display: flex;
+  font-size: max(1rem, 14px);
+  font-weight: 700;
+  padding-inline: var(--space-2);
+}
+.integrity.tier-header::before {
+  content: '◆';
+}
+.integrity.tier-header[data-kind='end']::before,
+.integrity.tier-header[data-kind='caught_up']::before {
+  content: '✓';
+}
+
+
+.integrity.inviter-label::before {
+  content: '⌂';
+}
+.inviter-report {
+  font-size: max(0.75rem, 12px);
+}
+.inviter-report::before {
+  content: '⚑';
+}
+
+.integrity.audience::before {
+  content: '◎';
+}
+.integrity.audience .audience-forced {
+  font-weight: 400;
+}
+
+.integrity.edited::before {
+  content: '✎';
+}
+
+.integrity.report::before {
+  content: '⚑';
+}
+
+.why-wrap {
+  position: relative;
+  display: inline-block;
+}
+.why-panel {
+  position: absolute;
+  inset-inline-end: 0;
+  inset-block-start: calc(100% + var(--space-1));
+  z-index: 10;
+  display: block;
+  inline-size: min(22rem, 90vw);
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  border-color: var(--color-integrity-text);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 20%);
+}
+.why-panel h3 {
+  font-size: 1rem;
+  margin-block: 0 var(--space-2);
+}
+.why-panel ul {
+  margin-block: var(--space-2) 0;
+  padding-inline-start: var(--space-4);
+}
+.why-panel .why-close {
+  float: inline-end;
+}
