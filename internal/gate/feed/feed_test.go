@@ -710,3 +710,27 @@ func TestAccountDeletionDropsSessions(t *testing.T) {
 		t.Fatalf("%d sessions after reset", n)
 	}
 }
+
+// INT-0 conformance finding (§10.1.3): a post whose only parent the reader
+// cannot see ranks exactly like a root (no reply penalty); a reply to a post
+// the reader sees keeps it.
+func TestHiddenParentIsNoReplyForRanking(t *testing.T) {
+	e := newEnv(t)
+	e.w.Post("frank", "far", "in another component")
+	e.w.Post("bob", "near", "visible root")
+	e.w.Post("bob", "r-hidden", "replies to far", e.w.ReplyTo("far"))
+	e.w.Post("carol", "r-visible", "replies to near", e.w.ReplyTo("near"))
+	reasons := func(label string) []string {
+		why, err := e.f.Why(e.as("alice"), e.ref("alice", e.w.PostID(label)))
+		if err != nil {
+			t.Fatalf("why %s: %v", label, err)
+		}
+		return why.Reasons
+	}
+	if slices.Contains(reasons("r-hidden"), rank.ReasonReplyPenalty) {
+		t.Fatalf("a reply to an invisible post is penalized: %v", reasons("r-hidden"))
+	}
+	if !slices.Contains(reasons("r-visible"), rank.ReasonReplyPenalty) {
+		t.Fatalf("a reply to a visible post is not penalized: %v", reasons("r-visible"))
+	}
+}

@@ -151,7 +151,7 @@ func (s *Service) candidate(ctx context.Context, sr core.Search, sn *snapshot, c
 		fh = m.Author // a friend (or the reader): the first hop is the author
 	}
 	return rank.Candidate{
-		Key: [16]byte(m.ID), Author: uint32(m.Author), CreatedAt: m.CreatedAt, IsReply: m.IsReply,
+		Key: [16]byte(m.ID), Author: uint32(m.Author), CreatedAt: m.CreatedAt, IsReply: s.visibleReply(ctx, sr, m),
 		N: s.d.Prefer.N(ctx, sr, c, sn.memo), KidsN: s.d.Prefer.KidsN(ctx, sr, c, sn.memo, 1),
 		FirstHopPlus: sr.FirstHopPlus(m.Author), FirstHopSince: sn.hops[fh], FirstHopID: uint32(fh),
 		ShowLess: sn.showLess[m.Author],
@@ -340,6 +340,21 @@ func (s *Service) hasChildren(ctx context.Context, sr core.Search, sn *snapshot,
 func (s *Service) anyKept(f filters, ls []core.VisibleLink) bool {
 	for _, l := range ls {
 		if !f.drop(l.Other.Meta()) {
+			return true
+		}
+	}
+	return false
+}
+
+// visibleReply is is_reply as the reader sees it: a ref parent the reader can
+// see (link included, §10.1.3). A post whose parents are all hidden looks
+// exactly like a root, to the reply penalty too (INT-0 conformance finding).
+func (s *Service) visibleReply(ctx context.Context, sr core.Search, m core.PostMeta) bool {
+	if !m.IsReply {
+		return false
+	}
+	for _, l := range s.d.Vis.VisibleParents(ctx, sr, m) {
+		if l.Link.Kind == core.LinkRef {
 			return true
 		}
 	}

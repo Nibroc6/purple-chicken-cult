@@ -218,7 +218,7 @@ func (s *Service) candidate(ctx context.Context, sr core.Search, c, head core.Ch
 		fh = m.Author // a friend: the first hop is the author
 	}
 	return rank.Candidate{
-		Key: [16]byte(m.ID), Author: uint32(m.Author), CreatedAt: m.CreatedAt, IsReply: head.Meta().IsReply,
+		Key: [16]byte(m.ID), Author: uint32(m.Author), CreatedAt: m.CreatedAt, IsReply: s.visibleReply(ctx, sr, head.Meta()),
 		N: s.d.Prefer.N(ctx, sr, c, memo), KidsN: s.d.Prefer.KidsN(ctx, sr, c, memo, 1),
 		FirstHopPlus: sr.FirstHopPlus(m.Author), FirstHopSince: hops[fh], FirstHopID: uint32(fh),
 		ShowLess: showLess[m.Author],
@@ -286,4 +286,19 @@ func degreeBucket(k int) string {
 		return "7+"
 	}
 	return strconv.Itoa(k)
+}
+
+// visibleReply is is_reply as the reader sees it: a ref parent the reader can
+// see (link included, §10.1.3). A post whose parents are all hidden looks
+// exactly like a root, to the reply penalty too (INT-0 conformance finding).
+func (s *Service) visibleReply(ctx context.Context, sr core.Search, m core.PostMeta) bool {
+	if !m.IsReply {
+		return false
+	}
+	for _, l := range s.d.Vis.VisibleParents(ctx, sr, m) {
+		if l.Link.Kind == core.LinkRef {
+			return true
+		}
+	}
+	return false
 }
