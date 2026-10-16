@@ -80,4 +80,8 @@ type Deps struct {
 	// Steward additions (contract request p0-w12-1); impl: gate/posts, gate/users.
 	PostRemover PostRemover
 	Suspensions Suspensions
+
+	// Steward additions (contract request p1-w01-1); impl: gate/cosign.
+	CosignPurposes CosignPurposes
+	Signup         SignupCosign
 }

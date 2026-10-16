@@ -72,6 +72,10 @@ type NewUser struct {
 	AgeAttested                 bool
 	WebAuthnID                  []byte
 	Status                      uint8
+	// ExtID is the account's ext_id when the caller reserved it before the
+	// transaction (the P1 signup ceremony signs drafts that name the invitee);
+	// uuid.Nil ⇒ generated. Steward: contract request p1-w01-1.
+	ExtID uuid.UUID
 }
 
 // Users is the user directory.
@@ -408,6 +412,14 @@ const RecordSchemaVersion = 1
 type Assertion struct {
 	CredentialID, AuthenticatorData, ClientDataJSON, Signature []byte
 	User                                                       UserID
+	// Draft is the exact co-sign draft this assertion signed (Signer.Draft
+	// bytes: the record body plus its "cosign" {nonce, issued_at} member).
+	// Bundle, when set, lists the challenges of every draft one assertion
+	// signed together (the signup ceremony); clientDataJSON.challenge is then
+	// BundleChallenge(Bundle). Cosign fills both; Signer stores them with the
+	// record so the assertion verifies offline. Steward: contract request p1-w01-1.
+	Draft  []byte
+	Bundle [][]byte
 }
 
 // Signer writes signed records.

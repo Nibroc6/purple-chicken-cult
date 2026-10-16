@@ -324,7 +324,8 @@ type VerifyReport struct {
 // VerifyFailure is one failing export line.
 type VerifyFailure struct {
 	Line int    `json:"line"`
-	Code string `json:"code"` // bad_sig, kind_mismatch, not_canonical, unknown_key, key_window, commit_mismatch, bad_assertion
+	Code string `json:"code"` // bad_sig, kind_mismatch, not_canonical, unknown_key, key_window, commit_mismatch, bad_assertion,
+	// P1 (contract request p1-w01-1): bad_cosig, missing_assertion, broken_chain
 }
 
 // PushSubKeys holds a push subscription's keys.

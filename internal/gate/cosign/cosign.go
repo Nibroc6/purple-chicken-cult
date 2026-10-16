@@ -37,7 +37,11 @@ type Service struct {
 	ref *coreref.MemCosign
 }
 
-var _ core.Cosign = (*Service)(nil)
+var (
+	_ core.Cosign         = (*Service)(nil)
+	_ core.CosignPurposes = (*Service)(nil)
+	_ core.SignupCosign   = (*Service)(nil)
+)
 
 // New returns the service.
 func New(d *core.Deps) *Service { return &Service{d: d, ref: &coreref.MemCosign{D: d}} }
@@ -68,4 +72,19 @@ func (s *Service) BeginIntent(ctx context.Context, v core.Viewer, purpose string
 // Require verifies and consumes an intent (core.Cosign).
 func (s *Service) Require(ctx context.Context, tx store.Q, v core.Viewer, purpose string, kind core.RecordKind, body any, intent gate.Ref, assertion []byte) (core.Assertion, []byte, error) {
 	return s.ref.Require(ctx, tx, v, purpose, kind, body, intent, assertion)
+}
+
+// RegisterPurpose registers a purpose's draft builder (core.CosignPurposes).
+func (s *Service) RegisterPurpose(purpose string, kind core.RecordKind, build core.CosignBuilder) {
+	s.ref.RegisterPurpose(purpose, kind, build)
+}
+
+// BeginSignup starts the invitee signup ceremony (core.SignupCosign).
+func (s *Service) BeginSignup(context.Context, [32]byte, core.Credential, []core.CosignRecord) (core.Intent, error) {
+	return core.Intent{}, gate.ErrNotFound
+}
+
+// FinishSignup verifies the signup ceremony in tx (core.SignupCosign).
+func (s *Service) FinishSignup(context.Context, store.Q, [32]byte, core.UserID, core.Credential, []core.CosignRecord, []byte) ([]core.Assertion, error) {
+	return nil, gate.ErrNotFound
 }

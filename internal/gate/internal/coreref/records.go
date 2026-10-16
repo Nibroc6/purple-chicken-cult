@@ -46,8 +46,15 @@ func NewServerSigner(key *sigs.Key) *ServerSigner {
 }
 
 // Sign canonicalizes, signs and stores a record.
+// A nil body with an assertion that carries a Draft signs the draft's record.
 func (s *ServerSigner) Sign(_ context.Context, _ store.Q, kind core.RecordKind, author core.UserID, body any, parties []core.UserID, a ...core.Assertion) ([]byte, error) {
-	canon, err := sigs.CanonicalRecord(kind.String(), core.RecordSchemaVersion, body)
+	var canon []byte
+	var err error
+	if body == nil && len(a) > 0 && a[0].Draft != nil {
+		canon, _, _, err = RecordFromDraft(a[0].Draft)
+	} else {
+		canon, err = sigs.CanonicalRecord(kind.String(), core.RecordSchemaVersion, body)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -62,15 +69,26 @@ func (s *ServerSigner) Sign(_ context.Context, _ store.Q, kind core.RecordKind, 
 	return h[:], nil
 }
 
-// Draft returns the canonical bytes of body with "nonce" and "issued_at"
-// injected, and the passkey challenge over them.
+// Draft returns the canonical co-sign draft of body and its passkey challenge.
 func (s *ServerSigner) Draft(kind core.RecordKind, body any, nonce uuid.UUID, issuedAt time.Time) ([]byte, [32]byte, error) {
 	return DraftRecord(kind, body, nonce, issuedAt)
 }
 
-// DraftRecord is the shared co-sign draft construction (P1, §3).
+// DraftMember is the member a co-sign draft adds to a record body:
+// "cosign": {"nonce": <intent id>, "issued_at": <time>}. It is nested so a
+// record's own fields (an Invite's issued_at) never collide with it; a body
+// that already has the member cannot be drafted.
+const DraftMember = "cosign"
+
+// DraftRecord is the shared co-sign draft construction (P1, §3): the canonical
+// record of body (kind and schema_version injected) with the DraftMember, and
+// the challenge sigs.Challenge(kind, draft). Stripping the member from the
+// draft yields exactly sigs.CanonicalRecord of body.
 func DraftRecord(kind core.RecordKind, body any, nonce uuid.UUID, issuedAt time.Time) ([]byte, [32]byte, error) {
-	base, err := sigs.Canonical(body)
+	if kind.String() == "" || nonce == uuid.Nil {
+		return nil, [32]byte{}, sigs.ErrNoRecord
+	}
+	base, err := sigs.CanonicalRecord(kind.String(), core.RecordSchemaVersion, body)
 	if err != nil {
 		return nil, [32]byte{}, err
 	}
@@ -80,7 +98,9 @@ func DraftRecord(kind core.RecordKind, body any, nonce uuid.UUID, issuedAt time.
 	if err := dec.Decode(&m); err != nil || m == nil {
 		return nil, [32]byte{}, sigs.ErrGrammar
 	}
-	m["nonce"] = nonce.String()
+	if _, taken := m[DraftMember]; taken {
+		return nil, [32]byte{}, sigs.ErrGrammar
+	}
 	ts, err := sigs.T(issuedAt).MarshalJSON()
 	if err != nil {
 		return nil, [32]byte{}, err
@@ -89,12 +109,45 @@ func DraftRecord(kind core.RecordKind, body any, nonce uuid.UUID, issuedAt time.
 	if err := json.Unmarshal(ts, &tsStr); err != nil {
 		return nil, [32]byte{}, err
 	}
-	m["issued_at"] = tsStr
+	m[DraftMember] = map[string]any{"nonce": nonce.String(), "issued_at": tsStr}
 	canon, err := sigs.CanonicalRecord(kind.String(), core.RecordSchemaVersion, m)
 	if err != nil {
 		return nil, [32]byte{}, err
 	}
 	return canon, sigs.Challenge(kind.String(), canon), nil
+}
+
+// RecordFromDraft returns the record a co-sign draft is about: the draft with
+// its DraftMember removed, canonical (sigs.CanonicalRecord of the original
+// body), plus the member's nonce and issue time.
+func RecordFromDraft(draft []byte) (canon []byte, nonce uuid.UUID, issuedAt time.Time, err error) {
+	kind, sv, err := sigs.RecordFields(draft)
+	if err != nil {
+		return nil, uuid.Nil, time.Time{}, err
+	}
+	dec := json.NewDecoder(bytes.NewReader(draft))
+	dec.UseNumber()
+	var m map[string]any
+	if err := dec.Decode(&m); err != nil || m == nil {
+		return nil, uuid.Nil, time.Time{}, sigs.ErrGrammar
+	}
+	raw, err := json.Marshal(m[DraftMember])
+	if err != nil {
+		return nil, uuid.Nil, time.Time{}, err
+	}
+	var mem struct {
+		Nonce    uuid.UUID `json:"nonce"`
+		IssuedAt sigs.Time `json:"issued_at"`
+	}
+	if err := json.Unmarshal(raw, &mem); err != nil || mem.Nonce == uuid.Nil {
+		return nil, uuid.Nil, time.Time{}, sigs.ErrGrammar
+	}
+	delete(m, DraftMember)
+	canon, err = sigs.CanonicalRecord(kind, sv, m)
+	if err != nil {
+		return nil, uuid.Nil, time.Time{}, err
+	}
+	return canon, mem.Nonce, mem.IssuedAt.Time(), nil
 }
 
 // SetPurgeAfter marks a record for purging.

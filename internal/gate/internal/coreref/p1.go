@@ -287,12 +287,21 @@ const CosignTTL = 5 * time.Minute
 // the WebAuthn challenge is the id (the reference cannot know the record shape at
 // Begin; P1-W01 challenges over the draft). Require consumes the intent before it
 // verifies the assertion through D.Passkeys.VerifyAssertion, so a failed attempt
-// cannot be retried with the same intent.
+// cannot be retried with the same intent. A purpose registered with
+// RegisterPurpose is drafted at Begin like gate/cosign does (challenge over the
+// draft; Require refuses a body whose draft differs). The returned assertion
+// carries the draft (Assertion.Draft).
 type MemCosign struct {
 	D *core.Deps
 
-	mu      sync.Mutex
-	intents map[uuid.UUID]*memIntent
+	mu       sync.Mutex
+	intents  map[uuid.UUID]*memIntent
+	builders map[string]memPurpose
+}
+
+type memPurpose struct {
+	kind  core.RecordKind
+	build core.CosignBuilder
 }
 
 type memIntent struct {
@@ -300,34 +309,67 @@ type memIntent struct {
 	purpose string
 	used    bool
 	issued  time.Time
+	draft   []byte
+}
+
+var _ core.CosignPurposes = (*MemCosign)(nil)
+
+// RegisterPurpose registers the draft builder of purpose.
+func (c *MemCosign) RegisterPurpose(purpose string, kind core.RecordKind, build core.CosignBuilder) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.builders == nil {
+		c.builders = map[string]memPurpose{}
+	}
+	c.builders[purpose] = memPurpose{kind: kind, build: build}
 }
 
 var _ core.Cosign = (*MemCosign)(nil)
 
 // BeginIntent creates an intent of v for purpose.
-func (c *MemCosign) BeginIntent(ctx context.Context, v core.Viewer, purpose string, _ gate.Ref) (core.Intent, error) {
+func (c *MemCosign) BeginIntent(ctx context.Context, v core.Viewer, purpose string, target gate.Ref) (core.Intent, error) {
 	if v.ID == 0 || purpose == "" {
 		return core.Intent{}, gate.ErrNotFound
 	}
 	id := uuid.Must(uuid.NewV7())
 	issued := nowOf(c.D)
+	c.mu.Lock()
+	p, registered := c.builders[purpose]
+	c.mu.Unlock()
+	challenge := id[:]
+	var draft []byte
+	if registered {
+		body, err := p.build(ctx, v, target)
+		if err != nil {
+			return core.Intent{}, err
+		}
+		d, ch, err := DraftRecord(p.kind, body, id, issued)
+		if err != nil {
+			return core.Intent{}, err
+		}
+		draft, challenge = d, ch[:]
+	}
 	var opts []byte
 	if c.D.Passkeys != nil {
-		raw, err := c.D.Passkeys.BeginAssertion(ctx, v, id[:], purpose)
+		raw, err := c.D.Passkeys.BeginAssertion(ctx, v, challenge, purpose)
 		if err != nil {
 			return core.Intent{}, err
 		}
 		opts = raw
 	}
-	rec, err := json.Marshal(map[string]string{"purpose": purpose, "nonce": id.String()})
-	if err != nil {
-		return core.Intent{}, err
+	rec := json.RawMessage(draft)
+	if !registered {
+		r, err := json.Marshal(map[string]string{"purpose": purpose, "nonce": id.String()})
+		if err != nil {
+			return core.Intent{}, err
+		}
+		rec = r
 	}
 	c.mu.Lock()
 	if c.intents == nil {
 		c.intents = map[uuid.UUID]*memIntent{}
 	}
-	c.intents[id] = &memIntent{user: v.ID, purpose: purpose, issued: issued}
+	c.intents[id] = &memIntent{user: v.ID, purpose: purpose, issued: issued, draft: draft}
 	c.mu.Unlock()
 	return core.Intent{ID: c.D.Refs.Handshake(v.ID, id), Record: rec, Options: opts}, nil
 }
@@ -347,11 +389,18 @@ func (c *MemCosign) Require(ctx context.Context, _ store.Q, v core.Viewer, purpo
 		return core.Assertion{}, nil, gate.ErrNotFound
 	}
 	in.used = true
-	issued := in.issued
+	issued, want := in.issued, in.draft
 	c.mu.Unlock()
-	canon, _, err := DraftRecord(kind, body, id, issued)
-	if err != nil {
-		return core.Assertion{}, nil, err
+	canon := want
+	if body != nil || want == nil {
+		c, _, err := DraftRecord(kind, body, id, issued)
+		if err != nil {
+			return core.Assertion{}, nil, err
+		}
+		if want != nil && !bytes.Equal(want, c) {
+			return core.Assertion{}, nil, gate.ErrNotFound
+		}
+		canon = c
 	}
 	if c.D.Passkeys == nil {
 		return core.Assertion{}, nil, gate.ErrNotFound
@@ -360,5 +409,6 @@ func (c *MemCosign) Require(ctx context.Context, _ store.Q, v core.Viewer, purpo
 	if err != nil {
 		return core.Assertion{}, nil, err
 	}
+	a.Draft = canon
 	return a, canon, nil
 }

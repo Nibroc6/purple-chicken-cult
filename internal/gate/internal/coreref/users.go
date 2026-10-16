@@ -121,8 +121,12 @@ func (u *MemUsers) Create(_ context.Context, _ store.Q, n core.NewUser) (core.Us
 	if locale == "" {
 		locale = "en"
 	}
+	ext := n.ExtID
+	if ext == uuid.Nil {
+		ext = uuid.Must(uuid.NewV7())
+	}
 	u.byID[id] = core.UserMeta{
-		ID: id, ExtID: uuid.Must(uuid.NewV7()), Handle: n.Handle, DisplayName: n.DisplayName,
+		ID: id, ExtID: ext, Handle: n.Handle, DisplayName: n.DisplayName,
 		InvitedBy: n.InvitedBy, Genesis: n.Genesis, Status: n.Status, CreatedAt: time.Now().UTC(),
 		ProbationUntil: n.ProbationUntil, Suggestible: true, NamedInLikes: true,
 		Preset: core.PresetBalanced, Locale: locale, Languages: langs,

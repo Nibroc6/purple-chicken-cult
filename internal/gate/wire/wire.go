@@ -218,6 +218,8 @@ func Build(ctx context.Context, cfg *config.Config, db *store.DB, log *slog.Logg
 	d.Mentions = a.PostIndex
 	d.PostRemover = a.Posts
 	d.Suspensions = a.Users
+	d.CosignPurposes = a.Cosign
+	d.Signup = a.Cosign
 
 	inits := []struct {
 		name string

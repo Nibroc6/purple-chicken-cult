@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/internal/core"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/internal/coreref"
@@ -208,6 +210,52 @@ func TestReferenceCosign(t *testing.T) {
 	if _, _, err := m.D.Cosign.Require(ctx, nil, va, "block", core.RecFriendship, body, intent, asr); !errors.Is(err, gate.ErrNotFound) {
 		t.Fatalf("expired intent: %v", err)
 	}
+}
+
+func TestReferenceCosignRegisteredPurpose(t *testing.T) {
+	m := coretest.NewMem(t)
+	w := coretest.NewWorld(t, m.D, nil)
+	a := w.User("a")
+	ctx := context.Background()
+	pk := m.D.Passkeys.(*coretest.FakePasskeys)
+	va := core.Viewer{ID: a, Kind: core.SessUser}
+	body := map[string]any{"to": "b"}
+	m.D.Cosign.(core.CosignPurposes).RegisterPurpose("block", core.RecBlock,
+		func(context.Context, core.Viewer, gate.Ref) (any, error) { return body, nil })
+	in, err := m.D.Cosign.BeginIntent(ctx, va, "block", "")
+	if err != nil || !bytes.Contains(in.Record, []byte(`"cosign":{`)) {
+		t.Fatalf("begin: %s %v", in.Record, err)
+	}
+	_, ch, err := coreref.DraftRecord(core.RecBlock, body, mustOpen(t, m, a, in.ID), m.Clock.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := m.D.Cosign.Require(ctx, nil, va, "block", core.RecBlock, map[string]any{"to": "c"}, in.ID,
+		pk.Assert(a, "block", ch[:])); !errors.Is(err, gate.ErrNotFound) {
+		t.Fatalf("other body: %v", err)
+	}
+	in, _ = m.D.Cosign.BeginIntent(ctx, va, "block", "")
+	_, ch, _ = coreref.DraftRecord(core.RecBlock, body, mustOpen(t, m, a, in.ID), m.Clock.Now())
+	got, draft, err := m.D.Cosign.Require(ctx, nil, va, "block", core.RecBlock, body, in.ID, pk.Assert(a, "block", ch[:]))
+	if err != nil || !bytes.Equal(got.Draft, draft) || !bytes.Equal(draft, in.Record) {
+		t.Fatalf("require: %v", err)
+	}
+	rec, nonce, _, err := coreref.RecordFromDraft(draft)
+	if err != nil || nonce != mustOpen(t, m, a, in.ID) || bytes.Contains(rec, []byte("cosign")) || !bytes.Contains(rec, []byte(`"to":"b"`)) {
+		t.Fatalf("record from draft: %s %v", rec, err)
+	}
+	if _, _, err := coreref.DraftRecord(core.RecBlock, map[string]any{"cosign": "x"}, uuid.Must(uuid.NewV7()), m.Clock.Now()); err == nil {
+		t.Fatal("a body with the draft member was drafted")
+	}
+}
+
+func mustOpen(t *testing.T, m *coretest.Mem, v core.UserID, r gate.Ref) uuid.UUID {
+	t.Helper()
+	id, ok := m.D.Refs.OpenHandshake(v, r)
+	if !ok {
+		t.Fatal("intent ref")
+	}
+	return id
 }
 
 func TestReferenceStepUpAndModQueue(t *testing.T) {
