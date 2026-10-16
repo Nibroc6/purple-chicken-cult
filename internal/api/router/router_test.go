@@ -149,6 +149,30 @@ func TestSessionAndLogout(t *testing.T) {
 	}
 }
 
+// The session view's settings summary carries the stored settings (INT-0).
+func TestSessionCarriesSettings(t *testing.T) {
+	h := apitest.App(t)
+	h.Login("alice")
+	rec := h.Do("PATCH", "/api/me/settings", map[string]any{
+		"languages": []string{"en", "de"}, "translate_to": "de", "ui_prefs": map[string]any{"format": "compact"}})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("patch: %d %s", rec.Code, rec.Body)
+	}
+	var sess struct {
+		Me struct {
+			Settings struct {
+				TranslateTo string         `json:"translate_to"`
+				UIPrefs     map[string]any `json:"ui_prefs"`
+			} `json:"settings"`
+		} `json:"me"`
+	}
+	rec = h.Do("GET", "/api/session", nil)
+	if err := json.Unmarshal(rec.Body.Bytes(), &sess); err != nil || sess.Me.Settings.TranslateTo != "de" ||
+		sess.Me.Settings.UIPrefs["format"] != "compact" {
+		t.Fatalf("session settings: %s %v", rec.Body, err)
+	}
+}
+
 func TestLoginBeginStartsAGuestCeremony(t *testing.T) {
 	h := apitest.App(t)
 	rec := h.Do("POST", "/api/auth/login/begin", map[string]any{})

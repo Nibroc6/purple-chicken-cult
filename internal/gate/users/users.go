@@ -85,7 +85,7 @@ func (s *Service) Invalidate(id core.UserID) {
 
 const selectUser = `SELECT id, ext_id, handle, display_name, COALESCE(invited_by, 0), is_genesis, status, role, created_at,
 	probation_until, probation_cleared_at IS NOT NULL, name_in_chains, suggestible, named_in_likes, slippery_default,
-	rank_preset, ui_locale, languages FROM users `
+	rank_preset, ui_locale, languages, COALESCE(translate_to, ''), autotranslate, ui_prefs FROM users `
 
 func scanUser(row pgx.Row) (core.UserMeta, error) {
 	var (
@@ -96,7 +96,7 @@ func scanUser(row pgx.Row) (core.UserMeta, error) {
 	)
 	err := row.Scan(&id, &m.ExtID, &m.Handle, &m.DisplayName, &invitedBy, &m.Genesis, &status, &role, &m.CreatedAt,
 		&probUntil, &m.ProbationCleared, &m.NameInChains, &m.Suggestible, &m.NamedInLikes, &m.SlipperyDefault,
-		&preset, &m.Locale, &m.Languages)
+		&preset, &m.Locale, &m.Languages, &m.TranslateTo, &m.Autotranslate, &m.UIPrefs)
 	if err != nil {
 		return core.UserMeta{}, err
 	}

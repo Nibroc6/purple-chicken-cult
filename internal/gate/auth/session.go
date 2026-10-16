@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -318,11 +319,15 @@ func (s *Service) me(ctx context.Context, id core.UserID) (gate.MeView, error) {
 	if err != nil {
 		return gate.MeView{}, err
 	}
+	prefs := json.RawMessage(m.UIPrefs)
+	if len(prefs) == 0 {
+		prefs = json.RawMessage("{}")
+	}
 	return gate.MeView{
 		Ref: s.d.Refs.User(id, id), Handle: m.Handle, DisplayName: m.DisplayName, Role: m.Role.String(), Inviter: label,
 		Settings: gate.SettingsView{UILocale: m.Locale, Languages: m.Languages, RankPreset: m.Preset.String(),
 			NameInChains: m.NameInChains, Suggestible: m.Suggestible, NamedInLikes: m.NamedInLikes,
-			SlipperyDefault: m.SlipperyDefault, UIPrefs: []byte("{}")},
+			SlipperyDefault: m.SlipperyDefault, TranslateTo: m.TranslateTo, Autotranslate: m.Autotranslate, UIPrefs: prefs},
 	}, nil
 }
 

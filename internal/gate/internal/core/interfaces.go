@@ -45,6 +45,11 @@ type UserMeta struct {
 	Preset           Preset
 	Locale           string
 	Languages        []string
+	// INT-0 additions (the session view's settings summary): the rest of the
+	// reader's settings (§10.7). UIPrefs is the stored JSON ("{}" when unset).
+	TranslateTo   string
+	Autotranslate bool
+	UIPrefs       []byte
 }
 
 // OnProbation reports whether u is (still) on probation: both the time part and
