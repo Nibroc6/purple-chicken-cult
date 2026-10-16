@@ -13,10 +13,11 @@ import { i18n } from '../../i18n/setup';
 import { asRef, type FeedPageVM } from '../../vm/types';
 import { resetEngageStore } from '../engage/store';
 import { me, postJSON } from '../post/testdata';
+import { toPostVM } from '../post/vm';
 import { resetSeenQueue } from '../seen/tracker';
 import { fetchWhy } from './api';
 import FeedPage, { NEW_ABOVE_MS } from './FeedPage';
-import { countPosts, expandInPages, toFeedItemVM, toFeedPageVM, toWhyVM } from './vm';
+import { addOwnPosts, countPosts, expandInPages, toFeedItemVM, toFeedPageVM, toWhyVM } from './vm';
 
 interface Call {
   method: string;
@@ -107,9 +108,9 @@ function feedAPI(extra: (c: Call) => Response | undefined = () => undefined, pre
   });
 }
 
-function renderFeed() {
+function renderFeed(qc = makeQueryClient()) {
   return render(
-    <QueryClientProvider client={makeQueryClient()}>
+    <QueryClientProvider client={qc}>
       <MemoryRouter>
         <FeedPage />
       </MemoryRouter>
@@ -284,6 +285,20 @@ describe('feed page', () => {
     await waitFor(() => {
       expect(screen.queryByTestId('feed-new-above')).toBeNull();
     });
+  });
+
+  it("shows the reader's just-published post on top, outside any tier (D16)", async () => {
+    feedAPI();
+    const qc = makeQueryClient();
+    addOwnPosts(qc, [toPostVM({ ...post('mine', 1, 'my new post'), mine: true })]);
+    renderFeed(qc);
+    await screen.findByText('post a');
+    const posts = screen.getAllByTestId('feed-post');
+    expect(posts[0]?.textContent).toContain('my new post');
+    const tiers = screen.getAllByTestId('feed-tier');
+    expect(tiers.map((t) => t.dataset.tier)).toEqual(['0', '1']);
+    expect(within(tiers[0] as HTMLElement).queryByTestId('integrity-tier-header')).toBeNull();
+    expect(within(tiers[1] as HTMLElement).queryByText('my new post')).toBeNull();
   });
 
   it('says so when there is nothing yet', async () => {

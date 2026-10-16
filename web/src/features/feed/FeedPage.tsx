@@ -16,13 +16,13 @@ import { sessionKey, useMe } from '../../app/session';
 import { formats } from '../../formats/registry';
 import type { FormatId, FormatModule } from '../../formats/types';
 import { WhyLoaderContext, type WhyLoader } from '../../integrity/types';
-import type { FeedPageVM, Preset } from '../../vm/types';
+import type { FeedItemVM, FeedPageVM, Preset } from '../../vm/types';
 import { usePostActions } from '../engage';
 import { patchSettings } from '../settings/api';
 import { accountMeKey, useAccountMe } from '../settings/shared';
 import { toUIPrefs } from '../settings/vm';
 import { expandGroup, fetchFeed, fetchNewAbove, fetchWhy } from './api';
-import { countPosts, expandInPages, feedKey, presets } from './vm';
+import { countPosts, expandInPages, feedKey, ownPostsKey, presets, withOwnPosts } from './vm';
 import './feed.css';
 
 export const NEW_ABOVE_MS = 60_000;
@@ -92,6 +92,14 @@ export default function FeedPage() {
   });
   const pages = q.data?.pages;
   const session = pages?.[0]?.session;
+  // D16: what the reader published this visit, shown above the feed.
+  const own = useQuery<FeedItemVM[]>({
+    queryKey: ownPostsKey,
+    queryFn: () => qc.getQueryData<FeedItemVM[]>(ownPostsKey) ?? [],
+    initialData: [],
+    staleTime: Infinity,
+  }).data;
+  const shown = useMemo(() => (pages ? withOwnPosts(pages, own) : undefined), [pages, own]);
 
   const restart = useCallback(() => {
     setExpandError(undefined);
@@ -141,7 +149,7 @@ export default function FeedPage() {
     [qc],
   );
 
-  const caughtUpEmpty = q.isSuccess && pages !== undefined && countPosts(pages) === 0 && !q.hasNextPage;
+  const caughtUpEmpty = q.isSuccess && shown !== undefined && countPosts(shown) === 0 && !q.hasNextPage;
   return (
     <section className="page feed-page" data-testid="feed-page" data-session-gen={gen}>
       <h1 className="visually-hidden">{t('page.title')}</h1>
@@ -170,10 +178,10 @@ export default function FeedPage() {
           {t('page.expandError')}
         </p>
       ) : null}
-      {pages && format ? (
+      {shown && format ? (
         <WhyLoaderContext.Provider value={why}>
           <format.FeedLayout
-            page={pages}
+            page={shown}
             actions={actions}
             onLoadMore={() => {
               if (q.hasNextPage && !q.isFetchingNextPage) void q.fetchNextPage();

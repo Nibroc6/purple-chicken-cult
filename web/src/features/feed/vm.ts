@@ -3,13 +3,35 @@
 // Owner: P0-W07 → P1-W08.
 import type { components } from '../../api/schema.gen';
 import type { WhyVM } from '../../integrity/types';
-import type { FeedItemVM, FeedPageVM, Preset } from '../../vm/types';
+import type { QueryClient } from '@tanstack/react-query';
+import type { FeedItemVM, FeedPageVM, PostVM, Preset } from '../../vm/types';
 import { toChainVM, toPostVM } from '../post/vm';
 
 type S = components['schemas'];
 
 // feedKey prefixes every feed query (['feed', …]).
 export const feedKey = ['feed'] as const;
+
+// ownPostsKey holds the reader's posts published during this visit (D16): the
+// reader's own posts are never feed candidates, so the client shows what it
+// just published on top of the feed, outside any snapshot or tier.
+export const ownPostsKey = [...feedKey, 'own'] as const;
+const MAX_OWN = 20;
+
+// addOwnPosts records a publish (one post, or the parts of a thread), newest first.
+export function addOwnPosts(qc: QueryClient, posts: PostVM[]): void {
+  if (posts.length === 0) return;
+  qc.setQueryDefaults(ownPostsKey, { gcTime: Infinity }); // kept for the whole visit
+  const item: FeedItemVM = posts.length === 1 && posts[0] ? { type: 'post', post: posts[0] } : { type: 'thread', parts: posts };
+  qc.setQueryData<FeedItemVM[]>(ownPostsKey, (old) => [item, ...(old ?? [])].slice(0, MAX_OWN));
+}
+
+// withOwnPosts puts the reader's just-published posts in front of the feed pages.
+export function withOwnPosts(pages: FeedPageVM[], own: readonly FeedItemVM[]): FeedPageVM[] {
+  const first = pages[0];
+  if (own.length === 0 || !first) return pages;
+  return [{ session: first.session, preset: first.preset, items: [...own] }, ...pages];
+}
 
 // The presets a reader can pick in Phase 0 (Top arrives with P1-W08).
 export const presets: readonly Preset[] = ['latest', 'balanced'];

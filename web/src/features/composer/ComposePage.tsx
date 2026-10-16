@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router';
 import { useMe } from '../../app/session';
 import type { Audience, PostVM, RefPolicy } from '../../vm/types';
+import { addOwnPosts } from '../feed/vm';
 import { createPost, createThread, fetchPost, postKey, type DraftIn, type ParentIn } from '../post/api';
 import { defaultLang } from '../post/lang';
 import { AudienceSelect, Counter, ErrorText, LangSelect, PolicySelect, PostPreview } from '../post/shared';
@@ -82,6 +83,7 @@ function Composer({ parent, me, onPublished }: { parent?: ParentIn; me: MeLike; 
   const m = useMutation({
     mutationFn: () => (parts ? createThread(draft(), parts) : createPost(draft()).then((p) => [p])),
     onSuccess: async (ps) => {
+      addOwnPosts(qc, ps); // D16: shown on top of the feed
       await qc.invalidateQueries({ queryKey: postKey });
       onPublished(ps);
     },
