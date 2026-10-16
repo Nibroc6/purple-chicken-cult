@@ -17,6 +17,7 @@ import (
 	"github.com/Nibroc6/purple-chicken-cult/internal/api/authapi"
 	"github.com/Nibroc6/purple-chicken-cult/internal/api/friendsapi"
 	"github.com/Nibroc6/purple-chicken-cult/internal/api/notifyapi"
+	"github.com/Nibroc6/purple-chicken-cult/internal/gate/limits"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/wire/wiretest"
 	"github.com/Nibroc6/purple-chicken-cult/internal/platform/httpx"
 )
@@ -85,6 +86,17 @@ func (f *fixture) rateCount(t *testing.T) int {
 	return n
 }
 
+// bucketCount is the caller-independent sum of one rate_counters bucket.
+func (f *fixture) bucketCount(t *testing.T, bucket string) int {
+	t.Helper()
+	var n int
+	if err := f.h.App.Deps().DB.Q().QueryRow(context.Background(),
+		"SELECT coalesce(sum(count), 0) FROM rate_counters WHERE bucket = $1", bucket).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
 type listOut struct {
 	Items []struct {
 		ID     string `json:"id"`
@@ -117,6 +129,12 @@ func TestListReadAndCharging(t *testing.T) {
 	if len(l.Items) != 1 || l.Unread != 1 || l.Items[0].Kind != "friend_request" || l.Items[0].Person == nil ||
 		l.Items[0].Person.Ref != f.person("alice", "carol") || l.Items[0].Person.Handle != "carol" || l.Items[0].Read {
 		t.Fatalf("list: %+v", l)
+	}
+	// The list is a graph read (plan §5.3 class R:graph_read).
+	reads := f.bucketCount(t, limits.ReadBucket(limits.ReadGraph))
+	f.do(t, http.MethodGet, "/api/notifications", nil, http.StatusOK)
+	if got := f.bucketCount(t, limits.ReadBucket(limits.ReadGraph)); got != reads+1 {
+		t.Fatalf("GET /notifications charged %d graph reads, want 1", got-reads)
 	}
 	before := f.rateCount(t)
 	f.do(t, http.MethodPost, "/api/notifications/read", map[string]string{"up_to": l.Items[0].ID}, http.StatusNoContent)
@@ -157,9 +175,20 @@ func TestNotifyMute(t *testing.T) {
 	f := newFixture(t)
 	f.h.Login("alice")
 	p := "/api/posts/" + f.post("alice", "p1") + "/notify-mute"
+	social := f.bucketCount(t, limits.WriteBucket(limits.WriteSocial, limits.Day))
 	f.do(t, http.MethodPut, p, nil, http.StatusNoContent)
 	f.do(t, http.MethodPut, p, nil, http.StatusNoContent)
 	f.do(t, http.MethodDelete, p, nil, http.StatusNoContent)
+	// Each is a social write (W:social), garbage included (charged before the ref resolves).
+	if got := f.bucketCount(t, limits.WriteBucket(limits.WriteSocial, limits.Day)); got != social+3 {
+		t.Fatalf("notify-mute charged %d social writes, want 3", got-social)
+	}
+	social += 3
+	defer func() {
+		if got := f.bucketCount(t, limits.WriteBucket(limits.WriteSocial, limits.Day)); got != social+3 {
+			t.Errorf("not-found notify-mute charged %d social writes, want 3", got-social)
+		}
+	}()
 	// Another component's post, someone else's ref and garbage look the same.
 	for _, ref := range []string{f.post("alice", "x1"), f.post("bob", "p1"), "garbage"} {
 		rec := f.h.Do(http.MethodPut, "/api/posts/"+ref+"/notify-mute", nil)
