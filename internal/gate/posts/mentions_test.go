@@ -9,7 +9,7 @@ import (
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate"
 )
 
-func TestLocalMentions(t *testing.T) {
+func TestScanMentions(t *testing.T) {
 	for _, c := range []struct {
 		body string
 		want []mention
@@ -23,9 +23,13 @@ func TestLocalMentions(t *testing.T) {
 		{"```\n@fenced\n```\n@out\n~~~go\n@tilde\n~~~", []mention{{0, "out"}}},
 		{"   ```\n@indented_fence\n   ```", nil},
 		{"emoji😀@yes but é@nope", []mention{{0, "yes"}, {1, "nope"}}},
+		{`\@escaped and @kept`, []mention{{0, "kept"}}},
 		{"@first @second @third", []mention{{0, "first"}, {1, "second"}, {2, "third"}}},
 	} {
-		got := localMentions(c.body)
+		got := scanMentions(c.body)
+		if len(got) == 0 {
+			got = nil
+		}
 		if !reflect.DeepEqual(got, c.want) {
 			t.Errorf("%q: %v, want %v", c.body, got, c.want)
 		}
