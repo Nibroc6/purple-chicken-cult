@@ -5,4 +5,63 @@ openapi: 3.0.3
 info:
   title: pcc internal API (cosign)
   version: "0"
-paths: {}
+paths:
+  /cosign:
+    post:
+      operationId: cosignBegin
+      summary: Open a co-sign intent (the record to show and the passkey get options)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CosignBeginIn' }
+      responses:
+        "200":
+          description: The intent
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CosignIntent' }
+        "400": { $ref: '_common.yaml#/components/responses/Problem' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "401": { $ref: '#/components/responses/CosignStepUp' }
+        "429": { $ref: '#/components/responses/CosignRateLimited' }
+components:
+  responses:
+    CosignStepUp:
+      description: step_up_required (the session must verify with a passkey first).
+      content:
+        application/json:
+          schema: { $ref: '_common.yaml#/components/schemas/Error' }
+    CosignRateLimited:
+      description: rate_limited.
+      content:
+        application/json:
+          schema: { $ref: '_common.yaml#/components/schemas/Error' }
+  schemas:
+    CosignBeginIn:
+      type: object
+      additionalProperties: false
+      required: [purpose]
+      properties:
+        purpose:
+          type: string
+          description: What the change is (friend_request, friend_accept, unfriend, block, passkey_add, passkey_remove, account_delete, recovery_approve, mod_action, …)
+        target:
+          type: string
+          description: The ref the change is about (a person, a passkey, a moderation item), when the purpose has one
+    CosignIntent:
+      type: object
+      additionalProperties: false
+      required: [intent, record, options]
+      properties:
+        intent:
+          type: string
+          description: The intent ref; send it back with the assertion in the change's own request
+        record:
+          type: object
+          additionalProperties: true
+          description: The exact record draft being signed (shown to the person before they confirm)
+        options:
+          type: object
+          additionalProperties: true
+          description: WebAuthn get options ({publicKey}); the challenge covers the record draft
