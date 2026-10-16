@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -184,6 +185,10 @@ func TestJoinEndToEnd(t *testing.T) {
 	}
 	if len(e.rec.LiveEv) == 0 {
 		t.Fatal("no live event for the inviter")
+	}
+	if ev := e.rec.LiveEv[len(e.rec.LiveEv)-1]; ev.Topic != "handshake" ||
+		!reflect.DeepEqual(ev.Data, map[string]any{"hs": hs, "state": "claimed"}) {
+		t.Fatalf("live event %+v, want handshake {hs, state}", ev)
 	}
 
 	// Registration waits for "codes match".

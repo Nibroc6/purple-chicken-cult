@@ -209,6 +209,7 @@ func (s *Service) redeem(ctx context.Context, sess [32]byte, cred core.Credentia
 	} else if edges+outgoing >= FriendCap {
 		return "", 0, gate.ErrNotFound
 	}
+	var hsID uuid.UUID
 	err = s.d.DB.TxSerializable(ctx, func(tx pgx.Tx) error {
 		now = s.d.Clock.Now()
 		h, err := s.claimedBy(ctx, tx, sess, true)
@@ -218,6 +219,7 @@ func (s *Service) redeem(ctx context.Context, sess [32]byte, cred core.Credentia
 		if h.live(now) != stConfirmed || h.pending == nil || h.inviter != inviter {
 			return gate.ErrNotFound
 		}
+		hsID = h.id
 		var p pending
 		if err := json.Unmarshal(h.pending, &p); err != nil {
 			return gate.ErrNotFound
@@ -291,7 +293,7 @@ func (s *Service) redeem(ctx context.Context, sess [32]byte, cred core.Credentia
 	s.d.Graph.AddEdge(inviter, uid, core.LevelFriend, now)
 	s.d.Bus.Publish(core.EdgeAdded{A: inviter, B: uid, Level: core.LevelFriend, At: now})
 	s.d.Metrics.Inc(metricRedeemed, "", 1)
-	s.d.Notify.Live(inviter, liveTopic, map[string]any{"state": "done"})
+	s.d.Notify.Live(inviter, liveTopic, map[string]any{"hs": s.d.Refs.Handshake(inviter, hsID), "state": "done"})
 	return tok, uid, nil
 }
 
