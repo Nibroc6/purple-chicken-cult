@@ -1110,7 +1110,7 @@ One binary, subcommands (stdlib `flag`, one `FlagSet` per subcommand):
 | `pcc keys fingerprints` | `app.Records.Keys` | prints `key_id  sha256(pubkey)` lines to publish out-of-band (landing page, repo, social) |
 | `pcc export-verify FILE.zip [--fingerprints F]` | `records.VerifyExport` | verifies an export offline (§10.2), optionally pinning keys to published fingerprints |
 | `pcc audit-edges` | `app.Records.AuditEdges` | §4.5: every `edges` row's `record_hash` resolves to a valid, unrevoked Friendship record (also a weekly job) |
-| `pcc metrics [--days 14]` | `app.Metrics.Report` | prints the aggregate product metrics (§13, §18 DoD); no identifiers exist to print |
+| `pcc metrics [--days 14] [--raw] [--json]` | `app.Metrics.Summary` (+ `Report` with `--raw`) | prints the trial summary — invites per day, feed depth, impressions by degree, preset switches, feed p95 — (§13, §18 DoD; INT-0); no identifiers exist to print |
 | `pcc dev seed --users 10000 --model ba` | `app.DevSeed.Synthetic` | refuses unless `PCC_ENV ∈ {dev, test}` |
 
 Manual recovery is **not** a CLI command (security #14): two moderators approve it in the

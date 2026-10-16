@@ -25,7 +25,8 @@ commands:
   export-verify FILE.zip [--fingerprints F]
                                           verify an export offline
   audit-edges                             check every edge against its signed Friendship record
-  metrics [--days 14]                     print aggregate product metrics
+  metrics [--days 14] [--raw] [--json]    print the trial metrics: invites/day, feed depth,
+                                          impressions by degree, preset switches
   dev seed --users N [--model ba|ws] [--seed S]
                                           synthetic data (PCC_ENV=dev|test only)
 
