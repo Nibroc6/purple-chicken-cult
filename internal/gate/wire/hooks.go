@@ -17,8 +17,8 @@ type Hooks struct{ a *App }
 
 // Reset truncates every table (except schema_migrations) and reloads caches
 // (users, the post index, liker sets and the graph) and forgets every feed
-// session, tree snapshot, preview-limiter bucket, SSE stream and unflushed
-// metric counter.
+// session, tree snapshot, preview-limiter bucket, SSE stream, unflushed
+// metric counter and rate-limit counter held in memory.
 func (h *Hooks) Reset(ctx context.Context) error {
 	d := h.a.d
 	rows, err := d.DB.Q().Query(ctx, `SELECT tablename FROM pg_tables
@@ -58,6 +58,7 @@ func (h *Hooks) Reset(ctx context.Context) error {
 	h.a.Previews.Reset()
 	h.a.Notify.Reset()
 	h.a.Metrics.Reset()
+	h.a.Limits.Reset()
 	return h.a.Graph.Load(ctx)
 }
 

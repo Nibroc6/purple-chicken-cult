@@ -52,6 +52,9 @@ func New(d *core.Deps) *Service { return &Service{d: d} }
 // Init registers limits.purge in W12.
 func (s *Service) Init(context.Context) error { return nil }
 
+// Reset forgets every in-memory counter (test hooks; contract request p0-w12-2).
+func (s *Service) Reset() {}
+
 // ChargeRequest charges one request of class c to the caller (viewer from ctx;
 // unauthenticated ⇒ ChargeAnon by client prefix). Exhaustion ⇒ gate.ErrRateLimited.
 func (s *Service) ChargeRequest(ctx context.Context, c gate.Class) error {
