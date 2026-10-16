@@ -125,6 +125,7 @@ export interface TreeRowVM {
   items: TreeItemVM[];
   more: number;
   cursor?: string;
+  beyond?: boolean; // rows loaded one by one: a further row lies beyond this one (INT-0)
 }
 export interface TreeVM {
   snapshot: string;

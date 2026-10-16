@@ -1495,6 +1495,7 @@ type TreeRow struct {
     Items  []TreeItem `json:"items"`  // ranked; Items[0] is the centered post (focal row: focal is centered)
     More   int        `json:"more"`   // visible items beyond those returned
     Cursor string     `json:"cursor,omitempty"`
+    Beyond bool       `json:"beyond,omitempty"` // Row (gen ≠ 0): Items[0] has a further visible row away from the focal row (INT-0)
 }
 type TreeView struct {
     Snapshot string    `json:"snapshot"`

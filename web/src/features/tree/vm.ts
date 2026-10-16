@@ -47,6 +47,7 @@ export function toTreeRowVM(r: S['TreeRow']): TreeRowVM {
     items: r.items.map(toTreeItemVM),
     more: r.more,
     ...(r.cursor ? { cursor: r.cursor } : {}),
+    ...(r.beyond ? { beyond: true } : {}),
   };
 }
 
@@ -104,11 +105,19 @@ export function appendMore(tree: TreeVM, page: TreeRowVM): TreeVM {
   };
 }
 
-// addEarlier puts a row above the top row; an empty answer means there is
-// nothing earlier.
+// addEarlier puts a row above the top row. Each post appears once: a post of
+// the new row already shown in a row below becomes "↑ shown above" there.
+// Earlier rows remain when the server says the new row's first post has
+// parents of its own (beyond).
 export function addEarlier(tree: TreeVM, row: TreeRowVM): TreeVM {
   const next = putRow(tree, row);
-  return { ...next, hasEarlier: row.items.length > 0 };
+  const added = new Set(row.items.map((i) => i.post.ref));
+  const rows = next.rows.map((r) =>
+    r.gen > row.gen && r.items.some((i) => added.has(i.post.ref))
+      ? { ...r, items: r.items.map((i) => (added.has(i.post.ref) ? { ...i, shownAbove: true } : i)) }
+      : r,
+  );
+  return { ...next, rows, hasEarlier: row.items.length > 0 && row.beyond === true };
 }
 
 // isExpired: the server no longer keeps the snapshot (the page reopens the tree).

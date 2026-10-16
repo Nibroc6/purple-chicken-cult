@@ -241,6 +241,16 @@ func TestOpenRowsAroundFocal(t *testing.T) {
 	if e.met.Get(tree.MetricOpened, "") != 1 {
 		t.Fatal("tree.opened not counted")
 	}
+	// Rows loaded by Row say whether a further row lies beyond them.
+	if r := e.row("alice", tv, -3, g); len(r.Items) != 1 || r.Beyond {
+		t.Fatalf("row -3 %s beyond %v", rowShape(r), r.Beyond)
+	}
+	if r := e.row("alice", tv, 2, c2); !r.Beyond {
+		t.Fatalf("row 2 %s: the grandchild has replies", rowShape(r))
+	}
+	if r := e.row("alice", tv, 3, gc); len(r.Items) != 1 || r.Beyond {
+		t.Fatalf("row 3 %s beyond %v", rowShape(r), r.Beyond)
+	}
 
 	// A root post: the focal row alone, centered on itself, nothing earlier.
 	root := e.open("alice", top, "latest")

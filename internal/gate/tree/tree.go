@@ -179,6 +179,14 @@ func (s *Service) Row(ctx context.Context, snapshot string, gen int, center gate
 		return gate.TreeRow{}, err
 	}
 	snap.setRow(k, served)
+	if len(served) > 0 {
+		switch {
+		case gen < 0:
+			row.Beyond = s.hasParents(ctx, sr, served[0])
+		case gen > 0:
+			row.Beyond = s.hasChildren(ctx, sr, served[0])
+		}
+	}
 	return row, nil
 }
 

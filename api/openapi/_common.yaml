@@ -200,6 +200,7 @@ components:
         items: { type: array, items: { $ref: '#/components/schemas/TreeItem' } }
         more: { type: integer, minimum: 0 }
         cursor: { type: string }
+        beyond: { type: boolean }
     TreeView:
       type: object
       required: [snapshot, focal, rows, has_earlier, has_later]

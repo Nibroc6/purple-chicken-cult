@@ -186,7 +186,17 @@ describe('tree view-models', () => {
     expect(merged?.more).toBe(0);
     expect(merged?.cursor).toBeUndefined();
     expect(addEarlier(vm, { ...r1, gen: -3, items: [] }).hasEarlier).toBe(false);
-    expect(addEarlier(vm, { ...r1, gen: -3 }).rows[0]?.gen).toBe(-3);
+    const up = addEarlier(vm, { ...r1, gen: -3 });
+    expect(up.rows[0]?.gen).toBe(-3);
+    expect(up.hasEarlier).toBe(false);
+    expect(addEarlier(vm, { ...r1, gen: -3, beyond: true }).hasEarlier).toBe(true);
+    // A post of the new top row already shown below becomes "shown above" there.
+    const below = vm.rows.find((r) => r.gen === 0)?.items[1];
+    if (!below) throw new Error('no sibling');
+    const dup = addEarlier(vm, { ...r1, gen: -3, items: [below] });
+    expect(dup.rows[0]?.items[0]?.shownAbove).toBe(false);
+    expect(dup.rows.find((r) => r.gen === 0)?.items[1]?.shownAbove).toBe(true);
+    expect(dup.rows.find((r) => r.gen === 0)?.items[0]?.shownAbove).toBe(false);
     expect(laterFrom(vm.rows.at(-1), undefined)).toBe(true);
     expect(laterFrom(vm.rows[0], undefined)).toBe(false);
   });
