@@ -28,6 +28,11 @@
 // forged one or another viewer's is gate.ErrNotFound; the reader's own expired
 // snapshot is Problem tree_snapshot_expired (409) and the client reopens.
 //
+// Filters (D32). Like the feed, rows leave out posts the reader hid and posts
+// by authors the reader muted (read fresh on every request), except the focal
+// post, which the reader opened explicitly; More, cursors, Beyond, HasEarlier
+// and HasLater count only what the filters keep.
+//
 // Each post appears once: a post already served in a row above gets ShownAbove
 // (a "↑ shown above" stub without its body). Extra visible parents of a child
 // become AlsoRepliesTo / AlsoParents chips that refocus the view.
@@ -182,9 +187,9 @@ func (s *Service) Row(ctx context.Context, snapshot string, gen int, center gate
 	if len(served) > 0 {
 		switch {
 		case gen < 0:
-			row.Beyond = s.hasParents(ctx, sr, served[0])
+			row.Beyond = s.hasParents(ctx, sr, snap, served[0])
 		case gen > 0:
-			row.Beyond = s.hasChildren(ctx, sr, served[0])
+			row.Beyond = s.hasChildren(ctx, sr, snap, served[0])
 		}
 	}
 	return row, nil

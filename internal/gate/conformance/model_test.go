@@ -628,6 +628,9 @@ func genExtras(t *rapid.T, base *model, v, prefix string, vActs []vAction) (*mod
 			}
 		case 3: // a new post (often a child of a base post) by anyone
 			author := rapid.SampledFrom(handles()).Draw(t, "author")
+			if author == v {
+				continue // V's own posts, even deleted ones, are V's own history (e.g. ref_cap)
+			}
 			p := genPostReplying(t, try, fmt.Sprintf("%sp%02d", prefix, nPosts), author,
 				rapid.IntRange(1, 600).Draw(t, "age"), 80)
 			try.Posts = append(try.Posts, p)

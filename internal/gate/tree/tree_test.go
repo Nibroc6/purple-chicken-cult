@@ -639,3 +639,62 @@ func TestAccountDeletionDropsSnapshots(t *testing.T) {
 		t.Fatalf("%d snapshots for one viewer", e.tr.Snapshots())
 	}
 }
+
+// D32: rows leave out posts the reader hid and posts by authors the reader
+// muted (More, cursors and Beyond count only what is kept); the focal post is
+// always shown; a mute or hide made after opening applies to the next Row.
+func TestHidesAndMutesFilterRows(t *testing.T) {
+	e := newEnv(t)
+	root := e.post("bob", "root")
+	var franKids []core.PostID
+	for i := 0; i < tree.RowPage+2; i++ {
+		e.advance(13 * time.Hour) // at most two references of one post a day (ref_cap)
+		franKids = append(franKids, e.post("fran", fmt.Sprintf("f%d", i), root))
+	}
+	b1 := e.post("bob", "b1", root)
+	b2 := e.post("bob", "b2", root)
+	c1 := e.post("carol", "c1", root)
+	e.post("bob", "deep", c1)
+
+	if r := rowShape(e.row("alice", e.open("alice", root, "latest"), 1, root)); !strings.Contains(r, "+") {
+		t.Fatalf("before filters the replies row pages: %s", r)
+	}
+	if err := e.a.Friends.Mute(e.as("alice"), e.d.Refs.User(e.id("alice"), e.id("fran")), true); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.a.Engage.Hide(e.as("alice"), e.ref("alice", b1)); err != nil {
+		t.Fatal(err)
+	}
+	tv := e.open("alice", root, "latest")
+	if got := shape(tv); got != "0:this_post[root] 1:replies[b2,|c1]" {
+		t.Fatalf("filtered tree %s", got)
+	}
+	for _, r := range tv.Rows {
+		if r.More != 0 || r.Cursor != "" {
+			t.Fatalf("row %d counts filtered posts: more %d", r.Gen, r.More)
+		}
+	}
+	// The focal post is shown even when hidden or by a muted author.
+	if got := shape(e.open("alice", franKids[0], "latest")); !strings.HasPrefix(got, "-1:replying_to[root] 0:this_post[f0,b2,|c1]") {
+		t.Fatalf("muted focal: %s", got)
+	}
+	if got := shape(e.open("alice", b1, "latest")); !strings.Contains(got, "0:this_post[b1,") {
+		t.Fatalf("hidden focal: %s", got)
+	}
+	// A hidden parent: the focal row stands alone and nothing above is offered.
+	if err := e.a.Engage.Hide(e.as("alice"), e.ref("alice", root)); err != nil {
+		t.Fatal(err)
+	}
+	tv = e.open("alice", b2, "latest")
+	if got := shape(tv); got != "0:this_post[b2]" || tv.HasEarlier {
+		t.Fatalf("hidden parent: %s (earlier %v)", got, tv.HasEarlier)
+	}
+	// Filters apply on the next request of an open snapshot.
+	tv = e.open("alice", c1, "latest")
+	if err := e.a.Friends.Mute(e.as("alice"), e.d.Refs.User(e.id("alice"), e.id("bob")), true); err != nil {
+		t.Fatal(err)
+	}
+	if got := rowShape(e.row("alice", tv, 1, c1)); got != "1:replies[]" {
+		t.Fatalf("mute after open: %s", got)
+	}
+}

@@ -2230,6 +2230,9 @@ remaining visible count. Each post appears once (later spots get `ShownAbove`). 
 never passes through invisible posts; a visible post whose parents are all invisible looks
 like a root. Snapshots are stored and keyed exactly like feed snapshots (`(viewer, id)`,
 HMAC'd cursors) and re-checked on every `Row`/`More`. Read budget `tree_view` per call.
+Like the feed, rows leave out posts the reader hid and posts by authors the reader muted
+(read fresh on every request; `More`, cursors and `Beyond`/`HasEarlier`/`HasLater` count only
+what is kept); the focal post itself is always shown (D32).
 
 **`gate/previews`** (P0-W09 → P1-W11) — §10.1.6
 Job `preview.fetch{post}`: for each `mdscan` link (max 3 previews, skip `<url>`):
@@ -3840,6 +3843,7 @@ meaning waits for INT, and the requesting WP uses a local unexported adapter unt
 | D29 | Age gate = attestation of `PCC_MIN_AGE` (default 16) plus ToS version acceptance, recorded at join and genesis enrollment; no birth date stored | §13 compliance with data minimization (fidelity #17) |
 | D30 | Revoked `Friendship`/`Revocation` records are purged 30 days after revocation; the `Block` record is deleted on unblock; declined requests keep a timestamp-free row | §2.3 retention must cover the signed records too (security #16); the row keeps "declined looks pending" working |
 | D31 | Hides are kept for **one year** (`engage.HideRetention`, purged by `engage.hides_purge`), not 30 days (product decision, INT-0) | Hides filter family-tree rows too (D32), and a tree can surface a post long after it left the feed window; a hidden post must stay hidden |
+| D32 | The family tree applies the reader's hide and mute filters like the feed: hidden posts and posts by muted authors are left out of every row, its `More` count and its paging; only the focal post (opened explicitly) is exempt (product decision, INT-0) | Consistent behaviour between feed and tree; hides and mutes are the reader's own actions, so they stay inside H(V) and the noninterference properties hold |
 
 ---
 

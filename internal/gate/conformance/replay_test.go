@@ -40,7 +40,7 @@ func genOps(t *rapid.T, base *model) []vop {
 	ops := []vop{{Kind: "feed", Preset: ""}}
 	for range n {
 		k := rapid.SampledFrom([]string{"feed", "why", "tree", "tree", "person", "likers", "get", "lists", "create",
-			"create", "like", "request", "seen", "advance", "report", "hide", "mute", "invite", "block", "unfriend"}).Draw(t, "op")
+			"create", "like", "request", "seen", "advance", "report", "hide", "mute", "invite", "block", "unfriend", "muteuser"}).Draw(t, "op")
 		op := vop{Kind: k}
 		switch k {
 		case "feed", "tree":
@@ -48,7 +48,7 @@ func genOps(t *rapid.T, base *model) []vop {
 			op.Target = postT("target")
 		case "why", "likers", "get", "report", "hide", "mute":
 			op.Target = postT("target")
-		case "person", "request", "block", "unfriend":
+		case "person", "request", "block", "unfriend", "muteuser":
 			op.Target = userT("target")
 		case "like":
 			op.Target, op.On = postT("target"), rapid.IntRange(0, 3).Draw(t, "on") > 0
@@ -202,6 +202,8 @@ func (r *replayer) do(i int, op vop) {
 		r.rec(name, nil, w.a.Friends.Request(ctx, r.userRef(op.Target)))
 	case "block":
 		r.rec(name, nil, w.a.Friends.Block(ctx, r.userRef(op.Target)))
+	case "muteuser":
+		r.rec(name, nil, w.a.Friends.Mute(ctx, r.userRef(op.Target), true))
 	case "unfriend":
 		r.rec(name, nil, w.a.Friends.Unfriend(ctx, r.userRef(op.Target)))
 	case "seen":

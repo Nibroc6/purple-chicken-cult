@@ -24,8 +24,42 @@ func (s *Service) links(ctx context.Context, sr core.Search, sn *snapshot, k row
 	}
 }
 
+// filters are the reader's personal filters, read fresh on every request like
+// the feed's (D32): posts the reader hid and posts by authors the reader muted
+// are left out of every row, its More count and its paging. The focal post is
+// the one exception: the reader opened it explicitly.
+type filters struct {
+	focal  core.PostID
+	hidden map[core.PostID]struct{}
+	muted  map[core.UserID]struct{}
+}
+
+func (s *Service) filters(ctx context.Context, sn *snapshot) filters {
+	f := filters{focal: sn.focal}
+	if s.d.Engage != nil {
+		f.hidden = s.d.Engage.HiddenSet(ctx, sn.viewer)
+	}
+	if s.d.Mutes != nil {
+		f.muted = s.d.Mutes.MutedAuthors(ctx, sn.viewer)
+	}
+	return f
+}
+
+// drop reports whether the filters leave m out.
+func (f filters) drop(m core.PostMeta) bool {
+	if m.ID == f.focal {
+		return false
+	}
+	if _, ok := f.hidden[m.ID]; ok {
+		return true
+	}
+	_, ok := f.muted[m.Author]
+	return ok
+}
+
 // visible is the set of posts row k may serve now, each re-checked against the
-// reader's current search (fidelity #4). The center itself must be visible.
+// reader's current search (fidelity #4) and filters (D32). The center itself
+// must be visible.
 func (s *Service) visible(ctx context.Context, sr core.Search, sn *snapshot, k rowKey) (map[core.PostID]core.Checked, bool) {
 	cm, ok := s.d.Posts.Meta(ctx, k.center)
 	if !ok {
@@ -40,8 +74,11 @@ func (s *Service) visible(ctx context.Context, sr core.Search, sn *snapshot, k r
 		out[k.center] = cc
 		return out, true
 	}
+	f := s.filters(ctx, sn)
 	for _, l := range s.links(ctx, sr, sn, k, cm) {
-		out[l.Other.Meta().ID] = l.Other
+		if !f.drop(l.Other.Meta()) {
+			out[l.Other.Meta().ID] = l.Other
+		}
 	}
 	return out, true
 }
@@ -280,20 +317,31 @@ func (s *Service) build(ctx context.Context, sr core.Search, sn *snapshot, fc co
 		view.Rows = append(view.Rows, row)
 	}
 	if vr, ok := sn.view[-2]; ok && len(vr.served) > 0 {
-		view.HasEarlier = s.hasParents(ctx, sr, vr.served[0])
+		view.HasEarlier = s.hasParents(ctx, sr, sn, vr.served[0])
 	}
 	if vr, ok := sn.view[2]; ok && len(vr.served) > 0 {
-		view.HasLater = s.hasChildren(ctx, sr, vr.served[0])
+		view.HasLater = s.hasChildren(ctx, sr, sn, vr.served[0])
 	}
 	return view, nil
 }
 
-func (s *Service) hasParents(ctx context.Context, sr core.Search, id core.PostID) bool {
+// hasParents reports whether id has a parent a row would serve.
+func (s *Service) hasParents(ctx context.Context, sr core.Search, sn *snapshot, id core.PostID) bool {
 	m, ok := s.d.Posts.Meta(ctx, id)
-	return ok && len(s.d.Vis.VisibleParents(ctx, sr, m)) > 0
+	return ok && s.anyKept(s.filters(ctx, sn), s.d.Vis.VisibleParents(ctx, sr, m))
 }
 
-func (s *Service) hasChildren(ctx context.Context, sr core.Search, id core.PostID) bool {
+// hasChildren reports whether id has a child a row would serve.
+func (s *Service) hasChildren(ctx context.Context, sr core.Search, sn *snapshot, id core.PostID) bool {
 	m, ok := s.d.Posts.Meta(ctx, id)
-	return ok && len(s.d.Vis.VisibleChildren(ctx, sr, m, core.ChildFilter{Limit: 1})) > 0
+	return ok && s.anyKept(s.filters(ctx, sn), s.d.Vis.VisibleChildren(ctx, sr, m, core.ChildFilter{}))
+}
+
+func (s *Service) anyKept(f filters, ls []core.VisibleLink) bool {
+	for _, l := range ls {
+		if !f.drop(l.Other.Meta()) {
+			return true
+		}
+	}
+	return false
 }
