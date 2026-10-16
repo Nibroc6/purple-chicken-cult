@@ -267,7 +267,11 @@ func newOracle(m *model, v string) *oracle {
 }
 
 func (o *oracle) distOf(h string) (int, bool) {
-	d, ok := o.dist[o.m.id(h)]
+	u, ok := o.m.user(h)
+	if !ok {
+		return 0, false // not in this world
+	}
+	d, ok := o.dist[u.id()]
 	return d, ok
 }
 

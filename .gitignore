@@ -34,4 +34,4 @@ coverage.*
 Thumbs.db
 
 # rapid failure files (go test property runs)
-testdata/rapid/
+**/testdata/rapid/
