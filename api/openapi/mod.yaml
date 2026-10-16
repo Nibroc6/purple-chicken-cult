@@ -1,8 +1,221 @@
-# OpenAPI fragment of the mod module (plan §5.3). Owner: P0-W12.
+# OpenAPI fragment of the mod module (plan §5.3). Owner: P0-W12 → P1-W06.
 # Paths are relative to /api. Schemas: module-prefixed names in this file, or
 # $ref: '_common.yaml#/components/schemas/X'. Validated on its own by apitest.
+#
+# Reports go to moderators only. A report about something the caller cannot see
+# (or a garbage or foreign ref) answers exactly like a stored one, and every
+# request is charged before its target is looked at. Moderator surfaces answer
+# the uniform 404 to members; queue item ids and subject refs are
+# moderator-scoped. Reasons and actions are closed codes.
 openapi: 3.0.3
 info:
   title: pcc internal API (mod)
   version: "0"
-paths: {}
+paths:
+  /reports:
+    post:
+      operationId: report
+      description: >-
+        Reports a post, a person, an inviter (through the ref of the person they
+        invited: the inviter is never addressable) or a misleading link preview
+        (the post's ref). Always 202 for a signed-in caller with a valid reason,
+        whether or not the target exists or is visible. Charged as a report write
+        (20 a day).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ModReportIn' }
+      responses:
+        "202": { description: Received. }
+        "400": { $ref: '_common.yaml#/components/responses/Problem' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "422": { $ref: '_common.yaml#/components/responses/Problem' }
+        "429": { $ref: '#/components/responses/ModRateLimited' }
+  /blame:
+    get:
+      operationId: blameInbox
+      description: >-
+        The caller's blame inbox, newest first: confirmed moderator actions on
+        people they invited, with the reason code and the removed post only if
+        the caller could see it. Listing marks the entries read.
+      parameters:
+        - { name: cursor, in: query, required: false, schema: { type: string, maxLength: 256 } }
+      responses:
+        "200":
+          description: A page of blame entries.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ModBlamePage' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/ModRateLimited' }
+  /mod/queue:
+    get:
+      operationId: modQueue
+      description: >-
+        Moderators only. Open reports, csam first, then illegal, then oldest
+        first, with the subject (moderator-scoped ref and handle), the subject's
+        inviter label and probation flag, the reported content (never for csam)
+        and whether a two-person action awaits a second moderator.
+      parameters:
+        - { name: cursor, in: query, required: false, schema: { type: string, maxLength: 256 } }
+      responses:
+        "200":
+          description: A page of queue items.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ModQueuePage' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/ModRateLimited' }
+  /mod/items/{id}/resolve:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, maxLength: 256 } }
+    post:
+      operationId: modResolve
+      description: >-
+        Moderators only. remove_post (post and preview reports) and dismiss take
+        one moderator and close every open report on the same target.
+        suspend_user needs a passkey verification within 5 minutes and only
+        starts a two-person action that a different moderator confirms within
+        24 hours.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ModResolveIn' }
+      responses:
+        "204": { description: "Done, or awaiting the second moderator." }
+        "400": { $ref: '_common.yaml#/components/responses/Problem' }
+        "401": { $ref: '#/components/responses/ModStepUp' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409": { $ref: '_common.yaml#/components/responses/Problem' }
+        "422": { $ref: '_common.yaml#/components/responses/Problem' }
+        "429": { $ref: '#/components/responses/ModRateLimited' }
+  /mod/items/{id}/confirm:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, maxLength: 256 } }
+    post:
+      operationId: modConfirm
+      description: >-
+        The second moderator (not the one who started it, with a passkey
+        verification within 5 minutes) confirms a pending two-person action.
+        Only then does the subject's inviter get a blame entry.
+      responses:
+        "204": { description: Confirmed and applied. }
+        "401": { $ref: '#/components/responses/ModStepUp' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409": { $ref: '_common.yaml#/components/responses/Problem' }
+        "429": { $ref: '#/components/responses/ModRateLimited' }
+  /mod/log:
+    get:
+      operationId: modLog
+      description: >-
+        The public moderation log: confirmed removals and suspensions per day,
+        reason and subject with a count. A subject is named only if the caller
+        has that person in their horizon; otherwise it is a pseudonym.
+      parameters:
+        - { name: cursor, in: query, required: false, schema: { type: string, maxLength: 256 } }
+      responses:
+        "200":
+          description: A page of log entries.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ModLogPage' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/ModRateLimited' }
+  /csp-report:
+    post:
+      operationId: cspReport
+      description: >-
+        Content-Security-Policy violation reports (Reporting API or the legacy
+        report-uri format). Only a count per violated directive and day is kept:
+        no URLs, samples, user or address. Anonymous, rate-limited per network.
+      requestBody:
+        required: true
+        content:
+          application/reports+json:
+            schema: { $ref: '#/components/schemas/ModCSPReports' }
+          application/csp-report:
+            schema: { $ref: '#/components/schemas/ModCSPLegacy' }
+          application/json:
+            schema: {}
+      responses:
+        "204": { description: Counted. }
+        "400": { $ref: '_common.yaml#/components/responses/Problem' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/ModRateLimited' }
+components:
+  schemas:
+    ModReportIn:
+      type: object
+      required: [target, reason]
+      additionalProperties: false
+      properties:
+        target:
+          type: object
+          required: [kind, ref]
+          additionalProperties: false
+          properties:
+            kind: { type: string, enum: [post, person, inviter, preview] }
+            ref: { type: string, maxLength: 256 }
+        reason:
+          type: string
+          description: spam, bot, harassment, csam, illegal, impersonation, misleading_preview, other.
+        note: { type: string, maxLength: 4000 }
+    ModResolveIn:
+      type: object
+      required: [action, reason]
+      additionalProperties: false
+      properties:
+        action:
+          type: string
+          description: remove_post, suspend_user, dismiss.
+        reason:
+          type: string
+          description: spam, bot, harassment, csam, illegal, impersonation, misleading_preview, ban_evasion, other.
+    ModQueuePage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '_common.yaml#/components/schemas/ModItem' }
+        next: { type: string }
+    ModBlamePage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '_common.yaml#/components/schemas/BlameItem' }
+        next: { type: string }
+    ModLogPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '_common.yaml#/components/schemas/LogItem' }
+        next: { type: string }
+    ModCSPReports:
+      type: array
+      items:
+        type: object
+        properties:
+          type: { type: string }
+          body: { type: object }
+    ModCSPLegacy:
+      type: object
+      properties:
+        csp-report: { type: object }
+  responses:
+    ModRateLimited:
+      description: rate_limited (retry_after_s from the caller's own bucket).
+      content:
+        application/json:
+          schema: { $ref: '_common.yaml#/components/schemas/Error' }
+    ModStepUp:
+      description: step_up_required.
+      content:
+        application/json:
+          schema: { $ref: '_common.yaml#/components/schemas/Error' }
