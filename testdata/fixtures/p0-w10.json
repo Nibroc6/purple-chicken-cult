@@ -1,0 +1,20 @@
+{
+  "users": [
+    { "handle": "alice", "name": "Alice", "preset": "latest" },
+    { "handle": "bob", "name": "Bob", "preset": "latest" },
+    { "handle": "carol", "name": "Carol", "preset": "latest" },
+    { "handle": "dave", "name": "Dave", "preset": "latest" },
+    { "handle": "xavier", "name": "Xavier", "preset": "latest" }
+  ],
+  "friends": [
+    { "a": "alice", "b": "bob" },
+    { "a": "bob", "b": "carol" },
+    { "a": "carol", "b": "dave" }
+  ],
+  "posts": [
+    { "label": "a1", "author": "alice", "body": "Alice asks: what should we plant this spring?", "age": "3h" },
+    { "label": "b1", "author": "bob", "body": "Bob says hello to everyone", "age": "2h" },
+    { "label": "c1", "author": "carol", "body": "Carol shares a recipe", "age": "1h" },
+    { "label": "x1", "author": "xavier", "body": "Xavier is somewhere else entirely", "age": "1h" }
+  ]
+}
