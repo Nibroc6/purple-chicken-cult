@@ -191,6 +191,7 @@ func TestAcceptNotifiesRequester(t *testing.T) {
 
 func TestBlockedSubjectProducesNothing(t *testing.T) {
 	e := newEnv(t)
+	e.w.Friends("alice", "dave") // the block unfriends alice–bob; bob still reaches alice through dave
 	p1 := e.w.Post("alice", "p1", "hello")
 	if err := e.a.Friends.Block(e.as("alice"), e.person("alice", "bob")); err != nil {
 		t.Fatal(err)
