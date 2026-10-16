@@ -137,6 +137,15 @@ function QueueItem({ it }: { it: ModItem }) {
           ) : null}
         </p>
       ) : null}
+      {it.subject ? (
+        // The moderator-scoped ref the recovery page asks for (§10.3).
+        <p className="moderation-meta muted">
+          {t('queue.subjectRef')}{' '}
+          <code className="mono" data-testid="queue-subject-ref">
+            {it.subject.ref}
+          </code>
+        </p>
+      ) : null}
       <p className="moderation-meta muted">
         <time dateTime={at.toISOString()} title={formatDateTime(at, i18n.language)}>
           {formatRelative(at, i18n.language)}

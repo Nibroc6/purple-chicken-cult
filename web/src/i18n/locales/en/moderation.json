@@ -71,6 +71,7 @@
     "subject": "About @{handle}",
     "inviter": "{kind, select, genesis {(genesis account)} deleted {(invited by a deleted account)} other {(invited by @{handle})}}",
     "probation": "On probation",
+    "subjectRef": "Account reference (for account recovery):",
     "noContent": "The content is never shown for this reason.",
     "awaiting": "Waiting for a second moderator to confirm the suspension.",
     "confirm": "Confirm as second moderator",

@@ -274,6 +274,9 @@ describe('moderator queue', () => {
     expect(within(spam).getByTestId('queue-subject').textContent).toContain(tr('moderation:queue.subject', { handle: 'bob' }));
     expect(within(spam).getByTestId('queue-inviter').textContent).toBe(tr('moderation:queue.inviter', { kind: 'user', handle: 'alice' }));
     expect(within(spam).getByTestId('queue-probation')).toBeTruthy();
+    // The subject's moderator-scoped ref, for the recovery page (INT-0).
+    expect(within(spam).getByTestId('queue-subject-ref').textContent).toBe('s1');
+    expect(within(bot).getByTestId('queue-subject-ref').textContent).toBe('s3');
     expect(within(spam).getByTestId('queue-post').textContent).toBe('**buy** now');
     expect(within(spam).getByText(tr('moderation:queue.reports', { count: 2 }))).toBeTruthy();
     expect(within(csam).queryByTestId('queue-post')).toBeNull();
@@ -415,7 +418,7 @@ describe('catalogs only', () => {
     const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     for (let n = walk.nextNode(); n; n = walk.nextNode()) {
       const s = n.textContent?.trim() ?? '';
-      if (s && n.parentElement?.tagName !== 'TIME' && !n.parentElement?.closest('[data-user-content]')) texts.push(s);
+      if (s && !['TIME', 'CODE'].includes(n.parentElement?.tagName ?? '') && !n.parentElement?.closest('[data-user-content]')) texts.push(s);
     }
     expect(texts.length).toBeGreaterThan(10);
     for (const s of texts) expect(s, s).toMatch(/^\[.*\]$/s);
