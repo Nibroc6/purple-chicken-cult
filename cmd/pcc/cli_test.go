@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/metrics"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/wire/wiretest"
@@ -53,5 +54,38 @@ func TestPrintMetrics(t *testing.T) {
 	}
 	if strings.Contains(js.String(), "feed.impressions_by_degree") {
 		t.Fatal("raw rows printed without --raw")
+	}
+}
+
+func TestWriteSummaryTables(t *testing.T) {
+	from := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	s := metrics.Summarize([]metrics.ReportRow{
+		{Day: "2026-01-02", Name: "invites.redeemed", Value: 3},
+		{Day: "2026-01-03", Name: "invites.redeemed", Value: 1},
+		{Day: "2026-01-02", Name: "feed.tier_reached", Bucket: "2", Value: 1},
+		{Day: "2026-01-02", Name: "feed.impressions_by_degree", Bucket: "1", Value: 4},
+		{Day: "2026-01-03", Name: "feed.impressions_by_degree", Bucket: "3", Value: 1},
+		{Day: "2026-01-03", Name: "feed.preset_switch", Bucket: "latest", Value: 1},
+		{Day: "2026-01-02", Name: "feed.latency_ms.p95", Value: 50},
+	}, from, from.AddDate(0, 0, 2))
+	var b strings.Builder
+	if err := writeSummary(&b, s); err != nil {
+		t.Fatal(err)
+	}
+	out := b.String()
+	for _, want := range []string{
+		"trial metrics 2026-01-01 .. 2026-01-03 (3 days, UTC)",
+		"invites redeemed: 4 total, 1.33 per day",
+		"2026-01-02  3",
+		"feed depth (deepest tier a feed session reached): 1 sessions",
+		"impressions by degree (posts seen, by distance to the author): 5 impressions",
+		"preset switches (sessions opened in a different preset): 1 switches",
+		"latest  balanced  top",
+		"80.0",
+		"2026-01-02  50",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output lacks %q:\n%s", want, out)
+		}
 	}
 }

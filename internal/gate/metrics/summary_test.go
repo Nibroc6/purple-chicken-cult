@@ -86,24 +86,4 @@ func TestSummaryFromRecordedCounters(t *testing.T) {
 		t.Fatalf("p95 %+v", s.FeedP95PerDay)
 	}
 
-	var b strings.Builder
-	if err := s.WriteText(&b); err != nil {
-		t.Fatal(err)
-	}
-	out := b.String()
-	for _, want := range []string{
-		"trial metrics 2025-12-31 .. 2026-01-02 (3 days, UTC)",
-		"invites redeemed: 4 total, 1.33 per day",
-		"2026-01-01  3",
-		"feed depth (deepest tier a feed session reached): 1 sessions",
-		"impressions by degree (posts seen, by distance to the author): 5 impressions",
-		"preset switches (sessions opened in a different preset): 1 switches",
-		"latest  balanced  top",
-		"80.0",
-		"2026-01-01  50",
-	} {
-		if !strings.Contains(out, want) {
-			t.Errorf("output lacks %q:\n%s", want, out)
-		}
-	}
 }

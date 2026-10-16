@@ -207,7 +207,7 @@ func printMetrics(ctx context.Context, w io.Writer, m *metrics.Service, days int
 		if err := enc.Encode(sum); err != nil {
 			return err
 		}
-	} else if err := sum.WriteText(w); err != nil {
+	} else if err := writeSummary(w, sum); err != nil {
 		return err
 	}
 	if !raw {
