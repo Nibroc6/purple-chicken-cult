@@ -17,6 +17,7 @@ import (
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/internal/core"
 	"github.com/Nibroc6/purple-chicken-cult/internal/platform/httpx"
+	"github.com/Nibroc6/purple-chicken-cult/internal/platform/secheaders"
 	"github.com/Nibroc6/purple-chicken-cult/internal/store"
 )
 
@@ -169,6 +170,11 @@ func (s *Service) load(ctx context.Context, idHash [32]byte) (context.Context, t
 // same-origin or absent; unsafe methods also need Origin == cfg.Origin exactly
 // (authenticated or not) and, when a session exists, a valid X-PCC-CSRF.
 // Any failure is the uniform 404.
+//
+// The CSP report endpoint (POST /api/csp-report, anonymous, aggregate counts
+// only) is delivered by the browser's Reporting API, which sends the page's
+// cookies but never X-PCC-CSRF and may omit Origin: it needs no CSRF token and
+// accepts an absent Origin (a present one must still match). INT-0.
 func (s *Service) APIGuard(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if site := r.Header.Get("Sec-Fetch-Site"); site != "" && site != "same-origin" {
@@ -178,6 +184,13 @@ func (s *Service) APIGuard(next http.Handler) http.Handler {
 		switch r.Method {
 		case http.MethodGet, http.MethodHead, http.MethodOptions:
 		default:
+			if r.Method == http.MethodPost && r.URL.Path == secheaders.ReportPath {
+				if o := r.Header.Get("Origin"); o != "" && o != s.d.Cfg.Origin {
+					writeNotFound(w)
+					return
+				}
+				break
+			}
 			if r.Header.Get("Origin") != s.d.Cfg.Origin {
 				writeNotFound(w)
 				return

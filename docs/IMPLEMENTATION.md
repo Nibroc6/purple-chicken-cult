@@ -2416,7 +2416,9 @@ refuses unless `cfg.DevLike()`.
 - `/api/*` requests need `Sec-Fetch-Site` ∈ {`same-origin`, absent}; unsafe methods also need
   `Origin == cfg.Origin` (authenticated or not) and, when a session exists, `X-PCC-CSRF`.
   Otherwise: uniform not-found. These checks never apply to SPA navigations. There is no
-  CORS, no bearer auth, no webhooks.
+  CORS, no bearer auth, no webhooks. Exception (INT-0): `POST /api/csp-report` is sent by the
+  browser's Reporting API, so it needs no `X-PCC-CSRF` and accepts an absent `Origin` (a
+  present one must match; `Sec-Fetch-Site` as above).
 - Responses (all via `apix`):
 
 | Gate result | HTTP | Body |

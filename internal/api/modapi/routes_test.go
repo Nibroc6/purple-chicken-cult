@@ -330,6 +330,33 @@ func TestCSPReports(t *testing.T) {
 // TestAnonBucketIgnoresSpoofedForwardedFor: X-Forwarded-For from an untrusted
 // peer does not move the anonymous bucket (RealIP honors it only from
 // PCC_TRUSTED_PROXIES).
+// The Reporting API sends the page's cookies but no CSRF token and possibly no
+// Origin: a signed-in reader's reports still count; a foreign Origin does not.
+func TestCSPReportFromSignedInBrowser(t *testing.T) {
+	f := newModFixture(t)
+	f.h.Login("alice")
+	body := `[{"type":"csp-violation","body":{"effectiveDirective":"img-src"}}]`
+	hdr := map[string]string{"Content-Type": "application/reports+json", "X-PCC-CSRF": ""}
+	for _, origin := range []string{"", f.h.Origin} {
+		hdr["Origin"] = origin
+		if rec := f.h.Raw(http.MethodPost, "/api/csp-report", json.RawMessage(body), hdr); rec.Code != http.StatusNoContent {
+			t.Fatalf("origin %q: %d %s", origin, rec.Code, rec.Body)
+		}
+	}
+	hdr["Origin"] = "https://evil.example"
+	if rec := f.h.Raw(http.MethodPost, "/api/csp-report", json.RawMessage(body), hdr); rec.Code != http.StatusNotFound {
+		t.Fatalf("foreign origin: %d", rec.Code)
+	}
+	hdr["Origin"], hdr["Sec-Fetch-Site"] = "", "cross-site"
+	if rec := f.h.Raw(http.MethodPost, "/api/csp-report", json.RawMessage(body), hdr); rec.Code != http.StatusNotFound {
+		t.Fatalf("cross-site: %d", rec.Code)
+	}
+	// Every other unsafe route still needs the token.
+	if rec := f.h.Raw(http.MethodPost, "/api/auth/logout", nil, map[string]string{"X-PCC-CSRF": ""}); rec.Code != http.StatusNotFound {
+		t.Fatalf("logout without csrf: %d", rec.Code)
+	}
+}
+
 func TestAnonBucketIgnoresSpoofedForwardedFor(t *testing.T) {
 	f := newModFixture(t)
 	send := func(xff string) int {
