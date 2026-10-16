@@ -22,7 +22,7 @@ import { request as pwRequest } from '@playwright/test';
 import { addVirtualAuthenticator } from '../fixtures/auth';
 import { launchWithCamera } from '../fixtures/camera';
 import { World } from '../fixtures/world';
-import { Actor, expect, sameOrigin, test, type PostJSON } from './helpers';
+import { Actor, at, expect, sameOrigin, test, type PostJSON } from './helpers';
 
 const run = promisify(execFile);
 
@@ -65,7 +65,7 @@ test('enroll, invite in person, post, reply, notify, like, export and verify', a
     await bob.locator('input[name=tos]').check();
     await bob.locator('input[name=age]').check();
     await bob.getByTestId('join-submit').click();
-    await expect(bob.getByTestId('join-invited-by')).toContainText('@alice');
+    await expect(bob.getByTestId('join-invited-by')).toContainText(at('alice'));
     await bob.getByTestId('second-done').click();
     await expect(bob).toHaveURL(`${origin}/`);
     await expect(page.getByTestId('invite-done')).toBeVisible();
@@ -73,7 +73,7 @@ test('enroll, invite in person, post, reply, notify, like, export and verify', a
     // Both see the friendship; the inviter label tells who invited whom.
     await page.goto('/friends');
     const bobCard = page.getByTestId('person-card').filter({ hasText: '@bob' });
-    await expect(bobCard.getByTestId('integrity-inviter-label')).toContainText('@alice');
+    await expect(bobCard.getByTestId('integrity-inviter-label')).toContainText(at('alice'));
     await bob.goto('/friends');
     const aliceCard = bob.getByTestId('person-card').filter({ hasText: '@alice' });
     await expect(aliceCard.getByTestId('integrity-inviter-label')).toHaveAttribute('data-kind', 'genesis');
@@ -93,8 +93,8 @@ test('enroll, invite in person, post, reply, notify, like, export and verify', a
     const card = page.locator('[data-testid="feed-post"]', { hasText: 'Hello, I just joined' });
     await expect(card).toHaveAttribute('data-tier', '1');
     await expect(page.getByTestId('integrity-tier-header').first()).toHaveAttribute('data-tier', '1');
-    await expect(card.getByTestId('integrity-chain')).toContainText('@bob');
-    await expect(card.getByTestId('integrity-inviter-label')).toContainText('@alice');
+    await expect(card.getByTestId('integrity-chain')).toContainText(at('bob'));
+    await expect(card.getByTestId('integrity-inviter-label')).toContainText(at('alice'));
     await expect(card.getByTestId('integrity-audience')).toHaveAttribute('data-audience', 'd1');
     await expect(card.getByTestId('integrity-audience')).not.toHaveAttribute('data-forced', 'true');
     await card.getByTestId('feed-reply').click();

@@ -3,7 +3,7 @@
 // carol, alice – dave, bob – fran; mona and mike are moderators; carol was
 // invited by bob.
 import type { Response } from '@playwright/test';
-import { actor, expect, notFound, seedWorld, signInPage, test, type FeedJSON, type PostJSON } from './helpers';
+import { at, actor, expect, notFound, seedWorld, signInPage, test, type FeedJSON, type PostJSON } from './helpers';
 
 const isFeed = (r: Response) => new URL(r.url()).pathname === '/api/feed';
 
@@ -58,7 +58,7 @@ test('thread, a reply to two parents, the tree, likes in the network, seen and p
   await note.getByTestId('notification-post').click();
   await expect(page.locator('[data-testid="tree-row"][data-gen="0"]')).toContainText('Alice asks: who wants to plant a garden?');
   const item = page.locator('[data-testid="tree-row"][data-gen="1"]').getByTestId('tree-item').filter({ hasText: 'Carol answers both of you' });
-  await expect(item.getByTestId('tree-also')).toContainText('@bob');
+  await expect(item.getByTestId('tree-also')).toContainText(at('bob'));
   await item.getByTestId('feed-tree').click();
   const parents = page.locator('[data-testid="tree-row"][data-gen="-1"]');
   await expect(parents.getByTestId('tree-item')).toHaveCount(2);
@@ -66,7 +66,7 @@ test('thread, a reply to two parents, the tree, likes in the network, seen and p
   await expect(parents).toContainText('soil soil');
   const focal = page.locator('[data-testid="tree-row"][data-gen="0"]');
   await expect(focal).toContainText('Carol answers both of you');
-  await expect(focal.getByTestId('integrity-chain')).toContainText('@bob');
+  await expect(focal.getByTestId('integrity-chain')).toContainText(at('bob'));
 
   // alice likes it; for bob (one step from alice) the like counts and names her,
   // for fran (two steps from alice) it counts without a name she can't see.
@@ -133,8 +133,8 @@ test('report, moderator removal, the inviter blamed; a held recovery cancelled; 
   await page.goto('/mod');
   const item = page.locator('[data-testid="queue-item"][data-reason="spam"]');
   await expect(item.getByTestId('queue-post')).toHaveText('Carol knows about compost');
-  await expect(item.getByTestId('queue-subject')).toContainText('@carol');
-  await expect(item.getByTestId('queue-inviter')).toContainText('@bob');
+  await expect(item.getByTestId('queue-subject')).toContainText(at('carol'));
+  await expect(item.getByTestId('queue-inviter')).toContainText(at('bob'));
   const subject = (await item.getByTestId('queue-subject-ref').textContent()) ?? '';
   expect(subject).not.toBe('');
   await item.getByTestId('queue-action').selectOption('remove_post');

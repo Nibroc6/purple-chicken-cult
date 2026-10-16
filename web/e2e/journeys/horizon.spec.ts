@@ -12,7 +12,7 @@
 //     still reply, and gets a shadow link that alice never sees (no reply in
 //     her tree, no count, no notification) and bob does not see either.
 import type { Page, Response } from '@playwright/test';
-import { actor, expect, notFound, garbageRef, seedWorld, signInPage, test, type FeedJSON, type PostJSON } from './helpers';
+import { at, actor, expect, notFound, garbageRef, seedWorld, signInPage, test, type FeedJSON, type PostJSON } from './helpers';
 
 const isFeed = (r: Response) => new URL(r.url()).pathname === '/api/feed';
 const cardOf = (page: Page, body: string) => page.locator('[data-testid="feed-post"]', { hasText: body });
@@ -36,8 +36,8 @@ test('tier 1 for a friend, tier 2 with the chain for a friend of a friend, nothi
   await page.goto('/');
   const forBob = cardOf(page, 'Alice shares her garden plan');
   await expect(forBob).toHaveAttribute('data-tier', '1');
-  await expect(forBob.getByTestId('integrity-chain')).toContainText('@alice');
-  await expect(forBob.getByTestId('integrity-chain')).not.toContainText('@bob');
+  await expect(forBob.getByTestId('integrity-chain')).toContainText(at('alice'));
+  await expect(forBob.getByTestId('integrity-chain')).not.toContainText(at('bob'));
   await expect(forBob.getByTestId('integrity-inviter-label')).toHaveAttribute('data-kind', 'genesis');
 
   // carol: tier 2 under its own header, the chain names bob as the first hop.
@@ -45,8 +45,8 @@ test('tier 1 for a friend, tier 2 with the chain for a friend of a friend, nothi
   await page.goto('/');
   const forCarol = cardOf(page, 'Alice shares her garden plan');
   await expect(forCarol).toHaveAttribute('data-tier', '2');
-  await expect(forCarol.getByTestId('integrity-chain')).toContainText('@bob');
-  await expect(forCarol.getByTestId('integrity-chain')).toContainText('@alice');
+  await expect(forCarol.getByTestId('integrity-chain')).toContainText(at('bob'));
+  await expect(forCarol.getByTestId('integrity-chain')).toContainText(at('alice'));
   const tier2 = page.locator('[data-testid="feed-tier"][data-tier="2"]');
   await expect(tier2.getByTestId('integrity-tier-header').first()).toBeVisible();
   await expect(tier2).toContainText('Alice shares her garden plan');

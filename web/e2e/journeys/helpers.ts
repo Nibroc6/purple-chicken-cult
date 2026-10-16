@@ -8,6 +8,12 @@ import { World } from '../fixtures/world';
 
 export const sameOrigin = { 'Sec-Fetch-Site': 'same-origin' };
 export const notFound = '{"error":"not_found"}\n';
+// at matches @handle in UI text in en and en-XA (the pseudo-locale pads the
+// literal "@" of messages like "invited by @{handle}" to "@~~~").
+export function at(handle: string): RegExp {
+  return new RegExp(`@~*${handle}\\b`);
+}
+
 export const garbageRef = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
 
 // watchSecurity records CSP and Trusted Types violations and uncaught errors of
