@@ -249,6 +249,7 @@ type BudgetView struct {
 type ProbationView struct {
 	Until              time.Time `json:"until"`
 	NeedOutsideFriends int       `json:"need_outside_friends"`
+	FriendPlus         bool      `json:"friend_plus,omitempty"` // P1 rule: the outside friends must be friend+ (steward: p1-w02-1)
 }
 
 // HandshakeView opens an in-person handshake (invites P0; friend+ upgrade and recovery P1).

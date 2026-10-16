@@ -71,6 +71,9 @@ var Catalogue = []Entry{
 	e("invitesapi", 1, "POST", "/join/audio/start", apix.Anon("join")),
 	e("invitesapi", 1, "POST", "/invites/handshakes/{hs}/report", wI),
 	e("invitesapi", 1, "POST", "/join/dual/frame", apix.Anon("join")),
+	// steward: contract request p1-w02-1 (co-signing on both sides of a handshake)
+	e("invitesapi", 1, "POST", "/join/register/cosign", apix.Anon("join")),
+	e("invitesapi", 1, "POST", "/invites/handshakes/{hs}/cosign", wI),
 
 	// friendsapi (P0-W03 → P1-W03)
 	e("friendsapi", 0, "GET", "/friends", rG),

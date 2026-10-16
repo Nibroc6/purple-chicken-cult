@@ -2556,6 +2556,8 @@ automatically, listed here for review). `P1` marks Phase 1 additions.
 | P1 POST `/api/join/audio/start` | anon | `{kmac, sig}` (invitee: about to play; signed over (hs, challenge)) | `{play_at, challenge}` |
 | P1 POST `/api/invites/handshakes/{hs}/report` ⏱ | Wi | `{ultra_bits?, jingle_bits?, kmac_commit, t_ultra_ms?, t_jingle_ms?, offset_ms?}` | `{outcome:"verified"\|"accepted"\|"retry", hint?:"volume_up"\|"try_jingle"}` |
 | P1 POST `/api/join/dual/frame` | anon | `{payload, sig}` (accessibility dual-QR) | `{outcome}` |
+| P1 POST `/api/join/register/cosign` | anon | `{assertion}` (signup ceremony over the Invite + Friendship drafts, p1-w02-1) | 201 `SessionView` + rotated cookie · `awaiting_inviter` |
+| P1 POST `/api/invites/handshakes/{hs}/cosign` ⏱ | Wi | `{intent, assertion}` (inviter: Invite; upgrade: either friend, p1-w02-1) | 204 |
 
 **friendsapi** (P0-W03 → P1-W03)
 | Method & path | Class | Request → Response |

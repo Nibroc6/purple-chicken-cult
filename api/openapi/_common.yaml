@@ -278,6 +278,7 @@ components:
       properties:
         until: { type: string, format: date-time }
         need_outside_friends: { type: integer }
+        friend_plus: { type: boolean, description: 'P1 rule: the outside friends must be friend+ (p1-w02-1)' }
     BudgetView:
       type: object
       required: [available, cap]
