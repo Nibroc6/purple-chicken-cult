@@ -392,23 +392,33 @@ func (o *oracle) horizon() string {
 	return strings.Join(lines, "\n")
 }
 
-// horizons is V's horizon in m and after each of V's own blocks in vBlocks
-// (applied in order, the way the friends service does: only a person V can see
-// is blocked, and the block unfriends). V's own graph changes during the
-// replay move people between layers, so a mutation must keep H(V) fixed in
-// every state V will be in, not just the first one.
-func horizons(m *model, v string, vBlocks []string) string {
+// vAction is one of V's own graph changes during the replay.
+type vAction struct{ Kind, Who string } // Kind: block | unfriend
+
+// horizons is V's horizon in m and after each of V's own graph changes
+// (applied in order, the way the friends service does: only a person V can
+// see is blocked and the block unfriends; only a friend is unfriended). V's
+// own changes move people between layers, so a mutation must keep H(V) fixed
+// in every state V will be in, not just the first one.
+func horizons(m *model, v string, acts []vAction) string {
 	o := newOracle(m, v)
 	hs := []string{o.horizon()}
 	cur := m
-	for _, b := range vBlocks {
-		if _, ok := o.distOf(b); !ok || b == v || cur.blocks(v, b) {
-			continue
-		}
+	for _, a := range acts {
 		next := cur.clone()
-		next.Blocks = append(next.Blocks, [2]string{v, b})
+		switch a.Kind {
+		case "block":
+			if _, ok := o.distOf(a.Who); !ok || a.Who == v || cur.blocks(v, a.Who) {
+				continue
+			}
+			next.Blocks = append(next.Blocks, [2]string{v, a.Who})
+		case "unfriend":
+			if !cur.friends(v, a.Who) {
+				continue
+			}
+		}
 		next.Edges = slices.DeleteFunc(next.Edges, func(e mEdge) bool {
-			return (e.A == v && e.B == b) || (e.A == b && e.B == v)
+			return (e.A == v && e.B == a.Who) || (e.A == a.Who && e.B == v)
 		})
 		cur = next
 		o = newOracle(cur, v)
@@ -552,11 +562,11 @@ func genPostReplying(t *rapid.T, m *model, label, author string, ageMin, replyPc
 // fact is kept only if the oracle's horizon is still the base one. Users and
 // posts get the prefix (distinct per world, so the two worlds' extras never
 // collide by name).
-func genExtras(t *rapid.T, base *model, v, prefix string, vBlocks []string) (*model, *layer) {
-	want := horizons(base, v, vBlocks)
+func genExtras(t *rapid.T, base *model, v, prefix string, vActs []vAction) (*model, *layer) {
+	want := horizons(base, v, vActs)
 	m := base.clone()
 	l := &layer{name: extraFixture}
-	keep := func(try *model) bool { return horizons(try, v, vBlocks) == want }
+	keep := func(try *model) bool { return horizons(try, v, vActs) == want }
 	handles := func() []string {
 		var hs []string
 		for _, u := range m.Users {

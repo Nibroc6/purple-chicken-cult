@@ -33,8 +33,8 @@ type svcAct struct {
 
 // genSvc draws service-level actions of people other than V that leave H(V)
 // unchanged (per the oracle), applying their effect to m.
-func genSvc(t *rapid.T, m *model, prefix string, vBlocks []string) []svcAct {
-	want := horizons(m, V, vBlocks)
+func genSvc(t *rapid.T, m *model, prefix string, vActs []vAction) []svcAct {
+	want := horizons(m, V, vActs)
 	var acts []svcAct
 	var hs []string
 	for _, u := range m.Users {
@@ -79,7 +79,7 @@ func genSvc(t *rapid.T, m *model, prefix string, vBlocks []string) []svcAct {
 			}
 			try.Blocks = append(try.Blocks, [2]string{a.Actor, a.Other})
 		}
-		if horizons(try, V, vBlocks) != want {
+		if horizons(try, V, vActs) != want {
 			continue
 		}
 		*m = *try
@@ -127,7 +127,7 @@ func TestNoninterference(t *testing.T) {
 	rapid.Check(t, func(rt *rapid.T) {
 		base := genBase(rt)
 		ops := genOps(rt, base)
-		vb := vBlocks(base, ops)
+		vb := vActions(base, ops)
 		m1, e1 := genExtras(rt, base, V, "xa", vb)
 		m2, e2 := genExtras(rt, base, V, "xb", vb)
 		s1 := genSvc(rt, m1, "xa", vb)
@@ -155,12 +155,12 @@ func TestNoninterference(t *testing.T) {
 	})
 }
 
-// vBlocks lists the base users V blocks during ops, in order.
-func vBlocks(base *model, ops []vop) []string {
-	var out []string
+// vActions lists V's own graph changes during ops, in order.
+func vActions(base *model, ops []vop) []vAction {
+	var out []vAction
 	for _, op := range ops {
-		if op.Kind == "block" && op.Target < len(base.Users) {
-			out = append(out, base.Users[op.Target].Handle)
+		if (op.Kind == "block" || op.Kind == "unfriend") && op.Target < len(base.Users) {
+			out = append(out, vAction{Kind: op.Kind, Who: base.Users[op.Target].Handle})
 		}
 	}
 	return out
