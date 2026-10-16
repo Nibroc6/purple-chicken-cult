@@ -1,8 +1,109 @@
-# OpenAPI fragment of the notify module (plan §5.3). Owner: P0-W10.
+# OpenAPI fragment of the notify module (plan §5.3). Owner: P0-W10 → P1-W05.
 # Paths are relative to /api. Schemas: module-prefixed names in this file, or
 # $ref: '_common.yaml#/components/schemas/X'. Validated on its own by apitest.
+#
+# Every notification is re-checked for the caller when it is read: a person or
+# post the caller cannot see right now is left out, and an item whose subject is
+# required (who mentioned you, which post was referenced) is not listed and not
+# counted as unread until it is visible again. Notification refs and cursors are
+# bound to the caller; anyone else's (or garbage) answers with the uniform 404.
 openapi: 3.0.3
 info:
   title: pcc internal API (notify)
   version: "0"
-paths: {}
+paths:
+  /notifications:
+    get:
+      operationId: listNotifications
+      description: >-
+        One page (30) of the caller's notifications, newest first, and the number
+        of unread ones the caller would see (at most 100; shown as "99+").
+        Batched kinds (post_referenced) are one row per post with a count.
+      parameters:
+        - { name: cursor, in: query, required: false, schema: { type: string, maxLength: 256 } }
+      responses:
+        "200":
+          description: A page of notifications.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NotifyListOut' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/NotifyRateLimited' }
+  /notifications/read:
+    post:
+      operationId: markNotificationsRead
+      description: >-
+        Marks every notification up to up_to (the newest one the caller has seen)
+        read. A batched row that grew since stays unread. Free (not charged).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NotifyReadIn' }
+      responses:
+        "204": { description: Marked read. }
+        "400": { $ref: '_common.yaml#/components/responses/Problem' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+  /posts/{ref}/notify-mute:
+    parameters:
+      - { name: ref, in: path, required: true, schema: { type: string, maxLength: 256 } }
+    put:
+      operationId: muteNotificationsForPost
+      description: No more "referenced your post" notifications for this post.
+      responses:
+        "204": { description: Muted. }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/NotifyRateLimited' }
+    delete:
+      operationId: unmuteNotificationsForPost
+      description: Reference notifications for this post again.
+      responses:
+        "204": { description: Unmuted. }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/NotifyRateLimited' }
+  /events:
+    get:
+      operationId: events
+      description: >-
+        Server-sent events for the caller's session. Events: hello {unread}
+        first, notification {unread} after each new notification (a batched
+        post pings at most once per hour), handshake {state} for an open invite
+        handshake, stepup {} (P1). A ": ping" comment every 25 s. The stream
+        closes when the session ends (logout, expiry, revocation, deletion).
+      responses:
+        "200":
+          description: The event stream.
+          content:
+            text/event-stream:
+              schema: { type: string }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/NotifyRateLimited' }
+components:
+  schemas:
+    NotifyListOut:
+      type: object
+      required: [items, unread]
+      properties:
+        items:
+          type: array
+          items: { $ref: '_common.yaml#/components/schemas/NotificationView' }
+        next: { type: string }
+        unread: { type: integer, minimum: 0, maximum: 100 }
+    NotifyReadIn:
+      type: object
+      required: [up_to]
+      additionalProperties: false
+      properties:
+        up_to: { $ref: '_common.yaml#/components/schemas/Ref' }
+    NotifyEventData:
+      description: The data of hello and notification events.
+      type: object
+      required: [unread]
+      properties:
+        unread: { type: integer, minimum: 0, maximum: 100 }
+  responses:
+    NotifyRateLimited:
+      description: rate_limited.
+      content:
+        application/json:
+          schema: { $ref: '_common.yaml#/components/schemas/Error' }
