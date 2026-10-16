@@ -1,14 +1,118 @@
 {
+  "report": {
+    "title": "Report",
+    "invalid": "There is nothing to report from this link.",
+    "home": "Back to your feed",
+    "heading": {
+      "post": "Report this post",
+      "person": "Report this person",
+      "inviter": "Report who invited this person",
+      "preview": "Report a misleading link preview"
+    },
+    "about": {
+      "post": "Moderators will see the post and decide what to do.",
+      "person": "Moderators will look at this account.",
+      "inviter": "The person who invited them stays hidden from you. Moderators can see who it is and look at the invites they made.",
+      "preview": "Use this when a link preview shows something different from where the link really goes."
+    },
+    "reasonLegend": "What is wrong?",
+    "note": "Anything moderators should know (optional)",
+    "count": "{count, number} of {max, number} characters",
+    "anonymous": "Only moderators see reports. Nobody is told who reported.",
+    "submit": "Send report",
+    "cancel": "Cancel",
+    "sent": "Thank you. Moderators will look at it.",
+    "back": "Go back"
+  },
+  "reason": {
+    "spam": "Spam",
+    "bot": "Automated account",
+    "harassment": "Harassment or abuse",
+    "impersonation": "Pretending to be someone else",
+    "misleading_preview": "Misleading link preview",
+    "illegal": "Illegal content",
+    "csam": "Child sexual abuse material",
+    "other": "Something else",
+    "ban_evasion": "Evading a suspension"
+  },
+  "reasonHint": {
+    "spam": "Unwanted advertising, repeated posts, scams.",
+    "bot": "Posts or likes that a program sends instead of a person.",
+    "harassment": "Threats, insults, or targeting someone.",
+    "impersonation": "Using someone else's name or identity.",
+    "misleading_preview": "The preview does not match the page the link opens.",
+    "illegal": "Content that breaks the law.",
+    "csam": "Moderators handle these first and never show the content to anyone.",
+    "other": "Tell moderators in the note."
+  },
+  "action": {
+    "remove_post": "Remove the post",
+    "suspend_user": "Suspend the account",
+    "dismiss": "Dismiss"
+  },
   "blame": {
-    "title": "Blame inbox"
+    "title": "Blame inbox",
+    "intro": "When a moderator confirms action against someone you invited, it shows up here. Who reported it is never shown.",
+    "empty": "Nothing here. Nobody you invited has had a moderator act on them.",
+    "more": "Show older",
+    "item": "{action, select, remove_post {A moderator removed a post by @{handle}, whom you invited.} suspend_user {A moderator suspended @{handle}, whom you invited.} other {A moderator took action on @{handle}, whom you invited.}}",
+    "new": "New",
+    "reason": "Reason: {reason}",
+    "post": "The post by @{handle}, as you saw it:"
   },
   "queue": {
-    "title": "Moderation queue"
+    "title": "Moderation queue",
+    "membersOnly": "Only moderators can see this page.",
+    "intro": "Open reports, most urgent first. Suspending an account needs a second moderator within 24 hours.",
+    "empty": "No open reports.",
+    "more": "Show more",
+    "urgent": "Urgent",
+    "reports": "{count, plural, one {# report} other {# reports}}",
+    "subject": "About @{handle}",
+    "inviter": "{kind, select, genesis {(genesis account)} deleted {(invited by a deleted account)} other {(invited by @{handle})}}",
+    "probation": "On probation",
+    "noContent": "The content is never shown for this reason.",
+    "awaiting": "Waiting for a second moderator to confirm the suspension.",
+    "confirm": "Confirm as second moderator",
+    "action": "Action",
+    "reason": "Reason",
+    "resolve": "Apply",
+    "twoPerson": "A second moderator has to confirm this.",
+    "started": "Sent. A second moderator has to confirm it within 24 hours."
   },
   "log": {
-    "title": "Moderation log"
+    "title": "Moderation log",
+    "intro": "Every confirmed removal and suspension, by day. People you are connected to are named; everyone else has a stand-in name.",
+    "empty": "No moderator actions yet.",
+    "day": "Day",
+    "action": "Action",
+    "reason": "Reason",
+    "subject": "Who",
+    "count": "How many",
+    "more": "Show older",
+    "handle": "@{handle}",
+    "pseudonym": "Account {id}",
+    "pseudonymHint": "Someone outside your network. The same account always has the same stand-in name."
   },
-  "report": {
-    "title": "Report"
+  "footer": {
+    "label": "About and moderation",
+    "terms": "Terms",
+    "log": "Moderation log",
+    "blame": "Blame inbox",
+    "queue": "Moderation queue",
+    "recovery": "Account recovery"
+  },
+  "errors": {
+    "kind_invalid": "This cannot be reported.",
+    "reason_invalid": "Pick one of the reasons.",
+    "note_too_long": "The note is too long.",
+    "action_invalid": "That action does not fit this report.",
+    "item_resolved": "Another moderator already handled this.",
+    "action_pending": "A suspension is already waiting for a second moderator.",
+    "post_gone": "The post was already deleted.",
+    "no_subject": "There is no account to act on.",
+    "second_moderator_required": "A different moderator has to confirm this.",
+    "action_expired": "The 24 hours ran out. Start again.",
+    "subject_inactive": "This account is already suspended or deleted."
   }
 }

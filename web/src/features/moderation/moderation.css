@@ -1,0 +1,117 @@
+/* Moderation pages, report page and site footer (P0-W12). Logical properties only. */
+.moderation-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.moderation-form fieldset {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-3) var(--space-4);
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.moderation-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+.moderation-choice > span {
+  display: flex;
+  flex-direction: column;
+}
+.moderation-reason {
+  font-weight: 600;
+}
+.moderation-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.moderation-over {
+  color: var(--color-text);
+  font-weight: 700;
+}
+.moderation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.moderation-actions p {
+  margin: 0;
+}
+.moderation-error {
+  color: var(--color-text);
+  border-inline-start: 4px solid var(--color-accent);
+  padding-inline-start: var(--space-2);
+}
+.moderation-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.moderation-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-block: var(--space-3);
+  padding-inline: var(--space-3);
+  border-block-end: 1px solid var(--color-border);
+}
+.moderation-new {
+  background: var(--color-surface);
+  border-inline-start: 3px solid var(--color-accent);
+}
+.moderation-text,
+.moderation-meta {
+  margin: 0;
+}
+.moderation-meta {
+  font-size: 0.875rem;
+}
+.moderation-dot {
+  color: var(--color-accent);
+  font-weight: 600;
+}
+.moderation-tag {
+  display: inline-block;
+  margin-inline-start: var(--space-2);
+  padding-inline: var(--space-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.moderation-post {
+  margin: 0;
+  padding-inline-start: var(--space-3);
+  border-inline-start: 3px solid var(--color-border);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.moderation-post blockquote {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.moderation-table {
+  border-collapse: collapse;
+  inline-size: 100%;
+}
+.moderation-table th,
+.moderation-table td {
+  text-align: start;
+  padding-block: var(--space-1);
+  padding-inline: var(--space-2);
+  border-block-end: 1px solid var(--color-border);
+}
+.moderation-footer {
+  margin-block-start: var(--space-6);
+  padding-block: var(--space-3);
+  padding-inline: var(--space-4);
+  border-block-start: 1px solid var(--color-border);
+  font-size: 0.875rem;
+}
