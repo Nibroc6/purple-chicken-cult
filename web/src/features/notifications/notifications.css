@@ -1,0 +1,41 @@
+/* Notifications page and nav badge. Owner: P0-W10 → P1-W05. Logical properties only. */
+.notifications-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.notification {
+  padding-block: var(--space-3);
+  padding-inline: var(--space-3);
+  border-block-end: 1px solid var(--color-border);
+}
+.notification-new {
+  background: var(--color-surface);
+  border-inline-start: 3px solid var(--color-accent);
+}
+.notification-text,
+.notification-meta {
+  margin: 0;
+}
+.notification-who {
+  font-weight: 600;
+}
+.notification-meta {
+  font-size: 0.875rem;
+}
+.notification-dot {
+  color: var(--color-accent);
+  font-weight: 600;
+}
+.nav-badge {
+  display: inline-block;
+  margin-inline-start: var(--space-1);
+  padding-inline: var(--space-1);
+  min-inline-size: 1.4em;
+  border-radius: 999px;
+  background: var(--color-accent);
+  color: var(--color-surface);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-align: center;
+}

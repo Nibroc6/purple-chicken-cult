@@ -1,8 +1,73 @@
 {
   "page": {
-    "title": "A social network without bots"
+    "title": "A social network without bots",
+    "lead": "Everyone here was invited in person by someone already here. Your feed is the people you are connected to, closest first.",
+    "login": "Sign in with your passkey",
+    "join": "Join with an invite",
+    "noInvite": "There is no sign-up form. To join, meet a member and scan their invite code.",
+    "terms": "Terms of service"
+  },
+  "points": {
+    "inPerson": {
+      "title": "Invited in person.",
+      "body": "Every account shows who invited it, so fake accounts lead back to someone real."
+    },
+    "tiers": {
+      "title": "Closest first.",
+      "body": "Posts from friends come first, then friends of friends, and so on. No ads, no boosted strangers."
+    },
+    "private": {
+      "title": "Nothing is public.",
+      "body": "There are no public profiles, posts or search. You only see the part of the network you are connected to."
+    },
+    "noTraining": {
+      "title": "Not training data.",
+      "body": "Members' posts are never sold, licensed or used to train AI."
+    }
   },
   "terms": {
-    "title": "Terms of service"
+    "title": "Terms of service",
+    "intro": "These terms apply to everyone who uses this network.",
+    "home": "Back to the start page",
+    "sections": {
+      "service": {
+        "title": "The service",
+        "body": "This is an invite-only social network. You need an in-person invite from a member to join, and a passkey to sign in. You must be old enough to agree to these terms where you live."
+      },
+      "invites": {
+        "title": "Invites",
+        "body": "You may only invite people you have met in person. Your invites are shown on your invitees' profiles, and moderators may look at the invites you made when someone you invited breaks these terms."
+      },
+      "conduct": {
+        "title": "What you may not do",
+        "body": "No spam, harassment, impersonation, illegal content or sexual content involving minors. Every post, like and request must be your own deliberate action: no automated accounts, scheduled posting or bots acting for you."
+      },
+      "moderation": {
+        "title": "Moderation",
+        "body": "Members can report posts, people and misleading link previews. Moderators may remove posts and suspend accounts; a suspension needs two moderators. The person who invited the account is told what happened and why. A public log lists every action."
+      },
+      "tdm": {
+        "title": "Scraping and AI training",
+        "body": "Text and data mining of this service is reserved (EU Directive 2019/790, Article 4). Scraping, bulk downloading and using members' content to train or evaluate AI systems are not allowed, by anyone. We never sell or license members' content and do not train models on it."
+      },
+      "data": {
+        "title": "Your data",
+        "body": "You can export everything you posted and every signed record you are part of, and delete your account at any time. Deleted posts are removed for good."
+      },
+      "changes": {
+        "title": "Changes",
+        "body": "If these terms change, you will be asked to accept the new version before you continue."
+      }
+    }
+  },
+  "keys": {
+    "title": "Published server keys",
+    "body": "Every friendship, invite and post record is signed with one of these keys. Compare the fingerprints with the ones in your export.",
+    "loading": "Loading the keys…",
+    "error": "The keys could not be loaded.",
+    "raw": "Open the key list",
+    "id": "Key {id} ({alg})",
+    "since": "In use since {from}",
+    "window": "Used from {from} until {until}"
   }
 }

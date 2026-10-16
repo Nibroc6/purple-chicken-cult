@@ -175,6 +175,10 @@ type TreeRow struct {
 	Items  []TreeItem `json:"items"` // ranked; Items[0] is the centered post
 	More   int        `json:"more"`  // visible items beyond those returned
 	Cursor string     `json:"cursor,omitempty"`
+	// Beyond (rows loaded by Row, gen ≠ 0): the row's first post has a further
+	// visible row away from the focal row (parents for gen < 0, replies for
+	// gen > 0), so the client knows whether to offer "earlier" / "later".
+	Beyond bool `json:"beyond,omitempty"`
 }
 
 // TreeView is the opened family tree.

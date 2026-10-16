@@ -201,7 +201,7 @@ describe('settings pages', () => {
     stubAPI((c) => {
       if (c.path !== '/me/export') return undefined;
       if (!fresh) return json(401, { error: 'step_up_required' });
-      return new Response(new Blob(['PK']), { status: 200, headers: { 'Content-Type': 'application/zip' } });
+      return new Response('PK', { status: 200, headers: { 'Content-Type': 'application/zip' } });
     });
     const created = vi.fn(() => 'blob:x');
     vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: created, revokeObjectURL: vi.fn() }));

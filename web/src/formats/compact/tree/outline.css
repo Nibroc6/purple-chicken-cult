@@ -1,0 +1,47 @@
+/* Compact family tree (P0-W08): a collapsible indented outline. Builds on the
+   shared tree styles in formats/cards/tree/tree.css. */
+@import '../../cards/tree/tree.css';
+
+.tree-outline,
+.tree-outline-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tree-outline-row {
+  border-inline-start: 2px solid var(--color-border);
+  padding-inline-start: var(--space-2);
+  margin-block-end: var(--space-2);
+}
+.tree-outline-row[data-depth='1'] {
+  margin-inline-start: var(--space-3);
+}
+.tree-outline-row[data-depth='2'] {
+  margin-inline-start: calc(2 * var(--space-3));
+}
+.tree-outline-row[data-depth='3'] {
+  margin-inline-start: calc(3 * var(--space-3));
+}
+.tree-outline-row[data-depth='4'] {
+  margin-inline-start: calc(4 * var(--space-3));
+}
+.tree-outline-row[data-depth='5'] {
+  margin-inline-start: calc(5 * var(--space-3));
+}
+.tree-outline-row[data-depth='6'] {
+  margin-inline-start: calc(6 * var(--space-3));
+}
+
+.tree-outline-toggle {
+  font-weight: 600;
+  margin-block-end: var(--space-1);
+}
+
+.tree-outline-item[data-centered='true'] > .post {
+  border-inline-start: 3px solid var(--color-accent);
+}
+.tree-outline-item[data-divider='true'],
+.tree-outline-item:has(> .tree-divider) {
+  border-block-start: 1px solid var(--color-border);
+}

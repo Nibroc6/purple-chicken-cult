@@ -76,4 +76,8 @@ type Deps struct {
 
 	// Steward addition (contract request p0-w04-1); impl: gate/users.
 	Handles HandleRules
+
+	// Steward additions (contract request p0-w12-1); impl: gate/posts, gate/users.
+	PostRemover PostRemover
+	Suspensions Suspensions
 }

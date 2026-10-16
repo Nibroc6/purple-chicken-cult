@@ -1,7 +1,14 @@
 // Package secheaders sets the security, TDM and anti-AI headers on every response
 // (ARCHITECTURE §17.3(6), plan §6.6) and serves robots.txt / ai.txt / tdmrep.json.
 //
-// Owner: P0-W12 (the scaffold ships a working version).
+// Every response carries the CSP (with report-to, plus report-uri for browsers
+// without the Reporting API), X-Frame-Options: DENY, the W3C TDMRep
+// reservation and policy, X-Robots-Tag with noai/noimageai, no-referrer,
+// nosniff, same-origin opener and resource policies and the permissions policy;
+// HSTS in production; no-store on /api/*. Headers are set before the handler
+// runs, so errors, 404s, SSE streams and static files all carry them.
+//
+// Owner: P0-W12.
 package secheaders
 
 import (
@@ -16,6 +23,10 @@ type Options struct {
 	MediaOrigin string // origin of signed media URLs (P1); "" = same origin
 	Prod        bool
 }
+
+// ReportPath is the first-party CSP report endpoint (anonymous, rate-limited,
+// aggregate counts only).
+const ReportPath = "/api/csp-report"
 
 // CSP returns the Content-Security-Policy for o.
 func CSP(o Options) string {
@@ -43,7 +54,7 @@ func CSP(o Options) string {
 	if o.Prod {
 		d = append(d, "upgrade-insecure-requests")
 	}
-	d = append(d, "report-to csp")
+	d = append(d, "report-uri "+ReportPath, "report-to csp")
 	return strings.Join(d, "; ")
 }
 
@@ -54,7 +65,7 @@ func Middleware(o Options) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			h := w.Header()
 			h.Set("Content-Security-Policy", csp)
-			h.Set("Reporting-Endpoints", `csp="/api/csp-report"`)
+			h.Set("Reporting-Endpoints", `csp="`+ReportPath+`"`)
 			h.Set("tdm-reservation", "1")
 			h.Set("tdm-policy", o.Origin+"/terms#tdm")
 			h.Set("X-Robots-Tag", "noindex, nofollow, noai, noimageai")
@@ -94,7 +105,8 @@ func RobotsTxt() []byte {
 
 // AITxt is the (non-standard, best-effort) ai.txt opt-out.
 func AITxt() []byte {
-	return []byte("# Members' content is never licensed or used for AI training.\nUser-Agent: *\nDisallow: /\nDisallow: *\n")
+	return []byte("# Members' content is never licensed or used for AI training.\nUser-Agent: *\nDisallow: /\nDisallow: *\n" +
+		"Disallow: *.jpg\nDisallow: *.jpeg\nDisallow: *.png\nDisallow: *.webp\nDisallow: *.gif\n")
 }
 
 // TDMRepJSON is the W3C TDMRep /.well-known/tdmrep.json document.

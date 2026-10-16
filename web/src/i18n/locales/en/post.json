@@ -1,1 +1,82 @@
-{}
+{
+  "handle": "@{handle}",
+  "counter": {
+    "normal": "{count, number} characters",
+    "amber": "{count, number} characters: long posts are fine, but shorter ones are easier to read (over {soft, number})",
+    "over": "{count, number} characters: the limit is {hard, number}"
+  },
+  "field": {
+    "lang": "Language",
+    "audience": "Who can see it",
+    "policy": "Who can reply with a post"
+  },
+  "lang": {
+    "und": "Mixed or unknown"
+  },
+  "audience": {
+    "connected": "Everyone connected to you",
+    "d1": "Friends only",
+    "d2": "Within 2 steps",
+    "d3": "Within 3 steps"
+  },
+  "policy": {
+    "anyone": "Anyone who can see it",
+    "two_hops": "People within 2 steps",
+    "friends": "Friends only",
+    "nobody": "Nobody (replies off)"
+  },
+  "thread": {
+    "position": "{index, number}/{total, number}"
+  },
+  "context": {
+    "ref": "Replying to @{handle}:",
+    "cont": "Continues @{handle}:"
+  },
+  "repliesOff": "Replies off",
+  "manage": {
+    "title": "Your post",
+    "newPost": "Write a new post",
+    "open": "Open the post",
+    "continue": "Continue as a thread"
+  },
+  "edit": {
+    "title": "Edit",
+    "body": "Text",
+    "parentsFixed": "An edit changes the text only. What the post replies to stays the same, and readers see that it was edited.",
+    "save": "Save the new version",
+    "saved": "Saved."
+  },
+  "policyForm": {
+    "title": "Who can reply with a post",
+    "save": "Save",
+    "saved": "Saved.",
+    "offerTitle": "Detach existing replies",
+    "offer": "Replies are now off. Posts that already reply to this one stay linked. Detach them all? The posts themselves stay.",
+    "detachAll": "Detach all replies",
+    "keep": "Keep them",
+    "detached": "All replies were detached."
+  },
+  "delete": {
+    "title": "Delete",
+    "confirm": "Delete this post? Its text is erased for good. Replies stay, without this post.",
+    "button": "Delete the post",
+    "cancel": "Cancel",
+    "done": "Your post was deleted."
+  },
+  "errors": {
+    "body_empty": "Write something first.",
+    "body_too_long": "That is longer than 20,000 characters.",
+    "lang_invalid": "Pick a language from the list.",
+    "audience_invalid": "Pick who can see it from the list.",
+    "ref_policy_invalid": "Pick who can reply from the list.",
+    "too_many_parents": "A post can reply to at most 3 posts.",
+    "duplicate_parent": "That post is already in the list.",
+    "cont_multiple": "A post can continue only one of your posts.",
+    "cont_not_own": "You can only continue your own posts.",
+    "cont_taken": "That post already has a continuation.",
+    "ref_not_allowed": "Its author turned replies off for you.",
+    "ref_cap": "You already replied to that post twice today.",
+    "too_many_parts": "A thread can have at most 25 parts.",
+    "cont_not_detachable": "Continuations of your own thread can't be detached."
+  }
+}

@@ -282,7 +282,11 @@ func (s *Service) Revoke(ctx context.Context, tx store.Q, a, b, by core.UserID) 
 			continue
 		}
 		seen[string(h)] = true
-		if err := s.d.Signer.SetPurgeAfter(ctx, tx, h, purge); err != nil {
+		// An edge whose Friendship record is already gone (dev and fixture data
+		// carry placeholder hashes) has nothing left to schedule; the new
+		// Revocation record always exists.
+		if err := s.d.Signer.SetPurgeAfter(ctx, tx, h, purge); err != nil &&
+			(!errors.Is(err, gate.ErrNotFound) || bytes.Equal(h, rev)) {
 			return err
 		}
 	}

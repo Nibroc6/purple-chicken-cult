@@ -1,0 +1,17 @@
+{
+  "users": [
+    { "handle": "alice", "name": "Alice" },
+    { "handle": "bob", "name": "Bob" },
+    { "handle": "carol", "name": "Carol" },
+    { "handle": "xavier", "name": "Xavier" }
+  ],
+  "friends": [
+    { "a": "alice", "b": "bob" },
+    { "a": "bob", "b": "carol" }
+  ],
+  "posts": [
+    { "label": "bob-open", "author": "bob", "body": "An open post by bob", "age": "2h" },
+    { "label": "bob-limited", "author": "bob", "body": "A friends-only post by bob", "audience": "d1", "age": "1h" },
+    { "label": "xavier-far", "author": "xavier", "body": "Far away", "age": "1h" }
+  ]
+}

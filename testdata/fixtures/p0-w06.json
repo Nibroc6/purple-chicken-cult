@@ -1,0 +1,31 @@
+{
+  "users": [
+    { "handle": "alice", "name": "Alice" },
+    { "handle": "bob", "name": "Bob" },
+    { "handle": "carol", "name": "Carol" },
+    { "handle": "dave", "name": "Dave" },
+    { "handle": "erin", "name": "Erin", "named_in_likes": false },
+    { "handle": "fran", "name": "Fran" },
+    { "handle": "xavier", "name": "Xavier" }
+  ],
+  "friends": [
+    { "a": "alice", "b": "bob" },
+    { "a": "alice", "b": "erin" },
+    { "a": "alice", "b": "fran" },
+    { "a": "bob", "b": "carol" },
+    { "a": "carol", "b": "dave" }
+  ],
+  "posts": [
+    { "label": "carol-root", "author": "carol", "body": "A root post by carol", "age": "4h" },
+    { "label": "bob-liked", "author": "bob", "body": "A post your network liked", "age": "3h" },
+    { "label": "bob-other", "author": "bob", "body": "Another post by bob", "age": "2h" },
+    { "label": "bob-reply", "author": "bob", "body": "Replying to carol", "age": "1h", "parents": [{ "post": "carol-root" }] },
+    { "label": "xavier-far", "author": "xavier", "body": "Far away", "age": "1h" }
+  ],
+  "likes": [
+    { "user": "carol", "post": "bob-liked" },
+    { "user": "dave", "post": "bob-liked" },
+    { "user": "erin", "post": "bob-liked" },
+    { "user": "fran", "post": "bob-liked" }
+  ]
+}

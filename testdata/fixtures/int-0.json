@@ -1,0 +1,242 @@
+{
+  "users": [
+    {
+      "handle": "alice",
+      "name": "Alice Liddell",
+      "preset": "latest"
+    },
+    {
+      "handle": "bob",
+      "name": "Bob Builder",
+      "invited_by": "alice",
+      "preset": "latest"
+    },
+    {
+      "handle": "carol",
+      "name": "Carol Singer",
+      "invited_by": "bob",
+      "preset": "latest"
+    },
+    {
+      "handle": "dave",
+      "name": "Dave Diver",
+      "invited_by": "alice",
+      "preset": "latest"
+    },
+    {
+      "handle": "fran",
+      "name": "Fran Fisher",
+      "invited_by": "bob",
+      "preset": "latest"
+    },
+    {
+      "handle": "mona",
+      "name": "Mona Moderator",
+      "role": "moderator",
+      "preset": "latest"
+    },
+    {
+      "handle": "mike",
+      "name": "Mike Moderator",
+      "role": "moderator",
+      "preset": "latest"
+    },
+    {
+      "handle": "xavier",
+      "name": "Xavier Faraway",
+      "preset": "latest"
+    },
+    {
+      "handle": "yara",
+      "name": "Yara Faraway",
+      "invited_by": "xavier",
+      "preset": "latest"
+    }
+  ],
+  "friends": [
+    {
+      "a": "alice",
+      "b": "bob"
+    },
+    {
+      "a": "bob",
+      "b": "carol"
+    },
+    {
+      "a": "alice",
+      "b": "dave"
+    },
+    {
+      "a": "bob",
+      "b": "fran"
+    },
+    {
+      "a": "xavier",
+      "b": "yara"
+    }
+  ],
+  "posts": [
+    {
+      "label": "int0-alice",
+      "author": "alice",
+      "body": "Alice asks: who wants to plant a garden?",
+      "age": "3h"
+    },
+    {
+      "label": "int0-bob",
+      "author": "bob",
+      "body": "Bob has seeds to share",
+      "age": "150m"
+    },
+    {
+      "label": "int0-carol",
+      "author": "carol",
+      "body": "Carol knows about compost",
+      "age": "140m"
+    },
+    {
+      "label": "int0-dave",
+      "author": "dave",
+      "body": "Dave brings a shovel",
+      "age": "130m"
+    },
+    {
+      "label": "int0-fran-00",
+      "author": "fran",
+      "body": "Fran's fish fact number 00",
+      "age": "60m"
+    },
+    {
+      "label": "int0-fran-01",
+      "author": "fran",
+      "body": "Fran's fish fact number 01",
+      "age": "59m"
+    },
+    {
+      "label": "int0-fran-02",
+      "author": "fran",
+      "body": "Fran's fish fact number 02",
+      "age": "58m"
+    },
+    {
+      "label": "int0-fran-03",
+      "author": "fran",
+      "body": "Fran's fish fact number 03",
+      "age": "57m"
+    },
+    {
+      "label": "int0-fran-04",
+      "author": "fran",
+      "body": "Fran's fish fact number 04",
+      "age": "56m"
+    },
+    {
+      "label": "int0-fran-05",
+      "author": "fran",
+      "body": "Fran's fish fact number 05",
+      "age": "55m"
+    },
+    {
+      "label": "int0-fran-06",
+      "author": "fran",
+      "body": "Fran's fish fact number 06",
+      "age": "54m"
+    },
+    {
+      "label": "int0-fran-07",
+      "author": "fran",
+      "body": "Fran's fish fact number 07",
+      "age": "53m"
+    },
+    {
+      "label": "int0-fran-08",
+      "author": "fran",
+      "body": "Fran's fish fact number 08",
+      "age": "52m"
+    },
+    {
+      "label": "int0-fran-09",
+      "author": "fran",
+      "body": "Fran's fish fact number 09",
+      "age": "51m"
+    },
+    {
+      "label": "int0-fran-10",
+      "author": "fran",
+      "body": "Fran's fish fact number 10",
+      "age": "50m"
+    },
+    {
+      "label": "int0-fran-11",
+      "author": "fran",
+      "body": "Fran's fish fact number 11",
+      "age": "49m"
+    },
+    {
+      "label": "int0-fran-12",
+      "author": "fran",
+      "body": "Fran's fish fact number 12",
+      "age": "48m"
+    },
+    {
+      "label": "int0-fran-13",
+      "author": "fran",
+      "body": "Fran's fish fact number 13",
+      "age": "47m"
+    },
+    {
+      "label": "int0-fran-14",
+      "author": "fran",
+      "body": "Fran's fish fact number 14",
+      "age": "46m"
+    },
+    {
+      "label": "int0-fran-15",
+      "author": "fran",
+      "body": "Fran's fish fact number 15",
+      "age": "45m"
+    },
+    {
+      "label": "int0-fran-16",
+      "author": "fran",
+      "body": "Fran's fish fact number 16",
+      "age": "44m"
+    },
+    {
+      "label": "int0-fran-17",
+      "author": "fran",
+      "body": "Fran's fish fact number 17",
+      "age": "43m"
+    },
+    {
+      "label": "int0-fran-18",
+      "author": "fran",
+      "body": "Fran's fish fact number 18",
+      "age": "42m"
+    },
+    {
+      "label": "int0-fran-19",
+      "author": "fran",
+      "body": "Fran's fish fact number 19",
+      "age": "41m"
+    },
+    {
+      "label": "int0-fran-20",
+      "author": "fran",
+      "body": "Fran's fish fact number 20",
+      "age": "40m"
+    },
+    {
+      "label": "int0-fran-21",
+      "author": "fran",
+      "body": "Fran's fish fact number 21",
+      "age": "39m"
+    },
+    {
+      "label": "int0-yara",
+      "author": "yara",
+      "body": "Yara lives in another world",
+      "age": "30m"
+    }
+  ]
+}

@@ -1,8 +1,97 @@
-# OpenAPI fragment of the tree module (plan §5.3). Owner: P0-W08.
+# OpenAPI fragment of the tree module (plan §5.3). Owner: P0-W08 → P1-W08.
 # Paths are relative to /api. Schemas: module-prefixed names in this file, or
 # $ref: '_common.yaml#/components/schemas/X'. Validated on its own by apitest.
+#
+# A tree is opened around a focal post as a snapshot: every row is ranked once
+# (distance tier, then the feed's ranking under the preset) and never
+# reshuffles; each request re-checks what it serves, so posts that became
+# invisible silently disappear and "more" counts only visible posts. Rows list
+# only links the caller may see: a hidden parent or child leaves no
+# placeholder, count or gap. Snapshot ids and cursors are opaque and bound to
+# the caller: one that does not verify (garbage, forged, another viewer's), an
+# invisible center or a center the snapshot has not served next to the row
+# answers with the uniform 404; the caller's own snapshot that expired (30
+# minutes unused, or the server restarted) answers 409 tree_snapshot_expired
+# and the client reopens the tree.
 openapi: 3.0.3
 info:
   title: pcc internal API (tree)
   version: "0"
-paths: {}
+paths:
+  /tree/{ref}:
+    parameters:
+      - { name: ref, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
+    get:
+      operationId: openTree
+      description: >-
+        The family tree around a focal post: the focal row (siblings under the
+        primary parent, focal first), up to two rows of parents above and two
+        rows of replies below; empty rows are left out. Ranked with preset
+        (default: the caller's saved preset).
+      parameters:
+        - { name: preset, in: query, required: false, schema: { type: string, maxLength: 32 } }
+      responses:
+        "200":
+          description: The tree.
+          content:
+            application/json:
+              schema: { $ref: '_common.yaml#/components/schemas/TreeView' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "422": { $ref: '#/components/responses/TreeProblem' }
+        "429": { $ref: '#/components/responses/TreeRateLimited' }
+  /tree/s/{snapshot}/row:
+    parameters:
+      - { name: snapshot, in: path, required: true, schema: { type: string, maxLength: 256 } }
+    get:
+      operationId: treeRow
+      description: >-
+        Row gen of the snapshot listing center's replies (gen ≥ 0) or parents
+        (gen < 0): re-centers a row after a swipe (the rows below reload) and
+        loads rows beyond the first two. center must have been served in the
+        neighbouring row closer to the focal post (for gen 0: a parent of the
+        focal post).
+      parameters:
+        - { name: gen, in: query, required: true, schema: { type: integer, minimum: -1000, maximum: 1000 } }
+        - { name: center, in: query, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
+      responses:
+        "200":
+          description: The row (possibly empty).
+          content:
+            application/json:
+              schema: { $ref: '_common.yaml#/components/schemas/TreeRow' }
+        "400": { $ref: '#/components/responses/TreeProblem' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409": { $ref: '#/components/responses/TreeProblem' }
+        "429": { $ref: '#/components/responses/TreeRateLimited' }
+  /tree/s/{snapshot}/more:
+    parameters:
+      - { name: snapshot, in: path, required: true, schema: { type: string, maxLength: 256 } }
+    get:
+      operationId: treeRowMore
+      description: The next page of a row, from the cursor of its previous page.
+      parameters:
+        - { name: gen, in: query, required: true, schema: { type: integer, minimum: -1000, maximum: 1000 } }
+        - { name: center, in: query, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
+        - { name: cursor, in: query, required: true, schema: { type: string, maxLength: 256 } }
+      responses:
+        "200":
+          description: The next posts of the row.
+          content:
+            application/json:
+              schema: { $ref: '_common.yaml#/components/schemas/TreeRow' }
+        "400": { $ref: '#/components/responses/TreeProblem' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409": { $ref: '#/components/responses/TreeProblem' }
+        "429": { $ref: '#/components/responses/TreeRateLimited' }
+components:
+  responses:
+    TreeProblem:
+      description: bad_request (400, gen), tree_snapshot_expired (409) or preset_unavailable (422).
+      content:
+        application/json:
+          schema: { $ref: '_common.yaml#/components/schemas/Error' }
+    TreeRateLimited:
+      description: rate_limited.
+      content:
+        application/json:
+          schema: { $ref: '_common.yaml#/components/schemas/Error' }

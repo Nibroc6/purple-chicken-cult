@@ -1,0 +1,45 @@
+/* Landing and terms pages (P0-W12). Logical properties only. */
+.landing-lead {
+  font-size: 1.125rem;
+}
+.landing-points {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-inline-start: var(--space-4);
+}
+.landing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-block: var(--space-4);
+}
+.landing-button {
+  display: inline-block;
+  padding-block: var(--space-2);
+  padding-inline: var(--space-4);
+  border-radius: var(--radius);
+  border: 1px solid var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-surface);
+  font-weight: 600;
+  text-decoration: none;
+}
+.landing-secondary {
+  background: transparent;
+  color: var(--color-text);
+}
+.terms-page section {
+  margin-block: var(--space-4);
+}
+.terms-keys {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.terms-key dd {
+  margin-inline-start: 0;
+}
+.terms-key code {
+  overflow-wrap: anywhere;
+}

@@ -1,1 +1,13 @@
-{}
+{
+  "code": {
+    "showAll": "{count, plural, one {Show the whole line} other {Show all # lines}}",
+    "showLess": "Show less code"
+  },
+  "link": {
+    "host": "({host})",
+    "lookalike": "({host} · mixed scripts, check the address)"
+  },
+  "preview": {
+    "label": "Link preview from {host}"
+  }
+}

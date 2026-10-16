@@ -1,8 +1,112 @@
-# OpenAPI fragment of the feed module (plan §5.3). Owner: P0-W07.
+# OpenAPI fragment of the feed module (plan §5.3). Owner: P0-W07 → P1-W08.
 # Paths are relative to /api. Schemas: module-prefixed names in this file, or
 # $ref: '_common.yaml#/components/schemas/X'. Validated on its own by apitest.
+#
+# Sessions, cursors and collapse tokens are opaque and bound to the caller: one
+# that does not verify (garbage, forged, another viewer's) answers with the
+# uniform 404; the caller's own session that expired (30 minutes unused, or the
+# server restarted) answers 409 feed_session_expired and the client starts a new
+# session. Every page re-checks what it serves: posts that became invisible
+# since the snapshot silently disappear; ordering never changes.
 openapi: 3.0.3
 info:
   title: pcc internal API (feed)
   version: "0"
-paths: {}
+paths:
+  /feed:
+    get:
+      operationId: getFeed
+      description: >-
+        One page of the tiered feed: tier_start before the first item of a tier,
+        tier_end after its last, caught_up at the very end (then no next).
+        Without a cursor a new session starts, ranked with preset (default: the
+        caller's saved preset); with a cursor the session continues.
+      parameters:
+        - { name: preset, in: query, required: false, schema: { type: string, maxLength: 32 } }
+        - { name: cursor, in: query, required: false, schema: { type: string, maxLength: 256 } }
+      responses:
+        "200":
+          description: A feed page.
+          content:
+            application/json:
+              schema: { $ref: '_common.yaml#/components/schemas/FeedPage' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409": { $ref: '#/components/responses/FeedProblem' }
+        "422": { $ref: '#/components/responses/FeedProblem' }
+        "429": { $ref: '#/components/responses/FeedRateLimited' }
+  /feed/expand:
+    get:
+      operationId: expandFeedGroup
+      description: The posts of a collapsed group of distant, low-trust connections, ranked (at most 100).
+      parameters:
+        - { name: token, in: query, required: true, schema: { type: string, maxLength: 256 } }
+      responses:
+        "200":
+          description: The group's items (post or thread).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FeedExpandOut' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409": { $ref: '#/components/responses/FeedProblem' }
+        "429": { $ref: '#/components/responses/FeedRateLimited' }
+  /feed/new:
+    get:
+      operationId: countNewAbove
+      description: >-
+        Posts published since the session started in the tiers the caller
+        already reached ("N new posts above"), polled every 60 s while the feed
+        is visible.
+      parameters:
+        - { name: session, in: query, required: true, schema: { type: string, maxLength: 256 } }
+      responses:
+        "200":
+          description: The count and the closest tier holding new posts (0 when none).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FeedNewOut' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409": { $ref: '#/components/responses/FeedProblem' }
+        "429": { $ref: '#/components/responses/FeedRateLimited' }
+  /posts/{ref}/why:
+    parameters:
+      - { name: ref, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
+    get:
+      operationId: whyThisPost
+      description: >-
+        "Why am I seeing this?": the post's tier and chain, when it was posted,
+        the caller's preset and how far ranking moved it (minutes, positive is
+        up) with reason codes.
+      responses:
+        "200":
+          description: The explanation.
+          content:
+            application/json:
+              schema: { $ref: '_common.yaml#/components/schemas/WhyView' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/FeedRateLimited' }
+components:
+  schemas:
+    FeedExpandOut:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '_common.yaml#/components/schemas/FeedItem' }
+    FeedNewOut:
+      type: object
+      required: [count, tier]
+      properties:
+        count: { type: integer, minimum: 0 }
+        tier: { type: integer, minimum: 0 }
+  responses:
+    FeedProblem:
+      description: feed_session_expired (409) or preset_unavailable (422).
+      content:
+        application/json:
+          schema: { $ref: '_common.yaml#/components/schemas/Error' }
+    FeedRateLimited:
+      description: rate_limited.
+      content:
+        application/json:
+          schema: { $ref: '_common.yaml#/components/schemas/Error' }

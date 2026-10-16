@@ -1,16 +1,36 @@
 // Package moderation owns reports, the moderator queue, two-person actions, the
 // blame inbox, the public moderation log and CSP report aggregation
-// (ARCHITECTURE §8, §10.4). P1 adds core.ModQueue, quarantine and signals.
+// (ARCHITECTURE §8, §10.4, §17.3; plan §4.7 moderation).
 //
-// Owner: P0-W12 → P1-W06. Scaffold stub: GrantModerator works (CLI bootstrap);
-// the rest returns gate.ErrNotImplemented. Report always succeeds (invalid refs
-// are dropped silently by contract).
+//   - Reports (post, person, inviter routed through the invitee, misleading
+//     preview) carry a reason from the closed enum; a target the reporter cannot
+//     see is dropped silently, so the answer never depends on it. Each stored
+//     report is a signed Report record.
+//   - Moderators see the reported content, the involved handles as
+//     moderator-scoped refs, the subject's inviter label and probation flag, and
+//     nothing else of the graph. remove_post and dismiss take one moderator;
+//     suspend_user waits for a second, different moderator for 24 h, both with a
+//     fresh step-up.
+//   - Only after a confirmed action does the subject's inviter get a blame_inbox
+//     entry and an invitee_action notification; the post is in it only if the
+//     inviter could see it when it was removed.
+//   - The public log lists confirmed actions and counts per day under
+//     pseudonyms; a handle appears only to viewers who have that person in their
+//     horizon.
+//
+// Owner: P0-W12 → P1-W06.
 package moderation
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -18,6 +38,58 @@ import (
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/internal/core"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/internal/coreref"
 	"github.com/Nibroc6/purple-chicken-cult/internal/store"
+)
+
+// Actions (mod_actions.action, the P0 subset a moderator resolves with).
+const (
+	ActionRemovePost  = "remove_post"
+	ActionSuspendUser = "suspend_user"
+	ActionDismiss     = "dismiss"
+)
+
+// Report target kinds (API name → reports.target_kind).
+const (
+	KindPost    = "post"
+	KindPerson  = "person"
+	KindInviter = "inviter"
+	KindPreview = "preview"
+)
+
+var targetKinds = map[string]int16{KindPost: 0, KindPerson: 1, KindInviter: 2, KindPreview: 3}
+
+// reports.state and mod_actions.state values.
+const (
+	reportOpen      int16 = 0
+	reportActioned  int16 = 1
+	reportDismissed int16 = 2
+
+	actionPending int16 = 0
+	actionDone    int16 = 1
+	actionExpired int16 = 2
+)
+
+// Timings and sizes.
+const (
+	// SecondWithin is how long a two-person action waits for the second moderator.
+	SecondWithin = 24 * time.Hour
+	// NoteMax bounds a report note (code points).
+	NoteMax = 1000
+	// ExcerptMax bounds the blame-inbox excerpt of a removed post (code points).
+	ExcerptMax = 280
+	// QueuePage, BlamePage and LogPage are the page sizes.
+	QueuePage = 30
+	BlamePage = 30
+	LogPage   = 50
+	// PseudonymBytes of HMAC(PseudonymKey, user) name a log subject.
+	PseudonymBytes = 6
+)
+
+// Jobs.
+const (
+	// JobExpire marks two-person actions older than SecondWithin expired.
+	JobExpire = "moderation.expire"
+	// ExpireEvery is the moderation.expire period.
+	ExpireEvery = time.Hour
 )
 
 // Service is the moderation module.
@@ -31,67 +103,45 @@ var _ core.ModQueue = (*Service)(nil)
 // New returns the service.
 func New(d *core.Deps) *Service { return &Service{d: d, queue: &coreref.MemModQueue{}} }
 
-// Init does nothing yet.
-func (s *Service) Init(context.Context) error { return nil }
-
-// Report files a report (kind: post|person|inviter|preview). Always nil for a
-// signed-in reporter: invalid refs are dropped silently.
-func (s *Service) Report(ctx context.Context, kind string, target gate.Ref, reason, note string) error {
-	if _, err := core.RequireUser(ctx); err != nil {
-		return err
-	}
-	ok := false
-	for _, r := range core.ReportReasons {
-		if string(r) == reason {
-			ok = true
-		}
-	}
-	if !ok {
-		return gate.NewProblem(gate.StatusUnprocessable, "reason_invalid", "reason")
+// Init registers moderation.expire.
+func (s *Service) Init(context.Context) error {
+	if s.d.Jobs != nil {
+		s.d.Jobs.Handle(JobExpire, func(ctx context.Context, _ json.RawMessage) error { return s.Expire(ctx) })
+		s.d.Jobs.Every(JobExpire, ExpireEvery)
 	}
 	return nil
 }
 
-// Queue lists the moderator queue.
-func (s *Service) Queue(ctx context.Context, cursor string) (gate.Page[gate.ModItem], error) {
-	return gate.Page[gate.ModItem]{}, s.mod(ctx)
+// Expire marks two-person actions that waited longer than SecondWithin expired
+// (moderation.expire). Confirm checks the deadline itself as well.
+func (s *Service) Expire(ctx context.Context) error {
+	_, err := s.d.DB.Q().Exec(ctx, "UPDATE mod_actions SET state = $1 WHERE state = $2 AND created_at <= $3",
+		actionExpired, actionPending, s.d.Clock.Now().Add(-SecondWithin))
+	return err
 }
 
-// Resolve acts on a queue item (two-person actions await a second moderator).
-func (s *Service) Resolve(ctx context.Context, item gate.Ref, action, reason string) error {
-	return s.mod(ctx)
-}
-
-// Confirm is the second moderator's confirmation (RequireFresh).
-func (s *Service) Confirm(ctx context.Context, item gate.Ref) error { return s.mod(ctx) }
-
-// BlameInbox lists the viewer's blame-inbox entries.
-func (s *Service) BlameInbox(ctx context.Context, cursor string) (gate.Page[gate.BlameItem], error) {
-	if _, err := core.RequireUser(ctx); err != nil {
-		return gate.Page[gate.BlameItem]{}, err
+func validReason[T ~string](list []T, r string) bool {
+	for _, x := range list {
+		if string(x) == r {
+			return true
+		}
 	}
-	return gate.Page[gate.BlameItem]{}, gate.ErrNotImplemented
+	return false
 }
 
-// Log lists the public moderation log (pseudonyms outside the viewer's horizon).
-func (s *Service) Log(ctx context.Context, cursor string) (gate.Page[gate.LogItem], error) {
-	if _, err := core.RequireUser(ctx); err != nil {
-		return gate.Page[gate.LogItem]{}, err
-	}
-	return gate.Page[gate.LogItem]{}, gate.ErrNotImplemented
-}
+// ---- GrantModerator (CLI) ----
 
-// CSPReport counts a CSP violation per directive (aggregate only).
-func (s *Service) CSPReport(ctx context.Context, directive string) error { return nil }
-
-// GrantModerator makes handle a moderator (CLI). by must be an existing admin;
-// bootstrap makes handle the first admin and works only when no admin exists.
+// GrantModerator makes handle a moderator (CLI `pcc mod grant`). by must be an
+// existing active admin; bootstrap makes handle the first admin and works only
+// while no admin exists. users.role is this module's column (plan §3.4).
 func (s *Service) GrantModerator(ctx context.Context, handle, by string, bootstrap bool) error {
 	handle = strings.ToLower(strings.TrimPrefix(strings.TrimSpace(handle), "@"))
 	by = strings.ToLower(strings.TrimPrefix(strings.TrimSpace(by), "@"))
-	return s.d.DB.TxSerializable(ctx, func(tx pgx.Tx) error {
+	var id int64
+	err := s.d.DB.TxSerializable(ctx, func(tx pgx.Tx) error {
 		var admins int
-		if err := tx.QueryRow(ctx, "SELECT count(*) FROM users WHERE role = 2").Scan(&admins); err != nil {
+		if err := tx.QueryRow(ctx, "SELECT count(*) FROM users WHERE role = $1 AND status = $2",
+			int16(core.RoleAdmin), int16(core.StatusActive)).Scan(&admins); err != nil {
 			return err
 		}
 		role := int16(core.RoleModerator)
@@ -102,35 +152,136 @@ func (s *Service) GrantModerator(ctx context.Context, handle, by string, bootstr
 			role = int16(core.RoleAdmin)
 		} else {
 			var byRole int16
-			err := tx.QueryRow(ctx, "SELECT role FROM users WHERE handle_canon = $1 AND status = 0", by).Scan(&byRole)
+			err := tx.QueryRow(ctx, "SELECT role FROM users WHERE handle_canon = $1 AND status = $2", by,
+				int16(core.StatusActive)).Scan(&byRole)
 			if err != nil || byRole != int16(core.RoleAdmin) {
 				return errors.New("moderation: --by must name an active admin")
 			}
 		}
-		var id int64
-		err := tx.QueryRow(ctx, "UPDATE users SET role = GREATEST(role, $2) WHERE handle_canon = $1 RETURNING id",
-			handle, role).Scan(&id)
+		err := tx.QueryRow(ctx, "UPDATE users SET role = GREATEST(role, $2) WHERE handle_canon = $1 AND status = $3 RETURNING id",
+			handle, role, int16(core.StatusActive)).Scan(&id)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return gate.ErrNotFound
 		}
-		if err != nil {
-			return err
-		}
-		s.d.Bus.Publish(core.UserChanged{ID: core.UserID(id)})
-		return nil
+		return err
 	})
-}
-
-func (s *Service) mod(ctx context.Context) error {
-	if _, err := core.RequireModerator(ctx); err != nil {
+	if err != nil {
 		return err
 	}
-	return gate.ErrNotImplemented
+	s.d.Bus.Publish(core.UserChanged{ID: core.UserID(id)}) //nolint:gosec // users.id < 2^32 (DB CHECK)
+	return nil
+}
+
+// ---- CSP reports ----
+
+// cspDirectives is the closed set of directives counted by name; anything else
+// counts as "other".
+var cspDirectives = map[string]bool{
+	"default-src": true, "script-src": true, "script-src-elem": true, "script-src-attr": true, "style-src": true,
+	"style-src-elem": true, "style-src-attr": true, "img-src": true, "font-src": true, "connect-src": true,
+	"worker-src": true, "manifest-src": true, "media-src": true, "frame-src": true, "child-src": true,
+	"frame-ancestors": true, "base-uri": true, "form-action": true, "object-src": true,
+	"require-trusted-types-for": true, "trusted-types": true, "upgrade-insecure-requests": true,
+}
+
+// CSPDirective normalizes a reported directive ("script-src-elem 'self'" →
+// "script-src-elem"; unknown → "other").
+func CSPDirective(raw string) string {
+	f := strings.Fields(strings.ToLower(raw))
+	if len(f) == 0 || !cspDirectives[f[0]] {
+		return "other"
+	}
+	return f[0]
+}
+
+// CSPReport counts one CSP violation of directive (aggregate count per UTC day
+// and directive only: no URL, no user, no address is stored).
+func (s *Service) CSPReport(ctx context.Context, directive string) error {
+	day := s.d.Clock.Now().UTC().Truncate(24 * time.Hour)
+	_, err := s.d.DB.Q().Exec(ctx, `INSERT INTO csp_violations (day, directive, count) VALUES ($1, $2, 1)
+		ON CONFLICT (day, directive) DO UPDATE SET count = csp_violations.count + 1`, day, CSPDirective(directive))
+	return err
+}
+
+// CSPCounts returns the per-directive counts of the last days UTC days (CLI and tests).
+func (s *Service) CSPCounts(ctx context.Context, days int) (map[string]int64, error) {
+	since := s.d.Clock.Now().UTC().Truncate(24*time.Hour).AddDate(0, 0, 1-max(days, 1))
+	rows, err := s.d.DB.Q().Query(ctx, "SELECT directive, sum(count) FROM csp_violations WHERE day >= $1 GROUP BY directive", since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]int64{}
+	for rows.Next() {
+		var (
+			d string
+			n int64
+		)
+		if err := rows.Scan(&d, &n); err != nil {
+			return nil, err
+		}
+		out[d] = n
+	}
+	return out, rows.Err()
+}
+
+// ---- cursors: base64url(offset ‖ HMAC16) bound to the viewer and the list ----
+
+func (s *Service) mac(v core.UserID, list string, payload []byte) []byte {
+	m := hmac.New(sha256.New, s.d.Keys.Cursor)
+	m.Write([]byte("pcc/moderation/v1\x00"))
+	m.Write([]byte(list))
+	m.Write([]byte{0})
+	m.Write(binary.BigEndian.AppendUint32(nil, uint32(v)))
+	m.Write(payload)
+	return m.Sum(nil)[:16]
+}
+
+func (s *Service) cursorString(v core.UserID, list string, offset int) string {
+	payload := binary.BigEndian.AppendUint32(nil, uint32(offset)) //nolint:gosec // offsets are small and non-negative
+	return base64.RawURLEncoding.EncodeToString(append(payload, s.mac(v, list, payload)...))
+}
+
+// openCursor returns the offset of a cursor ("" = 0); a foreign, tampered or
+// garbage cursor is not ok.
+func (s *Service) openCursor(v core.UserID, list, str string) (int, bool) {
+	if str == "" {
+		return 0, true
+	}
+	b, err := base64.RawURLEncoding.Strict().DecodeString(str)
+	if err != nil || len(b) != 20 {
+		return 0, false
+	}
+	if !hmac.Equal(b[4:], s.mac(v, list, b[:4])) {
+		return 0, false
+	}
+	return int(binary.BigEndian.Uint32(b[:4])), true
+}
+
+// pseudonym is the public log's name for u: HMAC(PseudonymKey, u)[:6], hex.
+func (s *Service) pseudonym(u core.UserID) string {
+	m := hmac.New(sha256.New, s.d.Keys.Pseudonym)
+	m.Write([]byte("pcc/modlog/v1\x00"))
+	m.Write(binary.BigEndian.AppendUint32(nil, uint32(u)))
+	const hexdigits = "0123456789abcdef"
+	sum := m.Sum(nil)[:PseudonymBytes]
+	out := make([]byte, 0, 2*len(sum))
+	for _, c := range sum {
+		out = append(out, hexdigits[c>>4], hexdigits[c&15])
+	}
+	return string(out)
+}
+
+func (s *Service) freshModerator(ctx context.Context) (core.Viewer, error) {
+	if _, err := core.RequireModerator(ctx); err != nil {
+		return core.Viewer{}, err
+	}
+	return core.RequireFresh(ctx, s.d.Clock.Now())
 }
 
 // ---- core.ModQueue (P1-W06) ----
 
-// Enqueue adds a moderation queue item.
+// Enqueue adds a moderation queue item (P1-W06; the reference keeps it in memory).
 func (s *Service) Enqueue(ctx context.Context, tx store.Q, item core.ModQueueItem) error {
 	return s.queue.Enqueue(ctx, tx, item)
 }

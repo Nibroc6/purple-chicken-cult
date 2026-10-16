@@ -1,27 +1,80 @@
 // Package engage owns likes, saves (P1), seen state, hides and show-less
-// (ARCHITECTURE §4.3, §5.2, §5.3). It implements core.Engagement and core.Prefer.
+// (ARCHITECTURE §4.3, §5.2, §5.3). It is the sole writer of engagements, seen,
+// hides and show_less (plan §3.4) and implements core.Engagement and
+// core.Prefer (network preference n and the upward-credit inputs).
 //
-// Owner: P0-W06 → P1-W08. Scaffold stub: core interfaces delegate to coreref
-// (in-memory); the handler-facing API returns gate.ErrNotImplemented, except
-// MarkSeen which by contract always succeeds.
+// Owner: P0-W06 → P1-W08.
+//
+// Check order (plan §0.8): the request was charged by apix → the post ref is
+// resolved (ErrNotFound unless it opens for the viewer, names a post and the
+// viewer can see it) → only then anything else. MarkSeen never fails on refs:
+// garbage, foreign and invisible refs are dropped silently and write nothing.
+//
+// Memory: likers are roaring bitmaps per post (window posts preloaded by Load,
+// others loaded on demand into an LRU). Seen, hides and show-less stay in
+// Postgres (the feed reads them once per session).
 package engage
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	"sync"
 	"time"
 
 	"github.com/RoaringBitmap/roaring/v2"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/internal/core"
-	"github.com/Nibroc6/purple-chicken-cult/internal/gate/internal/coreref"
 )
+
+// Limits and retention (§4.3, §5.2).
+const (
+	// SeenBatch is the most refs one MarkSeen call records (the rest are ignored).
+	SeenBatch = 50
+	// SeenRetention is how long seen state is kept (§4.3: 14 days).
+	SeenRetention = 14 * 24 * time.Hour
+	// HideRetention is how long a hide is kept: one year (product decision,
+	// plan §10). Hides filter feed candidates and family-tree rows, and a tree
+	// can surface a post long after it left the feed window.
+	HideRetention = 365 * 24 * time.Hour
+	// SeenPageSize is the recently-seen page size.
+	SeenPageSize = 20
+	// LikerLRU bounds the liker bitmaps kept in memory.
+	LikerLRU = 100_000
+	// PurgeEvery is the period of the nightly purges.
+	PurgeEvery = 24 * time.Hour
+)
+
+// §5.2 / §5.5 weights.
+const (
+	SignalCap  = 4.0 // min(4, Σ of u's signals)
+	InviterCap = 4.0 // one inviter's invitees together: at most 4 units per post
+	KidsK      = 20  // children read per post for upward credit
+	Beta       = 0.3 // grandchildren weight (P1, gens = 2)
+)
+
+// kindLike is engagements.kind for a like (2 = save, P1-W08).
+const kindLike int16 = 1
+
+// Jobs.
+const (
+	JobSeenPurge  = "seen.purge"
+	JobHidesPurge = "engage.hides_purge"
+)
+
+// MetricImpressions counts first-time seen events by the post's tier at the
+// time it was seen (aggregate only, no IDs).
+const MetricImpressions = "feed.impressions_by_degree"
 
 // Service is the engagement module.
 type Service struct {
-	d      *core.Deps
-	ref    *coreref.MemEngage
-	prefer *coreref.MemPrefer
+	d *core.Deps
+
+	mu     sync.Mutex
+	likers *lru[core.PostID, *roaring.Bitmap]
+	seq    uint64 // bumped by every like mutation; a load that raced one is not cached
 }
 
 var (
@@ -31,104 +84,114 @@ var (
 
 // New returns the service.
 func New(d *core.Deps) *Service {
-	return &Service{d: d, ref: coreref.NewMemEngage(), prefer: &coreref.MemPrefer{D: d}}
+	return &Service{d: d, likers: newLRU[core.PostID, *roaring.Bitmap](LikerLRU)}
 }
 
-// Init registers seen.purge / engage.hides_purge in W06.
-func (s *Service) Init(context.Context) error { return nil }
-
-// ---- handler-facing API ----
-
-// Like sets or clears the viewer's like.
-func (s *Service) Like(ctx context.Context, p gate.Ref, on bool) error { return s.todo(ctx) }
-
-// Save sets or clears the viewer's private save (P1).
-func (s *Service) Save(ctx context.Context, p gate.Ref, on bool) error { return s.todo(ctx) }
-
-// Saves lists the viewer's saves (P1).
-func (s *Service) Saves(ctx context.Context, cursor string) (gate.Page[gate.PostView], error) {
-	return gate.Page[gate.PostView]{}, s.todo(ctx)
+// Init registers the purge jobs and the deletion clean-ups, then loads the
+// likers of the window posts.
+func (s *Service) Init(ctx context.Context) error {
+	if s.d.Bus != nil {
+		core.Subscribe(s.d.Bus, func(e core.AccountDeleted) { s.forgetUser(e.ID) })
+		core.Subscribe(s.d.Bus, func(e core.PostDeleted) { s.forgetPost(e.ID) })
+	}
+	if s.d.Jobs != nil {
+		s.d.Jobs.Handle(JobSeenPurge, func(ctx context.Context, _ json.RawMessage) error {
+			_, err := s.PurgeSeen(ctx)
+			return err
+		})
+		s.d.Jobs.Handle(JobHidesPurge, func(ctx context.Context, _ json.RawMessage) error {
+			_, err := s.PurgeHides(ctx)
+			return err
+		})
+		s.d.Jobs.Every(JobSeenPurge, PurgeEvery)
+		s.d.Jobs.Every(JobHidesPurge, PurgeEvery)
+	}
+	if s.d.DB == nil {
+		return nil
+	}
+	return s.Load(ctx)
 }
 
-// MarkSeen records seen posts (≤50); invalid or invisible refs are silently ignored; always nil.
-func (s *Service) MarkSeen(ctx context.Context, ps []gate.Ref) error {
+// ---- shared helpers ----
+
+// viewer returns the signed-in viewer and their search.
+func (s *Service) viewer(ctx context.Context) (core.Viewer, core.Search, error) {
 	v, err := core.RequireUser(ctx)
 	if err != nil {
-		return err
+		return v, nil, err
 	}
-	now := s.d.Clock.Now()
-	for i, r := range ps {
-		if i >= 50 {
-			break
+	sr, err := s.d.Vis.SearchFor(ctx, v.ID)
+	if err != nil {
+		return v, nil, err
+	}
+	return v, sr, nil
+}
+
+// resolve opens a post ref for the viewer of sr: ErrNotFound unless the ref
+// opens, the post exists and the viewer can see it.
+func (s *Service) resolve(ctx context.Context, sr core.Search, ref gate.Ref) (core.Checked, error) {
+	id, ok := s.d.Refs.OpenPost(sr.Viewer(), ref)
+	if !ok {
+		return core.Checked{}, gate.ErrNotFound
+	}
+	m, ok := s.d.Posts.Meta(ctx, id)
+	if !ok {
+		return core.Checked{}, gate.ErrNotFound
+	}
+	c, ok := s.d.Vis.CheckPost(ctx, sr, m)
+	if !ok {
+		return core.Checked{}, gate.ErrNotFound
+	}
+	return c, nil
+}
+
+func (s *Service) now() time.Time { return s.d.Clock.Now() }
+
+// logErr logs a failed read behind an interface method that cannot return it.
+func (s *Service) logErr(code string, err error) {
+	if s.d.Log != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+		s.d.Log.Error("engage read failed", "code", code, "err", err.Error())
+	}
+}
+
+// forgetUser deletes the rows this module owns for a deleted account and
+// drops the account from every cached liker set (plan §3.4 deletion fan-out).
+func (s *Service) forgetUser(u core.UserID) {
+	if s.d.DB != nil {
+		ctx := context.Background()
+		err := s.d.DB.Tx(ctx, func(tx pgx.Tx) error {
+			for _, q := range []string{
+				"DELETE FROM engagements WHERE user_id = $1",
+				"DELETE FROM seen WHERE user_id = $1",
+				"DELETE FROM hides WHERE user_id = $1",
+				"DELETE FROM show_less WHERE user_id = $1 OR author_id = $1",
+			} {
+				if _, err := tx.Exec(ctx, q, int64(u)); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			s.logErr("engage.forget_user", err)
 		}
-		if id, ok := s.d.Refs.OpenPost(v.ID, r); ok {
-			s.ref.AddSeen(v.ID, id, now)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.seq++
+	s.likers.each(func(_ core.PostID, b *roaring.Bitmap) { b.Remove(uint32(u)) })
+}
+
+// forgetPost drops a deleted post's likes: nobody can see the post any more,
+// so they can never count again (data minimization, §2.3).
+func (s *Service) forgetPost(p core.PostID) {
+	if s.d.DB != nil {
+		if _, err := s.d.DB.Q().Exec(context.Background(), "DELETE FROM engagements WHERE post_id = $1", p); err != nil {
+			s.logErr("engage.forget_post", err)
 		}
 	}
-	return nil
-}
-
-// RecentlySeen lists recently seen posts.
-func (s *Service) RecentlySeen(ctx context.Context, cursor string) (gate.Page[gate.PostView], error) {
-	return gate.Page[gate.PostView]{}, s.todo(ctx)
-}
-
-// Hide hides a post for the viewer.
-func (s *Service) Hide(ctx context.Context, p gate.Ref) error { return s.todo(ctx) }
-
-// ShowLess hides a post and lowers its author for the viewer.
-func (s *Service) ShowLess(ctx context.Context, p gate.Ref) error { return s.todo(ctx) }
-
-// Likers returns the like summary of a visible post.
-func (s *Service) Likers(ctx context.Context, p gate.Ref) (gate.LikeSummary, error) {
-	return gate.LikeSummary{}, s.todo(ctx)
-}
-
-func (s *Service) todo(ctx context.Context) error {
-	if _, err := core.RequireUser(ctx); err != nil {
-		return err
-	}
-	return gate.ErrNotImplemented
-}
-
-// ---- core.Engagement / core.Prefer (reference delegation) ----
-
-// LikerSet returns p's likers.
-func (s *Service) LikerSet(ctx context.Context, p core.PostID) *roaring.Bitmap {
-	return s.ref.LikerSet(ctx, p)
-}
-
-// SaverSet returns p's savers (P1).
-func (s *Service) SaverSet(ctx context.Context, p core.PostID) *roaring.Bitmap {
-	return s.ref.SaverSet(ctx, p)
-}
-
-// LikedByMe reports which of ps v liked.
-func (s *Service) LikedByMe(ctx context.Context, v core.UserID, ps []core.PostID) map[core.PostID]bool {
-	return s.ref.LikedByMe(ctx, v, ps)
-}
-
-// SeenSet returns the posts v saw since since.
-func (s *Service) SeenSet(ctx context.Context, v core.UserID, since time.Time) map[core.PostID]struct{} {
-	return s.ref.SeenSet(ctx, v, since)
-}
-
-// HiddenSet returns the posts v hid.
-func (s *Service) HiddenSet(ctx context.Context, v core.UserID) map[core.PostID]struct{} {
-	return s.ref.HiddenSet(ctx, v)
-}
-
-// ShowLessCounts returns v's show-less counts per author.
-func (s *Service) ShowLessCounts(ctx context.Context, v core.UserID) map[core.UserID]int {
-	return s.ref.ShowLessCounts(ctx, v)
-}
-
-// N returns network preference n for p as seen from sr.
-func (s *Service) N(ctx context.Context, sr core.Search, p core.Checked, memo *core.Memo) float64 {
-	return s.prefer.N(ctx, sr, p, memo)
-}
-
-// KidsN returns n_kid per visible child.
-func (s *Service) KidsN(ctx context.Context, sr core.Search, p core.Checked, memo *core.Memo, gens int) []float64 {
-	return s.prefer.KidsN(ctx, sr, p, memo, gens)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.seq++
+	s.likers.remove(p)
 }

@@ -32,3 +32,6 @@ coverage.*
 *.swp
 .DS_Store
 Thumbs.db
+
+# rapid failure files (go test property runs)
+**/testdata/rapid/

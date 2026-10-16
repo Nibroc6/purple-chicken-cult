@@ -1,8 +1,140 @@
-# OpenAPI fragment of the engage module (plan §5.3). Owner: P0-W06.
+# OpenAPI fragment of the engage module (plan §5.3). Owner: P0-W06 → P1-W08.
 # Paths are relative to /api. Schemas: module-prefixed names in this file, or
 # $ref: '_common.yaml#/components/schemas/X'. Validated on its own by apitest.
+#
+# A post ref is resolved before anything else: a ref that does not open, names a
+# missing post or one the caller cannot see answers with the uniform 404, after
+# the request was charged exactly like a valid one. POST /seen never fails on
+# refs: garbage, foreign and invisible refs are dropped and it answers 204.
 openapi: 3.0.3
 info:
   title: pcc internal API (engage)
   version: "0"
-paths: {}
+paths:
+  /posts/{ref}/like:
+    parameters:
+      - { name: ref, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
+    put:
+      operationId: likePost
+      description: Likes a visible post (idempotent).
+      responses:
+        "200":
+          description: The post's like summary after the change.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EngageLikeOut' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/EngageRateLimited' }
+    delete:
+      operationId: unlikePost
+      description: Clears the caller's like (idempotent).
+      responses:
+        "200":
+          description: The post's like summary after the change.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EngageLikeOut' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/EngageRateLimited' }
+  /posts/{ref}/likes:
+    parameters:
+      - { name: ref, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
+    get:
+      operationId: getLikes
+      description: >-
+        Likes from within two hops of the caller ("14 in your network"); names
+        only the caller's own friends who allow it (at most 3).
+      responses:
+        "200":
+          description: The like summary as the caller sees it.
+          content:
+            application/json:
+              schema: { $ref: '_common.yaml#/components/schemas/LikeSummary' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/EngageRateLimited' }
+  /seen:
+    post:
+      operationId: markSeen
+      description: >-
+        Records posts the caller saw (about 1 s at ≥ 50 % visible). At most 50
+        refs count; the rest are ignored. Kept 14 days.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EngageSeenIn' }
+      responses:
+        "204": { description: "Always, whatever the refs." }
+        "400": { $ref: '#/components/responses/EngageProblem' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+  /seen/recent:
+    get:
+      operationId: listRecentlySeen
+      parameters:
+        - { name: cursor, in: query, required: false, schema: { type: string, maxLength: 256 } }
+      responses:
+        "200":
+          description: >-
+            Posts the caller saw in the last 14 days and can still see, most
+            recently seen first.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EngagePostsPage' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/EngageRateLimited' }
+  /posts/{ref}/hide:
+    parameters:
+      - { name: ref, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
+    post:
+      operationId: hidePost
+      description: Removes the post from the caller's feed (personal; never a collective signal).
+      responses:
+        "204": { description: The post is hidden for the caller. }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/EngageRateLimited' }
+  /posts/{ref}/show-less:
+    parameters:
+      - { name: ref, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
+    post:
+      operationId: showLess
+      description: >-
+        Hides the post and lowers its author in the caller's own ranking (counted
+        once per post, at most three steps).
+      responses:
+        "204": { description: The post is hidden and its author lowered for the caller. }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/EngageRateLimited' }
+components:
+  schemas:
+    EngageLikeOut:
+      type: object
+      required: [likes]
+      properties:
+        likes: { $ref: '_common.yaml#/components/schemas/LikeSummary' }
+    EngageSeenIn:
+      type: object
+      required: [posts]
+      additionalProperties: false
+      properties:
+        posts:
+          type: array
+          items: { type: string, maxLength: 256 }
+    EngagePostsPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '_common.yaml#/components/schemas/PostView' }
+        next: { type: string }
+  responses:
+    EngageProblem:
+      description: bad_request (malformed body).
+      content:
+        application/json:
+          schema: { $ref: '_common.yaml#/components/schemas/Error' }
+    EngageRateLimited:
+      description: rate_limited.
+      content:
+        application/json:
+          schema: { $ref: '_common.yaml#/components/schemas/Error' }

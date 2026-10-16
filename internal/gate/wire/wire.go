@@ -215,6 +215,9 @@ func Build(ctx context.Context, cfg *config.Config, db *store.DB, log *slog.Logg
 	d.Accounts = a.Users
 	d.Handles = a.Users
 	d.Requests = a.Friends
+	d.Mentions = a.PostIndex
+	d.PostRemover = a.Posts
+	d.Suspensions = a.Users
 
 	inits := []struct {
 		name string

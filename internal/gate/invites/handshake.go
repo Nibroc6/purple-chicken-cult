@@ -324,7 +324,7 @@ func (s *Service) Claim(ctx context.Context, payload string) error {
 		return err
 	}
 	if s.d.Notify != nil {
-		s.d.Notify.Live(inviter, liveTopic, map[string]any{"state": "claimed"})
+		s.d.Notify.Live(inviter, liveTopic, map[string]any{"hs": s.d.Refs.Handshake(inviter, id), "state": "claimed"})
 	}
 	return nil
 }

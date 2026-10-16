@@ -7,9 +7,11 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
+	"github.com/Nibroc6/purple-chicken-cult/internal/gate/metrics"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/records"
 	"github.com/Nibroc6/purple-chicken-cult/internal/store"
 )
@@ -179,6 +181,8 @@ func auditEdgesCmd(ctx context.Context, args []string) error {
 func metricsCmd(ctx context.Context, args []string) error {
 	fl := flag.NewFlagSet("metrics", flag.ContinueOnError)
 	days := fl.Int("days", 14, "days to report")
+	raw := fl.Bool("raw", false, "also print every metrics_daily row")
+	asJSON := fl.Bool("json", false, "print the summary as JSON")
 	if err := fl.Parse(args); err != nil {
 		return err
 	}
@@ -187,12 +191,35 @@ func metricsCmd(ctx context.Context, args []string) error {
 		return err
 	}
 	defer closeDB()
-	rows, err := a.Metrics.Report(ctx, *days)
+	return printMetrics(ctx, os.Stdout, a.Metrics, *days, *raw, *asJSON)
+}
+
+// printMetrics writes the trial summary (invites per day, feed depth,
+// impressions by degree, preset switches, feed p95) and, with raw, every row.
+func printMetrics(ctx context.Context, w io.Writer, m *metrics.Service, days int, raw, asJSON bool) error {
+	sum, err := m.Summary(ctx, days)
 	if err != nil {
 		return err
 	}
+	if asJSON {
+		enc := json.NewEncoder(w)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(sum); err != nil {
+			return err
+		}
+	} else if err := writeSummary(w, sum); err != nil {
+		return err
+	}
+	if !raw {
+		return nil
+	}
+	rows, err := m.Report(ctx, days)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintln(w)
 	for _, r := range rows {
-		fmt.Printf("%s  %-32s %-10s %d\n", r.Day, r.Name, r.Bucket, r.Value)
+		fmt.Fprintf(w, "%s  %-32s %-10s %d\n", r.Day, r.Name, r.Bucket, r.Value)
 	}
 	return nil
 }

@@ -1,0 +1,111 @@
+/* Post and composer pieces (P0-W05). Logical properties only. */
+:root {
+  --post-amber: #8a4b00;
+  --post-over: #a3122a;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --post-amber: #ffb547;
+    --post-over: #ff8597;
+  }
+}
+
+.post-page,
+.composer-page {
+  max-inline-size: var(--content-width);
+}
+
+.post-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-block: var(--space-6);
+}
+
+.post-section h2 {
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+.post-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.post-field textarea {
+  font: inherit;
+  inline-size: 100%;
+  box-sizing: border-box;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+  resize: vertical;
+}
+
+.post-counter {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-muted);
+}
+
+.post-counter-amber {
+  color: var(--post-amber);
+  font-weight: 600;
+}
+
+.post-counter-over {
+  color: var(--post-over);
+  font-weight: 700;
+}
+
+.post-error {
+  color: var(--post-over);
+  margin: 0;
+}
+
+.post-preview {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  background: var(--color-surface);
+}
+
+.post-preview-head,
+.post-preview-meta,
+.post-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: baseline;
+}
+
+.post-handle {
+  font-weight: 600;
+}
+
+.post-context {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.post-offer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-2) var(--space-3);
+}
+
+.post-offer p {
+  margin: 0;
+  flex-basis: 100%;
+}

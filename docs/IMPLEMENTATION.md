@@ -1110,7 +1110,7 @@ One binary, subcommands (stdlib `flag`, one `FlagSet` per subcommand):
 | `pcc keys fingerprints` | `app.Records.Keys` | prints `key_id  sha256(pubkey)` lines to publish out-of-band (landing page, repo, social) |
 | `pcc export-verify FILE.zip [--fingerprints F]` | `records.VerifyExport` | verifies an export offline (§10.2), optionally pinning keys to published fingerprints |
 | `pcc audit-edges` | `app.Records.AuditEdges` | §4.5: every `edges` row's `record_hash` resolves to a valid, unrevoked Friendship record (also a weekly job) |
-| `pcc metrics [--days 14]` | `app.Metrics.Report` | prints the aggregate product metrics (§13, §18 DoD); no identifiers exist to print |
+| `pcc metrics [--days 14] [--raw] [--json]` | `app.Metrics.Summary` (+ `Report` with `--raw`) | prints the trial summary — invites per day, feed depth, impressions by degree, preset switches, feed p95 — (§13, §18 DoD; INT-0); no identifiers exist to print |
 | `pcc dev seed --users 10000 --model ba` | `app.DevSeed.Synthetic` | refuses unless `PCC_ENV ∈ {dev, test}` |
 
 Manual recovery is **not** a CLI command (security #14): two moderators approve it in the
@@ -1346,7 +1346,7 @@ func (q *Queue) Drain(ctx context.Context) error            // tests: run all du
 ```
 Job kinds (registry, the WP that registers the handler): `preview.fetch` (W09),
 `notify.flush` (W10, hourly batches), `metrics.flush` (W10, every minute), `seen.purge`,
-`engage.hides_purge` (W06), `graph.edge_events_purge` and `friends.requests_scrub` (W03;
+`engage.hides_purge` (W06; hides kept one year, D31), `graph.edge_events_purge` and `friends.requests_scrub` (W03;
 nulls declined-request timestamps after 30 d), `records.purge` (W11; deletes
 `signed_records` past `purge_after`) and `records.audit_edges` (W11, weekly),
 `postindex.trim` (W05), `probation.evaluate` (W04), `account.delete` and
@@ -1495,6 +1495,7 @@ type TreeRow struct {
     Items  []TreeItem `json:"items"`  // ranked; Items[0] is the centered post (focal row: focal is centered)
     More   int        `json:"more"`   // visible items beyond those returned
     Cursor string     `json:"cursor,omitempty"`
+    Beyond bool       `json:"beyond,omitempty"` // Row (gen ≠ 0): Items[0] has a further visible row away from the focal row (INT-0)
 }
 type TreeView struct {
     Snapshot string    `json:"snapshot"`
@@ -2229,6 +2230,9 @@ remaining visible count. Each post appears once (later spots get `ShownAbove`). 
 never passes through invisible posts; a visible post whose parents are all invisible looks
 like a root. Snapshots are stored and keyed exactly like feed snapshots (`(viewer, id)`,
 HMAC'd cursors) and re-checked on every `Row`/`More`. Read budget `tree_view` per call.
+Like the feed, rows leave out posts the reader hid and posts by authors the reader muted
+(read fresh on every request; `More`, cursors and `Beyond`/`HasEarlier`/`HasLater` count only
+what is kept); the focal post itself is always shown (D32).
 
 **`gate/previews`** (P0-W09 → P1-W11) — §10.1.6
 Job `preview.fetch{post}`: for each `mdscan` link (max 3 previews, skip `<url>`):
@@ -2415,7 +2419,9 @@ refuses unless `cfg.DevLike()`.
 - `/api/*` requests need `Sec-Fetch-Site` ∈ {`same-origin`, absent}; unsafe methods also need
   `Origin == cfg.Origin` (authenticated or not) and, when a session exists, `X-PCC-CSRF`.
   Otherwise: uniform not-found. These checks never apply to SPA navigations. There is no
-  CORS, no bearer auth, no webhooks.
+  CORS, no bearer auth, no webhooks. Exception (INT-0): `POST /api/csp-report` is sent by the
+  browser's Reporting API, so it needs no `X-PCC-CSRF` and accepts an absent `Origin` (a
+  present one must match; `Sec-Fetch-Site` as above).
 - Responses (all via `apix`):
 
 | Gate result | HTTP | Body |
@@ -2768,6 +2774,7 @@ outline) for keyboard/screen readers, plus the desktop minimap. Accessibility se
 | `/invite`, `/invite/people` | `features/invites` | P0-W04 | budget, countdown, rotating QR, SAS confirm; invitee list with probation state |
 | `/compose` (modal route, `?parent=&kind=`) | `features/composer` | P0-W05 | counter 280/500/20k, split-into-thread, audience, ref policy, parent-limit warning |
 | `/p/:ref` | `features/tree` | P0-W08 | family tree, focal post |
+| `/p/:ref/likes` | `features/engage` | P0-W06 | one post with its in-network like summary and like / hide / show-less controls; added at INT-0 |
 | `/people/:ref`, `/friends`, `/friends/requests`, `/suggestions`, `/settings/blocks` | `features/people` | P0-W03 | |
 | `/notifications` | `features/notifications` | P0-W10 | SSE badge in the shell via `api/sse.ts` |
 | `/seen` | `features/seen` | P0-W06 | recently seen |
@@ -3835,6 +3842,8 @@ meaning waits for INT, and the requesting WP uses a local unexported adapter unt
 | D28 | Search over visible posts and "introductions by a mutual friend" (§10.5) are **deferred** (not in the §18 Phase 0/1 scope lists) | Keeps P0/P1 to §18; both are horizon-safe to add later on top of `Visibility` (fidelity #16) |
 | D29 | Age gate = attestation of `PCC_MIN_AGE` (default 16) plus ToS version acceptance, recorded at join and genesis enrollment; no birth date stored | §13 compliance with data minimization (fidelity #17) |
 | D30 | Revoked `Friendship`/`Revocation` records are purged 30 days after revocation; the `Block` record is deleted on unblock; declined requests keep a timestamp-free row | §2.3 retention must cover the signed records too (security #16); the row keeps "declined looks pending" working |
+| D31 | Hides are kept for **one year** (`engage.HideRetention`, purged by `engage.hides_purge`), not 30 days (product decision, INT-0) | Hides filter family-tree rows too (D32), and a tree can surface a post long after it left the feed window; a hidden post must stay hidden |
+| D32 | The family tree applies the reader's hide and mute filters like the feed: hidden posts and posts by muted authors are left out of every row, its `More` count and its paging; only the focal post (opened explicitly) is exempt (product decision, INT-0) | Consistent behaviour between feed and tree; hides and mutes are the reader's own actions, so they stay inside H(V) and the noninterference properties hold |
 
 ---
 

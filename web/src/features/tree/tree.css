@@ -1,0 +1,11 @@
+/* Family-tree page (P0-W08). Logical properties only; the rows themselves are
+   styled by the format (formats/cards/tree, formats/compact/tree). */
+.tree-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.tree-error p {
+  margin-block: 0 var(--space-2);
+}

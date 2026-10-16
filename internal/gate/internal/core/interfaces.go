@@ -45,6 +45,11 @@ type UserMeta struct {
 	Preset           Preset
 	Locale           string
 	Languages        []string
+	// INT-0 additions (the session view's settings summary): the rest of the
+	// reader's settings (§10.7). UIPrefs is the stored JSON ("{}" when unset).
+	TranslateTo   string
+	Autotranslate bool
+	UIPrefs       []byte
 }
 
 // OnProbation reports whether u is (still) on probation: both the time part and
@@ -109,6 +114,16 @@ type Accounts interface {
 	// unless the account is a pending genesis account. The caller publishes
 	// UserChanged after commit.
 	ActivateGenesis(ctx context.Context, tx store.Q, id UserID, tosVersion int, at time.Time) error
+}
+
+// Suspensions suspends accounts on a confirmed two-person moderator action
+// (impl: gate/users). Steward: contract request p0-w12-1.
+type Suspensions interface {
+	// Suspend turns the active account id suspended (users.status 0 → 2) in tx;
+	// gate.ErrNotFound unless it is active. The caller publishes UserChanged
+	// after commit (the auth middleware already refuses non-active accounts'
+	// sessions).
+	Suspend(ctx context.Context, tx store.Q, id UserID) error
 }
 
 // ---- graph (impl: gate/graph) ----
@@ -238,6 +253,17 @@ type PostAdmin interface {
 	// posts.Delete (Tombstone record; body and salt NULL) and returns their IDs;
 	// the caller runs PostIndex.Delete and publishes PostDeleted after commit.
 	DeleteAllBy(ctx context.Context, tx store.Q, author UserID) ([]PostID, error)
+}
+
+// PostRemover removes one post on a moderator's decision (impl: gate/posts).
+// Steward: contract request p0-w12-1.
+type PostRemover interface {
+	// RemovePost tombstones the live post id in tx exactly like posts.Delete
+	// (Tombstone record signed with by as the actor; body, salt and mentions
+	// hard-deleted) and returns its author; ok is false when the post is not
+	// live. The caller runs PostIndex.Delete and publishes PostDeleted after
+	// commit.
+	RemovePost(ctx context.Context, tx store.Q, id PostID, by UserID) (author UserID, ok bool, err error)
 }
 
 // ---- visibility (impl: gate/visibility) ----

@@ -1,0 +1,42 @@
+{
+  "users": [
+    { "handle": "alice", "name": "Alice", "preset": "latest" },
+    { "handle": "bob", "name": "Bob" },
+    { "handle": "fran", "name": "Fran" },
+    { "handle": "carol", "name": "Carol" },
+    { "handle": "dave", "name": "Dave" },
+    { "handle": "xavier", "name": "Xavier" }
+  ],
+  "friends": [
+    { "a": "alice", "b": "bob" },
+    { "a": "alice", "b": "fran" },
+    { "a": "bob", "b": "carol" },
+    { "a": "carol", "b": "dave" }
+  ],
+  "posts": [
+    { "label": "root", "author": "carol", "body": "Root by carol", "age": "12h" },
+    { "label": "grand", "author": "carol", "body": "Grandparent by carol", "age": "11h", "parents": [{ "post": "root" }] },
+    { "label": "parent2", "author": "carol", "body": "Second parent by carol", "age": "10h30m" },
+    { "label": "parent", "author": "bob", "body": "Parent by bob", "age": "10h", "parents": [{ "post": "grand" }] },
+    { "label": "sibling", "author": "fran", "body": "Sibling by fran", "age": "9h", "parents": [{ "post": "parent" }] },
+    { "label": "focal", "author": "bob", "body": "The focal post", "age": "8h", "parents": [{ "post": "parent" }, { "post": "parent2" }] },
+    { "label": "c03", "author": "bob", "body": "Reply 03 by bob", "age": "7h", "parents": [{ "post": "focal" }] },
+    { "label": "c04", "author": "fran", "body": "Reply 04 by fran", "age": "6h55m", "parents": [{ "post": "focal" }] },
+    { "label": "c05", "author": "bob", "body": "Reply 05 by bob", "age": "6h50m", "parents": [{ "post": "focal" }] },
+    { "label": "c06", "author": "fran", "body": "Reply 06 by fran", "age": "6h45m", "parents": [{ "post": "focal" }] },
+    { "label": "c07", "author": "bob", "body": "Reply 07 by bob", "age": "6h40m", "parents": [{ "post": "focal" }] },
+    { "label": "c08", "author": "fran", "body": "Reply 08 by fran", "age": "6h35m", "parents": [{ "post": "focal" }] },
+    { "label": "c09", "author": "fran", "body": "Long reply line 1\n\nLong reply line 2\n\nLong reply line 3\n\nLong reply line 4\n\nLong reply line 5\n\nLong reply line 6\n\nLong reply line 7\n\nLong reply line 8\n\nLong reply line 9\n\nLong reply line 10\n\nLong reply line 11\n\nLong reply line 12", "age": "6h30m", "parents": [{ "post": "focal" }] },
+    { "label": "c10", "author": "carol", "body": "Carol reply 10", "age": "6h15m", "parents": [{ "post": "focal" }] },
+    { "label": "c11", "author": "carol", "body": "Carol reply 11", "age": "6h10m", "parents": [{ "post": "focal" }] },
+    { "label": "c12", "author": "carol", "body": "Carol reply 12", "age": "6h05m", "parents": [{ "post": "focal" }] },
+    { "label": "c13", "author": "carol", "body": "Carol reply 13", "age": "6h", "parents": [{ "post": "focal" }] },
+    { "label": "grandchild", "author": "bob", "body": "Grandchild by bob", "age": "5h30m", "parents": [{ "post": "c09" }] },
+    { "label": "diamond", "author": "carol", "body": "Diamond by carol", "age": "5h", "parents": [{ "post": "focal" }, { "post": "c09" }] },
+    { "label": "great", "author": "fran", "body": "Great-grandchild by fran", "age": "4h50m", "parents": [{ "post": "grandchild" }] },
+    { "label": "hidden", "author": "dave", "body": "Dave for his friends only", "age": "4h", "parents": [{ "post": "focal" }], "audience": "d1" },
+    { "label": "secret", "author": "dave", "body": "Dave's secret", "age": "3h", "audience": "d1" },
+    { "label": "undersecret", "author": "carol", "body": "Carol under a hidden parent", "age": "2h", "parents": [{ "post": "secret" }] },
+    { "label": "xavier", "author": "xavier", "body": "Xavier is never shown", "age": "1h" }
+  ]
+}

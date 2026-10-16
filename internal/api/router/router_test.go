@@ -14,8 +14,12 @@ import (
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate"
 )
 
-// requireAll is flipped to true by INT-0: then every catalogue route must be registered.
-const requireAll = false
+// requireAll was flipped to true by INT-0: every catalogue route of a phase up
+// to requirePhase must be registered (INT-1 raises requirePhase to 1).
+const (
+	requireAll   = true
+	requirePhase = 0
+)
 
 func TestCatalogueHasNoDuplicates(t *testing.T) {
 	seen := map[string]bool{}
@@ -77,7 +81,7 @@ func TestRegisteredRoutesMatchCatalogue(t *testing.T) {
 	for k := range cat {
 		if !registered[k] {
 			missing++
-			if requireAll {
+			if requireAll && cat[k].Phase <= requirePhase {
 				t.Errorf("catalogue route %s is not registered", k)
 			}
 		}
@@ -142,6 +146,30 @@ func TestSessionAndLogout(t *testing.T) {
 	rec = h.Do("GET", "/api/session", nil)
 	if err := json.Unmarshal(rec.Body.Bytes(), &sv); err != nil || sv.Authenticated {
 		t.Fatalf("after logout: %s", rec.Body)
+	}
+}
+
+// The session view's settings summary carries the stored settings (INT-0).
+func TestSessionCarriesSettings(t *testing.T) {
+	h := apitest.App(t)
+	h.Login("alice")
+	rec := h.Do("PATCH", "/api/me/settings", map[string]any{
+		"languages": []string{"en", "de"}, "translate_to": "de", "ui_prefs": map[string]any{"format": "compact"}})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("patch: %d %s", rec.Code, rec.Body)
+	}
+	var sess struct {
+		Me struct {
+			Settings struct {
+				TranslateTo string         `json:"translate_to"`
+				UIPrefs     map[string]any `json:"ui_prefs"`
+			} `json:"settings"`
+		} `json:"me"`
+	}
+	rec = h.Do("GET", "/api/session", nil)
+	if err := json.Unmarshal(rec.Body.Bytes(), &sess); err != nil || sess.Me.Settings.TranslateTo != "de" ||
+		sess.Me.Settings.UIPrefs["format"] != "compact" {
+		t.Fatalf("session settings: %s %v", rec.Body, err)
 	}
 }
 

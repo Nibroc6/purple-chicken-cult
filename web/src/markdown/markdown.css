@@ -1,0 +1,100 @@
+/* Markdown subset (P0-W09). Logical properties only. Headings are body-sized
+   semibold lines with no extra spacing (§10.1.6). */
+.md > :first-child {
+  margin-block-start: 0;
+}
+.md > :last-child {
+  margin-block-end: 0;
+}
+
+.md p,
+.md .md-heading {
+  margin-block: 0 var(--space-2);
+}
+
+.md .md-heading {
+  font-size: inherit;
+  font-weight: 600;
+  line-height: inherit;
+}
+
+.md-quote {
+  margin-block: 0 var(--space-2);
+  margin-inline: 0;
+  padding-inline-start: var(--space-3);
+  border-inline-start: 3px solid var(--color-border);
+  color: var(--color-muted);
+}
+
+.md-list {
+  margin-block: 0 var(--space-2);
+  padding-inline-start: var(--space-6);
+}
+.md-list li > p {
+  margin-block: 0;
+}
+
+.md-hr {
+  border: 0;
+  border-block-start: 1px solid var(--color-border);
+  margin-block: var(--space-2);
+}
+
+.md-code {
+  margin-block: 0 var(--space-2);
+}
+.md-code pre {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  overflow-x: auto;
+  background: var(--color-integrity-bg);
+  border-radius: 6px;
+  font-size: 0.875em;
+}
+.md-code-inline {
+  padding-inline: 0.2em;
+  background: var(--color-integrity-bg);
+  border-radius: 4px;
+  font-size: 0.875em;
+}
+.md-code-toggle {
+  margin-block-start: var(--space-1);
+}
+
+.md-link {
+  color: var(--color-accent);
+  overflow-wrap: anywhere;
+}
+.md-host {
+  margin-inline-start: 0.25em;
+  font-size: 0.875em;
+  color: var(--color-muted);
+}
+.md-host[data-lookalike='true'],
+.md-preview-host[data-lookalike='true'] {
+  color: var(--post-over, #a3122a);
+  font-weight: 600;
+}
+
+.md-previews {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.md-preview a {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  color: inherit;
+  text-decoration: none;
+}
+.md-preview-host {
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+}
+.md-preview-description {
+  color: var(--color-muted);
+}

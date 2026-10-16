@@ -65,7 +65,7 @@ function LanguagesForm({ me }: { me: MeView }) {
         <ul className="settings-langs">
           {langs.map((l) => (
             <li key={l}>
-              <span>
+              <span data-intl="">
                 {languageName(l, i18n.language)} <span className="muted">({l})</span>
               </span>
               <button
@@ -114,7 +114,7 @@ function LanguagesForm({ me }: { me: MeView }) {
         >
           <option value={noTarget}>{noTargetLabel}</option>
           {options.map((l) => (
-            <option key={l} value={l}>
+            <option key={l} value={l} data-intl="">
               {languageName(l, i18n.language)}
             </option>
           ))}
