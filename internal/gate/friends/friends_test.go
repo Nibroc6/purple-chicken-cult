@@ -623,3 +623,24 @@ func TestAccountDeletedCleansRows(t *testing.T) {
 		t.Fatalf("unrelated mutes = %d", n)
 	}
 }
+
+// INT-0 regression: an edge without a signed Friendship record (devseed and
+// fixture data use placeholder hashes) can still be unfriended and blocked
+// away; the Revocation record is written and scheduled for purging.
+func TestUnfriendAndBlockFixtureEdges(t *testing.T) {
+	e := newEnv(t)
+	alice, bob, carol := e.w.User("alice"), e.w.User("bob"), e.w.User("carol")
+	e.w.Friends("alice", "bob")
+	e.w.Friends("alice", "carol")
+	e.must(e.f.Unfriend(e.as(bob), e.ref(bob, alice)))
+	if _, ok := e.d.Graph.Level(alice, bob); ok {
+		t.Fatal("edge alice–bob still in memory")
+	}
+	e.must(e.f.Block(e.as(alice), e.ref(alice, carol)))
+	if _, ok := e.d.Graph.Level(alice, carol); ok || !e.d.Graph.Blocks(alice, carol) {
+		t.Fatal("block did not unfriend")
+	}
+	if n := e.count("SELECT count(*) FROM signed_records WHERE kind = 3 AND purge_after IS NOT NULL"); n != 2 {
+		t.Fatalf("revocations scheduled for purge = %d", n)
+	}
+}
