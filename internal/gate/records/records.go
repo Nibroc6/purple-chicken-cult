@@ -10,6 +10,12 @@
 // ever re-canonicalized on the way out, so two users' exports of a shared record
 // are byte-identical. The signature covers "pcc-rec-v1" NUL key_id NUL body
 // (domain separation and key binding, sigs.SignedMessage).
+//
+// Signer v2 (P1): a record with an author is signed by the author's custodial
+// key (key_id "usr-…", userkeys.go) and countersigned by the server key
+// (cosigs [{key_id, sig}] over the same message); server-authored records keep
+// the P0 form. Passkey assertions attached by co-signing are stored with the
+// draft each one signed (assertions.go), so exports verify offline.
 package records
 
 import (
@@ -70,6 +76,9 @@ func (s *Service) SetKey(k *sigs.Key) { s.key = k }
 // Init loads (dev/test: creates) the server signing key, publishes it in
 // signing_keys and registers the purge and audit jobs.
 func (s *Service) Init(ctx context.Context) error {
+	if err := s.checkKEK(); err != nil {
+		return err
+	}
 	if s.key == nil {
 		k, err := LoadOrCreateServerKey(s.d.Cfg.ServerKeyFile, s.d.Cfg.DevLike())
 		if err != nil {
@@ -317,15 +326,35 @@ func (s *Service) Purge(ctx context.Context) (int, error) {
 // ---- core.Signer ----
 
 // Sign canonicalizes body (value grammar; "kind" and "schema_version" are
-// injected), signs it with the server key and stores it with its parties in
-// tx. It returns the record hash. Signing an identical body twice is idempotent.
+// injected), signs it — with the author's custodial key plus a server
+// countersign, or with the server key alone for server-authored records — and
+// stores it with its parties and assertions in tx. It returns the record hash.
+//
+// Every assertion must carry the draft it signed (Assertion.Draft, filled by
+// Cosign.Require / SignupCosign) and that draft must be a co-sign draft of
+// exactly this record with a matching challenge; a nil body takes the record
+// from the first assertion's draft. Signing an identical body twice is
+// idempotent; new assertions on an existing record are appended.
 func (s *Service) Sign(ctx context.Context, tx store.Q, kind core.RecordKind, author core.UserID, body any, parties []core.UserID, a ...core.Assertion) ([]byte, error) {
 	if kind.String() == "" {
 		return nil, fmt.Errorf("records: unknown record kind %d", kind)
 	}
-	canon, err := sigs.CanonicalRecord(kind.String(), core.RecordSchemaVersion, body)
+	var (
+		canon []byte
+		err   error
+	)
+	if body == nil && len(a) > 0 {
+		canon, _, _, err = coreref.RecordFromDraft(a[0].Draft)
+	} else {
+		canon, err = sigs.CanonicalRecord(kind.String(), core.RecordSchemaVersion, body)
+	}
 	if err != nil {
 		return nil, err
+	}
+	for _, as := range a {
+		if _, err := bindAssertion(kind.String(), canon, as.Draft, as.Bundle, as.ClientDataJSON, as.AuthenticatorData); err != nil {
+			return nil, err
+		}
 	}
 	q := s.q(tx)
 	k, err := s.signingKey(ctx, q)
@@ -334,19 +363,33 @@ func (s *Service) Sign(ctx context.Context, tx store.Q, kind core.RecordKind, au
 	}
 	h := sigs.RecordHash(canon)
 	var authorID *int64
+	keyID, sig := k.ID, k.Sign(canon)
+	var cosigs []byte
 	if author != 0 {
 		v := int64(author)
 		authorID = &v
-	}
-	var assertions []byte
-	if len(a) > 0 {
-		if assertions, err = marshalAssertions(a); err != nil {
+		uk, err := s.userKey(ctx, q, author)
+		if err != nil {
+			return nil, err
+		}
+		keyID, sig = uk.ID, uk.Sign(canon)
+		if cosigs, err = json.Marshal([]sigs.Cosig{{KeyID: k.ID,
+			Sig: base64.RawURLEncoding.EncodeToString(k.Sign(canon))}}); err != nil {
 			return nil, err
 		}
 	}
-	if _, err := q.Exec(ctx, `INSERT INTO signed_records (hash, kind, author_id, key_id, body, sig, assertions, schema_version, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT (hash) DO NOTHING`,
-		h[:], int16(kind), authorID, k.ID, canon, k.Sign(canon), assertions, int16(core.RecordSchemaVersion),
+	var assertions []byte
+	if len(a) > 0 {
+		if assertions, err = s.marshalAssertions(ctx, q, a); err != nil {
+			return nil, err
+		}
+	}
+	if _, err := q.Exec(ctx, `INSERT INTO signed_records (hash, kind, author_id, key_id, body, sig, cosigs, assertions,
+		schema_version, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		ON CONFLICT (hash) DO UPDATE SET assertions = COALESCE(signed_records.assertions, '[]'::jsonb) || EXCLUDED.assertions
+		WHERE EXCLUDED.assertions IS NOT NULL
+		  AND (signed_records.assertions IS NULL OR NOT signed_records.assertions @> EXCLUDED.assertions)`,
+		h[:], int16(kind), authorID, keyID, canon, sig, cosigs, assertions, int16(core.RecordSchemaVersion),
 		s.d.Clock.Now()); err != nil {
 		return nil, err
 	}
@@ -364,23 +407,29 @@ func (s *Service) Sign(ctx context.Context, tx store.Q, kind core.RecordKind, au
 	return h[:], nil
 }
 
-type assertionJSON struct {
-	CredentialID      sigs.Bytes `json:"credential_id"`
-	AuthenticatorData sigs.Bytes `json:"authenticator_data"`
-	ClientDataJSON    sigs.Bytes `json:"client_data_json"`
-	Signature         sigs.Bytes `json:"signature"`
-}
-
-func marshalAssertions(as []core.Assertion) ([]byte, error) {
+func (s *Service) marshalAssertions(ctx context.Context, q store.Q, as []core.Assertion) ([]byte, error) {
 	out := make([]assertionJSON, 0, len(as))
 	for _, a := range as {
-		out = append(out, assertionJSON{CredentialID: a.CredentialID, AuthenticatorData: a.AuthenticatorData,
-			ClientDataJSON: a.ClientDataJSON, Signature: a.Signature})
+		j := assertionJSON{CredentialID: a.CredentialID, AuthenticatorData: a.AuthenticatorData,
+			ClientDataJSON: a.ClientDataJSON, Signature: a.Signature, Draft: a.Draft}
+		for _, c := range a.Bundle {
+			j.Bundle = append(j.Bundle, c)
+		}
+		if a.User != 0 && s.d.Accounts != nil {
+			// Read through q: the signer may have been created in this transaction (signup).
+			_, ext, _, err := s.d.Accounts.Account(ctx, q, a.User, false)
+			if err != nil {
+				return nil, err
+			}
+			j.Signer = &ext
+		}
+		out = append(out, j)
 	}
 	return json.Marshal(out)
 }
 
-// Draft returns a co-sign draft and its passkey challenge (P1).
+// Draft returns a co-sign draft — the record of body plus the "cosign"
+// {nonce, issued_at} member — and its passkey challenge (P1).
 func (s *Service) Draft(kind core.RecordKind, body any, nonce uuid.UUID, issuedAt time.Time) ([]byte, [32]byte, error) {
 	return coreref.DraftRecord(kind, body, nonce, issuedAt)
 }
