@@ -20,8 +20,8 @@ import (
 
 // Reference implementations of the steward additions from contract requests
 // p0-w11-1 (DisplayNames, RecordExporter), p0-w11-2 (PostAdmin, Enrollments) and
-// p0-w02-1 (MentionIndex on MemPosts, RequestStates) and p0-w01-1 (Accounts on
-// MemUsers).
+// p0-w02-1 (MentionIndex on MemPosts, RequestStates), p0-w01-1 (Accounts on
+// MemUsers) and p0-w12-1 (PostRemover on MemPostAdmin, Suspensions on MemUsers).
 
 // DisplayNameFunc adapts a function to core.DisplayNames.
 type DisplayNameFunc func(name string) (string, bool)
@@ -112,6 +112,39 @@ func (p *MemPostAdmin) DeleteAllBy(ctx context.Context, tx store.Q, author core.
 	return out, nil
 }
 
+var _ core.PostRemover = (*MemPostAdmin)(nil)
+
+// RemovePost signs a Tombstone for the live post id (actor by) and reports its
+// author. Like the real one it leaves PostIndex.Delete to the caller.
+func (p *MemPostAdmin) RemovePost(ctx context.Context, tx store.Q, id core.PostID, by core.UserID) (core.UserID, bool, error) {
+	m, ok := p.D.Posts.Meta(ctx, id)
+	if !ok || m.Deleted {
+		return 0, false, nil
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.deleted == nil {
+		p.deleted = map[core.PostID]bool{}
+	}
+	if p.deleted[id] {
+		return 0, false, nil
+	}
+	var actor uuid.UUID
+	if p.D.Users != nil {
+		if u, err := p.D.Users.Get(ctx, by); err == nil {
+			actor = u.ExtID
+		}
+	}
+	if p.D.Signer != nil {
+		body := memTombstone{Target: id, By: actor, At: sigs.T(p.D.Clock.Now())}
+		if _, err := p.D.Signer.Sign(ctx, tx, core.RecTombstone, m.Author, body, []core.UserID{m.Author}); err != nil {
+			return 0, false, err
+		}
+	}
+	p.deleted[id] = true
+	return m.Author, true, nil
+}
+
 // MemEnrollments records cancelled enrollment token hashes.
 type MemEnrollments struct {
 	mu        sync.Mutex
@@ -188,6 +221,21 @@ func (u *MemUsers) ActivateGenesis(_ context.Context, _ store.Q, id core.UserID,
 		return gate.ErrNotFound
 	}
 	m.Status = core.StatusActive
+	u.byID[id] = m
+	return nil
+}
+
+var _ core.Suspensions = (*MemUsers)(nil)
+
+// Suspend turns the active account id suspended.
+func (u *MemUsers) Suspend(_ context.Context, _ store.Q, id core.UserID) error {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	m, ok := u.byID[id]
+	if !ok || m.Status != core.StatusActive {
+		return gate.ErrNotFound
+	}
+	m.Status = core.StatusSuspended
 	u.byID[id] = m
 	return nil
 }

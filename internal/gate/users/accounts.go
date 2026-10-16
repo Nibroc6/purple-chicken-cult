@@ -54,3 +54,22 @@ func (s *Service) ActivateGenesis(ctx context.Context, tx store.Q, id core.UserI
 	}
 	return nil
 }
+
+// Steward addition (contract request p0-w12-1): suspension on a confirmed
+// two-person moderator action.
+
+var _ core.Suspensions = (*Service)(nil)
+
+// Suspend turns the active account id suspended in tx. The caller publishes
+// UserChanged after commit.
+func (s *Service) Suspend(ctx context.Context, tx store.Q, id core.UserID) error {
+	tag, err := tx.Exec(ctx, "UPDATE users SET status = $2 WHERE id = $1 AND status = $3",
+		int64(id), int16(core.StatusSuspended), int16(core.StatusActive))
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() != 1 {
+		return gate.ErrNotFound
+	}
+	return nil
+}

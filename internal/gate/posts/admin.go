@@ -2,8 +2,10 @@ package posts
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/internal/core"
 	"github.com/Nibroc6/purple-chicken-cult/internal/store"
@@ -51,4 +53,29 @@ func (s *Service) DeleteAllBy(ctx context.Context, tx store.Q, author core.UserI
 		}
 	}
 	return out, nil
+}
+
+// RemovePost tombstones the live post id in tx on a moderator's decision
+// (core.PostRemover, contract request p0-w12-1): the Tombstone record names the
+// moderator by as the actor; body, salt and mentions are hard-deleted. ok is
+// false when the post is not live. The caller runs PostIndex.Delete and
+// publishes PostDeleted after commit.
+func (s *Service) RemovePost(ctx context.Context, tx store.Q, id core.PostID, by core.UserID) (core.UserID, bool, error) {
+	var author int64
+	err := tx.QueryRow(ctx, "SELECT author_id FROM posts WHERE id = $1 AND deleted_at IS NULL", id).Scan(&author)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, err
+	}
+	actor, err := s.d.Users.Get(ctx, by)
+	if err != nil {
+		return 0, false, err
+	}
+	ok, err := s.tombstone(ctx, tx, id, core.UserID(author), actor.ExtID, s.now()) //nolint:gosec // users.id < 2^32 (DB CHECK)
+	if err != nil || !ok {
+		return 0, false, err
+	}
+	return core.UserID(author), true, nil //nolint:gosec // users.id < 2^32 (DB CHECK)
 }

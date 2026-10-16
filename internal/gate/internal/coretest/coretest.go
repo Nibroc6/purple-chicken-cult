@@ -106,8 +106,10 @@ func NewMem(t testing.TB) *Mem {
 	d.Cosign, d.Handshakes, d.Media = &coreref.MemCosign{D: d}, coreref.MemHandshakes{}, coreref.MemMedia{}
 	d.ModQueue, d.StepUp = m.ModQueue, &coreref.MemStepUp{D: d}
 	d.DisplayNames = coreref.DisplayNameFunc(func(s string) (string, bool) { return s, true })
-	d.RecordExporter, d.PostAdmin, d.Enrollments = m.Signer, &coreref.MemPostAdmin{D: d}, &coreref.MemEnrollments{}
+	postAdmin := &coreref.MemPostAdmin{D: d}
+	d.RecordExporter, d.PostAdmin, d.Enrollments = m.Signer, postAdmin, &coreref.MemEnrollments{}
 	d.Mentions, d.Requests, d.Accounts = m.Posts, m.Requests, m.Users
+	d.PostRemover, d.Suspensions = postAdmin, m.Users
 	m.D = d
 	return m
 }
