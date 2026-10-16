@@ -14,8 +14,12 @@ import (
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate"
 )
 
-// requireAll is flipped to true by INT-0: then every catalogue route must be registered.
-const requireAll = false
+// requireAll was flipped to true by INT-0: every catalogue route of a phase up
+// to requirePhase must be registered (INT-1 raises requirePhase to 1).
+const (
+	requireAll   = true
+	requirePhase = 0
+)
 
 func TestCatalogueHasNoDuplicates(t *testing.T) {
 	seen := map[string]bool{}
@@ -77,7 +81,7 @@ func TestRegisteredRoutesMatchCatalogue(t *testing.T) {
 	for k := range cat {
 		if !registered[k] {
 			missing++
-			if requireAll {
+			if requireAll && cat[k].Phase <= requirePhase {
 				t.Errorf("catalogue route %s is not registered", k)
 			}
 		}
