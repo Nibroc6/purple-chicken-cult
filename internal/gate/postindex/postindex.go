@@ -46,6 +46,16 @@ type Index struct {
 	kids   *lru[core.PostID, []core.LinkMeta] // newest first
 	pars   *lru[core.PostID, []core.LinkMeta] // parent order (ord)
 	ments  *lru[core.PostID, map[int]core.UserID]
+
+	// Window posts' links and mentions live in memory too (plan §7: the feed
+	// reads only memory, Postgres only for seen and hides): complete children
+	// and parent lists of every window post (a child is never older than its
+	// parent, so a window post's children are window posts) and the mentions
+	// of the window posts known since Load. Posts leaving the window move
+	// their lists to the LRUs.
+	wkids  map[core.PostID][]core.LinkMeta
+	wpars  map[core.PostID][]core.LinkMeta
+	wments map[core.PostID]map[int]core.UserID
 }
 
 var (
@@ -68,6 +78,9 @@ func (x *Index) reset() {
 	x.kids = newLRU[core.PostID, []core.LinkMeta](LinkLRU)
 	x.pars = newLRU[core.PostID, []core.LinkMeta](LinkLRU)
 	x.ments = newLRU[core.PostID, map[int]core.UserID](MentionLRU)
+	x.wkids = map[core.PostID][]core.LinkMeta{}
+	x.wpars = map[core.PostID][]core.LinkMeta{}
+	x.wments = map[core.PostID]map[int]core.UserID{}
 }
 
 // Init loads the window and registers the nightly trim.
@@ -136,6 +149,7 @@ func (x *Index) putLocked(m core.PostMeta, start time.Time) {
 	}
 	if have && prev.Version != m.Version {
 		x.ments.remove(m.ID)
+		delete(x.wments, m.ID)
 	}
 	live := !m.Deleted && !m.CreatedAt.Before(start)
 	if inWin {
@@ -155,8 +169,21 @@ func (x *Index) putLocked(m core.PostMeta, start time.Time) {
 	x.recent[m.Author] = x.insertSorted(x.recent[m.Author], m)
 }
 
-// removeWinLocked drops a window post (m must be the stored meta).
+// removeWinLocked drops a window post (m must be the stored meta); its
+// in-memory links and mentions move to the LRUs.
 func (x *Index) removeWinLocked(m core.PostMeta) {
+	if ls, ok := x.wkids[m.ID]; ok {
+		x.kids.put(m.ID, ls)
+		delete(x.wkids, m.ID)
+	}
+	if ls, ok := x.wpars[m.ID]; ok {
+		x.pars.put(m.ID, ls)
+		delete(x.wpars, m.ID)
+	}
+	if mt, ok := x.wments[m.ID]; ok {
+		x.ments.put(m.ID, mt)
+		delete(x.wments, m.ID)
+	}
 	x.order = x.removeSorted(x.order, m)
 	if r := x.removeSorted(x.recent[m.Author], m); len(r) > 0 {
 		x.recent[m.Author] = r
@@ -258,8 +285,15 @@ func (x *Index) WindowScan(fn func(core.PostMeta) bool) {
 	}
 }
 
-// WindowSize is the number of window posts.
-func (x *Index) WindowSize() int { return len(x.window()) }
+// WindowSize is the number of window posts (no copy: the planner asks for
+// every tier it plans).
+func (x *Index) WindowSize() int {
+	start := x.windowStart()
+	x.mu.Lock()
+	defer x.mu.Unlock()
+	i := sort.Search(len(x.order), func(i int) bool { return !x.win[x.order[i]].CreatedAt.Before(start) })
+	return len(x.order) - i
+}
 
 // Children visits every link to parent, newest first (RAW: archtest A10).
 func (x *Index) Children(ctx context.Context, parent core.PostID, fn func(core.LinkMeta) bool) {
@@ -278,6 +312,14 @@ func (x *Index) Parents(ctx context.Context, child core.PostID) []core.LinkMeta 
 
 func (x *Index) links(ctx context.Context, id core.PostID, cache *lru[core.PostID, []core.LinkMeta], byParent bool) []core.LinkMeta {
 	x.mu.Lock()
+	win := x.wpars
+	if byParent {
+		win = x.wkids
+	}
+	if ls, ok := win[id]; ok {
+		x.mu.Unlock()
+		return slices.Clone(ls)
+	}
 	if ls, ok := cache.get(id); ok {
 		x.mu.Unlock()
 		return slices.Clone(ls)
@@ -330,6 +372,10 @@ func (x *Index) Bodies(ctx context.Context, ids []core.PostID) map[core.PostID]s
 // (core.MentionIndex, contract request p0-w02-1).
 func (x *Index) MentionTargets(ctx context.Context, p core.PostID) map[int]core.UserID {
 	x.mu.Lock()
+	if m, ok := x.wments[p]; ok {
+		x.mu.Unlock()
+		return cloneMentions(m)
+	}
 	if m, ok := x.ments.get(p); ok {
 		x.mu.Unlock()
 		return cloneMentions(m)
@@ -389,7 +435,14 @@ func (x *Index) Put(m core.PostMeta) {
 	x.mu.Lock()
 	defer x.mu.Unlock()
 	x.seq++
+	_, inWin := x.win[m.ID]
+	_, inOld := x.old.peek(m.ID)
 	x.putLocked(m, start)
+	if _, live := x.win[m.ID]; live && !inWin && !inOld {
+		// A new post: no children yet; its parents follow through PutLink.
+		x.wkids[m.ID] = []core.LinkMeta{}
+		x.wpars[m.ID] = []core.LinkMeta{}
+	}
 }
 
 // Delete marks a post deleted: it leaves the window and its mentions are
@@ -399,6 +452,7 @@ func (x *Index) Delete(id core.PostID) {
 	defer x.mu.Unlock()
 	x.seq++
 	x.ments.remove(id)
+	delete(x.wments, id)
 	if m, ok := x.win[id]; ok {
 		x.removeWinLocked(m)
 		m.Deleted = true
@@ -416,6 +470,14 @@ func (x *Index) PutLink(l core.LinkMeta) {
 	x.mu.Lock()
 	defer x.mu.Unlock()
 	x.seq++
+	if ls, ok := x.wkids[l.Parent]; ok {
+		ls = upsertLink(ls, l)
+		slices.SortStableFunc(ls, newestLinkFirst)
+		x.wkids[l.Parent] = ls
+	}
+	if ls, ok := x.wpars[l.Child]; ok {
+		x.wpars[l.Child] = upsertLink(ls, l)
+	}
 	if ls, ok := x.kids.peek(l.Parent); ok {
 		ls = upsertLink(ls, l)
 		slices.SortStableFunc(ls, newestLinkFirst)
@@ -457,6 +519,14 @@ func (x *Index) Load(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	links, err := loadWindowLinks(ctx, x.d.DB.Q(), start)
+	if err != nil {
+		return err
+	}
+	ments, err := loadWindowMentions(ctx, x.d.DB.Q(), start)
+	if err != nil {
+		return err
+	}
 	x.mu.Lock()
 	defer x.mu.Unlock()
 	x.seq++
@@ -472,6 +542,26 @@ func (x *Index) Load(ctx context.Context) error {
 	})
 	for _, m := range ms { // oldest first: every insert appends
 		x.putLocked(m, start)
+		x.wkids[m.ID] = []core.LinkMeta{}
+		x.wpars[m.ID] = []core.LinkMeta{}
+		x.wments[m.ID] = map[int]core.UserID{}
+	}
+	for _, l := range links { // ordered by (child, ord)
+		if ls, ok := x.wpars[l.Child]; ok {
+			x.wpars[l.Child] = append(ls, l)
+		}
+		if ls, ok := x.wkids[l.Parent]; ok {
+			x.wkids[l.Parent] = append(ls, l)
+		}
+	}
+	for id, ls := range x.wkids {
+		slices.SortStableFunc(ls, newestLinkFirst)
+		x.wkids[id] = ls
+	}
+	for _, mt := range ments {
+		if m, ok := x.wments[mt.post]; ok {
+			m[mt.ord] = mt.target
+		}
 	}
 	return nil
 }

@@ -28,6 +28,14 @@ const (
 	FROM post_parents WHERE parent_id = $1 ORDER BY created_at DESC, child_id`
 	parentsSQL = `SELECT child_id, parent_id, kind, child_author, parent_author, detached, shadow, created_at
 	FROM post_parents WHERE child_id = $1 ORDER BY ord`
+	// windowLinksSQL: every link touching a window post (complete parent and
+	// children lists of the window, which metaWindowSQL defines).
+	windowLinksSQL = `WITH w AS (SELECT id FROM posts WHERE deleted_at IS NULL AND created_at >= $1)
+	SELECT child_id, parent_id, kind, child_author, parent_author, detached, shadow, created_at
+	FROM post_parents WHERE child_id IN (SELECT id FROM w) OR parent_id IN (SELECT id FROM w)
+	ORDER BY child_id, ord`
+	windowMentionsSQL = `SELECT m.post_id, m.ord, m.target_id FROM mentions m JOIN posts p ON p.id = m.post_id
+	WHERE p.deleted_at IS NULL AND p.created_at >= $1`
 )
 
 func loadMetas(ctx context.Context, q store.Q, sql string, arg any) ([]core.PostMeta, error) {
@@ -82,7 +90,43 @@ func loadLinks(ctx context.Context, q store.Q, byParent bool, id core.PostID) ([
 	if byParent {
 		sql = childrenSQL
 	}
-	rows, err := q.Query(ctx, sql, id)
+	return queryLinks(ctx, q, sql, id)
+}
+
+func loadWindowLinks(ctx context.Context, q store.Q, start time.Time) ([]core.LinkMeta, error) {
+	return queryLinks(ctx, q, windowLinksSQL, start)
+}
+
+type mentionRow struct {
+	post   core.PostID
+	ord    int
+	target core.UserID
+}
+
+func loadWindowMentions(ctx context.Context, q store.Q, start time.Time) ([]mentionRow, error) {
+	rows, err := q.Query(ctx, windowMentionsSQL, start)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []mentionRow
+	for rows.Next() {
+		var (
+			m      mentionRow
+			ord    int16
+			target int64
+		)
+		if err := rows.Scan(&m.post, &ord, &target); err != nil {
+			return nil, err
+		}
+		m.ord, m.target = int(ord), core.UserID(target) //nolint:gosec // users.id < 2^32 (DB CHECK)
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
+func queryLinks(ctx context.Context, q store.Q, sql string, arg any) ([]core.LinkMeta, error) {
+	rows, err := q.Query(ctx, sql, arg)
 	if err != nil {
 		return nil, err
 	}

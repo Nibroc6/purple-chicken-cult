@@ -222,3 +222,55 @@ func TestResetReloads(t *testing.T) {
 		t.Fatal("reset kept a meta")
 	}
 }
+
+// INT-0 (plan §7 perf: the feed reads only memory): after Load, the links and
+// mentions of window posts come from memory, new links of new posts join
+// them, and a post that ages out keeps its lists (moved to the LRUs).
+func TestWindowLinksInMemory(t *testing.T) {
+	e := newEnv(t)
+	now := e.d.Clock.Now()
+	old := e.w.Post("alice", "old", "old", coretest.At(now.Add(-9*24*time.Hour)))
+	p := e.w.Post("alice", "p", "parent", coretest.At(now.Add(-3*time.Hour)))
+	c := e.w.Post("bob", "c", "child", coretest.At(now.Add(-2*time.Hour)), e.w.ReplyTo("p"), e.w.ReplyTo("old"))
+	if _, err := e.d.DB.Q().Exec(e.ctx, "INSERT INTO mentions (post_id, ord, target_id) VALUES ($1, 0, $2)",
+		c, int64(e.w.ID("alice"))); err != nil {
+		t.Fatal(err)
+	}
+	x := e.fresh()
+	// The database no longer has them: memory must answer.
+	if _, err := e.d.DB.Q().Exec(e.ctx, "DELETE FROM mentions; DELETE FROM post_parents"); err != nil {
+		t.Fatal(err)
+	}
+	var kids []core.PostID
+	x.Children(e.ctx, p, func(l core.LinkMeta) bool { kids = append(kids, l.Child); return true })
+	if !slices.Equal(kids, []core.PostID{c}) {
+		t.Fatalf("children of p from memory: %v", kids)
+	}
+	if ps := x.Parents(e.ctx, c); len(ps) != 2 || ps[0].Parent != p || ps[1].Parent != old {
+		t.Fatalf("parents of c from memory: %+v", ps)
+	}
+	if m := x.MentionTargets(e.ctx, c); m[0] != e.w.ID("alice") {
+		t.Fatalf("mentions of c from memory: %v", m)
+	}
+	// A new post and its link (posts module order: Put, then PutLink).
+	n := ids.Named("post:n")
+	x.Put(core.PostMeta{ID: n, Author: e.w.ID("bob"), CreatedAt: now, Version: 1, Lang: "en", IsReply: true})
+	x.PutLink(core.LinkMeta{Child: n, Parent: p, Kind: core.LinkRef, ChildAuthor: e.w.ID("bob"),
+		ParentAuthor: e.w.ID("alice"), CreatedAt: now})
+	kids = nil
+	x.Children(e.ctx, p, func(l core.LinkMeta) bool { kids = append(kids, l.Child); return true })
+	if !slices.Equal(kids, []core.PostID{n, c}) {
+		t.Fatalf("children after a new reply: %v", kids)
+	}
+	if ps := x.Parents(e.ctx, n); len(ps) != 1 || ps[0].Parent != p {
+		t.Fatalf("parents of the new post: %+v", ps)
+	}
+	// Aging out keeps the lists.
+	e.advance(8 * 24 * time.Hour)
+	x.Trim()
+	kids = nil
+	x.Children(e.ctx, p, func(l core.LinkMeta) bool { kids = append(kids, l.Child); return true })
+	if !slices.Equal(kids, []core.PostID{n, c}) || x.WindowSize() != 0 {
+		t.Fatalf("children after trim: %v (window %d)", kids, x.WindowSize())
+	}
+}
