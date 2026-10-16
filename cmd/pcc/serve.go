@@ -62,14 +62,43 @@ func serve(ctx context.Context, args []string) error {
 	if err := fl.Parse(args); err != nil {
 		return err
 	}
-	cfg, log, db, err := boot(ctx, false)
+	srv, a, log, closeDB, err := newServer(ctx)
 	if err != nil {
 		return err
 	}
-	defer db.Close()
+	defer closeDB()
+	if err := a.Start(ctx); err != nil {
+		return err
+	}
+	errc := make(chan error, 1)
+	go func() { errc <- srv.ListenAndServe() }()
+	log.Info("listening", "addr", srv.Addr, "env", string(a.Config().Env))
+	select {
+	case err := <-errc:
+		return err
+	case <-ctx.Done():
+	}
+	shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return srv.Shutdown(shutdown)
+}
+
+// newServer loads the configuration (refusing to start on an invalid or
+// fail-open one, D20), opens and optionally migrates the database, wires every
+// service and builds the HTTP server. Media and push are logged as disabled when
+// their configuration is incomplete; the server still starts.
+func newServer(ctx context.Context) (*http.Server, *wire.App, *slog.Logger, func(), error) {
+	cfg, log, db, err := boot(ctx, false)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	fail := func(err error) (*http.Server, *wire.App, *slog.Logger, func(), error) {
+		db.Close()
+		return nil, nil, nil, nil, err
+	}
 	if cfg.AutoMigrate {
 		if err := store.Migrate(ctx, db); err != nil {
-			return err
+			return fail(err)
 		}
 	}
 	if cfg.MasterKeyRandom {
@@ -87,10 +116,7 @@ func serve(ctx context.Context, args []string) error {
 	}
 	a, err := wire.Build(ctx, cfg, db, log)
 	if err != nil {
-		return err
-	}
-	if err := a.Start(ctx); err != nil {
-		return err
+		return fail(err)
 	}
 	static := webdist.FS()
 	if cfg.StaticDir != "" {
@@ -103,15 +129,5 @@ func serve(ctx context.Context, args []string) error {
 		ReadTimeout:       60 * time.Second,
 		IdleTimeout:       120 * time.Second,
 	}
-	errc := make(chan error, 1)
-	go func() { errc <- srv.ListenAndServe() }()
-	log.Info("listening", "addr", cfg.HTTPAddr, "env", string(cfg.Env))
-	select {
-	case err := <-errc:
-		return err
-	case <-ctx.Done():
-	}
-	shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	return srv.Shutdown(shutdown)
+	return srv, a, log, db.Close, nil
 }
