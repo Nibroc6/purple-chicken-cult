@@ -1,7 +1,7 @@
-// Media contract (SCAFFOLD-1; plan §5 P1). Implementations are P1-W04's
-// (features/media/** except this file). Uploads fail closed: when the server says
+// Media contract (SCAFFOLD-1; plan §5 P1). The types below are frozen; the
+// implementations live in P1-W04's own files (features/media/** except this
+// file), which this module re-exports. Uploads fail closed: when the server says
 // feature_disabled, the picker hides itself.
-import type { ComponentType } from 'react';
 import type { MediaVM, Ref } from '../../vm/types';
 
 export interface MediaPickerProps {
@@ -15,23 +15,14 @@ export interface UploadState {
   disabled: boolean; // server reported feature_disabled
 }
 
+// MediaImage re-requests its signed URL on a 403 (URLs expire after ~1 h).
 export interface MediaImageProps {
   media: MediaVM;
   variant: 'thumb' | 'display' | 'original';
 }
 
-// Placeholders until P1-W04 lands: no picker, no upload, no image.
-export const MediaPicker: ComponentType<MediaPickerProps> = () => null;
-
-export function useUpload(): UploadState {
-  return {
-    upload: () => Promise.reject(new Error('feature_disabled')),
-    pending: false,
-    disabled: true,
-  };
-}
-
-// MediaImage re-requests its signed URL on a 403 (URLs expire after ~1 h).
-export const MediaImage: ComponentType<MediaImageProps> = () => null;
+export { MediaPicker } from './MediaPicker';
+export { useUpload } from './useUpload';
+export { MediaImage } from './MediaImage';
 
 export type { Ref };

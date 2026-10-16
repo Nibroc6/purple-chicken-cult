@@ -32,13 +32,13 @@ const (
 // Service is the media module.
 type Service struct {
 	d   *core.Deps
-	ref coreref.MemMedia
+	ref *coreref.MemMedia // without D: the fail-closed placeholder (no media id reaches the database)
 }
 
 var _ core.Media = (*Service)(nil)
 
 // New returns the service.
-func New(d *core.Deps) *Service { return &Service{d: d} }
+func New(d *core.Deps) *Service { return &Service{d: d, ref: &coreref.MemMedia{}} }
 
 // Init logs whether media is enabled (fail closed).
 func (s *Service) Init(context.Context) error {

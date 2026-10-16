@@ -1,5 +1,6 @@
 // Handshake audio contract (SCAFFOLD-1; ARCHITECTURE §7 "The handshake sound").
-// P1-W13 implements it (features/handshake-audio/** except this file): one
+// The types below are frozen. P1-W13 implements createHandshakeAudio in its own
+// files (features/handshake-audio/** except this file), re-exported here: one
 // ~1.5 s buffer mixing the audible jingle (3-note motif + 8 notes × 3 bits = a
 // 24-bit MAC) and near-ultrasonic FSK (32-bit MAC); Goertzel + FSK decoding on
 // the device. No audio is ever recorded, uploaded or stored.
@@ -28,10 +29,5 @@ export interface HandshakeAudio {
   listen(opts: { timeoutMs: number; input?: AudioInput }): Promise<DecodeReport>;
 }
 
-// createHandshakeAudio is replaced by P1-W13's implementation.
-export function createHandshakeAudio(_ctx: AudioContext): HandshakeAudio {
-  return {
-    play: () => Promise.reject(new Error('not_implemented')),
-    listen: () => Promise.reject(new Error('not_implemented')),
-  };
-}
+// createHandshakeAudio(ctx: AudioContext): HandshakeAudio
+export { createHandshakeAudio } from './createHandshakeAudio';

@@ -77,7 +77,7 @@ func stateName(st int16) string {
 // Service is the invites module.
 type Service struct {
 	d  *core.Deps
-	hs coreref.MemHandshakes
+	hs *coreref.MemHandshakes
 }
 
 var (
@@ -87,7 +87,7 @@ var (
 )
 
 // New returns the service.
-func New(d *core.Deps) *Service { return &Service{d: d} }
+func New(d *core.Deps) *Service { return &Service{d: d, hs: &coreref.MemHandshakes{D: d}} }
 
 // Init registers probation.evaluate (daily) and the EdgeAdded hook: a new edge
 // can be the one that ends either side's probation.

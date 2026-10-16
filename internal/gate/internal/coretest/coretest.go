@@ -85,6 +85,12 @@ type Mem struct {
 	Signer   *coreref.ServerSigner
 	ModQueue *coreref.MemModQueue
 	Requests *coreref.MemRequests
+
+	// Phase 1 (SCAFFOLD-1).
+	Cosign     *coreref.MemCosign
+	Handshakes *coreref.MemHandshakes
+	Media      *coreref.MemMedia
+	StepUp     *coreref.MemStepUp
 }
 
 // NewMem builds a memory-backed core.Deps (no database) wired to coreref.
@@ -103,8 +109,8 @@ func NewMem(t testing.TB) *Mem {
 	d.Views, d.Signer, d.Passkeys = &coreref.MemViews{D: d}, m.Signer, &FakePasskeys{}
 	inv := &coreref.MemInvites{D: d, Users: m.Users}
 	d.Invites, d.Probation, d.Notify, d.Limits, d.Metrics = inv, inv, m.Notifier, coreref.PassLimiter{}, m.Metrics
-	d.Cosign, d.Handshakes, d.Media = &coreref.MemCosign{D: d}, coreref.MemHandshakes{}, coreref.MemMedia{}
-	d.ModQueue, d.StepUp = m.ModQueue, &coreref.MemStepUp{D: d}
+	m.Cosign, m.Handshakes, m.Media, m.StepUp = &coreref.MemCosign{D: d}, &coreref.MemHandshakes{D: d}, &coreref.MemMedia{D: d}, &coreref.MemStepUp{D: d}
+	d.Cosign, d.Handshakes, d.Media, d.ModQueue, d.StepUp = m.Cosign, m.Handshakes, m.Media, m.ModQueue, m.StepUp
 	d.DisplayNames = coreref.DisplayNameFunc(func(s string) (string, bool) { return s, true })
 	postAdmin := &coreref.MemPostAdmin{D: d}
 	d.RecordExporter, d.PostAdmin, d.Enrollments = m.Signer, postAdmin, &coreref.MemEnrollments{}
@@ -211,15 +217,26 @@ func (w *World) User(handle string, opts ...UserOpt) core.UserID {
 // Friends makes a and b friends (friend level).
 func (w *World) Friends(a, b string) {
 	w.T.Helper()
+	w.friends(a, b, core.LevelFriend)
+}
+
+// FriendsPlus makes a and b friend+ (verified in person; P1).
+func (w *World) FriendsPlus(a, b string) {
+	w.T.Helper()
+	w.friends(a, b, core.LevelFriendPlus)
+}
+
+func (w *World) friends(a, b string, lvl core.EdgeLevel) {
+	w.T.Helper()
 	ia, ib := w.ID(a), w.ID(b)
 	if w.DB != nil {
 		h := sha256.Sum256([]byte("edge:" + a + ":" + b))
 		for _, p := range [][2]core.UserID{{ia, ib}, {ib, ia}} {
-			w.exec("INSERT INTO edges (user_id, friend_id, level, since, record_hash) VALUES ($1, $2, 1, $3, $4)",
-				int64(p[0]), int64(p[1]), Epoch, h[:])
+			w.exec("INSERT INTO edges (user_id, friend_id, level, since, record_hash) VALUES ($1, $2, $3, $4, $5)",
+				int64(p[0]), int64(p[1]), int16(lvl), Epoch, h[:])
 		}
 	}
-	w.D.Graph.AddEdge(ia, ib, core.LevelFriend, Epoch)
+	w.D.Graph.AddEdge(ia, ib, lvl, Epoch)
 }
 
 // Block records that a blocked b.
