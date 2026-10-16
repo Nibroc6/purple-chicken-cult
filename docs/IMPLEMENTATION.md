@@ -3478,7 +3478,11 @@ another WP.
 ### Phase 1
 
 Order: SCAFFOLD-1 → P1-W01…P1-W13 in parallel → INT-1. Ownership is re-assigned for
-Phase 1 (listed per package); files not listed stay with the steward. External
+Phase 1 (listed per package); files not listed stay with the steward. Each package also
+owns the Phase 0 Playwright spec and fixture of the module it inherits (SCAFFOLD-1, so a
+behaviour change can update them): W07 `p0-w01`, W03 `p0-w03`, W02 `p0-w04`, W12 `p0-w05`,
+W08 `p0-w06` + `p0-w07`, W09 `p0-w08`, W11 `p0-w09`, W05 `p0-w10`, W10 `p0-w11`, W06
+`p0-w12` (`scripts/ownership.json` is authoritative). External
 dependencies (R2/S3, PhotoDNA, Web Push VAPID, DBSC) sit behind Go interfaces with local dev
 drivers and **fail closed** in production config (plan §4.2 config, D20).
 
@@ -3730,7 +3734,7 @@ drivers and **fail closed** in production config (plan §4.2 config, D20).
 - **Owns:** `internal/platform/{safefetch,urlx,mdscan}/**`, `internal/gate/previews/**`,
   `testdata/markdown/**`, `testdata/tracking-params.json`, `web/src/markdown/**`,
   `web/src/i18n/locales/en/markdown.json`, `deploy/runbooks/egress.md`,
-  migrations `3110–3119`.
+  `web/e2e/p1-w11.spec.ts`, `testdata/fixtures/p1-w11.json`, migrations `3110–3119`.
 - **Consumes:** `Media.Ingest`.
 - **Deliverables:** `og:image` fetch via `GetImage` (same SSRF policy, image types only,
   size cap) → `Media.Ingest` (scan) → `image_media_id`; GFM tables (≤10 cols) both sides.
@@ -3755,7 +3759,8 @@ drivers and **fail closed** in production config (plan §4.2 config, D20).
 
 #### P1-W13: Handshake audio codec and sound design
 - **Owns:** `web/src/features/handshake-audio/**` (except `index.ts`),
-  `web/src/i18n/locales/en/handshake.json`, `docs/sound/**`.
+  `web/src/i18n/locales/en/handshake.json`, `docs/sound/**`, `web/e2e/p1-w13.spec.ts`,
+  `testdata/fixtures/p1-w13.json`.
 - **Deliverables:** pure TS: jingle synth (3-note motif + 8 × 3-bit notes over a fixed
   rhythm, 400–4000 Hz, one 8-tone scale), ultrasonic FSK (18–20 kHz, 32 bits) mixed in one
   ~1.5 s buffer; Goertzel decoder + FSK demod + sync offset; volume-low detection; quiet

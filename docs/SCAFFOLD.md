@@ -170,3 +170,13 @@ What already works for real:
   `apitest` with OpenAPI validation, and the test hooks.
 - **Web:** the shell, the route table with placeholder pages, i18n with the pseudo-locale,
   Trusted Types and the service worker.
+- **Phase 1 references (SCAFFOLD-1):** `coreref.MemCosign` (single-use, per-purpose intents
+  with a 5-minute lifetime, verified through `Passkeys.VerifyAssertion`), `MemHandshakes`
+  (upgrade needs a plain friend edge, recovery a friend+ guardian; `ClaimRecovery` with the
+  payload is Verified), `MemMedia` (owned, ready, unattached media, at most 4; `Put` stands in
+  for an upload), `MemStepUp` and `MemModQueue`. `coretest.Mem` exposes all of them and
+  `World.FriendsPlus` makes friend+ edges. In the running app media stays fail-closed until
+  P1-W04 lands (`media.Service` uses `MemMedia` without deps, so no media id reaches a row).
+- **Fail-closed startup:** `cmd/pcc` `TestServeFailClosed` boots the prod configuration
+  against a real database: a `dev` or `none` scanner starts with media disabled, an unknown
+  scanner such as `cloudflare` or a missing KEK refuses to start.
