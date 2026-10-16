@@ -62,7 +62,7 @@ export function LangSelect({
         }}
       >
         {langOptions(languages, value).map((l) => (
-          <option key={l} value={l}>
+          <option key={l} value={l} data-intl={l === UND ? undefined : ''}>
             {l === UND ? t('lang.und') : langName(l, uiLocale)}
           </option>
         ))}

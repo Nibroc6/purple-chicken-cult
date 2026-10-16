@@ -38,7 +38,7 @@ export function PostLayout({ post, actions, variant, part }: CardProps) {
     >
       <header className="post-author">
         <PersonLink person={post.author.ref} className="post-who">
-          {post.author.displayName ? <span className="post-name">{post.author.displayName}</span> : null}{' '}
+          {post.author.displayName ? <span className="post-name" data-user-content="">{post.author.displayName}</span> : null}{' '}
           <span className="post-handle">{t('post.handle', { handle: post.author.handle })}</span>
         </PersonLink>
         <InviterLabel inviter={post.author.inviter} invitee={post.author.ref} onReport={actions.report} />

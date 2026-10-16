@@ -46,7 +46,7 @@ export function PostLayout({
       <header className="row-head">
         <PersonLink person={post.author.ref} className="post-who">
           <span className="post-handle">{t('post.handle', { handle: post.author.handle })}</span>
-          {post.author.displayName ? <span className="post-name muted"> {post.author.displayName}</span> : null}
+          {post.author.displayName ? <span className="post-name muted" data-user-content=""> {post.author.displayName}</span> : null}
         </PersonLink>
         <InviterLabel inviter={post.author.inviter} invitee={post.author.ref} onReport={actions.report} />
         <Chain chain={post.author.chain} author={post.author} />

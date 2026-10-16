@@ -121,7 +121,7 @@ export function PersonCard({
     <li className="people-card" data-testid="person-card">
       <div className="people-card-head">
         <Link to={`/people/${person.ref}`} className="people-name">
-          {person.displayName ? <strong>{person.displayName}</strong> : null}
+          {person.displayName ? <strong data-user-content="">{person.displayName}</strong> : null}
           <span className="muted">{t('handle', { handle: person.handle })}</span>
         </Link>
         {person.relation !== 'self' && !person.blocked ? (
