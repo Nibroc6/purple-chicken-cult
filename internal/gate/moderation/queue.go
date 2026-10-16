@@ -364,6 +364,13 @@ func (s *Service) Confirm(ctx context.Context, item gate.Ref) error {
 			}
 			return err
 		}
+		// A suspended account has no live sessions: end them (and with them
+		// the account's open event streams) when the suspension commits.
+		if s.d.Passkeys != nil {
+			if err := s.d.Passkeys.RevokeAll(ctx, tx, target); err != nil {
+				return err
+			}
+		}
 		second, err := json.Marshal(map[string]time.Time{"at": now, "auth_at": v.AuthAt})
 		if err != nil {
 			return err

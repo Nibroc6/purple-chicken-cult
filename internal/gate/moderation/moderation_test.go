@@ -434,11 +434,29 @@ func TestSuspendIsTwoPerson(t *testing.T) {
 	if err := e.m.Confirm(e.mod("mo2", true), it); !errors.Is(err, gate.ErrNotFound) {
 		t.Fatalf("another moderator's item id: %v", err)
 	}
+	// Bob is signed in: the suspension ends his sessions (and event streams).
+	if _, err := e.a.Auth.IssueSession(e.ctx, nil, core.SessUser, e.id("bob"), e.d.Clock.Now()); err != nil {
+		t.Fatal(err)
+	}
+	ended := make(chan core.SessionEnded, 4)
+	core.Subscribe(e.d.Bus, func(ev core.SessionEnded) { ended <- ev })
 	if err := e.m.Confirm(e.mod("mo2", true), it2); err != nil {
 		t.Fatal(err)
 	}
 	if m, _ := e.a.Users.Get(e.ctx, e.id("bob")); m.Status != core.StatusSuspended {
 		t.Fatalf("status %d", m.Status)
+	}
+	var live int
+	if err := e.d.DB.Q().QueryRow(e.ctx, "SELECT count(*) FROM sessions WHERE user_id = $1", int64(e.id("bob"))).Scan(&live); err != nil || live != 0 {
+		t.Fatalf("bob's sessions after suspension: %d %v", live, err)
+	}
+	select {
+	case ev := <-ended:
+		if ev.User != e.id("bob") {
+			t.Fatalf("SessionEnded %+v", ev)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("no SessionEnded for the suspended account")
 	}
 	var second int64
 	var auth []byte
