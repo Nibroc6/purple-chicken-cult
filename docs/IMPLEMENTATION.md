@@ -2771,6 +2771,7 @@ outline) for keyboard/screen readers, plus the desktop minimap. Accessibility se
 | `/invite`, `/invite/people` | `features/invites` | P0-W04 | budget, countdown, rotating QR, SAS confirm; invitee list with probation state |
 | `/compose` (modal route, `?parent=&kind=`) | `features/composer` | P0-W05 | counter 280/500/20k, split-into-thread, audience, ref policy, parent-limit warning |
 | `/p/:ref` | `features/tree` | P0-W08 | family tree, focal post |
+| `/p/:ref/likes` | `features/engage` | P0-W06 | who liked the post (in-network names, then a count); added at INT-0 |
 | `/people/:ref`, `/friends`, `/friends/requests`, `/suggestions`, `/settings/blocks` | `features/people` | P0-W03 | |
 | `/notifications` | `features/notifications` | P0-W10 | SSE badge in the shell via `api/sse.ts` |
 | `/seen` | `features/seen` | P0-W06 | recently seen |
