@@ -106,9 +106,9 @@ func (s *Service) ShowLessCounts(ctx context.Context, v core.UserID) map[core.Us
 	return out
 }
 
-// PurgeHides deletes hides older than HideRetention (job engage.hides_purge):
-// a hide is recorded after its post was created, so by then the post has long
-// left the feed window, the only place hides filter.
+// PurgeHides deletes hides older than HideRetention (one year; job
+// engage.hides_purge): hides filter the feed and family-tree rows, so they are
+// kept far longer than the feed window.
 func (s *Service) PurgeHides(ctx context.Context) (int, error) {
 	tag, err := s.d.DB.Q().Exec(ctx, "DELETE FROM hides WHERE at < $1", s.now().Add(-s.hideRetention()))
 	if err != nil {

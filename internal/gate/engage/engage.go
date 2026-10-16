@@ -35,9 +35,10 @@ const (
 	SeenBatch = 50
 	// SeenRetention is how long seen state is kept (§4.3: 14 days).
 	SeenRetention = 14 * 24 * time.Hour
-	// HideRetention is how long a hide is kept: hides only filter feed
-	// candidates, so they outlive the feed window (default 7 days) by far.
-	HideRetention = 30 * 24 * time.Hour
+	// HideRetention is how long a hide is kept: one year (product decision,
+	// plan §10). Hides filter feed candidates and family-tree rows, and a tree
+	// can surface a post long after it left the feed window.
+	HideRetention = 365 * 24 * time.Hour
 	// SeenPageSize is the recently-seen page size.
 	SeenPageSize = 20
 	// LikerLRU bounds the liker bitmaps kept in memory.

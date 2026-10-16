@@ -415,6 +415,14 @@ func TestHideAndShowLess(t *testing.T) {
 	if len(e.e.HiddenSet(e.ctx, e.id("bob"))) != 0 || len(e.e.ShowLessCounts(e.ctx, e.id("bob"))) != 0 {
 		t.Fatal("hides leaked to another reader")
 	}
+	// A month-old hide is kept (retention is one year, plan §10).
+	e.advance(31 * 24 * time.Hour)
+	if n, err := e.e.PurgeHides(e.ctx); err != nil || n != 0 {
+		t.Fatalf("purged %d month-old hides (%v)", n, err)
+	}
+	if engage.HideRetention != 365*24*time.Hour {
+		t.Fatalf("hide retention %v, want one year", engage.HideRetention)
+	}
 	e.advance(engage.HideRetention + time.Hour)
 	if n, err := e.e.PurgeHides(e.ctx); err != nil || n != 4 {
 		t.Fatalf("purged %d (%v)", n, err)

@@ -1346,7 +1346,7 @@ func (q *Queue) Drain(ctx context.Context) error            // tests: run all du
 ```
 Job kinds (registry, the WP that registers the handler): `preview.fetch` (W09),
 `notify.flush` (W10, hourly batches), `metrics.flush` (W10, every minute), `seen.purge`,
-`engage.hides_purge` (W06), `graph.edge_events_purge` and `friends.requests_scrub` (W03;
+`engage.hides_purge` (W06; hides kept one year, D31), `graph.edge_events_purge` and `friends.requests_scrub` (W03;
 nulls declined-request timestamps after 30 d), `records.purge` (W11; deletes
 `signed_records` past `purge_after`) and `records.audit_edges` (W11, weekly),
 `postindex.trim` (W05), `probation.evaluate` (W04), `account.delete` and
@@ -3839,6 +3839,7 @@ meaning waits for INT, and the requesting WP uses a local unexported adapter unt
 | D28 | Search over visible posts and "introductions by a mutual friend" (§10.5) are **deferred** (not in the §18 Phase 0/1 scope lists) | Keeps P0/P1 to §18; both are horizon-safe to add later on top of `Visibility` (fidelity #16) |
 | D29 | Age gate = attestation of `PCC_MIN_AGE` (default 16) plus ToS version acceptance, recorded at join and genesis enrollment; no birth date stored | §13 compliance with data minimization (fidelity #17) |
 | D30 | Revoked `Friendship`/`Revocation` records are purged 30 days after revocation; the `Block` record is deleted on unblock; declined requests keep a timestamp-free row | §2.3 retention must cover the signed records too (security #16); the row keeps "declined looks pending" working |
+| D31 | Hides are kept for **one year** (`engage.HideRetention`, purged by `engage.hides_purge`), not 30 days (product decision, INT-0) | Hides filter family-tree rows too (D32), and a tree can surface a post long after it left the feed window; a hidden post must stay hidden |
 
 ---
 
