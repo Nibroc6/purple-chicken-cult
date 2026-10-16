@@ -52,7 +52,7 @@ export function toPostVM(p: S['PostView']): PostVM {
     ref: asRef(p.ref),
     author: toAuthorVM(p.author),
     tier: p.tier,
-    body: p.body === '' ? null : parse(p.body),
+    body: p.body === '' ? null : parse(p.body, p.mentions ?? []),
     lang: p.lang,
     createdAt: new Date(p.created_at),
     ...(p.edited_at ? { editedAt: new Date(p.edited_at) } : {}),

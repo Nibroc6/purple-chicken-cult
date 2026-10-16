@@ -171,21 +171,21 @@ test('link previews are built by the server and appear only at the fixed delay',
     await openFeed(page);
     const post = card(page, 'but not');
     await expect(post).toBeVisible();
-    await expect(post.getByTestId('feed-preview')).toHaveCount(0);
+    await expect(post.getByTestId('md-preview')).toHaveCount(0);
 
     await clock.advance('29s');
     await openFeed(page);
-    await expect(card(page, 'but not').getByTestId('feed-preview')).toHaveCount(0);
+    await expect(card(page, 'but not').getByTestId('md-preview')).toHaveCount(0);
 
     await clock.advance('1s');
     await openFeed(page);
-    const preview = card(page, 'but not').getByTestId('feed-preview');
+    const preview = card(page, 'but not').getByTestId('md-preview');
     await expect(preview).toHaveCount(1);
     await expect(preview).toContainText('The E2E article');
     await expect(preview).toContainText('What the server saw');
     await expect(preview).toContainText('127.0.0.1');
     await expect(preview.locator('a')).toHaveAttribute('href', `${web.origin}/article?id=1`);
-    const title = await preview.locator('.preview-title').textContent();
+    const title = await preview.locator('.md-preview-title').textContent();
     expect(title).toBe('The E2E article'); // bidi and zero-width characters removed
 
     // The <url> link was never fetched, and the reader's browser never

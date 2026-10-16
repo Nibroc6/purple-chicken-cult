@@ -37,9 +37,6 @@
     "more": "Show more",
     "less": "Show less"
   },
-  "preview": {
-    "lookalike": "{host} (look-alike address)"
-  },
   "collapsed": {
     "summary": "{count, plural, one {# post from a distant, low-trust connection} other {# posts from distant, low-trust connections}}",
     "explain": "New accounts far from you are folded away until they have been around for a while.",

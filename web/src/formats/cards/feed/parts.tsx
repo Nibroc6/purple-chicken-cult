@@ -13,7 +13,7 @@ import { createContext, useContext, useId, useState, type ReactNode } from 'reac
 import { useTranslation } from 'react-i18next';
 import { Link, useInRouterContext } from 'react-router';
 import { formatDateTime, formatRelative } from '../../../lib/time';
-import { Markdown } from '../../../markdown';
+import { LinkPreviews, Markdown } from '../../../markdown';
 import type { ContextVM, FeedItemVM, FeedPageVM, MarkdownDoc, PostVM, PreviewVM, Ref } from '../../../vm/types';
 import type { PostActions } from '../../types';
 
@@ -119,53 +119,10 @@ export function ContextRows({ rows, withCont = true }: { rows: ContextVM[]; with
   );
 }
 
-function safeHref(url: string): string | undefined {
-  try {
-    const u = new URL(url);
-    return u.protocol === 'http:' || u.protocol === 'https:' ? u.href : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-// PreviewList shows link previews with their real host (§10.1.6); an href is
-// rendered only for http(s).
-export function PreviewList({ previews }: { previews: PreviewVM[] }) {
-  const { t } = useTranslation('feed');
-  if (previews.length === 0) return null;
-  return (
-    <ul className="feed-previews">
-      {previews.map((p) => {
-        const href = safeHref(p.url);
-        const host = (
-          <span className="preview-host" data-lookalike={p.lookalike}>
-            {p.lookalike ? t('preview.lookalike', { host: p.hostUnicode }) : p.hostUnicode}
-          </span>
-        );
-        return (
-          <li key={p.url} className="feed-preview" data-testid="feed-preview">
-            {href ? (
-              <a href={href} rel="noopener noreferrer nofollow ugc" referrerPolicy="no-referrer" target="_blank">
-                {host}
-              </a>
-            ) : (
-              host
-            )}
-            {p.title ? (
-              <strong className="preview-title" data-user-content="">
-                {p.title}
-              </strong>
-            ) : null}
-            {p.description ? (
-              <span className="preview-description muted" data-user-content="">
-                {p.description}
-              </span>
-            ) : null}
-          </li>
-        );
-      })}
-    </ul>
-  );
+// PreviewList shows link previews with their real host (§10.1.6) through the
+// shared Markdown module (protocol check, tracking-parameter stripping).
+export function PreviewList({ previews }: { previews: readonly PreviewVM[] }) {
+  return <LinkPreviews previews={previews} />;
 }
 
 // PostLinks: reply (when the reader may reference the post) and the family tree

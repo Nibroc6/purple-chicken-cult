@@ -91,6 +91,13 @@ describe('post helpers', () => {
     expect(hasAudienceLimit(toPostVM(postJSON({ audience_forced: true }) as never))).toBe(true);
   });
 
+  it('links the server-resolved mentions of the body', () => {
+    const p = toPostVM(postJSON({ body: '@bob and @carol', mentions: [{ ord: 0, ref: 'u1' }, { ord: 1 }] }) as never);
+    const para = (p.body as unknown as { nodes: { t: string; c: { t: string; ref?: string }[] }[] }).nodes[0];
+    const ms = (para?.c ?? []).filter((i) => i.t === 'mention');
+    expect(ms.map((m) => m.ref)).toEqual(['u1', undefined]);
+  });
+
   it('names posts errors', () => {
     expect(postErrorKey(new ApiError(409, { error: 'ref_cap' }))).toBe('post:errors.ref_cap');
     expect(postErrorKey(new ApiError(404, { error: 'not_found' }))).toBe('errors:not_found');
