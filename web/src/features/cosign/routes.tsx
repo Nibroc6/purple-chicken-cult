@@ -1,7 +1,9 @@
 // Routes of the cosign feature. Owner: P1-W01.
 // Pages load lazily; app/routes.tsx imports this array (features never edit the
 // shared route table).
-// Phase 1 feature (SCAFFOLD-1).
+import { lazy } from 'react';
 import type { RouteObject } from 'react-router';
 
-export const routes: RouteObject[] = [];
+const CheckPage = lazy(() => import('./CheckPage'));
+
+export const routes: RouteObject[] = [{ path: '/cosign/check', element: <CheckPage /> }];
