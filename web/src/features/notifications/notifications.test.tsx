@@ -284,6 +284,14 @@ describe('NotificationsPage', () => {
       expect(screen.getAllByTestId('notification')).toHaveLength(2);
     });
     expect(screen.queryByTestId('notifications-more')).toBeNull();
+    // A count that drops (read elsewhere) does not refetch.
+    const gets = () => calls.filter((c) => c.path === '/notifications').length;
+    const before = gets();
+    act(() => {
+      dispatch('notification', { unread: 0 });
+    });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(gets()).toBe(before);
     fresh = true;
     act(() => {
       dispatch('notification', { unread: 1 });

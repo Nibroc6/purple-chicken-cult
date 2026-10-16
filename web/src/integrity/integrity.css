@@ -15,6 +15,10 @@
   font-weight: 500;
   border: 1px solid transparent;
 }
+/* The edited mark stays in the DOM for unedited posts, hidden. */
+.integrity[hidden] {
+  display: none;
+}
 @media (forced-colors: active) {
   .integrity {
     border-color: CanvasText;

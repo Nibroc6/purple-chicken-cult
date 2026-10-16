@@ -48,8 +48,10 @@ export default function NotificationsPage() {
 
   useEffect(
     () =>
-      subscribe('notification', () => {
-        void qc.invalidateQueries({ queryKey: notificationsKey });
+      // Only something new refreshes the list: the count dropping (read in
+      // this or another tab) keeps this visit's "new" marks.
+      subscribe<{ unread?: number }>('notification', (d) => {
+        if ((d.unread ?? 0) > 0) void qc.invalidateQueries({ queryKey: notificationsKey });
       }),
     [qc],
   );
