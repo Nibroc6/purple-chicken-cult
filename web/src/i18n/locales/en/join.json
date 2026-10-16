@@ -1,7 +1,9 @@
 {
   "page": {
     "title": "Join with an in-person invite",
-    "intro": "Someone you know invites you in person: scan the code on their screen."
+    "intro": "Someone you know invites you in person: scan the code on their screen.",
+    "friendTitle": "Become friend+ in person",
+    "friendIntro": "To become friend+ with a friend, scan the code on their screen."
   },
   "signedIn": "You already have an account.",
   "home": "Go to your feed",
@@ -10,12 +12,14 @@
     "hint": "Point your camera at the code on their screen.",
     "videoLabel": "Camera preview",
     "noCamera": "We couldn't use your camera. Allow camera access and try again.",
-    "bad": "That code didn't work. Ask them to show a fresh one."
+    "bad": "That code didn't work. Ask them to show a fresh one.",
+    "startFriend": "Scan a friend's code"
   },
   "sas": {
     "title": "Your code",
     "body": "Show this number to the person inviting you. They confirm that it matches theirs.",
-    "waiting": "Waiting for them to confirm…"
+    "waiting": "Waiting for them to confirm…",
+    "bodyFriend": "Show this number to your friend. They confirm that it matches theirs."
   },
   "ended": {
     "cancelled": "The invite was cancelled. If the numbers didn't match, scan a fresh code.",
@@ -43,5 +47,43 @@
     "display_name_invalid": "That display name can't be used.",
     "tos_required": "Accept the terms of service to continue.",
     "age_required": "Confirm your age to continue."
+  },
+  "sound": {
+    "title": "Play the handshake sound",
+    "body": "Hold your phone close to theirs and play the sound.",
+    "bodyQuiet": "Hold your phone close to theirs and play the near-silent tone.",
+    "play": "Play the sound",
+    "again": "Play it again",
+    "playing": "Playing…",
+    "waiting": "Checking…",
+    "retry": "That didn't work. Try again.",
+    "retryVolume": "They couldn't hear it. Turn your volume up and play it again.",
+    "retryJingle": "They couldn't hear the quiet tone. Ask them to switch the jingle on, then play it again.",
+    "noAttempts": "No tries left. Ask for a new code.",
+    "failed": "The sound couldn't be played on this device."
+  },
+  "dual": {
+    "title": "Scan their second code",
+    "hint": "Point your camera at the second code on their screen.",
+    "retry": "That code didn't work. Scan it again."
+  },
+  "ceremony": {
+    "title": "Sign your invite",
+    "body": "Your new passkey signs these records. Your account is created once you and the person who invited you have both signed.",
+    "sign": "Sign and join",
+    "working": "Signing…",
+    "awaiting": "Waiting for the person who invited you to sign…",
+    "restart": "Start over"
+  },
+  "upgrade": {
+    "title": "Sign the friend+ record",
+    "summary": "You and your friend become friend+.",
+    "sign": "Sign with passkey",
+    "waiting": "Signed. Waiting for your friend…",
+    "done": "Done! You're now friend+.",
+    "friends": "Your friends"
+  },
+  "recovery": {
+    "done": "Done. Continue on the recovery page."
   }
 }

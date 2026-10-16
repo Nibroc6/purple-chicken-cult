@@ -12,7 +12,8 @@
     "probationTimeDone": "The waiting time is over.",
     "probationFriends": "{count, plural, one {# more friend} other {# more friends}} outside your invite tree",
     "paused": "Your invites are paused until {date}.",
-    "revoked": "You can no longer invite people."
+    "revoked": "You can no longer invite people.",
+    "probationFriendsPlus": "{count, plural, one {# more friend+} other {# more friends+}} outside your invite tree (verified in person)"
   },
   "countdown": {
     "days": "{d, plural, one {# day} other {# days}} {h, plural, one {# hour} other {# hours}}",
@@ -30,12 +31,15 @@
     "claimed": "Someone scanned your code. Check that their screen shows the same number:",
     "match": "Codes match",
     "mismatch": "Codes don't match",
-    "confirmed": "Waiting for them to finish signing up…",
+    "confirmed": "Waiting for them to create their account…",
     "done": "They joined! You're now friends.",
     "cancelled": "This invite code was cancelled.",
     "expired": "This invite code expired.",
     "again": "Show a new code",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "preparing": "Preparing your code…",
+    "doneUpgrade": "Done! You're now friend+.",
+    "doneRecovery": "Done. The account's recovery can continue."
   },
   "people": {
     "title": "People you invited",
@@ -50,5 +54,37 @@
     "invites_paused": "Your invites are paused.",
     "friend_cap": "You have reached the limit of 1,000 friends and open requests.",
     "mode_unsupported": "This kind of invite isn't available yet."
+  },
+  "mode": {
+    "legend": "How to check you're together",
+    "audio": "With a sound (recommended)",
+    "quiet": "Quiet: only the near-silent tone, no jingle",
+    "dual": "Without sound: each phone scans the other's code"
+  },
+  "sound": {
+    "listening": "Listening… Ask them to tap \"Play the sound\" with their phone close to yours.",
+    "listeningQuiet": "Listening for the near-silent tone… Ask them to tap \"Play the sound\" with their phone close to yours.",
+    "noMic": "We couldn't use your microphone. Allow microphone access, or cancel and choose the option without sound."
+  },
+  "dual": {
+    "hint": "Now let them scan this second code.",
+    "qrLabel": "Second code"
+  },
+  "outcome": {
+    "verified": "Verified in person.",
+    "accepted": "Accepted.",
+    "retry": "That didn't work. Try again.",
+    "retryVolume": "We couldn't hear it. Ask them to turn their volume up and play it again.",
+    "retryJingle": "We couldn't hear the quiet tone. Ask them to switch the jingle on and play it again.",
+    "noAttempts": "No tries left. Cancel and show a new code."
+  },
+  "sign": {
+    "askInvite": "Sign the invite with your passkey.",
+    "askUpgrade": "Sign the friend+ record with your passkey.",
+    "button": "Sign with passkey",
+    "summaryInvite": "You invite this person and become friends.",
+    "summaryUpgrade": "You and your friend become friend+.",
+    "waitingInvitee": "Signed. Waiting for them to finish…",
+    "waitingFriend": "Signed. Waiting for your friend to sign…"
   }
 }

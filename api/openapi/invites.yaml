@@ -229,7 +229,14 @@ paths:
         The claiming device's state of its handshake: the SAS, the sound attempts and their
         outcome, the signup token once passed (invites), the friend's own ref (upgrades).
       parameters:
-        - { $ref: '#/components/parameters/InvitesJoinSig' }
+        - &joinSig
+          name: X-PCC-Join-Sig
+          in: header
+          required: true
+          description: >-
+            The claiming device's ECDSA P-256 signature (P1363, base64url) over
+            "pcc-join-v1" ‖ hs ‖ sha256(scanned frame) ‖ call name.
+          schema: { type: string, maxLength: 128 }
       responses:
         "200":
           description: The handshake state.
@@ -246,7 +253,7 @@ paths:
         play time (the time bound runs from it). At most 5 attempts per handshake; the
         sixth is 404.
       parameters:
-        - { $ref: '#/components/parameters/InvitesJoinSig' }
+        - *joinSig
       requestBody:
         required: true
         content:
@@ -268,7 +275,7 @@ paths:
         Accessibility (dual QR): the claiming device scanned the initiator's second,
         kmac-keyed QR. Accepted at most, never Verified. At most 5 attempts.
       parameters:
-        - { $ref: '#/components/parameters/InvitesJoinSig' }
+        - *joinSig
       requestBody:
         required: true
         content:
@@ -291,7 +298,7 @@ paths:
         bound to E_v) and starts the passkey ceremony; otherwise 404. handle_taken is
         answered at most 10 times per handshake (D21), then 404.
       parameters:
-        - { $ref: '#/components/parameters/InvitesJoinSig' }
+        - *joinSig
       requestBody:
         required: true
         content:
@@ -316,7 +323,7 @@ paths:
         Friendship records (Verified ⇒ friend+, Accepted ⇒ friend) and starts the signup
         ceremony: get options for the new credential over the drafts, and the drafts.
       parameters:
-        - { $ref: '#/components/parameters/InvitesJoinSig' }
+        - *joinSig
       requestBody:
         required: true
         content:
@@ -341,7 +348,7 @@ paths:
         (Set-Cookie). A failed assertion aborts everything (404). awaiting_inviter (409):
         the inviter has not signed yet; send the same assertion again later.
       parameters:
-        - { $ref: '#/components/parameters/InvitesJoinSig' }
+        - *joinSig
       requestBody:
         required: true
         content:
@@ -358,15 +365,6 @@ paths:
         "409": { $ref: '_common.yaml#/components/responses/Problem' }
         "429": { $ref: '#/components/responses/InvitesRateLimited' }
 components:
-  parameters:
-    InvitesJoinSig:
-      name: X-PCC-Join-Sig
-      in: header
-      required: true
-      description: >-
-        The claiming device's ECDSA P-256 signature (P1363, base64url) over
-        "pcc-join-v1" ‖ hs ‖ sha256(scanned frame) ‖ call name.
-      schema: { type: string, maxLength: 128 }
   schemas:
     InvitesInvitees:
       type: object

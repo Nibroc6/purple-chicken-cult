@@ -1,15 +1,24 @@
-// Join API calls (plan §5.3 invitesapi, invitee side). The flow runs in a guest
-// session that joinStart creates; registerFinish replaces it with a user
-// session whose CSRF token the client adopts. Owner: P0-W04 → P1-W02.
+// Join API calls (plan §5.3 invitesapi, the claiming device's side). The flow
+// of an invite runs in a guest session that joinStart creates;
+// registerCosign replaces it with a user session whose CSRF token the client
+// adopts. A friend+ upgrade runs in the friend's own signed-in session. Every
+// call after the claim is signed by the device's key (X-PCC-Join-Sig).
+// Owner: P0-W04 → P1-W02.
 import { api, setCSRF, unwrap } from '../../api/client';
 import { ApiError } from '../../api/errors';
 import type { components } from '../../api/schema.gen';
+import type { ClaimDevice, JoinCall } from '../invites/handshake';
+import { b64url } from '../invites/handshake';
+import { toStatusVM, type StatusVM } from '../invites/vm';
 
 export type SessionView = components['schemas']['SessionView'];
-export type HandshakeState = components['schemas']['HandshakeStatus']['state'];
 
 function ok(res: { response: Response; error?: unknown }): void {
   if (!res.response.ok) throw new ApiError(res.response.status, res.error);
+}
+
+async function signed(dev: ClaimDevice, call: JoinCall) {
+  return { header: { 'X-PCC-Join-Sig': await dev.call(call) } };
 }
 
 export interface JoinStart {
@@ -23,18 +32,24 @@ export async function joinStart(): Promise<JoinStart> {
   return { tosVersion: r.tos_version, minAge: r.min_age };
 }
 
-export async function claim(payload: string): Promise<void> {
-  ok(await api.POST('/join/claim', { body: { payload } }));
+export async function claim(dev: ClaimDevice, payload: string): Promise<void> {
+  ok(await api.POST('/join/claim', { body: await dev.claim(payload) }));
 }
 
-export interface JoinStatus {
-  state: HandshakeState;
-  sas?: string;
+export async function joinStatus(dev: ClaimDevice): Promise<StatusVM> {
+  return toStatusVM(unwrap(await api.GET('/join/status', { params: await signed(dev, 'status') })));
 }
 
-export async function joinStatus(): Promise<JoinStatus> {
-  const st = unwrap(await api.GET('/join/status'));
-  return { state: st.state, ...(st.sas ? { sas: st.sas } : {}) };
+export async function audioStart(dev: ClaimDevice, kmac: Uint8Array): Promise<number> {
+  return unwrap(
+    await api.POST('/join/audio/start', { params: await signed(dev, 'audio_start'), body: { kmac: b64url(kmac) } }),
+  ).attempt;
+}
+
+export async function dualFrame(dev: ClaimDevice, payload: string, kmac: Uint8Array): Promise<string> {
+  return unwrap(
+    await api.POST('/join/dual/frame', { params: await signed(dev, 'dual_frame'), body: { payload, kmac: b64url(kmac) } }),
+  ).outcome;
 }
 
 export interface JoinForm {
@@ -46,9 +61,10 @@ export interface JoinForm {
   languages: string[];
 }
 
-export async function registerBegin(f: JoinForm): Promise<unknown> {
+export async function registerBegin(dev: ClaimDevice, f: JoinForm, signupToken: string): Promise<unknown> {
   return unwrap(
     await api.POST('/join/register/begin', {
+      params: await signed(dev, 'register_begin'),
       body: {
         handle: f.handle,
         display_name: f.displayName,
@@ -56,13 +72,29 @@ export async function registerBegin(f: JoinForm): Promise<unknown> {
         languages: f.languages,
         tos_version: f.tosVersion,
         age_attested: f.ageAttested,
+        signup_token: signupToken,
       },
     }),
   ).options;
 }
 
-export async function registerFinish(credential: Record<string, unknown>): Promise<SessionView> {
-  const sv = unwrap(await api.POST('/join/register/finish', { body: { credential } }));
+// Signup is the signup ceremony: get options for the new passkey over the drafts.
+export interface Signup {
+  options: unknown;
+  records: unknown[];
+}
+
+export async function registerFinish(dev: ClaimDevice, credential: Record<string, unknown>): Promise<Signup> {
+  const r = unwrap(
+    await api.POST('/join/register/finish', { params: await signed(dev, 'register_finish'), body: { credential } }),
+  );
+  return { options: r.options, records: r.records };
+}
+
+export async function registerCosign(dev: ClaimDevice, assertion: Record<string, unknown>): Promise<SessionView> {
+  const sv = unwrap(
+    await api.POST('/join/register/cosign', { params: await signed(dev, 'register_cosign'), body: { assertion } }),
+  );
   if (sv.csrf) setCSRF(sv.csrf);
   return sv;
 }
