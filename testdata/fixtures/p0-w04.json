@@ -1,9 +1,9 @@
 {
   "users": [
-    { "handle": "alice", "name": "Alice" },
-    { "handle": "bob", "name": "Bob" }
+    { "handle": "bob", "name": "Bob" },
+    { "handle": "carol", "name": "Carol" }
   ],
   "friends": [
-    { "a": "alice", "b": "bob" }
+    { "a": "bob", "b": "carol" }
   ]
 }
