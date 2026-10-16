@@ -1,0 +1,23 @@
+{
+  "users": [
+    { "handle": "alice", "name": "Alice", "preset": "latest" },
+    { "handle": "bob", "name": "Bob", "invited_by": "alice", "preset": "latest" },
+    { "handle": "carol", "name": "Carol", "preset": "latest" },
+    { "handle": "eve", "name": "Eve", "invited_by": "alice", "preset": "latest" },
+    { "handle": "frank", "name": "Frank", "preset": "latest" },
+    { "handle": "xavier", "name": "Xavier", "preset": "latest" },
+    { "handle": "mo1", "name": "Moderator One", "role": "moderator", "preset": "latest" },
+    { "handle": "mo2", "name": "Moderator Two", "role": "moderator", "preset": "latest" }
+  ],
+  "friends": [
+    { "a": "alice", "b": "bob" },
+    { "a": "bob", "b": "carol" },
+    { "a": "eve", "b": "frank" }
+  ],
+  "posts": [
+    { "label": "b1", "author": "bob", "body": "Bob sells miracle cures, click now", "age": "2h" },
+    { "label": "b2", "author": "bob", "body": "Bob talks about the weather", "age": "1h" },
+    { "label": "e1", "author": "eve", "body": "Eve posts far from Alice", "age": "1h" },
+    { "label": "x1", "author": "xavier", "body": "Xavier is somewhere else entirely", "age": "1h" }
+  ]
+}
