@@ -279,6 +279,9 @@ test('a friend+ upgrade in person: code, SAS, both sound layers and both co-sign
   const bobCtx = await browser.newContext({ baseURL: origin, ...(locale ? { locale } : {}) });
   const bobPage = await bobCtx.newPage();
   const bobAuth = await authenticator(bobCtx, bobPage);
+  // Load the app once first: the enrollment page then starts from a settled session.
+  await bobPage.goto(`${origin}/`);
+  await bobPage.waitForLoadState('networkidle');
   const token = await w.genesisToken('bob');
   await bobPage.goto(`${origin}/enroll#${token}`);
   await bobPage.locator('input[name=tos]').check();
