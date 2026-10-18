@@ -1,0 +1,175 @@
+{
+  "users": [
+    {
+      "handle": "carol",
+      "name": "Carol",
+      "age": "2160h"
+    },
+    {
+      "handle": "erin",
+      "name": "Erin",
+      "age": "2160h"
+    },
+    {
+      "handle": "gus",
+      "name": "Gus",
+      "age": "2160h"
+    },
+    {
+      "handle": "vic",
+      "name": "Vic",
+      "age": "2160h"
+    },
+    {
+      "handle": "hal",
+      "name": "Hal",
+      "age": "2160h"
+    },
+    {
+      "handle": "wes",
+      "name": "Wes",
+      "age": "2160h"
+    },
+    {
+      "handle": "yan",
+      "name": "Yan",
+      "age": "2160h"
+    },
+    {
+      "handle": "zed",
+      "name": "Zed",
+      "age": "2160h"
+    },
+    {
+      "handle": "xan",
+      "name": "Xan",
+      "age": "2160h"
+    },
+    {
+      "handle": "pam",
+      "name": "Pam",
+      "age": "2160h"
+    },
+    {
+      "handle": "fpf",
+      "name": "Friend Plus",
+      "age": "2160h"
+    },
+    {
+      "handle": "pfr",
+      "name": "Plain Friend",
+      "age": "2160h"
+    }
+  ],
+  "friends": [
+    {
+      "a": "alice",
+      "b": "bob",
+      "age": "720h"
+    },
+    {
+      "a": "alice",
+      "b": "carol",
+      "age": "720h"
+    },
+    {
+      "a": "alice",
+      "b": "erin",
+      "age": "720h"
+    },
+    {
+      "a": "carol",
+      "b": "dave",
+      "age": "720h"
+    },
+    {
+      "a": "erin",
+      "b": "dave",
+      "age": "720h"
+    },
+    {
+      "a": "carol",
+      "b": "gus",
+      "age": "720h"
+    },
+    {
+      "a": "erin",
+      "b": "gus",
+      "age": "720h"
+    },
+    {
+      "a": "vic",
+      "b": "hal",
+      "age": "720h"
+    },
+    {
+      "a": "vic",
+      "b": "yan",
+      "age": "720h"
+    },
+    {
+      "a": "hal",
+      "b": "xan",
+      "age": "720h"
+    },
+    {
+      "a": "yan",
+      "b": "zed",
+      "age": "720h"
+    },
+    {
+      "a": "zed",
+      "b": "xan",
+      "age": "720h"
+    },
+    {
+      "a": "hal",
+      "b": "wes",
+      "age": "720h"
+    },
+    {
+      "a": "pam",
+      "b": "fpf",
+      "level": "friend_plus",
+      "age": "720h"
+    },
+    {
+      "a": "pam",
+      "b": "pfr",
+      "age": "720h"
+    }
+  ],
+  "posts": [
+    {
+      "label": "p1w03-hal",
+      "author": "hal",
+      "body": "Hal's own post",
+      "age": "3h"
+    },
+    {
+      "label": "p1w03-wes",
+      "author": "wes",
+      "body": "Wes behind Hal",
+      "age": "2h"
+    },
+    {
+      "label": "p1w03-xan",
+      "author": "xan",
+      "body": "Xan two ways",
+      "age": "1h"
+    },
+    {
+      "label": "p1w03-fp",
+      "author": "pam",
+      "body": "Only for friend+",
+      "audience": "friend_plus",
+      "age": "2h"
+    },
+    {
+      "label": "p1w03-open",
+      "author": "pam",
+      "body": "For everyone",
+      "age": "1h"
+    }
+  ]
+}
