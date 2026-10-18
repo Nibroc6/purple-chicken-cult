@@ -55,3 +55,39 @@ func TestSearch10kP95(t *testing.T) {
 		t.Fatalf("BFS 10k p95 = %v, budget 5ms", p95)
 	}
 }
+
+// P1 (PCC_LAZY_BFS): a cold lazy search that reaches the first three tiers
+// stays within the Phase 0 full-BFS budget, and a cached one costs nothing.
+func TestLazySearch10kP95(t *testing.T) {
+	g := synth10k(t)
+	g.SetLazy(true)
+	g.SetDeepRelease(0, nil)
+	ctx := context.Background()
+	rng := rand.New(rand.NewPCG(7, 8)) //nolint:gosec // perf data
+	cold := make([]time.Duration, 0, 200)
+	warm := make([]time.Duration, 0, 200)
+	for range 200 {
+		v := core.UserID(1 + rng.IntN(10_000))
+		start := time.Now()
+		s, err := g.Search(ctx, v, g.Exclusions(v))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for k := 1; k <= 3; k++ {
+			s.Layer(k)
+		}
+		cold = append(cold, time.Since(start))
+		start = time.Now()
+		if _, err := g.Search(ctx, v, g.Exclusions(v)); err != nil {
+			t.Fatal(err)
+		}
+		warm = append(warm, time.Since(start))
+	}
+	slices.Sort(cold)
+	slices.Sort(warm)
+	p95, w95 := cold[len(cold)*95/100], warm[len(warm)*95/100]
+	t.Logf("lazy BFS 10k tiers 1–3 cold p95 = %v, cached p95 = %v", p95, w95)
+	if p95 > 5*time.Millisecond {
+		t.Fatalf("lazy BFS 10k p95 = %v, budget 5ms", p95)
+	}
+}
