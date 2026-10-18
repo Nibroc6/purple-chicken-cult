@@ -161,7 +161,7 @@ func (s *Service) accept(ctx context.Context, v core.Viewer, u core.UserID, purp
 		if err != nil {
 			return err
 		}
-		reqRec, reqA, requested := s.pendingDraft(ctx, tx, u, v.ID, false)
+		reqRec, reqA, requested := s.pendingDraft(ctx, tx, u, v.ID)
 		if sg != nil {
 			if requested && !bytes.Equal(sg.record, reqRec) || !requested && !s.isFriendship(ctx, sg.record, u, v.ID) {
 				return errNotSigned

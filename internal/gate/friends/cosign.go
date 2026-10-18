@@ -127,7 +127,7 @@ func (s *Service) requestDraft(ctx context.Context, v core.Viewer, target gate.R
 	if _, ok := s.d.Graph.Level(v.ID, u); ok {
 		return nil, gate.ErrNotFound
 	}
-	if rec, _, ok := s.pendingDraft(ctx, s.d.DB.Q(), u, v.ID, false); ok {
+	if rec, _, ok := s.pendingDraft(ctx, s.d.DB.Q(), u, v.ID); ok {
 		return recordBody(rec)
 	}
 	return s.friendship(ctx, v.ID, u)
@@ -155,7 +155,7 @@ func (s *Service) acceptDraft(ctx context.Context, v core.Viewer, from gate.Ref)
 		int64(u), int64(v.ID)).Scan(&st); err != nil || st != reqPending {
 		return nil, gate.ErrNotFound
 	}
-	if rec, _, ok := s.pendingDraft(ctx, s.d.DB.Q(), u, v.ID, false); ok {
+	if rec, _, ok := s.pendingDraft(ctx, s.d.DB.Q(), u, v.ID); ok {
 		return recordBody(rec)
 	}
 	return s.friendship(ctx, v.ID, u)
@@ -212,13 +212,11 @@ func (s *Service) revocation(ctx context.Context, a, b, by core.UserID) (revocat
 
 // pendingDraft returns the canonical Friendship record and the requester's
 // assertion of from's pending request to to, when the requester co-signed it.
-func (s *Service) pendingDraft(ctx context.Context, q store.Q, from, to core.UserID, lock bool) ([]byte, *core.Assertion, bool) {
-	sql := "SELECT draft, draft_assertion FROM friend_requests WHERE from_id = $1 AND to_id = $2 AND state = 0"
-	if lock {
-		sql += " FOR UPDATE"
-	}
+// Callers that write lock the request row first.
+func (s *Service) pendingDraft(ctx context.Context, q store.Q, from, to core.UserID) ([]byte, *core.Assertion, bool) {
 	var draft, raw []byte
-	if err := q.QueryRow(ctx, sql, int64(from), int64(to)).Scan(&draft, &raw); err != nil || draft == nil || raw == nil {
+	if err := q.QueryRow(ctx, "SELECT draft, draft_assertion FROM friend_requests WHERE from_id = $1 AND to_id = $2 AND state = 0",
+		int64(from), int64(to)).Scan(&draft, &raw); err != nil || draft == nil || raw == nil {
 		return nil, nil, false
 	}
 	rec, _, _, err := coreref.RecordFromDraft(draft)

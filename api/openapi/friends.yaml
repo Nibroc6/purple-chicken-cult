@@ -37,6 +37,15 @@ paths:
       - { name: ref, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
     post:
       operationId: sendFriendRequest
+      requestBody:
+        required: false
+        description: >-
+          P1 co-signature (required for a passkey session; empty for a session without a
+          credential): the intent from POST /api/cosign {purpose: friend_request, target: ref} and the
+          passkey assertion over its draft.
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FriendsCosignIn' }
       responses:
         "202":
           description: >-
@@ -45,6 +54,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/FriendsRequestSent' }
+        "400": { $ref: '_common.yaml#/components/responses/Problem' }
         "404": { $ref: '_common.yaml#/components/responses/NotFound' }
         "409": { $ref: '#/components/responses/FriendsConflict' }
         "422": { $ref: '#/components/responses/FriendsSelf' }
@@ -60,8 +70,18 @@ paths:
       - { name: ref, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
     post:
       operationId: acceptFriendRequest
+      requestBody:
+        required: false
+        description: >-
+          P1 co-signature (required for a passkey session; empty for a session without a
+          credential): the intent from POST /api/cosign {purpose: friend_accept, target: ref} and the
+          passkey assertion over its draft.
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FriendsCosignIn' }
       responses:
         "204": { description: You are now friends. }
+        "400": { $ref: '_common.yaml#/components/responses/Problem' }
         "404": { $ref: '_common.yaml#/components/responses/NotFound' }
         "409": { $ref: '#/components/responses/FriendsConflict' }
         "429": { $ref: '#/components/responses/FriendsRateLimited' }
@@ -79,8 +99,18 @@ paths:
       - { name: ref, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
     delete:
       operationId: unfriend
+      requestBody:
+        required: false
+        description: >-
+          P1 co-signature (required for a passkey session; empty for a session without a
+          credential): the intent from POST /api/cosign {purpose: unfriend, target: ref} and the
+          passkey assertion over its draft.
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FriendsCosignIn' }
       responses:
         "204": { description: The friendship was revoked; the inviter label stays. }
+        "400": { $ref: '_common.yaml#/components/responses/Problem' }
         "404": { $ref: '_common.yaml#/components/responses/NotFound' }
         "429": { $ref: '#/components/responses/FriendsRateLimited' }
   /people/{ref}/block:
@@ -88,8 +118,18 @@ paths:
       - { name: ref, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
     put:
       operationId: blockPerson
+      requestBody:
+        required: false
+        description: >-
+          P1 co-signature (required for a passkey session; empty for a session without a
+          credential): the intent from POST /api/cosign {purpose: block, target: ref} — purpose unfriend when blocking a friend (the Revocation the block writes) — and the
+          passkey assertion over its draft.
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FriendsCosignIn' }
       responses:
         "204": { description: Blocked (and unfriended). Never revealed to the blocked person. }
+        "400": { $ref: '_common.yaml#/components/responses/Problem' }
         "404": { $ref: '_common.yaml#/components/responses/NotFound' }
         "422": { $ref: '#/components/responses/FriendsSelf' }
         "429": { $ref: '#/components/responses/FriendsRateLimited' }
@@ -154,6 +194,42 @@ paths:
               schema: { $ref: '#/components/schemas/FriendsPostsPage' }
         "404": { $ref: '_common.yaml#/components/responses/NotFound' }
         "429": { $ref: '#/components/responses/FriendsRateLimited' }
+  /people/{ref}/hide-via:
+    parameters:
+      - { name: ref, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
+    put:
+      operationId: hideVia
+      description: >-
+        P1. Hide the paths through a friend without unfriending: the friend and their own
+        posts stay, nobody is reached through them any more (transit only). Never revealed.
+      responses:
+        "204": { description: Hidden via (idempotent). }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/FriendsRateLimited' }
+    delete:
+      operationId: showVia
+      description: P1. Show the paths through someone again.
+      responses:
+        "204": { description: No longer hidden via (idempotent). }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/FriendsRateLimited' }
+  /friends/{ref}/upgrade:
+    parameters:
+      - { name: ref, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
+    post:
+      operationId: upgradeFriend
+      description: >-
+        P1. Open a friend+ upgrade with a plain friend: an in-person handshake (the same
+        protocol as invites; the friend scans the code from their own signed-in session at
+        /join). Only a Verified outcome upgrades, after both friends co-signed.
+      responses:
+        "201":
+          description: The upgrade handshake (the initiator's device renders the frames).
+          content:
+            application/json:
+              schema: { $ref: '_common.yaml#/components/schemas/HandshakeView' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/FriendsRateLimited' }
   /suggestions:
     get:
       operationId: listSuggestions
@@ -167,6 +243,13 @@ paths:
         "429": { $ref: '#/components/responses/FriendsRateLimited' }
 components:
   schemas:
+    FriendsCosignIn:
+      type: object
+      additionalProperties: false
+      required: [intent, assertion]
+      properties:
+        intent: { $ref: '_common.yaml#/components/schemas/Ref' }
+        assertion: { type: object, additionalProperties: true }
     FriendsPeoplePage:
       type: object
       required: [items]
