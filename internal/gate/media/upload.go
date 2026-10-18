@@ -233,3 +233,14 @@ func (s *Service) store(ctx context.Context, dr *Drivers, img []byte, owner *cor
 	}
 	return id, w, h, nil
 }
+
+// Ready answers whether the signed-in viewer may upload now: the uniform
+// not-found when signed out, feature_disabled when media is off. The upload
+// handler calls it before it reads the request body.
+func (s *Service) Ready(ctx context.Context) error {
+	if _, err := core.RequireUser(ctx); err != nil {
+		return err
+	}
+	_, err := s.live()
+	return err
+}
