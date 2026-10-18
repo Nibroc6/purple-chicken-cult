@@ -404,6 +404,8 @@ func TestFixtureErrors(t *testing.T) {
 		"bad level":       `{"users": [{"handle": "abc"}, {"handle": "abd"}], "friends": [{"a": "abc", "b": "abd", "level": "best"}]}`,
 		"self block":      `{"users": [{"handle": "abc"}], "blocks": [["abc", "abc"]]}`,
 		"friend blocked":  `{"users": [{"handle": "abc"}, {"handle": "abd"}], "friends": [{"a": "abc", "b": "abd"}], "blocks": [["abd", "abc"]]}`,
+		"self hide-via":   `{"users": [{"handle": "abc"}], "hide_via": [["abc", "abc"]]}`,
+		"hide unknown":    `{"users": [{"handle": "abc"}], "hide_via": [["abc", "nobody"]]}`,
 		"no label":        `{"users": [{"handle": "abc"}], "posts": [{"author": "abc"}]}`,
 		"dup label":       `{"users": [{"handle": "abc"}], "posts": [{"label": "x", "author": "abc"}, {"label": "x", "author": "abc"}]}`,
 		"bad audience":    `{"users": [{"handle": "abc"}], "posts": [{"label": "x", "author": "abc", "audience": "all"}]}`,
@@ -430,6 +432,32 @@ func TestFixtureErrors(t *testing.T) {
 	}
 	if got := e.count(t, "SELECT count(*) FROM users"); got != 0 {
 		t.Fatalf("rejected fixtures wrote %d users", got)
+	}
+}
+
+// A fixture's hide_via pairs land in the table and in graph memory (P1).
+func TestFixtureHideVia(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	doc := `{"users": [{"handle": "ann"}, {"handle": "bob"}, {"handle": "cat"}],
+		"friends": [{"a": "ann", "b": "bob"}, {"a": "bob", "b": "cat"}], "hide_via": [["ann", "bob"]]}`
+	if err := e.s.LoadFixtureJSON(ctx, "hv", []byte(doc)); err != nil {
+		t.Fatal(err)
+	}
+	base := fixtureBase("hv")
+	ann, bob, cat := base, base+1, base+2
+	if got := e.count(t, "SELECT count(*) FROM hide_via WHERE user_id = $1 AND via_id = $2", int64(ann), int64(bob)); got != 1 {
+		t.Fatalf("hide_via rows: %d", got)
+	}
+	s, err := e.g.Search(ctx, ann, e.g.Exclusions(ann))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d, ok := s.Dist(bob); !ok || d != 1 {
+		t.Fatal("bob stays reachable")
+	}
+	if _, ok := s.Dist(cat); ok {
+		t.Fatal("ann never routes through bob")
 	}
 }
 

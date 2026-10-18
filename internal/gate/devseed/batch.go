@@ -15,13 +15,14 @@ import (
 // in-memory modules. Dev/test only: rows carry placeholder record hashes (no
 // signed records are produced), exactly like coretest.World.
 type batch struct {
-	users  []userRow
-	edges  []edgeRow // one per friendship; both directions are written
-	blocks [][2]core.UserID
-	mutes  [][2]core.UserID
-	posts  []postRow
-	links  []core.LinkMeta // in parent order per child (ord = position among the child's links)
-	likes  []likeRow
+	users   []userRow
+	edges   []edgeRow // one per friendship; both directions are written
+	blocks  [][2]core.UserID
+	mutes   [][2]core.UserID
+	hideVia [][2]core.UserID // [user, via]
+	posts   []postRow
+	links   []core.LinkMeta // in parent order per child (ord = position among the child's links)
+	likes   []likeRow
 
 	// touched are metas of existing posts changed by this batch (a new
 	// continuation child); memory only, the database derives them from links.
@@ -168,6 +169,7 @@ func (b *batch) writeExclusions(ctx context.Context, tx pgx.Tx) error {
 	}{
 		{"INSERT INTO blocks (blocker, blocked) SELECT * FROM unnest($1::bigint[], $2::bigint[])", b.blocks},
 		{"INSERT INTO mutes (user_id, author_id) SELECT * FROM unnest($1::bigint[], $2::bigint[])", b.mutes},
+		{"INSERT INTO hide_via (user_id, via_id) SELECT * FROM unnest($1::bigint[], $2::bigint[])", b.hideVia},
 	} {
 		if len(t.rows) == 0 {
 			continue
@@ -299,7 +301,7 @@ func (s *Service) apply(ctx context.Context, b *batch) error {
 			up.Put(u.meta)
 		}
 	}
-	if len(b.edges) > 0 || len(b.blocks) > 0 {
+	if len(b.edges) > 0 || len(b.blocks) > 0 || len(b.hideVia) > 0 {
 		if err := d.Graph.Load(ctx); err != nil {
 			return err
 		}

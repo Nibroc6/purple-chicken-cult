@@ -15,7 +15,12 @@ import (
 // without telling them (theirs to the caller turns declined, which still looks
 // pending to them), writes the Block record and cuts every path through them
 // from the caller's searches. Nothing is ever revealed to the blocked person.
-func (s *Service) Block(ctx context.Context, who gate.Ref) error {
+// A passkey session co-signs it (cs[0]): the Block record (purpose block), or
+// — blocking a friend — the Revocation the block writes (purpose unfriend).
+// A session holds one passkey ceremony at a time, so one change carries one
+// co-signature; the edge removal is what exports verify (§2.3), the Block
+// record is author-signed and deleted on unblock anyway.
+func (s *Service) Block(ctx context.Context, who gate.Ref, cs ...Cosig) error {
 	v, err := core.RequireUser(ctx)
 	if err != nil {
 		return err
@@ -37,12 +42,36 @@ func (s *Service) Block(ctx context.Context, who gate.Ref) error {
 	var unfriended, added bool
 	err = s.d.DB.Tx(ctx, func(tx pgx.Tx) error {
 		unfriended, added = false, false
-		if err := s.Revoke(ctx, tx, v.ID, u, v.ID); err == nil {
-			unfriended = true
-		} else if !errors.Is(err, gate.ErrNotFound) {
+		_, friend := s.d.Graph.Level(v.ID, u)
+		purpose, kind := PurposeBlock, core.RecBlock
+		if friend {
+			purpose, kind = PurposeUnfriend, core.RecRevocation
+		}
+		sg, err := s.verify(ctx, tx, v, purpose, kind, first(cs))
+		if err != nil {
 			return err
 		}
-		if _, err := tx.Exec(ctx, `UPDATE friend_requests SET state = $3, decided_at = $4
+		if sg != nil && (friend && !s.isRevocation(ctx, sg.record, v.ID, u, v.ID) || !friend && !s.isBlock(ctx, sg.record, v.ID, u)) {
+			return errNotSigned
+		}
+		var revSig, blockSig *signed
+		if friend {
+			revSig = sg
+		} else {
+			blockSig = sg
+		}
+		switch err := s.revoke(ctx, tx, v.ID, u, v.ID, revSig); {
+		case err == nil:
+			unfriended = true
+			if !friend && mustCosign(v) {
+				return gate.ErrNotFound // befriended meanwhile: the Revocation would go unsigned
+			}
+		case !errors.Is(err, gate.ErrNotFound):
+			return err
+		case friend && sg != nil:
+			return gate.ErrNotFound // unfriended meanwhile: the co-signed Revocation has nothing to revoke
+		}
+		if _, err := tx.Exec(ctx, `UPDATE friend_requests SET state = $3, decided_at = $4, draft = NULL, draft_assertion = NULL
 			WHERE from_id = $1 AND to_id = $2 AND state IN (0, 1)`, int64(v.ID), int64(u), reqWithdrawn, now); err != nil {
 			return err
 		}
@@ -63,8 +92,8 @@ func (s *Service) Block(ctx context.Context, who gate.Ref) error {
 		if err != nil {
 			return err
 		}
-		h, err := s.d.Signer.Sign(ctx, tx, core.RecBlock, v.ID, blockBody{Blocker: ev, Blocked: eu, At: sigs.T(now)},
-			[]core.UserID{v.ID})
+		h, err := s.signRecord(ctx, tx, core.RecBlock, v.ID, blockBody{Blocker: ev, Blocked: eu, At: sigs.T(now)},
+			[]core.UserID{v.ID}, blockSig)
 		if err != nil {
 			return err
 		}

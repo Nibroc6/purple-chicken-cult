@@ -215,20 +215,3 @@ func (s *Service) Suggestions(ctx context.Context) ([]Suggestion, error) {
 	}
 	return out, nil
 }
-
-// HideVia cuts a hop without unfriending (P1-W03).
-func (s *Service) HideVia(ctx context.Context, who gate.Ref, on bool) error { return s.later(ctx) }
-
-// UpgradeBegin opens a friend+ upgrade handshake (P1-W03).
-func (s *Service) UpgradeBegin(ctx context.Context, who gate.Ref) (gate.HandshakeView, error) {
-	return gate.HandshakeView{}, s.later(ctx)
-}
-
-// later is the answer of Phase 1 methods, whose routes are not registered in
-// Phase 0.
-func (s *Service) later(ctx context.Context) error {
-	if _, err := core.RequireUser(ctx); err != nil {
-		return err
-	}
-	return gate.ErrNotImplemented
-}

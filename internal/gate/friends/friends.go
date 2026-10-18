@@ -1,7 +1,10 @@
-// Package friends owns friendships, requests, blocks, mutes, people pages and
-// suggestions (ARCHITECTURE §3, §4.6, §10.4, §10.5). It implements core.Edges,
-// core.Mutes and core.RequestStates and is the sole writer of edges,
-// edge_events, friend_requests, blocks, mutes and hide_via.
+// Package friends owns friendships, requests, blocks, mutes, hide-vias, people
+// pages and suggestions (ARCHITECTURE §3, §4.6, §10.4, §10.5). It implements
+// core.Edges, core.Mutes and core.RequestStates and is the sole writer of
+// edges, edge_events, friend_requests, blocks, mutes and hide_via. Phase 1:
+// graph-changing writes are co-signed with a passkey (cosign.go), hide-via
+// cuts a hop without unfriending and friend+ upgrades open an in-person
+// handshake (hidevia.go).
 //
 // Owner: P0-W03 → P1-W03.
 //
@@ -70,8 +73,10 @@ var (
 // New returns the service.
 func New(d *core.Deps) *Service { return &Service{d: d} }
 
-// Init registers the retention jobs and the AccountDeleted clean-up.
+// Init registers the co-sign purposes, the retention jobs and the
+// AccountDeleted clean-up.
 func (s *Service) Init(context.Context) error {
+	s.registerPurposes()
 	if s.d.Bus != nil {
 		core.Subscribe(s.d.Bus, func(e core.AccountDeleted) { s.forget(e.ID) })
 	}
@@ -101,10 +106,11 @@ func (s *Service) PurgeEdgeEvents(ctx context.Context) (int, error) {
 	return int(tag.RowsAffected()), nil
 }
 
-// ScrubRequests nulls the timestamps of requests declined more than Retention ago.
+// ScrubRequests nulls the timestamps of requests declined more than Retention
+// ago, and the drafts the requester signed (they carry times too).
 func (s *Service) ScrubRequests(ctx context.Context) (int, error) {
-	tag, err := s.d.DB.Q().Exec(ctx, `UPDATE friend_requests SET created_at = NULL, decided_at = NULL
-		WHERE state = $1 AND decided_at < $2`, reqDeclined, s.d.Clock.Now().Add(-Retention))
+	tag, err := s.d.DB.Q().Exec(ctx, `UPDATE friend_requests SET created_at = NULL, decided_at = NULL, draft = NULL,
+		draft_assertion = NULL WHERE state = $1 AND decided_at < $2`, reqDeclined, s.d.Clock.Now().Add(-Retention))
 	if err != nil {
 		return 0, err
 	}
@@ -247,6 +253,11 @@ func (s *Service) edgeEvent(ctx context.Context, tx store.Q, a, b core.UserID, k
 // Revoke deletes the edge a–b, writes its Revocation record and schedules both
 // records for purging after Retention (§2.3). The Invite record is untouched.
 func (s *Service) Revoke(ctx context.Context, tx store.Q, a, b, by core.UserID) error {
+	return s.revoke(ctx, tx, a, b, by, nil)
+}
+
+// revoke is Revoke with the revoker's co-signature of the Revocation, if any.
+func (s *Service) revoke(ctx context.Context, tx store.Q, a, b, by core.UserID, sg *signed) error {
 	tx = s.q(tx)
 	rows, err := tx.Query(ctx, `DELETE FROM edges WHERE (user_id = $1 AND friend_id = $2) OR (user_id = $2 AND friend_id = $1)
 		RETURNING record_hash`, int64(a), int64(b))
@@ -260,18 +271,12 @@ func (s *Service) Revoke(ctx context.Context, tx store.Q, a, b, by core.UserID) 
 	if len(hashes) == 0 {
 		return gate.ErrNotFound
 	}
-	ea, eb, err := s.exts(ctx, a, b)
+	body, err := s.revocation(ctx, a, b, by)
 	if err != nil {
 		return err
 	}
-	eby := ea
-	if by == b {
-		eby = eb
-	}
 	now := s.d.Clock.Now()
-	oa, ob := ordered(ea, eb)
-	rev, err := s.d.Signer.Sign(ctx, tx, core.RecRevocation, by,
-		revocationBody{Edge: edgeRef{A: oa, B: ob}, By: eby, At: sigs.T(now)}, []core.UserID{a, b})
+	rev, err := s.signRecord(ctx, tx, core.RecRevocation, by, body, []core.UserID{a, b}, sg)
 	if err != nil {
 		return err
 	}
