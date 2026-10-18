@@ -40,6 +40,10 @@ const card = (page: Page, handle: string) =>
 // enroll makes handle a genesis account with a passkey in page.
 async function enroll(page: Page, context: BrowserContext, w: World, handle: string): Promise<void> {
   await addVirtualAuthenticator(context, page);
+  // Load the app once first: the enrollment page then starts from a settled
+  // session (a fresh context's first load can race the CSRF token).
+  await page.goto(`${origin}/`);
+  await page.waitForLoadState('networkidle');
   const token = await w.genesisToken(handle);
   await page.goto(`${origin}/enroll#${token}`);
   await page.locator('input[name=tos]').check();
