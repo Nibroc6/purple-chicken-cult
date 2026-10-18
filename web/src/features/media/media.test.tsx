@@ -175,3 +175,18 @@ describe('signed URL cache', () => {
     expect(seen.urls).toHaveLength(3);
   });
 });
+
+describe('useUpload spacing', () => {
+  it('waits out a short write spacing once', async () => {
+    let n = 0;
+    const seen = stub(() => (n++ === 0 ? json(429, { error: 'rate_limited', retry_after_s: 0 }) : json(201, view)));
+    const onPicked = vi.fn();
+    render(<MediaPicker max={4} onPicked={onPicked} />);
+    pick([png()]);
+    fireEvent.click(screen.getByTestId('media-upload'));
+    await waitFor(() => {
+      expect(onPicked).toHaveBeenCalledWith([media]);
+    });
+    expect(seen.uploads).toHaveLength(2);
+  });
+});

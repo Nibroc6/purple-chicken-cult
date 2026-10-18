@@ -131,6 +131,7 @@ export function MediaPicker(props: MediaPickerProps) {
                 ) : null}
                 <button
                   type="button"
+                  data-testid="media-remove"
                   disabled={pending}
                   onClick={() => {
                     remove(it.id);

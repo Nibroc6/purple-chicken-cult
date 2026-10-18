@@ -14,22 +14,23 @@ interface Shown {
   src?: string;
   failed: boolean;
   retried: boolean;
+  attempt: number;
 }
 
 export function MediaImage({ media, variant }: MediaImageProps) {
   const { t } = useTranslation('media');
   const key = `${variant}:${media.ref}`;
-  const [state, setState] = useState<Shown>({ key, failed: false, retried: false });
-  const cur: Shown = state.key === key ? state : { key, failed: false, retried: false };
+  const [state, setState] = useState<Shown>({ key, failed: false, retried: false, attempt: 0 });
+  const cur: Shown = state.key === key ? state : { key, failed: false, retried: false, attempt: 0 };
 
   useEffect(() => {
     let live = true;
     signedURL(media.ref, variant).then(
       (u) => {
-        if (live) setState({ key, src: u.url, failed: false, retried: false });
+        if (live) setState({ key, src: u.url, failed: false, retried: false, attempt: 0 });
       },
       () => {
-        if (live) setState({ key, failed: true, retried: false });
+        if (live) setState({ key, failed: true, retried: false, attempt: 0 });
       },
     );
     return () => {
@@ -45,7 +46,8 @@ export function MediaImage({ media, variant }: MediaImageProps) {
     setState({ ...cur, retried: true });
     refresh(media.ref, variant).then(
       (u) => {
-        setState((s) => (s.key === key ? { ...s, src: u.url } : s));
+        // A new element even when the URL did not change, so the browser asks again.
+        setState((s) => (s.key === key ? { ...s, src: u.url, attempt: s.attempt + 1 } : s));
       },
       () => {
         setState((s) => (s.key === key ? { ...s, failed: true } : s));
@@ -63,6 +65,7 @@ export function MediaImage({ media, variant }: MediaImageProps) {
   }
   return (
     <img
+      key={cur.attempt}
       className={`media-image media-${variant}`}
       data-testid="media-image"
       data-variant={variant}

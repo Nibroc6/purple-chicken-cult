@@ -1,0 +1,10 @@
+{
+  "users": [
+    { "handle": "mia", "name": "Mia", "age": "2160h" },
+    { "handle": "noa", "name": "Noa", "age": "2160h" },
+    { "handle": "ola", "name": "Ola", "age": "2160h" }
+  ],
+  "friends": [
+    { "a": "mia", "b": "noa", "age": "720h" }
+  ]
+}
