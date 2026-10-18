@@ -186,3 +186,25 @@ func TestDerivedKeysDistinct(t *testing.T) {
 		t.Fatal("ref key must be 64 bytes")
 	}
 }
+
+// TestCDNPurge: the purge driver is an enum (unknown ⇒ refuse to start) and
+// cloudflare needs its zone and token (contract request p1-w04-1).
+func TestCDNPurge(t *testing.T) {
+	m := prodBase()
+	c, err := LoadFrom(env(m))
+	if err != nil || c.CDN.Purge != CDNPurgeNone {
+		t.Fatalf("default: %v %+v", err, c)
+	}
+	m["PCC_CDN_PURGE"] = "fastly"
+	if _, err := LoadFrom(env(m)); err == nil {
+		t.Fatal("unknown purge driver must refuse to start")
+	}
+	m["PCC_CDN_PURGE"] = "cloudflare"
+	if _, err := LoadFrom(env(m)); err == nil {
+		t.Fatal("cloudflare purge without zone and token must refuse to start")
+	}
+	m["PCC_CDN_ZONE_ID"], m["PCC_CDN_API_TOKEN"] = "z", "t"
+	if c, err := LoadFrom(env(m)); err != nil || c.CDN.Purge != CDNPurgeCloudflare {
+		t.Fatalf("cloudflare: %v", err)
+	}
+}

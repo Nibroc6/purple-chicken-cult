@@ -35,7 +35,10 @@ type Service struct {
 	ref *coreref.MemMedia // without D: the fail-closed placeholder (no media id reaches the database)
 }
 
-var _ core.Media = (*Service)(nil)
+var (
+	_ core.Media     = (*Service)(nil)
+	_ core.CSAMHolds = (*Service)(nil)
+)
 
 // New returns the service.
 func New(d *core.Deps) *Service { return &Service{d: d, ref: &coreref.MemMedia{}} }
@@ -88,4 +91,21 @@ func (s *Service) Views(ctx context.Context, sr core.Search, ids []uuid.UUID) ([
 // Ingest scans and stores a preview image.
 func (s *Service) Ingest(ctx context.Context, img []byte, sourcePost core.PostID, sourceURL string) (uuid.UUID, error) {
 	return s.ref.Ingest(ctx, img, sourcePost, sourceURL)
+}
+
+// ---- core.CSAMHolds (steward stub, contract request p1-w04-1) ----
+
+// Hold returns the hold of media.
+func (s *Service) Hold(ctx context.Context, m uuid.UUID) (core.CSAMHold, error) {
+	return s.ref.Hold(ctx, m)
+}
+
+// Report records the CyberTipline report reference.
+func (s *Service) Report(ctx context.Context, tx store.Q, m uuid.UUID, ref string) error {
+	return s.ref.Report(ctx, tx, m, ref)
+}
+
+// ReleaseAccount lifts the upload hold of media's subject.
+func (s *Service) ReleaseAccount(ctx context.Context, tx store.Q, m uuid.UUID) error {
+	return s.ref.ReleaseAccount(ctx, tx, m)
 }

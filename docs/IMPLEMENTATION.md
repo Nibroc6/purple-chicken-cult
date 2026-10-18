@@ -1050,6 +1050,11 @@ CREATE TABLE removed_account_marks (                           -- "invited a rem
 ALTER TABLE invite_budgets ADD COLUMN diversity real NOT NULL DEFAULT 1.0; -- §8 diversity decay multiplier
 ```
 
+`2008_mod_queue_media.sql` (steward, contract request p1-w04-1)
+```sql
+ALTER TABLE mod_queue ADD COLUMN subject_media uuid REFERENCES media(id); -- CSAM items: the held media
+```
+
 ### 3.4 Table ownership (buildability C5)
 
 Exactly one WP **writes** each table (or each named column group). Other packages read
@@ -1078,7 +1083,7 @@ depends on a column added by another WP's own migration range until INT has merg
 | `jobs` | `store/jobq` (scaffold) | — | `jobq.Queue` |
 | `cosign_intents` | P1-W01 | — | `core.Cosign` |
 | `media`, `media_variants`, `csam_holds` | P1-W04 | `gate/views` (variants, read-only) | `core.Media` |
-| `post_media` | P1-W12 | — | `core.Media.Views` |
+| `post_media` | P1-W12 | `gate/media` (read-only: signed-URL access checks, deletion fan-out; p1-w04-1) | `core.Media.Views` |
 | `push_subscriptions` | P1-W05 | — | — |
 | `user_themes` | P1-W09 | — | — |
 | `automation_signals` | P1-W07 (kinds webdriver, cdp, no_input, sustained_rate, no_seen_reads, bfs_tree_walk, chain_speed) and P1-W06 (kinds cadence, similarity, invite_cluster) | — | — |
@@ -1144,6 +1149,7 @@ type Config struct {
     AllowFSBlob    bool          // P1: PCC_ALLOW_FS_BLOB=1 — prod fs blobs; honored only with a real scanner, logged at WARN every start
     EvidenceBlob   BlobConfig    // P1: PCC_EVIDENCE_* — separate store for CSAM preservation (1-year retention policy)
     Scanner        ScannerConfig // P1: PCC_SCANNER=photodna|dev|none (any other value ⇒ Load() fails), PCC_PHOTODNA_KEY, PCC_PHOTODNA_URL
+    CDN            CDNConfig     // P1 (p1-w04-1): PCC_CDN_PURGE=cloudflare|none (other ⇒ Load() fails), PCC_CDN_ZONE_ID, PCC_CDN_API_TOKEN — purge on media delete
     Push           PushConfig    // P1: PCC_VAPID_PUBLIC, PCC_VAPID_PRIVATE, PCC_VAPID_SUBJECT
     DBSC           bool          // P1: PCC_DBSC=1
     MinAge         int           // PCC_MIN_AGE, default 16 (age attestation at join/enroll)
@@ -3510,7 +3516,9 @@ drivers and **fail closed** in production config (plan §4.2 config, D20).
      `Media` (`Attach(ctx, tx, owner, refs) ([]uuid.UUID, error)`,
      `Views(ctx, s Search, ids []uuid.UUID) ([]gate.MediaView, error)`,
      `Ingest(ctx, img []byte, sourcePost PostID, sourceURL string) (uuid.UUID, error)`),
-     `ModQueue` (`Enqueue(ctx, tx store.Q, item ModQueueItem) error`),
+     `ModQueue` (`Enqueue(ctx, tx store.Q, item ModQueueItem) error`; p1-w04-1 adds
+     `ModQueueItem.Media`), `CSAMHolds` (p1-w04-1, impl gate/media: `Hold`, `Report`,
+     `ReleaseAccount`),
      `StepUp` (`Require(ctx, user UserID, session [32]byte, reason string) error`),
      `Prefer.KidsN` gens=2 semantics, `Graph.SetHideVia`, `Exclusions.HiddenVia`, `Audience`
      friend+, Bus events `SessionStepUp`, `EdgeUpgraded`, `HideViaChanged`; `core.Deps` gains

@@ -220,6 +220,7 @@ func Build(ctx context.Context, cfg *config.Config, db *store.DB, log *slog.Logg
 	d.Suspensions = a.Users
 	d.CosignPurposes = a.Cosign
 	d.Signup = a.Cosign
+	d.CSAM = a.Media
 
 	inits := []struct {
 		name string

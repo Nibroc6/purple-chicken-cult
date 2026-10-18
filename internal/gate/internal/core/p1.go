@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -126,11 +127,46 @@ type ModQueueItem struct {
 	SubjectPost PostID
 	ReportID    uuid.UUID
 	Summary     map[string]int // codes + counts
+	Media       uuid.UUID      // CSAM items: the held media (mod_queue.subject_media); zero = none (p1-w04-1)
 }
 
 // ModQueue enqueues moderation work (impl: gate/moderation, P1-W06).
 type ModQueue interface {
 	Enqueue(ctx context.Context, tx store.Q, item ModQueueItem) error
+}
+
+// ---- CSAM holds (steward: contract request p1-w04-1) ----
+
+// CSAMHold is what moderators see of a held media item: the scanner's match
+// metadata and the preservation state, never the content (§6.1, security #7).
+type CSAMHold struct {
+	Media       uuid.UUID
+	SubjectUser UserID            // the uploader, or the author of the post that linked it (0 = none)
+	SourcePost  PostID            // preview images: the post whose link produced it (uuid.Nil otherwise)
+	SourceURL   string            // preview images: the canonical URL that served the image
+	MatchInfo   map[string]string // scanner verdict metadata only
+	HeldAt      time.Time
+	RetainUntil time.Time  // HeldAt + 1 year (evidence preservation)
+	ReportedAt  *time.Time // set by Report
+	ReportRef   string     // the CyberTipline report id, set by Report
+	AccountHeld bool       // the subject's uploads are refused (media_rejected)
+}
+
+// CSAMHolds is the media-side state of CSAM matches (impl: gate/media). The
+// moderation queue (P1-W06) reads holds for its CSAM items and calls Report from
+// the two-person csam_report action. Viewing the held content is a break-glass
+// procedure outside the application (deploy/runbooks/csam.md): no method here
+// returns it.
+type CSAMHolds interface {
+	// Hold returns the hold of media; gate.ErrNotFound unless media is held.
+	Hold(ctx context.Context, media uuid.UUID) (CSAMHold, error)
+	// Report records the CyberTipline report reference in tx (once): Problem
+	// csam_already_reported if a report is recorded, Problem bad_request (field
+	// report_ref) for an empty or over-long reference.
+	Report(ctx context.Context, tx store.Q, media uuid.UUID, reportRef string) error
+	// ReleaseAccount lifts the subject's upload hold of media after review (a
+	// false positive) in tx. The evidence stays preserved until RetainUntil.
+	ReleaseAccount(ctx context.Context, tx store.Q, media uuid.UUID) error
 }
 
 // StepUp requires a passkey step-up for a session (impl: gate/auth, P1-W07).

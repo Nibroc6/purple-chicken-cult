@@ -84,4 +84,7 @@ type Deps struct {
 	// Steward additions (contract request p1-w01-1); impl: gate/cosign.
 	CosignPurposes CosignPurposes
 	Signup         SignupCosign
+
+	// Steward addition (contract request p1-w04-1); impl: gate/media.
+	CSAM CSAMHolds
 }

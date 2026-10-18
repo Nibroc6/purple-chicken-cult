@@ -157,6 +157,20 @@ func (m *MemMedia) Ingest(_ context.Context, img []byte, sourcePost core.PostID,
 	return m.put(MemMediaItem{W: cfg.Width, H: cfg.Height, Ready: true, SourcePost: sourcePost, SourceURL: sourceURL}), nil
 }
 
+var _ core.CSAMHolds = (*MemMedia)(nil)
+
+// Hold is gate.ErrNotFound: the reference has no scanner, so nothing is ever
+// held (contract request p1-w04-1).
+func (m *MemMedia) Hold(context.Context, uuid.UUID) (core.CSAMHold, error) {
+	return core.CSAMHold{}, gate.ErrNotFound
+}
+
+// Report is gate.ErrNotFound (nothing is held in the reference).
+func (m *MemMedia) Report(context.Context, store.Q, uuid.UUID, string) error { return gate.ErrNotFound }
+
+// ReleaseAccount is gate.ErrNotFound (nothing is held in the reference).
+func (m *MemMedia) ReleaseAccount(context.Context, store.Q, uuid.UUID) error { return gate.ErrNotFound }
+
 // Handshake kinds of the reference (handshake_sessions kinds 1 and 2).
 const (
 	HSUpgrade  uint8 = 1

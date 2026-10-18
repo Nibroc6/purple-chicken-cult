@@ -80,6 +80,21 @@ type ScannerConfig struct {
 	PhotoDNAURL string
 }
 
+// CDN purge drivers (steward: contract request p1-w04-1).
+const (
+	CDNPurgeNone       = ""
+	CDNPurgeCloudflare = "cloudflare"
+)
+
+// CDNConfig configures the CDN cache purge that runs when media is deleted
+// (PCC_CDN_PURGE=cloudflare, PCC_CDN_ZONE_ID, PCC_CDN_API_TOKEN). Without it
+// deleted media can stay in the edge cache until its cache TTL (≤ 1 h) runs out.
+type CDNConfig struct {
+	Purge    string // "" (none) | "cloudflare"
+	ZoneID   string
+	APIToken string
+}
+
 // PushConfig configures Web Push (VAPID).
 type PushConfig struct {
 	VAPIDPublic  string
@@ -110,6 +125,7 @@ type Config struct {
 	AllowFSBlob  bool
 	EvidenceBlob BlobConfig
 	Scanner      ScannerConfig
+	CDN          CDNConfig // steward: contract request p1-w04-1
 	Push         PushConfig
 	DBSC         bool
 
@@ -225,6 +241,17 @@ func LoadFrom(get Getenv) (*Config, error) {
 	}
 	c.Scanner.PhotoDNAKey = get("PCC_PHOTODNA_KEY")
 	c.Scanner.PhotoDNAURL = get("PCC_PHOTODNA_URL")
+	c.CDN = CDNConfig{Purge: strings.TrimSpace(get("PCC_CDN_PURGE")), ZoneID: get("PCC_CDN_ZONE_ID"), APIToken: get("PCC_CDN_API_TOKEN")}
+	switch c.CDN.Purge {
+	case CDNPurgeNone, "none":
+		c.CDN.Purge = CDNPurgeNone
+	case CDNPurgeCloudflare:
+		if c.CDN.ZoneID == "" || c.CDN.APIToken == "" {
+			return nil, errors.New("config: PCC_CDN_PURGE=cloudflare needs PCC_CDN_ZONE_ID and PCC_CDN_API_TOKEN")
+		}
+	default:
+		return nil, fmt.Errorf("config: unknown PCC_CDN_PURGE %q (cloudflare or none)", c.CDN.Purge)
+	}
 	c.Push = PushConfig{VAPIDPublic: get("PCC_VAPID_PUBLIC"), VAPIDPrivate: get("PCC_VAPID_PRIVATE"), VAPIDSubject: get("PCC_VAPID_SUBJECT")}
 	if c.DBSC, err = boolean(get, "PCC_DBSC", false); err != nil {
 		return nil, err
