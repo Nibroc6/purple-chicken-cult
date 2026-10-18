@@ -1,12 +1,13 @@
 // Shared pieces of the people pages. Owner: P0-W03 → P1-W03.
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router';
 import { Chain, InviterLabel, ReportAction, type ReportTarget } from '../../integrity';
 import type { PersonVM } from '../../vm/types';
-import { runAction, type PersonAction } from './api';
-import { confirmActions, errorParams, peopleErrorKey, primaryActions, reportPath, secondaryActions } from './vm';
+import { requestCosign } from '../cosign';
+import { runAction, sessionCosigns, type Cosig, type PersonAction } from './api';
+import { confirmActions, cosignPurpose, errorParams, peopleErrorKey, primaryActions, reportPath, secondaryActions } from './vm';
 import './people.css';
 
 // peopleKey prefixes every query of this feature (any action refreshes them all).
@@ -31,15 +32,40 @@ export function useReport(): (target: ReportTarget) => void {
   };
 }
 
+// cosignsKey caches whether this session co-signs (outside peopleKey: actions never change it).
+const cosignsKey = ['session-cosigns'] as const;
+
+function cosigns(qc: QueryClient): Promise<boolean> {
+  return qc.query({ queryKey: cosignsKey, queryFn: sessionCosigns, staleTime: Infinity });
+}
+
 // i18n-dynamic: people:action.
 // i18n-dynamic: people:confirm.
+// i18n-dynamic: people:cosign.
 function ActionButton({ person, action }: { person: PersonVM; action: PersonAction }) {
   const { t } = useTranslation('people');
   const qc = useQueryClient();
   const [confirming, setConfirming] = useState(false);
   const m = useMutation({
-    mutationFn: () => runAction(action, person.ref),
-    onSuccess: async () => {
+    // A graph-changing action of a passkey session is co-signed first; a
+    // cancelled dialog changes nothing.
+    mutationFn: async () => {
+      const purpose = cosignPurpose(action, person);
+      let cosig: Cosig | undefined;
+      if (purpose && (await cosigns(qc))) {
+        const r = await requestCosign({
+          purpose,
+          target: person.ref,
+          summary: t(`cosign.${action}` as 'cosign.request', { handle: person.handle }),
+        });
+        if (!r) return false;
+        cosig = r;
+      }
+      await runAction(action, person.ref, cosig);
+      return true;
+    },
+    onSuccess: async (done) => {
+      if (!done) return;
       setConfirming(false);
       await qc.invalidateQueries({ queryKey: peopleKey });
     },
