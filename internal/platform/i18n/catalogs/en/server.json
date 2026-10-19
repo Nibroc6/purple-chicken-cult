@@ -6,5 +6,8 @@
   "push.mention": "{name} mentioned you",
   "push.invitee_action": "A moderator took action on a post by someone you invited",
   "push.friend_security": "{name} changed their sign-in keys",
-  "push.invite_redeemed": "{name} joined with your invite"
+  "push.friend_security_anon": "A friend changed their sign-in keys",
+  "push.invite_redeemed": "{name} joined with your invite",
+  "push.recovery_approval": "{name} asked you to help recover their account",
+  "push.recovery_approval_anon": "A friend asked you to help recover their account"
 }
