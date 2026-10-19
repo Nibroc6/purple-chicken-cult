@@ -1,5 +1,29 @@
 {
   "page": {
-    "title": "Push notifications"
+    "title": "Push notifications",
+    "intro": "Get your notifications on this device even when the app is closed. Notifications never include what people wrote."
+  },
+  "server": {
+    "disabled": "Push notifications are turned off on this server."
+  },
+  "device": {
+    "unsupported": "This browser can't show push notifications.",
+    "denied": "Notifications are blocked for this site. Allow them in your browser settings to turn them on.",
+    "on": "On for this device.",
+    "off": "Off for this device.",
+    "turnOn": "Turn on",
+    "turningOn": "Turning on…",
+    "turnOff": "Turn off"
+  },
+  "hide": {
+    "label": "Hide details on the lock screen",
+    "help": "Notifications only say that there is new activity, without names or numbers."
+  },
+  "errors": {
+    "push_unavailable": "Push notifications are not available in this browser right now. Try again later.",
+    "push_endpoint_invalid": "This browser's push service is not supported.",
+    "push_keys_invalid": "This browser sent a subscription that can't be used. Try again.",
+    "feature_disabled": "Push notifications are turned off on this server.",
+    "rate_limited": "You have changed your settings many times today. Try again later."
   }
 }
