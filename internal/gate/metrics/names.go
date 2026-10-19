@@ -14,6 +14,8 @@ var names = map[string][]string{
 	"feed.planner":               {"author", "time"},
 	"graph.deep_search":          {"count"}, // P1
 	"tree.opened":                {""},
+	"push.delivered":             {"ok", "gone", "failed"}, // P1
+
 }
 
 var degrees = []string{"1", "2", "3", "4", "5", "6", "7+"}

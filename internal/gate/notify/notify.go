@@ -1,5 +1,5 @@
 // Package notify owns in-app notifications and the SSE hub (ARCHITECTURE §10.6);
-// P1 adds Web Push. It implements core.Notifier.
+// P1 adds Web Push (push.go). It implements core.Notifier (v2: push fan-out).
 //
 // Owner: P0-W10 → P1-W05.
 //
@@ -39,6 +39,8 @@ import (
 
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/internal/core"
+	"github.com/Nibroc6/purple-chicken-cult/internal/platform/i18n"
+	"github.com/Nibroc6/purple-chicken-cult/internal/platform/webpush"
 	"github.com/Nibroc6/purple-chicken-cult/internal/store"
 )
 
@@ -116,8 +118,10 @@ var codeRE = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
 
 // Service is the notifications module.
 type Service struct {
-	d   *core.Deps
-	hub *hub
+	d      *core.Deps
+	hub    *hub
+	sender webpush.Sender // nil: push disabled
+	cat    *i18n.Catalog
 }
 
 var _ core.Notifier = (*Service)(nil)
@@ -129,10 +133,15 @@ func New(d *core.Deps) *Service {
 	return s
 }
 
-// Init registers notify.flush and the Bus subscriptions (SessionEnded closes
-// that session's streams; AccountDeleted closes the account's streams and
-// deletes its notifications and mutes; SessionStepUp sends stepup{}).
+// Init registers notify.flush, push.deliver and the Bus subscriptions
+// (SessionEnded closes that session's streams and deletes its push
+// subscriptions; AccountDeleted closes the account's streams and deletes its
+// notifications, mutes and push subscriptions; SessionStepUp sends stepup{}).
+// Malformed VAPID keys refuse to start (D20).
 func (s *Service) Init(context.Context) error {
+	if err := s.initPush(); err != nil {
+		return err
+	}
 	if s.d.Jobs != nil {
 		s.d.Jobs.Handle(JobFlush, func(ctx context.Context, _ json.RawMessage) error { return s.Flush(ctx) })
 		s.d.Jobs.Every(JobFlush, FlushEvery)
@@ -244,6 +253,9 @@ func (s *Service) Notify(ctx context.Context, tx store.Q, e core.Event) error {
 		}
 	}
 	if pinged {
+		if err := s.queuePush(ctx, q, e.To, id); err != nil {
+			return err
+		}
 		s.hub.afterCommit(e.To, id, count)
 	}
 	return nil
@@ -324,33 +336,6 @@ func (s *Service) visiblePost(ctx context.Context, v core.UserID, p gate.Ref) (c
 	return m, nil
 }
 
-// PushKey returns the VAPID public key when push is enabled (P1).
-func (s *Service) PushKey(ctx context.Context) (string, bool) {
-	if s.d.Cfg == nil || !s.d.Cfg.PushEnabled() {
-		return "", false
-	}
-	return s.d.Cfg.Push.VAPIDPublic, true
-}
-
-// Subscribe stores a push subscription (P1; fails closed without VAPID).
-func (s *Service) Subscribe(ctx context.Context, sub gate.PushSub) error {
-	if _, err := core.RequireUser(ctx); err != nil {
-		return err
-	}
-	if s.d.Cfg == nil || !s.d.Cfg.PushEnabled() {
-		return gate.Disabled("push")
-	}
-	return gate.ErrNotImplemented
-}
-
-// Unsubscribe removes a push subscription (P1).
-func (s *Service) Unsubscribe(ctx context.Context, endpoint string) error {
-	if _, err := core.RequireUser(ctx); err != nil {
-		return err
-	}
-	return gate.ErrNotImplemented
-}
-
 // accountDeleted closes the account's streams and deletes its own rows (the
 // rows other people hold about it stay; reads drop the deleted subject).
 func (s *Service) accountDeleted(u core.UserID) {
@@ -359,6 +344,9 @@ func (s *Service) accountDeleted(u core.UserID) {
 	defer cancel()
 	err := s.d.DB.Tx(ctx, func(tx pgx.Tx) error {
 		if _, err := tx.Exec(ctx, `DELETE FROM notifications WHERE user_id = $1`, int64(u)); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `DELETE FROM push_subscriptions WHERE user_id = $1`, int64(u)); err != nil {
 			return err
 		}
 		_, err := tx.Exec(ctx, `DELETE FROM notification_mutes WHERE user_id = $1`, int64(u))
