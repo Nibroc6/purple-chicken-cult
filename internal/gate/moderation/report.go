@@ -29,6 +29,9 @@ type target struct {
 	post core.PostID // post and preview reports
 	user core.UserID // person reports; for inviter reports the INVITEE
 	ext  uuid.UUID   // record target
+	// subject is who the report is about: the post's author, the person, or
+	// (inviter reports) the invitee's inviter.
+	subject core.UserID
 }
 
 // Report files a report. kind is post | person | inviter | preview; for
@@ -85,8 +88,19 @@ func (s *Service) Report(ctx context.Context, kind string, ref gate.Ref, reason,
 			return err
 		}
 		body := reportBody{Reporter: me.ExtID, TargetKind: kind, Target: t.ext, Reason: reason, At: sigs.T(now)}
-		_, err = s.d.Signer.Sign(ctx, tx, core.RecReport, v.ID, body, []core.UserID{v.ID})
-		return err
+		if _, err := s.d.Signer.Sign(ctx, tx, core.RecReport, v.ID, body, []core.UserID{v.ID}); err != nil {
+			return err
+		}
+		// The report's queue item: csam first, then illegal, then the rest.
+		prio := uint8(2)
+		switch reason {
+		case string(core.ReasonCSAM):
+			prio = 0
+		case string(core.ReasonIllegal):
+			prio = 1
+		}
+		return s.Enqueue(ctx, tx, core.ModQueueItem{Source: core.ModSrcReport, Priority: prio, SubjectUser: t.subject,
+			SubjectPost: t.post, ReportID: id, Summary: map[string]int{"kind_" + kind: 1}})
 	})
 }
 
@@ -110,7 +124,7 @@ func (s *Service) resolveTarget(ctx context.Context, v core.Viewer, kind int16, 
 		if _, ok := s.d.Vis.CheckPost(ctx, sr, m); !ok {
 			return t, false
 		}
-		t.post, t.ext = pid, pid
+		t.post, t.ext, t.subject = pid, pid, m.Author
 		return t, true
 	default: // person, inviter (via the invitee)
 		u, ok := s.d.Refs.OpenUser(v.ID, ref)
@@ -124,7 +138,10 @@ func (s *Service) resolveTarget(ctx context.Context, v core.Viewer, kind int16, 
 		if kind == 2 && (m.InvitedBy == 0 || m.InvitedBy == v.ID) {
 			return t, false // genesis has no inviter; nobody reports themself
 		}
-		t.user, t.ext = u, m.ExtID
+		t.user, t.ext, t.subject = u, m.ExtID, u
+		if kind == 2 {
+			t.subject = m.InvitedBy
+		}
 		return t, true
 	}
 }

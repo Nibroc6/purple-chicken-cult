@@ -423,15 +423,15 @@ func TestSuspendIsTwoPerson(t *testing.T) {
 		t.Fatalf("queue %+v", items)
 	}
 	problem(t, e.m.Resolve(e.mod("mo2", true), e.item("mo2", "bot"), "dismiss", "other"), "action_pending")
-	problem(t, e.m.Confirm(e.mod("mo1", true), it), "second_moderator_required")
+	problem(t, e.m.Confirm(e.mod("mo1", true), it, nil), "second_moderator_required")
 	it2 := e.item("mo2", "bot")
-	if err := e.m.Confirm(e.mod("mo2", false), it2); !errors.Is(err, gate.ErrStepUp) {
+	if err := e.m.Confirm(e.mod("mo2", false), it2, nil); !errors.Is(err, gate.ErrStepUp) {
 		t.Fatalf("stale second moderator: %v", err)
 	}
-	if err := e.m.Confirm(e.as("carol"), it2); !errors.Is(err, gate.ErrNotFound) {
+	if err := e.m.Confirm(e.as("carol"), it2, nil); !errors.Is(err, gate.ErrNotFound) {
 		t.Fatalf("member confirm: %v", err)
 	}
-	if err := e.m.Confirm(e.mod("mo2", true), it); !errors.Is(err, gate.ErrNotFound) {
+	if err := e.m.Confirm(e.mod("mo2", true), it, nil); !errors.Is(err, gate.ErrNotFound) {
 		t.Fatalf("another moderator's item id: %v", err)
 	}
 	// Bob is signed in: the suspension ends his sessions (and event streams).
@@ -440,7 +440,7 @@ func TestSuspendIsTwoPerson(t *testing.T) {
 	}
 	ended := make(chan core.SessionEnded, 4)
 	core.Subscribe(e.d.Bus, func(ev core.SessionEnded) { ended <- ev })
-	if err := e.m.Confirm(e.mod("mo2", true), it2); err != nil {
+	if err := e.m.Confirm(e.mod("mo2", true), it2, nil); err != nil {
 		t.Fatal(err)
 	}
 	if m, _ := e.a.Users.Get(e.ctx, e.id("bob")); m.Status != core.StatusSuspended {
@@ -491,7 +491,7 @@ func TestSuspendExpiresAfter24h(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.advance(moderation.SecondWithin)
-	problem(t, e.m.Confirm(e.mod("mo2", true), e.item("mo2", "bot")), "action_expired")
+	problem(t, e.m.Confirm(e.mod("mo2", true), e.item("mo2", "bot"), nil), "action_expired")
 	if m, _ := e.a.Users.Get(e.ctx, e.id("bob")); m.Status != core.StatusActive {
 		t.Fatal("an expired action was applied")
 	}

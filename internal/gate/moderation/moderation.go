@@ -18,6 +18,28 @@
 //     pseudonyms; a handle appears only to viewers who have that person in their
 //     horizon.
 //
+// Phase 1 (P1-W06):
+//   - One queue (mod_queue) for reports, CSAM holds, behavioral signals
+//     (gate/signals/behavior), step-up repeats and invite clusters, csam first;
+//     a moderator may claim an item for an hour. CSAM items show the hold's
+//     match metadata (core.CSAMHolds), never content or a media URL.
+//   - Two-person actions (suspend_user, the csam_report filing, dismissing a
+//     CSAM hold, quarantine_subtree) wait 24 h for a second, different
+//     moderator, who co-signs the exact ModAction record with their own passkey
+//     (core.Cosign, purpose mod_action, security #30); the record is stored
+//     signed. Sessions without a passkey (test hooks only) fall back to the P0
+//     fresh step-up.
+//   - Invite-tree quarantine (§8): once ≥ PCC_QUARANTINE_K accounts of an
+//     inviter's subtree are confirmed bad (suspended by two moderators since
+//     its last quarantine), two moderators can send the subtree back to
+//     probation and pause the inviter's invites for 30 days; a second offense
+//     revokes them. Nothing outside the subtree changes.
+//   - A confirmed suspension marks the inviter "invited a removed account" for
+//     90 days, visible only to the users in the removed account's component at
+//     that moment (removed_account_marks.viewers) and to moderators.
+//   - Nothing reaches an inviter (blame entry, notification, mark) before a
+//     moderator confirmed the action.
+//
 // Owner: P0-W12 → P1-W06.
 package moderation
 
@@ -36,16 +58,20 @@ import (
 
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/internal/core"
-	"github.com/Nibroc6/purple-chicken-cult/internal/gate/internal/coreref"
-	"github.com/Nibroc6/purple-chicken-cult/internal/store"
 )
 
-// Actions (mod_actions.action, the P0 subset a moderator resolves with).
+// Actions (mod_actions.action).
 const (
 	ActionRemovePost  = "remove_post"
 	ActionSuspendUser = "suspend_user"
 	ActionDismiss     = "dismiss"
+	ActionQuarantine  = "quarantine_subtree"
+	ActionCSAMReport  = "csam_report"
 )
+
+// PurposeModAction is the co-sign purpose of the second moderator's
+// confirmation (core.CosignPurposes; the record is a ModAction).
+const PurposeModAction = "mod_action"
 
 // Report target kinds (API name → reports.target_kind).
 const (
@@ -82,11 +108,18 @@ const (
 	LogPage   = 50
 	// PseudonymBytes of HMAC(PseudonymKey, user) name a log subject.
 	PseudonymBytes = 6
+	// ClaimFor is how long a moderator's claim on a queue item holds.
+	ClaimFor = time.Hour
+	// QuarantineFor is the quarantine's probation and invite pause (§8).
+	QuarantineFor = 30 * 24 * time.Hour
+	// MarkFor is how long an "invited a removed account" mark lasts (§8).
+	MarkFor = 90 * 24 * time.Hour
 )
 
 // Jobs.
 const (
-	// JobExpire marks two-person actions older than SecondWithin expired.
+	// JobExpire marks two-person actions older than SecondWithin expired and
+	// deletes removed-account marks past their 90 days.
 	JobExpire = "moderation.expire"
 	// ExpireEvery is the moderation.expire period.
 	ExpireEvery = time.Hour
@@ -94,29 +127,39 @@ const (
 
 // Service is the moderation module.
 type Service struct {
-	d     *core.Deps
-	queue *coreref.MemModQueue
+	d *core.Deps
 }
 
-var _ core.ModQueue = (*Service)(nil)
+var (
+	_ core.ModQueue     = (*Service)(nil)
+	_ core.RemovedMarks = (*Service)(nil)
+)
 
 // New returns the service.
-func New(d *core.Deps) *Service { return &Service{d: d, queue: &coreref.MemModQueue{}} }
+func New(d *core.Deps) *Service { return &Service{d: d} }
 
-// Init registers moderation.expire.
+// Init registers moderation.expire and the mod_action co-sign purpose.
 func (s *Service) Init(context.Context) error {
 	if s.d.Jobs != nil {
 		s.d.Jobs.Handle(JobExpire, func(ctx context.Context, _ json.RawMessage) error { return s.Expire(ctx) })
 		s.d.Jobs.Every(JobExpire, ExpireEvery)
 	}
+	if s.d.CosignPurposes != nil {
+		s.d.CosignPurposes.RegisterPurpose(PurposeModAction, core.RecModAction, s.modActionDraft)
+	}
 	return nil
 }
 
 // Expire marks two-person actions that waited longer than SecondWithin expired
-// (moderation.expire). Confirm checks the deadline itself as well.
+// and deletes expired removed-account marks (moderation.expire). Confirm and
+// Marked check the deadlines themselves as well.
 func (s *Service) Expire(ctx context.Context) error {
-	_, err := s.d.DB.Q().Exec(ctx, "UPDATE mod_actions SET state = $1 WHERE state = $2 AND created_at <= $3",
-		actionExpired, actionPending, s.d.Clock.Now().Add(-SecondWithin))
+	now := s.d.Clock.Now()
+	if _, err := s.d.DB.Q().Exec(ctx, "UPDATE mod_actions SET state = $1 WHERE state = $2 AND created_at <= $3",
+		actionExpired, actionPending, now.Add(-SecondWithin)); err != nil {
+		return err
+	}
+	_, err := s.d.DB.Q().Exec(ctx, "DELETE FROM removed_account_marks WHERE expires_at <= $1", now)
 	return err
 }
 
@@ -278,14 +321,3 @@ func (s *Service) freshModerator(ctx context.Context) (core.Viewer, error) {
 	}
 	return core.RequireFresh(ctx, s.d.Clock.Now())
 }
-
-// ---- core.ModQueue (P1-W06) ----
-
-// Enqueue adds a moderation queue item (P1-W06; the reference keeps it in memory).
-func (s *Service) Enqueue(ctx context.Context, tx store.Q, item core.ModQueueItem) error {
-	return s.queue.Enqueue(ctx, tx, item)
-}
-
-// Marked reports whether viewer sees the "invited a removed account" mark on
-// inviter (core.RemovedMarks; steward stub, contract request p1-w06-1).
-func (s *Service) Marked(context.Context, core.UserID, core.UserID) bool { return false }
