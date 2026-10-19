@@ -419,4 +419,3 @@ func TestSubscribeValidation(t *testing.T) {
 		t.Fatal("oldest subscription kept beyond the cap")
 	}
 }
-
