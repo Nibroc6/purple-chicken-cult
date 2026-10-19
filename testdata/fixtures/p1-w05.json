@@ -1,0 +1,14 @@
+{
+  "users": [
+    { "handle": "pia", "name": "Pia", "preset": "latest" },
+    { "handle": "quinn", "name": "Quinn", "preset": "latest" },
+    { "handle": "rex", "name": "Rex", "preset": "latest" }
+  ],
+  "friends": [
+    { "a": "pia", "b": "quinn" },
+    { "a": "quinn", "b": "rex" }
+  ],
+  "posts": [
+    { "label": "p1", "author": "pia", "body": "Pia wonders where to walk on Sunday", "age": "2h" }
+  ]
+}
