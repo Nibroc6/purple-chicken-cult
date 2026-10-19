@@ -137,6 +137,7 @@ var Catalogue = []Entry{
 
 	// pushapi (P1-W05)
 	e("pushapi", 1, "GET", "/push/key", free),
+	e("pushapi", 1, "GET", "/push/subscriptions", free), // p1-w05-1: the caller's state of one endpoint
 	e("pushapi", 1, "POST", "/push/subscriptions", wA),
 	e("pushapi", 1, "DELETE", "/push/subscriptions", wA),
 
