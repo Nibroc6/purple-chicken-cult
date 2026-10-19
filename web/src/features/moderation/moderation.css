@@ -115,3 +115,41 @@
   border-block-start: 1px solid var(--color-border);
   font-size: 0.875rem;
 }
+/* P1-W06: unified queue (signal facts, CSAM holds, claims). */
+.moderation-facts {
+  margin: 0;
+  padding-inline-start: var(--space-4);
+  font-size: 0.875rem;
+}
+.moderation-csam {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding-block: var(--space-2);
+  padding-inline: var(--space-3);
+}
+.moderation-csam p,
+.moderation-csam dl {
+  margin: 0;
+}
+.moderation-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  font-size: 0.875rem;
+}
+.moderation-row dt {
+  font-weight: 600;
+}
+.moderation-row dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.moderation-claim {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.moderation-claim .moderation-tag {
+  margin-inline-start: 0;
+}

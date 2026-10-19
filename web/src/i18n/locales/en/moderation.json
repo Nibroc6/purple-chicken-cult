@@ -63,8 +63,8 @@
   "queue": {
     "title": "Moderation queue",
     "membersOnly": "Only moderators can see this page.",
-    "intro": "Open reports, most urgent first. Suspending an account needs a second moderator within 24 hours.",
-    "empty": "No open reports.",
+    "intro": "Reports, held images and automated signals, most urgent first. Suspending an account, reporting held images, releasing a hold and quarantining an invite tree need a second moderator within 24 hours.",
+    "empty": "Nothing to review.",
     "more": "Show more",
     "urgent": "Urgent",
     "reports": "{count, plural, one {# report} other {# reports}}",
@@ -73,13 +73,18 @@
     "probation": "On probation",
     "subjectRef": "Account reference (for account recovery):",
     "noContent": "The content is never shown for this reason.",
-    "awaiting": "Waiting for a second moderator to confirm the suspension.",
     "confirm": "Confirm as second moderator",
     "action": "Action",
     "reason": "Reason",
     "resolve": "Apply",
     "twoPerson": "A second moderator has to confirm this.",
-    "started": "Sent. A second moderator has to confirm it within 24 hours."
+    "started": "Sent. A second moderator has to confirm it within 24 hours.",
+    "awaitingMine": "You started it, so another moderator has to confirm.",
+    "claim": "Take this one",
+    "claimedByMe": "You are handling this",
+    "claimedByOther": "Another moderator is handling this",
+    "quarantine": "Quarantine the invite tree of @{handle}",
+    "quarantineHint": "Everyone they invited, directly or not, goes back to probation for 30 days, and their invites pause for 30 days. A second time takes their invites away."
   },
   "log": {
     "title": "Moderation log",
@@ -109,11 +114,64 @@
     "note_too_long": "The note is too long.",
     "action_invalid": "That action does not fit this report.",
     "item_resolved": "Another moderator already handled this.",
-    "action_pending": "A suspension is already waiting for a second moderator.",
+    "action_pending": "An action is already waiting for a second moderator.",
     "post_gone": "The post was already deleted.",
     "no_subject": "There is no account to act on.",
     "second_moderator_required": "A different moderator has to confirm this.",
     "action_expired": "The 24 hours ran out. Start again.",
-    "subject_inactive": "This account is already suspended or deleted."
+    "subject_inactive": "This account is already suspended or deleted.",
+    "item_claimed": "Another moderator is handling this.",
+    "quarantine_threshold": "Not enough accounts in this invite tree are confirmed bad yet.",
+    "quarantine_active": "This invite tree was quarantined less than 30 days ago.",
+    "csam_already_reported": "This image was already reported."
+  },
+  "source": {
+    "report": "Report",
+    "signal": "Automated signal",
+    "csam": "Held image",
+    "stepup": "Repeated passkey checks",
+    "invite_cluster": "Invite cluster"
+  },
+  "signal": {
+    "cadence": "Posting around the clock or like a machine",
+    "similarity": "Accounts posting nearly the same text",
+    "invite_cluster": "Several people invited by one account on the same network",
+    "stepup": "Asked to confirm with a passkey again and again",
+    "signal": "Automated signal"
+  },
+  "fact": {
+    "posts": "{count, plural, one {# post in a day} other {# posts in a day}}",
+    "hours": "{count, plural, one {active in # hour of the day} other {active in # different hours of the day}}",
+    "accounts": "{count, plural, one {# account} other {# accounts}} in this group",
+    "shared_network": "They share a network",
+    "inviter_marks": "{count, plural, one {Their inviter invited # removed account recently} other {Their inviter invited # removed accounts recently}}",
+    "subtree_confirmed": "{count, plural, one {# account} other {# accounts}} in this invite tree confirmed bad (quarantine at {k, number})"
+  },
+  "csam": {
+    "noContent": "The image is never shown. These are the scanner's match details.",
+    "sourceURL": "Found at",
+    "heldAt": "Held since",
+    "retainUntil": "Evidence kept until",
+    "reported": "Report to NCMEC",
+    "reportedAt": "Reported {date}, reference {ref}",
+    "notReported": "Not reported yet",
+    "account": "Uploads",
+    "accountHeld": "Blocked until reviewed",
+    "accountReleased": "Allowed again",
+    "reportRef": "CyberTipline report number",
+    "start": "Record the report",
+    "hint": "File the report with NCMEC first, then enter its number. A second moderator confirms it."
+  },
+  "awaiting": {
+    "suspend_user": "Waiting for a second moderator to confirm the suspension.",
+    "dismiss": "Waiting for a second moderator to confirm that this was a false match.",
+    "quarantine_subtree": "Waiting for a second moderator to confirm the quarantine of the invite tree.",
+    "csam_report": "Waiting for a second moderator to confirm report {ref}."
+  },
+  "cosign": {
+    "suspend_user": "Confirm the suspension of @{handle}",
+    "dismiss": "Confirm that the held image was a false match",
+    "quarantine_subtree": "Confirm the quarantine of the invite tree",
+    "csam_report": "Confirm the NCMEC report"
   }
 }

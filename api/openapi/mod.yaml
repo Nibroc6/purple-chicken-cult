@@ -260,7 +260,7 @@ components:
       additionalProperties: false
       properties:
         intent: { type: string, maxLength: 256 }
-        assertion: { type: object, description: The WebAuthn get assertion over the ModAction draft. }
+        assertion: { type: object, additionalProperties: true, description: The WebAuthn get assertion over the ModAction draft. }
     ModCSAMReportIn:
       type: object
       required: [report_ref]
