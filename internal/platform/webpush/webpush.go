@@ -218,7 +218,7 @@ func (v *VAPID) dial(ctx context.Context, network, addr string) (net.Conn, error
 		return nil, err
 	}
 	d := net.Dialer{Timeout: Timeout, Control: v.control}
-	var last error = ErrBlocked
+	last := error(ErrBlocked)
 	for _, ip := range ips {
 		if blocked(ip, v.loopback) {
 			continue

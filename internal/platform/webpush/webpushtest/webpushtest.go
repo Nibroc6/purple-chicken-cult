@@ -281,10 +281,12 @@ func VerifyVAPID(header, pub, aud string, now time.Time) error {
 	if json.Unmarshal(hdr, &h) != nil || h.Alg != "ES256" {
 		return errors.New("webpushtest: alg is not ES256")
 	}
-	x, y := new(big.Int).SetBytes(pb[1:33]), new(big.Int).SetBytes(pb[33:])
-	pk := ecdsa.PublicKey{Curve: elliptic.P256(), X: x, Y: y}
+	pk, err := ecdsa.ParseUncompressedPublicKey(elliptic.P256(), pb)
+	if err != nil {
+		return err
+	}
 	digest := sha256.Sum256([]byte(parts[0] + "." + parts[1]))
-	if !ecdsa.Verify(&pk, digest[:], new(big.Int).SetBytes(sig[:32]), new(big.Int).SetBytes(sig[32:])) {
+	if !ecdsa.Verify(pk, digest[:], new(big.Int).SetBytes(sig[:32]), new(big.Int).SetBytes(sig[32:])) {
 		return errors.New("webpushtest: bad signature")
 	}
 	claims, _ := parseVAPID(header)
