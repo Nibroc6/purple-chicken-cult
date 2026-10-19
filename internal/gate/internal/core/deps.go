@@ -87,4 +87,9 @@ type Deps struct {
 
 	// Steward addition (contract request p1-w04-1); impl: gate/media.
 	CSAM CSAMHolds
+
+	// Steward additions (contract request p1-w06-1); impl: gate/invites,
+	// gate/moderation. Marks is optional: gate/views treats nil as "none".
+	InvitePenalties InvitePenalties
+	Marks           RemovedMarks
 }

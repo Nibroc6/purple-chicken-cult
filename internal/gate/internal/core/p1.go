@@ -173,3 +173,26 @@ type CSAMHolds interface {
 type StepUp interface {
 	Require(ctx context.Context, user UserID, session [32]byte, reason string) error
 }
+
+// ---- quarantine penalties and removed-account marks (steward: contract request p1-w06-1) ----
+
+// InvitePenalties applies the invite-tree quarantine penalty to an inviter's
+// invite budget (§8; impl: gate/invites, which owns invite_budgets). Called by
+// gate/moderation inside the second moderator's confirmation transaction.
+type InvitePenalties interface {
+	// Penalize records one quarantine offense of inviter in tx
+	// (invite_budgets.offenses + 1, creating the bucket if needed): the first
+	// offense pauses its invites until until (paused_until), any later one
+	// revokes them (revoked = true). It returns the offense count after this one.
+	Penalize(ctx context.Context, tx store.Q, inviter UserID, until time.Time) (offenses int, err error)
+}
+
+// RemovedMarks answers whether a viewer sees the "invited a removed account"
+// mark on an inviter (§8, fidelity #19; impl: gate/moderation, which owns
+// removed_account_marks). A mark lasts 90 days and is visible only to the
+// users in its stored viewers bitmap (the removed account's component at
+// removal time) — never to someone who joined later, and never to the
+// inviter about themself.
+type RemovedMarks interface {
+	Marked(ctx context.Context, viewer, inviter UserID) bool
+}

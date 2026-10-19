@@ -61,6 +61,7 @@ components:
         blocked: { type: boolean }
         muted: { type: boolean }
         hidden_via: { type: boolean }
+        invited_removed: { type: boolean, description: 'The "invited a removed account" mark (90 days; only for viewers who had the removed account in their horizon).' }
     AuthorView:
       type: object
       required: [ref, handle, display_name, inviter, chain]
@@ -355,6 +356,30 @@ components:
         at: { type: string, format: date-time }
         claimed_by_me: { type: boolean }
         awaiting_second: { type: boolean }
+        claimed: { type: boolean }
+        pending: { $ref: '#/components/schemas/ModPending' }
+        csam: { $ref: '#/components/schemas/CSAMHoldView' }
+    ModPending:
+      type: object
+      required: [action, reason, mine, at]
+      properties:
+        action: { type: string, enum: [suspend_user, dismiss, quarantine_subtree, csam_report] }
+        reason: { type: string }
+        mine: { type: boolean }
+        at: { type: string, format: date-time }
+        report_ref: { type: string }
+    CSAMHoldView:
+      type: object
+      description: Match metadata and preservation state of a CSAM hold. Never the content or a media URL.
+      required: [match_info, held_at, retain_until, account_held]
+      properties:
+        match_info: { type: object, additionalProperties: { type: string } }
+        source_url: { type: string }
+        held_at: { type: string, format: date-time }
+        retain_until: { type: string, format: date-time }
+        reported_at: { type: string, format: date-time }
+        report_ref: { type: string }
+        account_held: { type: boolean }
     BlameItem:
       type: object
       required: [id, action, reason, invitee_handle, at, read]

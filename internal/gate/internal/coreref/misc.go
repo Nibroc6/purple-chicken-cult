@@ -274,12 +274,30 @@ type MemInvites struct {
 	D     *core.Deps
 	Users *MemUsers // the directory to scan; D.Users is used for single lookups
 
-	mu     sync.Mutex
-	Resets map[core.UserID]time.Time
+	mu        sync.Mutex
+	Resets    map[core.UserID]time.Time
+	Offenses  map[core.UserID]int       // quarantine offenses per inviter (Penalize)
+	PausedTil map[core.UserID]time.Time // first offense: invites paused until
 }
 
 var _ core.Invites = (*MemInvites)(nil)
 var _ core.Probation = (*MemInvites)(nil)
+var _ core.InvitePenalties = (*MemInvites)(nil)
+
+// Penalize records one quarantine offense of inviter: the first pauses its
+// invites until until, a later one revokes them (Offenses ≥ 2).
+func (m *MemInvites) Penalize(_ context.Context, _ store.Q, inviter core.UserID, until time.Time) (int, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.Offenses == nil {
+		m.Offenses, m.PausedTil = map[core.UserID]int{}, map[core.UserID]time.Time{}
+	}
+	m.Offenses[inviter]++
+	if m.Offenses[inviter] == 1 {
+		m.PausedTil[inviter] = until
+	}
+	return m.Offenses[inviter], nil
+}
 
 // InviteesOf returns the direct invitees of inviter.
 func (m *MemInvites) InviteesOf(_ context.Context, inviter core.UserID) ([]core.UserID, error) {

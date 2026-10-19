@@ -108,6 +108,9 @@ func (s *Service) Person(ctx context.Context, sr core.Search, u core.UserID) (ga
 			pv.Muted = true
 		}
 	}
+	if s.d.Marks != nil && s.d.Marks.Marked(ctx, v, u) {
+		pv.InvitedRemoved = true // steward: contract request p1-w06-1
+	}
 	if pv.Relation == "connected" {
 		if rs := s.d.Requests; rs != nil {
 			switch st := rs.RequestState(ctx, v, u); st {

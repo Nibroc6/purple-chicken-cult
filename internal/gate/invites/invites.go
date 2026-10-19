@@ -347,6 +347,24 @@ func (s *Service) Subtree(ctx context.Context, root core.UserID) (*roaring.Bitma
 	return out, rows.Err()
 }
 
+// Penalize records one invite-tree quarantine offense of inviter in tx
+// (core.InvitePenalties; steward body, contract request p1-w06-1): the first
+// offense pauses its invites until until, any later one revokes them.
+func (s *Service) Penalize(ctx context.Context, tx store.Q, inviter core.UserID, until time.Time) (int, error) {
+	var n int16
+	err := s.q(tx).QueryRow(ctx, `INSERT INTO invite_budgets (user_id, tokens, refreshed_at, paused_until, offenses)
+		VALUES ($1, 0, $2, $3, 1)
+		ON CONFLICT (user_id) DO UPDATE SET offenses = invite_budgets.offenses + 1,
+			paused_until = CASE WHEN invite_budgets.offenses = 0 THEN EXCLUDED.paused_until ELSE invite_budgets.paused_until END,
+			revoked = invite_budgets.revoked OR invite_budgets.offenses >= 1
+		RETURNING offenses`, int64(inviter), s.d.Clock.Now(), until).Scan(&n)
+	if err != nil {
+		return 0, err
+	}
+	s.d.Bus.Publish(core.UserChanged{ID: inviter})
+	return int(n), nil
+}
+
 // Reset puts users back on probation until until (P1 quarantine), under the
 // Phase 1 rule. Their buckets empty; clearance grants one token again.
 func (s *Service) Reset(ctx context.Context, tx store.Q, users []core.UserID, until time.Time) error {

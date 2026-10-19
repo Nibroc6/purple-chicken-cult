@@ -1071,7 +1071,7 @@ depends on a column added by another WP's own migration range until INT has merg
 | `signing_keys`, `signed_records`, `record_parties` | W11 → P1-W01 | `gate/records` | `core.Signer` |
 | `edges`, `edge_events` | W03 → P1-W03 (W04 and W11 call `core.Edges`) | `gate/graph` (`Load`) | `core.Graph`, `core.Edges` |
 | `friend_requests`, `blocks`, `mutes`, `hide_via` | W03 → P1-W03 | `gate/graph` (`blocks`, `hide_via` on `Load`) | `core.Graph.Exclusions`, `core.Mutes` (implemented by W03; used by feed and tree) |
-| `invites`, `invite_budgets`, `handshake_sessions` | W04 → P1-W02 | `gate/users` (`invites` for inviter labels) | `core.Invites` |
+| `invites`, `invite_budgets`, `handshake_sessions` | W04 → P1-W02 | `gate/users` (`invites` for inviter labels) | `core.Invites`, `core.InvitePenalties` (P1-W06 quarantine, p1-w06-1) |
 | `posts`, `post_versions`, `post_parents`, `mentions` | W05 → P1-W12 | `gate/postindex` | `core.PostIndex` |
 | `link_previews`, `link_fetch_cache` | W09 → P1-W11 | `gate/views` (`link_previews`, read-only) | — |
 | `engagements`, `seen`, `hides`, `show_less` | W06 → P1-W08 | — | `core.Engagement`, `core.Prefer` |
@@ -1088,7 +1088,7 @@ depends on a column added by another WP's own migration range until INT has merg
 | `user_themes` | P1-W09 | — | — |
 | `automation_signals` | P1-W07 (kinds webdriver, cdp, no_input, sustained_rate, no_seen_reads, bfs_tree_walk, chain_speed) and P1-W06 (kinds cadence, similarity, invite_cluster) | — | — |
 | `stepups` | P1-W07 | — | `core.StepUp` |
-| `mod_queue`, `quarantines`, `removed_account_marks` | P1-W06 | — | `core.ModQueue` |
+| `mod_queue`, `quarantines`, `removed_account_marks` | P1-W06 | — | `core.ModQueue`, `core.RemovedMarks` (p1-w06-1) |
 
 Deletion fan-out never crosses tables directly: `AccountDeleted`, `PostDeleted` and
 `SessionEnded` Bus events let each owner clean up its own rows (e.g. W09 drops
@@ -3519,7 +3519,9 @@ drivers and **fail closed** in production config (plan §4.2 config, D20).
      `Ingest(ctx, img []byte, sourcePost PostID, sourceURL string) (uuid.UUID, error)`),
      `ModQueue` (`Enqueue(ctx, tx store.Q, item ModQueueItem) error`; p1-w04-1 adds
      `ModQueueItem.Media`), `CSAMHolds` (p1-w04-1, impl gate/media: `Hold`, `Report`,
-     `ReleaseAccount`),
+     `ReleaseAccount`), `InvitePenalties` (p1-w06-1, impl gate/invites: `Penalize`, the
+     quarantine pause/revoke), `RemovedMarks` (p1-w06-1, impl gate/moderation: `Marked`,
+     read by gate/views for `PersonView.invited_removed`),
      `StepUp` (`Require(ctx, user UserID, session [32]byte, reason string) error`),
      `Prefer.KidsN` gens=2 semantics, `Graph.SetHideVia`, `Exclusions.HiddenVia`, `Audience`
      friend+, Bus events `SessionStepUp`, `EdgeUpgraded`, `HideViaChanged`; `core.Deps` gains

@@ -285,3 +285,7 @@ func (s *Service) freshModerator(ctx context.Context) (core.Viewer, error) {
 func (s *Service) Enqueue(ctx context.Context, tx store.Q, item core.ModQueueItem) error {
 	return s.queue.Enqueue(ctx, tx, item)
 }
+
+// Marked reports whether viewer sees the "invited a removed account" mark on
+// inviter (core.RemovedMarks; steward stub, contract request p1-w06-1).
+func (s *Service) Marked(context.Context, core.UserID, core.UserID) bool { return false }

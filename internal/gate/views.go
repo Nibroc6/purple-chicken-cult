@@ -42,6 +42,10 @@ type PersonView struct {
 	Blocked     bool         `json:"blocked,omitempty"` // only ever true on the BLOCKER's own view
 	Muted       bool         `json:"muted,omitempty"`
 	HiddenVia   bool         `json:"hidden_via,omitempty"` // P1
+	// InvitedRemoved is the "invited a removed account" mark (§8, 90 days):
+	// set only for viewers who had the removed account in their horizon when
+	// it was removed (contract request p1-w06-1).
+	InvitedRemoved bool `json:"invited_removed,omitempty"`
 }
 
 // AuthorView is a compact person for cards.
@@ -356,6 +360,31 @@ type ModItem struct {
 	At               time.Time      `json:"at"`
 	ClaimedByMe      bool           `json:"claimed_by_me"`
 	AwaitingSecond   bool           `json:"awaiting_second"`
+	// Steward additions (contract request p1-w06-1).
+	Claimed bool          `json:"claimed"`           // claimed by any moderator (claim not expired)
+	Pending *ModPending   `json:"pending,omitempty"` // the two-person action awaiting a second moderator
+	CSAM    *CSAMHoldView `json:"csam,omitempty"`    // csam items: the hold's metadata, never the content
+}
+
+// ModPending is a two-person moderator action awaiting its second moderator.
+type ModPending struct {
+	Action    string    `json:"action"` // suspend_user | dismiss | quarantine_subtree | csam_report
+	Reason    string    `json:"reason"`
+	Mine      bool      `json:"mine"` // started by the viewing moderator (who cannot confirm it)
+	At        time.Time `json:"at"`
+	ReportRef string    `json:"report_ref,omitempty"` // csam_report: the CyberTipline report id
+}
+
+// CSAMHoldView is what moderators see of a CSAM hold: the scanner's match
+// metadata and the preservation state (security #7). No content, no media URL.
+type CSAMHoldView struct {
+	MatchInfo   map[string]string `json:"match_info"`
+	SourceURL   string            `json:"source_url,omitempty"` // preview images: the URL that served it (shown as text)
+	HeldAt      time.Time         `json:"held_at"`
+	RetainUntil time.Time         `json:"retain_until"`
+	ReportedAt  *time.Time        `json:"reported_at,omitempty"`
+	ReportRef   string            `json:"report_ref,omitempty"`
+	AccountHeld bool              `json:"account_held"`
 }
 
 // BlameItem is an inviter's blame-inbox entry (§10.4).
