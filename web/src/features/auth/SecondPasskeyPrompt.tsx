@@ -1,13 +1,11 @@
 // The optional "add a second passkey" step (§10.3; plan §10 decision 34),
 // shown right after enrollment and after joining (features/join reuses it).
 // A second passkey on another device is what keeps a lost phone from becoming
-// a lost account. Owner: P0-W01 → P1-W07.
+// a lost account; the first passkey co-signs it (P1). Owner: P0-W01 → P1-W07.
 import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { withStepUp } from '../stepup/store';
-import { addPasskeyBegin, addPasskeyFinish } from './api';
+import { addPasskey } from './passkeyFlow';
 import { authErrorKey } from './vm';
-import { createPasskey } from './webauthn';
 import './auth.css';
 
 export function SecondPasskeyPrompt({ onDone }: { onDone: () => void }) {
@@ -22,12 +20,8 @@ export function SecondPasskeyPrompt({ onDone }: { onDone: () => void }) {
     setBusy(true);
     setErr(undefined);
     try {
-      // Retry the whole flow after a step-up (one ceremony per session).
-      await withStepUp(async () => {
-        const options = await addPasskeyBegin();
-        const credential = await createPasskey(options);
-        await addPasskeyFinish(credential, name);
-      });
+      // Step-up retries and the co-signature by the first passkey: passkeyFlow.
+      await addPasskey(name, t('cosign.addSummary', { name: name.trim() || t('passkeys.unnamed') }));
       setAdded(true);
     } catch (e) {
       setErr(authErrorKey(e));

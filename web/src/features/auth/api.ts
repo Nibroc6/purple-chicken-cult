@@ -48,12 +48,33 @@ export async function addPasskeyBegin(): Promise<unknown> {
   return unwrap(await api.POST('/auth/passkeys/begin', { body: {} })).options;
 }
 
-export async function addPasskeyFinish(credential: Credential, name: string): Promise<void> {
-  noContent(await api.POST('/auth/passkeys/finish', { body: { credential, name } }));
+// Cosig is a co-signature from the cosign dialog: {intent, assertion}.
+export interface Cosig {
+  intent: string;
+  assertion: Record<string, unknown>;
 }
 
-export async function removePasskey(id: string): Promise<void> {
-  noContent(await api.DELETE('/auth/passkeys/{id}', { params: { path: { id } } }));
+// addPasskeyFinish verifies the new credential. It resolves "cosign" when the
+// server parked it until an existing passkey co-signs the change (P1).
+export async function addPasskeyFinish(credential: Credential, name: string): Promise<'cosign' | 'added'> {
+  const res = await api.POST('/auth/passkeys/finish', { body: { credential, name } });
+  if (res.response.status === 202) return 'cosign';
+  noContent(res);
+  return 'added';
+}
+
+// addPasskeyCosigned stores the parked credential with its co-signature.
+export async function addPasskeyCosigned(c: Cosig): Promise<void> {
+  noContent(await api.POST('/auth/passkeys/finish', { body: { intent: c.intent, assertion: c.assertion } }));
+}
+
+export async function removePasskey(id: string, c?: Cosig): Promise<void> {
+  noContent(
+    await api.DELETE('/auth/passkeys/{id}', {
+      params: { path: { id } },
+      ...(c ? { body: { intent: c.intent, assertion: c.assertion } } : {}),
+    }),
+  );
 }
 
 export interface EnrollStart {

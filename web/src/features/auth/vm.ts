@@ -3,6 +3,7 @@
 // i18n-dynamic: auth:passkey.
 import { ApiError, errorKey } from '../../api/errors';
 import type { PasskeyJSON } from './api';
+import { CancelledError } from './passkeyFlow';
 import { PasskeyError } from './webauthn';
 
 export interface PasskeyVM {
@@ -29,6 +30,7 @@ const authCodes = new Set(['last_passkey', 'passkey_rejected', 'passkey_name_inv
 // authErrorKey returns the catalog key for a failure of an auth flow, or
 // undefined when nothing should be shown (a superseded ceremony).
 export function authErrorKey(err: unknown): string | undefined {
+  if (err instanceof CancelledError) return undefined;
   if (err instanceof PasskeyError) return err.code === 'aborted' ? undefined : `auth:passkey.${err.code}`;
   if (err instanceof ApiError && authCodes.has(err.code)) return `auth:errors.${err.code}`;
   return errorKey(err);

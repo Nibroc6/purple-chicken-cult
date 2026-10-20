@@ -4,7 +4,11 @@
 import { useSyncExternalStore } from 'react';
 import { ApiError } from '../../api/errors';
 
-let pending: { promise: Promise<boolean>; resolve: (ok: boolean) => void } | null = null;
+// Reason of a step-up: "fresh" (a sensitive change needs a recent passkey
+// check, D27) or "signals" (automation signals asked for one, P1).
+export type StepUpReason = 'fresh' | 'signals';
+
+let pending: { promise: Promise<boolean>; resolve: (ok: boolean) => void; reason: StepUpReason } | null = null;
 const listeners = new Set<() => void>();
 
 function emit(): void {
@@ -15,13 +19,19 @@ function emit(): void {
 
 // requestStepUp opens the step-up modal (if not already open) and resolves
 // true once the person verified with a passkey, false if they cancelled.
-export function requestStepUp(): Promise<boolean> {
-  if (pending) return pending.promise;
+export function requestStepUp(reason: StepUpReason = 'fresh'): Promise<boolean> {
+  if (pending) {
+    if (reason === 'signals' && pending.reason !== 'signals') {
+      pending = { ...pending, reason };
+      emit();
+    }
+    return pending.promise;
+  }
   let resolve: (ok: boolean) => void = () => undefined;
   const promise = new Promise<boolean>((r) => {
     resolve = r;
   });
-  pending = { promise, resolve };
+  pending = { promise, resolve, reason };
   emit();
   return promise;
 }
@@ -45,6 +55,15 @@ export function useStepUpOpen(): boolean {
     subscribe,
     () => pending !== null,
     () => false,
+  );
+}
+
+// useStepUpReason is the reason of the pending step-up (undefined when none).
+export function useStepUpReason(): StepUpReason | undefined {
+  return useSyncExternalStore(
+    subscribe,
+    () => pending?.reason,
+    () => undefined,
   );
 }
 

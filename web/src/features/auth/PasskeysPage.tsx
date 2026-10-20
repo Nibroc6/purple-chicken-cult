@@ -1,16 +1,17 @@
 // Settings → Passkeys (§17.2, D27): list, add (fresh step-up, never twice on
-// one authenticator) and remove (fresh step-up, never the last; it signs out
-// every session that passkey started). Owner: P0-W01 → P1-W07.
+// one authenticator) and remove (never the last; it signs out every session
+// that passkey started). From Phase 1 a session started with a passkey
+// co-signs both changes with an existing passkey (passkeyFlow.ts).
+// Owner: P0-W01 → P1-W07.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router';
 import { Loading } from '../../app/Loading';
 import { sessionKey, useSession } from '../../app/session';
-import { withStepUp } from '../stepup/store';
-import { addPasskeyBegin, addPasskeyFinish, listPasskeys, logout, removePasskey } from './api';
+import { listPasskeys, logout } from './api';
+import { addPasskey, removeKey } from './passkeyFlow';
 import { authErrorKey, toPasskeyVM, type PasskeyVM } from './vm';
-import { createPasskey } from './webauthn';
 import './auth.css';
 
 export const passkeysKey = ['auth', 'passkeys'] as const;
@@ -64,13 +65,7 @@ function Passkeys() {
 
   const add = useMutation({
     mutationFn: async () => {
-      // The whole add flow is retried after a step-up, never finish alone: a
-      // session holds one ceremony, which the step-up replaces (begin again).
-      await withStepUp(async () => {
-        const options = await addPasskeyBegin();
-        const credential = await createPasskey(options);
-        await addPasskeyFinish(credential, name);
-      });
+      await addPasskey(name, t('cosign.addSummary', { name: name.trim() || t('passkeys.unnamed') }));
     },
     onMutate: () => {
       setNotice(undefined);
@@ -84,7 +79,9 @@ function Passkeys() {
 
   const remove = useMutation({
     mutationFn: async (p: PasskeyVM) => {
-      await withStepUp(() => removePasskey(p.id));
+      // A session started with a passkey lists that passkey as current.
+      const mustCosign = (list.data ?? []).some((x) => x.current);
+      await removeKey(p.id, mustCosign, t('cosign.removeSummary', { name: p.name || t('passkeys.unnamed') }));
       return p;
     },
     onMutate: () => {

@@ -11,6 +11,7 @@ import { useNavigate } from 'react-router';
 import { Loading } from '../../app/Loading';
 import { sessionKey } from '../../app/session';
 import { enrollBegin, enrollFinish, type EnrollStart } from './api';
+import { settledSession } from './passkeyFlow';
 import { SecondPasskeyPrompt } from './SecondPasskeyPrompt';
 import { authErrorKey, readFragmentToken, toPasskeyVM } from './vm';
 import { createPasskey } from './webauthn';
@@ -29,7 +30,11 @@ export default function EnrollPage() {
   useEffect(() => {
     if (!begun.current) {
       token.current = readFragmentToken(globalThis.location, globalThis.history);
-      begun.current = token.current ? enrollBegin(token.current) : Promise.reject(new Error('no token'));
+      const tok = token.current;
+      // The app's first session request must settle before the enrollment
+      // session exists, or its cookie-less answer wipes that session's CSRF
+      // token (passkeyFlow.ts settledSession).
+      begun.current = tok ? settledSession(qc).then(() => enrollBegin(tok)) : Promise.reject(new Error('no token'));
     }
     let live = true;
     begun.current.then(
@@ -43,7 +48,7 @@ export default function EnrollPage() {
     return () => {
       live = false;
     };
-  }, []);
+  }, [qc]);
 
   if (state.kind === 'checking') return <Loading />;
   return (
