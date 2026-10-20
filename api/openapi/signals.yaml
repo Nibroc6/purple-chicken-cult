@@ -5,4 +5,35 @@ openapi: 3.0.3
 info:
   title: pcc internal API (signals)
   version: "0"
-paths: {}
+paths:
+  /signals:
+    post:
+      operationId: reportSignals
+      description: >-
+        The client's automation-signal report (ARCHITECTURE §17.2(4)), sent about once
+        a minute while the app is visible: navigator.webdriver, a DevTools-protocol
+        hint and the number of input events of any kind per minute — counts only,
+        never content, never pointer positions. No signal blocks anyone; a session
+        whose combined signals cross the threshold must step up with a passkey.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SignalsReport' }
+      responses:
+        "204": { description: Recorded. }
+        "400": { $ref: '_common.yaml#/components/responses/Problem' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+components:
+  schemas:
+    SignalsReport:
+      type: object
+      additionalProperties: false
+      properties:
+        webdriver: { type: boolean }
+        cdp: { type: boolean }
+        inputs_per_min:
+          type: array
+          maxItems: 60
+          items: { type: integer, minimum: 0, maximum: 100000 }
+        visible_ms: { type: integer, minimum: 0, maximum: 3600000 }
