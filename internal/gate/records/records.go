@@ -13,6 +13,7 @@
 package records
 
 import (
+	"bytes"
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
@@ -27,6 +28,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gowebpki/jcs"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate"
@@ -104,6 +106,13 @@ func (s *Service) Init(ctx context.Context) error {
 		if err := s.ensureKey(ctx, s.d.DB.Q(), s.key); err != nil {
 			return err
 		}
+	}
+	if s.d.Bus != nil && s.d.DB != nil {
+		core.Subscribe(s.d.Bus, func(e core.AccountDeleted) {
+			if err := s.retireUserKeys(context.WithoutCancel(ctx), s.d.DB.Q(), e.ID); err != nil && s.d.Log != nil {
+				s.d.Log.Error("retiring the user keys of a deleted account failed", "err", err)
+			}
+		})
 	}
 	if s.d.Jobs != nil {
 		s.d.Jobs.Handle(JobPurge, func(ctx context.Context, _ json.RawMessage) error {
@@ -317,13 +326,16 @@ func (s *Service) Purge(ctx context.Context) (int, error) {
 // ---- core.Signer ----
 
 // Sign canonicalizes body (value grammar; "kind" and "schema_version" are
-// injected), signs it with the server key and stores it with its parties in
-// tx. It returns the record hash. Signing an identical body twice is idempotent.
+// injected; a json.RawMessage is a co-sign draft stored as is), signs it and
+// stores it with its parties and assertions in tx. A record with an author is
+// signed by the author's custodial key and countersigned by the server key
+// (P1); a server-authored one by the server key alone. It returns the record
+// hash. Signing an identical body twice is idempotent.
 func (s *Service) Sign(ctx context.Context, tx store.Q, kind core.RecordKind, author core.UserID, body any, parties []core.UserID, a ...core.Assertion) ([]byte, error) {
 	if kind.String() == "" {
 		return nil, fmt.Errorf("records: unknown record kind %d", kind)
 	}
-	canon, err := sigs.CanonicalRecord(kind.String(), core.RecordSchemaVersion, body)
+	canon, err := canonicalBody(kind, body)
 	if err != nil {
 		return nil, err
 	}
@@ -334,19 +346,32 @@ func (s *Service) Sign(ctx context.Context, tx store.Q, kind core.RecordKind, au
 	}
 	h := sigs.RecordHash(canon)
 	var authorID *int64
+	keyID, sig := k.ID, k.Sign(canon)
+	var cosigs []byte
 	if author != 0 {
 		v := int64(author)
 		authorID = &v
+		if s.UserKeysEnabled() {
+			// P1: the author's custodial key signs, the server key countersigns.
+			uk, err := s.userKey(ctx, q, author)
+			if err != nil {
+				return nil, err
+			}
+			if cosigs, err = json.Marshal([]sigs.Cosig{{KeyID: k.ID, Sig: base64.RawURLEncoding.EncodeToString(sig)}}); err != nil {
+				return nil, err
+			}
+			keyID, sig = uk.ID, uk.Sign(canon)
+		}
 	}
 	var assertions []byte
 	if len(a) > 0 {
-		if assertions, err = marshalAssertions(a); err != nil {
+		if assertions, err = s.marshalAssertions(ctx, q, a); err != nil {
 			return nil, err
 		}
 	}
-	if _, err := q.Exec(ctx, `INSERT INTO signed_records (hash, kind, author_id, key_id, body, sig, assertions, schema_version, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT (hash) DO NOTHING`,
-		h[:], int16(kind), authorID, k.ID, canon, k.Sign(canon), assertions, int16(core.RecordSchemaVersion),
+	if _, err := q.Exec(ctx, `INSERT INTO signed_records (hash, kind, author_id, key_id, body, sig, cosigs, assertions,
+		schema_version, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) ON CONFLICT (hash) DO NOTHING`,
+		h[:], int16(kind), authorID, keyID, canon, sig, cosigs, assertions, int16(core.RecordSchemaVersion),
 		s.d.Clock.Now()); err != nil {
 		return nil, err
 	}
@@ -364,20 +389,97 @@ func (s *Service) Sign(ctx context.Context, tx store.Q, kind core.RecordKind, au
 	return h[:], nil
 }
 
-type assertionJSON struct {
+// canonicalBody canonicalizes body, except that a json.RawMessage is a co-sign
+// draft (Cosign.Require's bytes, already a canonical record of kind) that is
+// stored exactly as the passkey signed it.
+func canonicalBody(kind core.RecordKind, body any) ([]byte, error) {
+	raw, ok := body.(json.RawMessage)
+	if !ok {
+		return sigs.CanonicalRecord(kind.String(), core.RecordSchemaVersion, body)
+	}
+	again, err := jcs.Transform(raw)
+	if err != nil || !bytes.Equal(again, raw) {
+		return nil, sigs.ErrNotCanonical
+	}
+	k, sv, err := sigs.RecordFields(raw)
+	if err != nil {
+		return nil, err
+	}
+	if k != kind.String() || sv != core.RecordSchemaVersion {
+		return nil, sigs.ErrKindMismatch
+	}
+	return bytes.Clone(raw), nil
+}
+
+// AssertionJSON is one stored (and exported) passkey assertion. PublicKey and
+// User come from the credential's PasskeyChange add record, so the assertion
+// verifies offline without the credentials table (security #5).
+type AssertionJSON struct {
 	CredentialID      sigs.Bytes `json:"credential_id"`
 	AuthenticatorData sigs.Bytes `json:"authenticator_data"`
 	ClientDataJSON    sigs.Bytes `json:"client_data_json"`
 	Signature         sigs.Bytes `json:"signature"`
+	User              *uuid.UUID `json:"user,omitempty"`
+	PublicKey         sigs.Bytes `json:"public_key,omitempty"` // COSE_Key
+	Alg               int        `json:"alg,omitempty"`
 }
 
-func marshalAssertions(as []core.Assertion) ([]byte, error) {
-	out := make([]assertionJSON, 0, len(as))
+func (s *Service) marshalAssertions(ctx context.Context, q store.Q, as []core.Assertion) ([]byte, error) {
+	out := make([]AssertionJSON, 0, len(as))
 	for _, a := range as {
-		out = append(out, assertionJSON{CredentialID: a.CredentialID, AuthenticatorData: a.AuthenticatorData,
-			ClientDataJSON: a.ClientDataJSON, Signature: a.Signature})
+		aj := AssertionJSON{CredentialID: a.CredentialID, AuthenticatorData: a.AuthenticatorData,
+			ClientDataJSON: a.ClientDataJSON, Signature: a.Signature}
+		if a.User != 0 {
+			pc, err := credentialRecord(ctx, q, a.User, a.CredentialID)
+			if err != nil {
+				return nil, err
+			}
+			if pc != nil {
+				u := pc.User
+				aj.User, aj.PublicKey, aj.Alg = &u, pc.PublicKey, pc.Alg
+			}
+		}
+		out = append(out, aj)
 	}
 	return json.Marshal(out)
+}
+
+// passkeyChange is the body of a PasskeyChange record (written by gate/auth).
+type passkeyChange struct {
+	User         uuid.UUID  `json:"user"`
+	Op           string     `json:"op"`
+	CredentialID sigs.Bytes `json:"credential_id"`
+	PublicKey    sigs.Bytes `json:"public_key"`
+	Alg          int        `json:"alg"`
+	At           sigs.Time  `json:"at"`
+}
+
+// Passkey change operations.
+const (
+	opAdd    = "add"
+	opRemove = "remove"
+)
+
+// credentialRecord returns the latest PasskeyChange add of credential cred by
+// user (nil when there is none).
+func credentialRecord(ctx context.Context, q store.Q, user core.UserID, cred []byte) (*passkeyChange, error) {
+	rows, err := q.Query(ctx, `SELECT body FROM signed_records WHERE kind = $1 AND author_id = $2
+		ORDER BY created_at DESC, hash`, int16(core.RecPasskeyChange), int64(user))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var body []byte
+		if err := rows.Scan(&body); err != nil {
+			return nil, err
+		}
+		var pc passkeyChange
+		if json.Unmarshal(body, &pc) == nil && pc.Op == opAdd && bytes.Equal(pc.CredentialID, cred) {
+			return &pc, nil
+		}
+	}
+	return nil, rows.Err()
 }
 
 // Draft returns a co-sign draft and its passkey challenge (P1).

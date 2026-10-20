@@ -1,0 +1,49 @@
+/* Co-sign dialog (P1-W01). Logical properties only. */
+.cosign-backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(0 0 0 / 45%);
+  z-index: 100;
+  padding: var(--space-4);
+}
+
+.cosign-dialog {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-4);
+  max-inline-size: 32rem;
+  inline-size: 100%;
+  max-block-size: 90vh;
+  overflow-y: auto;
+}
+
+.cosign-dialog h2 {
+  margin-block-start: 0;
+}
+
+.cosign-record pre {
+  overflow-x: auto;
+  max-block-size: 16rem;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 0.875rem;
+}
+
+.cosign-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-block-start: var(--space-4);
+}
+
+.cosign-error {
+  color: var(--color-text);
+  border-inline-start: 4px solid var(--color-accent);
+  padding-inline-start: var(--space-2);
+}

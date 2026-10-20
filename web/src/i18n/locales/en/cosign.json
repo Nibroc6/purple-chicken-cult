@@ -1,1 +1,24 @@
-{}
+{
+  "title": "Sign this change with your passkey",
+  "why": "Changes to your connections and your account are signed by you, so nobody else, not even someone running the server, can make them in your name.",
+  "loading": "Preparing the record to sign…",
+  "record": {
+    "summary": "Show the exact record you are signing"
+  },
+  "purpose": {
+    "friend_request": "You are sending a friend request.",
+    "friend_accept": "You are accepting a friend request.",
+    "unfriend": "You are ending a friendship.",
+    "block": "You are blocking someone.",
+    "invite_inviter": "You are inviting someone you are with in person.",
+    "invite_invitee": "You are joining with an in-person invite.",
+    "passkey_add": "You are adding a passkey to your account.",
+    "passkey_remove": "You are removing a passkey from your account.",
+    "account_delete": "You are deleting your account.",
+    "recovery_approve": "You are approving an account recovery.",
+    "mod_action": "You are confirming a moderation action."
+  },
+  "sign": "Sign with a passkey",
+  "working": "Waiting for your passkey…",
+  "cancel": "Cancel"
+}

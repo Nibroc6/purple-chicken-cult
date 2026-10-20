@@ -4,13 +4,16 @@ import (
 	"bytes"
 	"context"
 	"crypto/ed25519"
+	"encoding/base64"
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/internal/core"
 	"github.com/Nibroc6/purple-chicken-cult/internal/platform/sigs"
+	"github.com/Nibroc6/purple-chicken-cult/internal/store"
 )
 
 type extPair struct{ a, b uuid.UUID }
@@ -25,7 +28,8 @@ func orderedExt(a, b uuid.UUID) extPair {
 // AuditEdges checks every edges row (both directions) against its signed
 // Friendship record (§4.5, fidelity #31) and returns the number of rows that
 // fail: the record is missing, is not a Friendship, does not hash to its key,
-// does not verify under its signing key, names other users, is scheduled for
+// does not verify under its signing key (a user-signed record also needs a
+// server countersignature), names other users, is scheduled for
 // purging (revoked), or is followed by a Revocation of the same pair.
 func (s *Service) AuditEdges(ctx context.Context) (int, error) {
 	q := s.d.DB.Q()
@@ -58,8 +62,12 @@ func (s *Service) AuditEdges(ctx context.Context) (int, error) {
 		return 0, err
 	}
 
+	server, err := serverKeys(ctx, q)
+	if err != nil {
+		return 0, err
+	}
 	rows, err := q.Query(ctx, `SELECT ua.ext_id, ub.ext_id, e.record_hash, r.hash, r.kind, r.body, r.sig, r.key_id,
-		r.purge_after IS NOT NULL, k.public_key
+		r.purge_after IS NOT NULL, k.public_key, r.cosigs
 		FROM edges e
 		JOIN users ua ON ua.id = e.user_id
 		JOIN users ub ON ub.id = e.friend_id
@@ -78,15 +86,54 @@ func (s *Service) AuditEdges(ctx context.Context) (int, error) {
 			kind                    *int16
 			keyID                   *string
 			purging                 *bool
+			cosigs                  []byte
 		)
-		if err := rows.Scan(&extA, &extB, &edgeHash, &recHash, &kind, &body, &sig, &keyID, &purging, &pub); err != nil {
+		if err := rows.Scan(&extA, &extB, &edgeHash, &recHash, &kind, &body, &sig, &keyID, &purging, &pub, &cosigs); err != nil {
 			return 0, err
 		}
-		if !friendshipValid(extA, extB, edgeHash, recHash, kind, body, sig, keyID, purging, pub, revoked) {
+		if !friendshipValid(extA, extB, edgeHash, recHash, kind, body, sig, keyID, purging, pub, revoked) ||
+			(strings.HasPrefix(*keyID, UserKeyPrefix) && !cosignedBy(server, body, cosigs)) {
 			bad++
 		}
 	}
 	return bad, rows.Err()
+}
+
+// serverKeys returns every published server key by key ID.
+func serverKeys(ctx context.Context, q store.Q) (map[string]ed25519.PublicKey, error) {
+	rows, err := q.Query(ctx, "SELECT key_id, public_key FROM signing_keys WHERE owner_id IS NULL")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]ed25519.PublicKey{}
+	for rows.Next() {
+		var (
+			id  string
+			pub []byte
+		)
+		if err := rows.Scan(&id, &pub); err != nil {
+			return nil, err
+		}
+		out[id] = pub
+	}
+	return out, rows.Err()
+}
+
+// cosignedBy reports whether one of the stored countersignatures verifies under
+// a server key.
+func cosignedBy(server map[string]ed25519.PublicKey, body, cosigs []byte) bool {
+	var cs []sigs.Cosig
+	if json.Unmarshal(cosigs, &cs) != nil {
+		return false
+	}
+	for _, c := range cs {
+		sig, err := base64.RawURLEncoding.Strict().DecodeString(c.Sig)
+		if pub, ok := server[c.KeyID]; ok && err == nil && sigs.Verify(pub, c.KeyID, body, sig) {
+			return true
+		}
+	}
+	return false
 }
 
 func friendshipValid(extA, extB uuid.UUID, edgeHash, recHash []byte, kind *int16, body, sig []byte, keyID *string,

@@ -5,4 +5,64 @@ openapi: 3.0.3
 info:
   title: pcc internal API (cosign)
   version: "0"
-paths: {}
+paths:
+  /cosign:
+    post:
+      operationId: cosignBegin
+      description: >-
+        Opens a co-sign intent (ARCHITECTURE §3 Phase 1, §17.4): the record the
+        viewer is asked to sign, with a server-random nonce and issued_at, and
+        WebAuthn request options whose challenge is sha256("pcc-v1:" ‖ kind ‖ record)
+        over one of the viewer's own passkeys. The intent is single use, lives five
+        minutes and is sent back with the write it authorizes. A target the viewer
+        cannot see, or a purpose nothing can co-sign yet, is the uniform 404.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CosignBeginIn' }
+      responses:
+        "200":
+          description: The intent.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CosignIntent' }
+        "400": { $ref: '_common.yaml#/components/responses/Problem' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429":
+          description: rate_limited.
+          content:
+            application/json:
+              schema: { $ref: '_common.yaml#/components/schemas/Error' }
+components:
+  schemas:
+    CosignBeginIn:
+      type: object
+      additionalProperties: false
+      required: [purpose]
+      properties:
+        purpose:
+          type: string
+          enum: [friend_request, friend_accept, unfriend, block, invite_inviter, invite_invitee,
+                 passkey_add, passkey_remove, account_delete, recovery_approve, mod_action]
+        target: { $ref: '_common.yaml#/components/schemas/Ref' }
+    CosignIntent:
+      type: object
+      additionalProperties: false
+      required: [intent, record, options]
+      properties:
+        intent: { $ref: '_common.yaml#/components/schemas/Ref' }
+        record:
+          type: object
+          description: The exact record being signed (JCS), shown to the person before they sign.
+          additionalProperties: true
+          required: [kind, schema_version, nonce, issued_at]
+          properties:
+            kind: { type: string }
+            schema_version: { type: integer }
+            nonce: { type: string, format: uuid }
+            issued_at: { type: string }
+        options:
+          type: object
+          description: 'WebAuthn PublicKeyCredentialRequestOptions, wrapped as {"publicKey": {...}}.'
+          additionalProperties: true

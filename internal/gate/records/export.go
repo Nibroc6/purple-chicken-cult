@@ -2,7 +2,6 @@ package records
 
 import (
 	"archive/zip"
-	"bufio"
 	"bytes"
 	"context"
 	"crypto/ed25519"
@@ -14,6 +13,8 @@ import (
 	"io"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/internal/core"
@@ -31,9 +32,22 @@ const (
 	FileManifest    = "manifest.json"
 )
 
-// KeysFile is the content of keys.json.
+// KeysFile is the content of keys.json. Users lists the custodial keys that
+// signed an exported record (each record signed by one is countersigned by a
+// server key); Origin is the first-party origin every passkey assertion must
+// come from; CosignRequiredFrom is when co-signing became mandatory (absent
+// while it is not).
 type KeysFile struct {
-	Server []gate.KeyView `json:"server"`
+	Server             []gate.KeyView `json:"server"`
+	Users              []UserKeyView  `json:"users,omitempty"`
+	Origin             string         `json:"origin,omitempty"`
+	CosignRequiredFrom *time.Time     `json:"cosign_required_from,omitempty"`
+}
+
+// UserKeyView is a published per-user key: a KeyView plus its owner's ext_id.
+type UserKeyView struct {
+	gate.KeyView
+	Owner uuid.UUID `json:"owner"`
 }
 
 // ExportRecords returns records.jsonl (one sigs.Envelope per line: the exact
@@ -53,6 +67,7 @@ func (s *Service) ExportRecords(ctx context.Context, q store.Q, user core.UserID
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)
 	enc.SetEscapeHTML(false) // never touch the signed bytes
+	userKeys := map[string]bool{}
 	for rows.Next() {
 		var (
 			keyID              string
@@ -78,6 +93,9 @@ func (s *Service) ExportRecords(ctx context.Context, q store.Q, user core.UserID
 				return nil, nil, err
 			}
 		}
+		if strings.HasPrefix(keyID, UserKeyPrefix) {
+			userKeys[keyID] = true
+		}
 		if err := enc.Encode(env); err != nil {
 			return nil, nil, err
 		}
@@ -85,6 +103,7 @@ func (s *Service) ExportRecords(ctx context.Context, q store.Q, user core.UserID
 	if err := rows.Err(); err != nil {
 		return nil, nil, err
 	}
+	rows.Close()
 	if k := s.current(); k != nil {
 		if err := s.ensureKey(ctx, q, k); err != nil && !errors.Is(err, errRetired) {
 			return nil, nil, err
@@ -94,11 +113,55 @@ func (s *Service) ExportRecords(ctx context.Context, q store.Q, user core.UserID
 	if err != nil {
 		return nil, nil, err
 	}
-	keysJSON, err = json.MarshalIndent(KeysFile{Server: keys}, "", "  ")
+	kf := KeysFile{Server: keys, Origin: s.d.Cfg.Origin}
+	if kf.Users, err = s.loadUserKeys(ctx, q, userKeys); err != nil {
+		return nil, nil, err
+	}
+	if kf.CosignRequiredFrom, err = s.CosignRequiredFrom(ctx, q); err != nil {
+		return nil, nil, err
+	}
+	keysJSON, err = json.MarshalIndent(kf, "", "  ")
 	if err != nil {
 		return nil, nil, err
 	}
 	return buf.Bytes(), keysJSON, nil
+}
+
+// loadUserKeys returns the published user keys among ids, oldest first.
+func (s *Service) loadUserKeys(ctx context.Context, q store.Q, ids map[string]bool) ([]UserKeyView, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	list := make([]string, 0, len(ids))
+	for id := range ids {
+		list = append(list, id)
+	}
+	rows, err := q.Query(ctx, `SELECT k.key_id, k.alg, k.public_key, k.valid_from, k.valid_until, u.ext_id
+		FROM signing_keys k JOIN users u ON u.id = k.owner_id
+		WHERE k.key_id = ANY($1) ORDER BY k.valid_from, k.key_id`, list)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []UserKeyView
+	for rows.Next() {
+		var (
+			kv  UserKeyView
+			pub []byte
+		)
+		if err := rows.Scan(&kv.KeyID, &kv.Alg, &pub, &kv.ValidFrom, &kv.ValidUntil, &kv.Owner); err != nil {
+			return nil, err
+		}
+		kv.PublicKey = base64.RawURLEncoding.EncodeToString(pub)
+		kv.Fingerprint = sigs.Fingerprint(ed25519.PublicKey(pub))
+		kv.ValidFrom = kv.ValidFrom.UTC()
+		if kv.ValidUntil != nil {
+			u := kv.ValidUntil.UTC()
+			kv.ValidUntil = &u
+		}
+		out = append(out, kv)
+	}
+	return out, rows.Err()
 }
 
 // PostLine is one line of posts.jsonl: a post body the user wrote, with the
@@ -116,150 +179,6 @@ func BodyCommit(salt []byte, body string) []byte {
 	h.Write(salt)
 	h.Write([]byte(body))
 	return h.Sum(nil)
-}
-
-// Verify failure codes (gate.VerifyFailure.Code).
-const (
-	FailBadSig         = "bad_sig"
-	FailKindMismatch   = "kind_mismatch"
-	FailNotCanonical   = "not_canonical"
-	FailUnknownKey     = "unknown_key"
-	FailKeyWindow      = "key_window"
-	FailCommitMismatch = "commit_mismatch"
-)
-
-// windowSkew tolerates small differences between a body's own timestamp and
-// the moment the record was signed.
-const windowSkew = 10 * time.Minute
-
-// MaxExportFile bounds every file read from an export (zip-bomb guard).
-const MaxExportFile = 256 << 20
-
-type pubKey struct {
-	pub   ed25519.PublicKey
-	until time.Time // zero while the key is current
-}
-
-// VerifyExport verifies an export zip offline. Every records.jsonl line must be
-// canonical as stored, its envelope kind and schema_version must match the
-// body, the key must be listed in keys.json (and, when pinned is non-empty,
-// match the published fingerprint key_id → hex sha256), the body time must lie
-// in the key's validity window and the signature must verify. posts.jsonl lines
-// must open the body_commit of their Post record. Failure lines number the
-// lines of the file the code refers to (records.jsonl; posts.jsonl for
-// commit_mismatch). An error means the file is not a readable export.
-func VerifyExport(r io.ReaderAt, size int64, pinned map[string]string) (gate.VerifyReport, error) {
-	rep := gate.VerifyReport{KeysPinned: len(pinned) > 0}
-	zr, err := zip.NewReader(r, size)
-	if err != nil {
-		return rep, fmt.Errorf("records: not an export zip: %w", err)
-	}
-	files := map[string]*zip.File{}
-	for _, f := range zr.File {
-		files[f.Name] = f
-	}
-	keysRaw, err := readZipFile(files, FileKeys)
-	if err != nil {
-		return rep, err
-	}
-	var kf KeysFile
-	if err := json.Unmarshal(keysRaw, &kf); err != nil {
-		return rep, fmt.Errorf("records: keys.json: %w", err)
-	}
-	keys := map[string]pubKey{}
-	for _, k := range kf.Server {
-		pub, err := base64.RawURLEncoding.Strict().DecodeString(k.PublicKey)
-		if err != nil || len(pub) != ed25519.PublicKeySize {
-			continue
-		}
-		fp := sigs.Fingerprint(pub)
-		if !strings.EqualFold(fp, k.Fingerprint) || sigs.ServerKeyID(pub) != k.KeyID {
-			continue // a key whose listed fingerprint or ID does not match its bytes is not trusted
-		}
-		if len(pinned) > 0 && !strings.EqualFold(strings.TrimSpace(pinned[k.KeyID]), fp) {
-			continue
-		}
-		pk := pubKey{pub: pub}
-		if k.ValidUntil != nil {
-			pk.until = *k.ValidUntil
-		}
-		keys[k.KeyID] = pk
-	}
-
-	recRaw, err := readZipFile(files, FileRecords)
-	if err != nil {
-		return rep, err
-	}
-	type postRef struct {
-		id      string
-		version int64
-	}
-	commits := map[postRef][]byte{}
-	line := 0
-	sc := bufio.NewScanner(bytes.NewReader(recRaw))
-	sc.Buffer(make([]byte, 0, 64<<10), MaxExportFile)
-	for sc.Scan() {
-		raw := sc.Bytes()
-		line++
-		if len(bytes.TrimSpace(raw)) == 0 {
-			line--
-			continue
-		}
-		rep.Records++
-		code := verifyLine(raw, keys)
-		if code != "" {
-			rep.Failures = append(rep.Failures, gate.VerifyFailure{Line: line, Code: code})
-			continue
-		}
-		rep.Valid++
-		var env sigs.Envelope
-		_ = json.Unmarshal(raw, &env)
-		if env.Kind == core.RecPost.String() {
-			var pb struct {
-				ID         string     `json:"id"`
-				Version    int64      `json:"version"`
-				BodyCommit sigs.Bytes `json:"body_commit"`
-			}
-			if json.Unmarshal(env.Body, &pb) == nil && pb.ID != "" {
-				commits[postRef{pb.ID, pb.Version}] = pb.BodyCommit
-			}
-		}
-	}
-	if err := sc.Err(); err != nil {
-		return rep, fmt.Errorf("records: records.jsonl: %w", err)
-	}
-
-	if _, ok := files[FilePosts]; ok {
-		postsRaw, err := readZipFile(files, FilePosts)
-		if err != nil {
-			return rep, err
-		}
-		sc := bufio.NewScanner(bytes.NewReader(postsRaw))
-		sc.Buffer(make([]byte, 0, 64<<10), MaxExportFile)
-		pl := 0
-		for sc.Scan() {
-			raw := sc.Bytes()
-			if len(bytes.TrimSpace(raw)) == 0 {
-				continue
-			}
-			pl++
-			var p PostLine
-			if err := json.Unmarshal(raw, &p); err != nil {
-				rep.Failures = append(rep.Failures, gate.VerifyFailure{Line: pl, Code: FailCommitMismatch})
-				continue
-			}
-			want, ok := commits[postRef{p.ID, int64(p.Version)}]
-			if !ok || !bytes.Equal(want, BodyCommit(p.Salt, p.Body)) {
-				rep.Failures = append(rep.Failures, gate.VerifyFailure{Line: pl, Code: FailCommitMismatch})
-				continue
-			}
-			rep.BodiesChecked++
-		}
-		if err := sc.Err(); err != nil {
-			return rep, fmt.Errorf("records: posts.jsonl: %w", err)
-		}
-	}
-	return rep, nil
 }
 
 func readZipFile(files map[string]*zip.File, name string) ([]byte, error) {
@@ -280,40 +199,6 @@ func readZipFile(files map[string]*zip.File, name string) ([]byte, error) {
 		return nil, fmt.Errorf("records: %s is too large", name)
 	}
 	return b, nil
-}
-
-// verifyLine returns "" for a valid records.jsonl line, else its failure code.
-func verifyLine(raw []byte, keys map[string]pubKey) string {
-	var env sigs.Envelope
-	if err := json.Unmarshal(raw, &env); err != nil || len(env.Body) == 0 {
-		return FailNotCanonical
-	}
-	k, ok := keys[env.KeyID]
-	if !ok {
-		return FailUnknownKey
-	}
-	switch err := sigs.VerifyEnvelope(env, k.pub); {
-	case err == nil:
-	case errors.Is(err, sigs.ErrNotCanonical):
-		return FailNotCanonical
-	case errors.Is(err, sigs.ErrKindMismatch), errors.Is(err, sigs.ErrNoRecord):
-		return FailKindMismatch
-	case errors.Is(err, sigs.ErrBadSig):
-		return FailBadSig
-	default:
-		return FailNotCanonical
-	}
-	// Only the upper bound is checked: a retired key cannot have signed a
-	// record dated after it was retired. There is no lower bound against
-	// valid_from, because a record signed after a rotation may legitimately
-	// carry an earlier time of its own (an edited Post version keeps the
-	// post's created_at; an Invite's issued_at is the handshake start).
-	if t, ok := bodyTime(env.Body); ok {
-		if !k.until.IsZero() && t.After(k.until.Add(windowSkew)) {
-			return FailKeyWindow
-		}
-	}
-	return ""
 }
 
 // bodyTime is the record's own timestamp (created_at, at or issued_at).
