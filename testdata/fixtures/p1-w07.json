@@ -1,0 +1,22 @@
+{
+  "users": [
+    { "handle": "kim", "name": "Kim Keys", "preset": "latest" },
+    { "handle": "rae", "name": "Rae Reader", "preset": "latest" },
+    { "handle": "pat", "name": "Pat Padding", "preset": "latest" },
+    { "handle": "dee", "name": "Dee Device", "preset": "latest" },
+    { "handle": "ria", "name": "Ria RSA", "preset": "latest" },
+    { "handle": "sam", "name": "Sam Author", "preset": "latest" }
+  ],
+  "friends": [
+    { "a": "kim", "b": "sam" },
+    { "a": "rae", "b": "sam" },
+    { "a": "pat", "b": "sam" },
+    { "a": "dee", "b": "sam" },
+    { "a": "ria", "b": "sam" }
+  ],
+  "posts": [
+    { "label": "sam-1", "author": "sam", "body": "A morning walk by the river", "age": "3h" },
+    { "label": "sam-2", "author": "sam", "body": "Bread came out well today", "age": "2h" },
+    { "label": "sam-3", "author": "sam", "body": "Reading on the balcony", "age": "1h" }
+  ]
+}

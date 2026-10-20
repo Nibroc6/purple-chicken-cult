@@ -82,9 +82,7 @@ test('genesis enrollment, passkey login and step-up with a virtual authenticator
   // co-signed by the existing passkey; that key moves to the new
   // authenticator for the signature (one virtual authenticator answers at a time).
   const cdp = await context.newCDPSession(page);
-  const { credentials: old } = (await cdp.send('WebAuthn.getCredentials', { authenticatorId: authn.id })) as {
-    credentials: Record<string, unknown>[];
-  };
+  const { credentials: old } = await cdp.send('WebAuthn.getCredentials', { authenticatorId: authn.id });
   await authn.remove();
   await cdp.send('WebAuthn.enable');
   const { authenticatorId: secondId } = await cdp.send('WebAuthn.addVirtualAuthenticator', {
@@ -109,7 +107,7 @@ test('genesis enrollment, passkey login and step-up with a virtual authenticator
   await expect(page.getByTestId('passkey-item')).toHaveCount(2);
   // The old key leaves the new authenticator again: from here on it holds only the new passkey.
   for (const c of old) {
-    await cdp.send('WebAuthn.removeCredential', { authenticatorId: second.id, credentialId: c.credentialId as string });
+    await cdp.send('WebAuthn.removeCredential', { authenticatorId: second.id, credentialId: c.credentialId });
   }
 
   // Removing the passkey this session signed in with ends the session (the
