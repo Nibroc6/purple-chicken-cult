@@ -67,6 +67,7 @@ export async function startServer(): Promise<RunningServer> {
       PCC_HTTP_ADDR: `127.0.0.1:${String(port)}`,
       PCC_ORIGIN: baseURL,
       PCC_AUTO_MIGRATE: '1',
+      PCC_DBSC: '1', // device-bound sessions on (contract request p1-w07-1)
       PCC_VAPID_PUBLIC: process.env.PCC_VAPID_PUBLIC ?? vapid.public,
       PCC_VAPID_PRIVATE: process.env.PCC_VAPID_PRIVATE ?? vapid.private,
       PCC_VAPID_SUBJECT: process.env.PCC_VAPID_SUBJECT ?? 'mailto:e2e@pcc.invalid',

@@ -40,5 +40,9 @@ func (s *Service) Client(ctx context.Context, r ClientSignals) error {
 	return nil
 }
 
+// Reset forgets every in-memory scoring window (test hooks; contract request
+// p1-w07-1). Stub: nothing is held yet.
+func (s *Service) Reset() {}
+
 // Middleware feeds request patterns to the scorer (P1-W07). Scaffold: pass-through.
 func (s *Service) Middleware(next http.Handler) http.Handler { return next }

@@ -2451,7 +2451,10 @@ refuses unless `cfg.DevLike()`.
   or whose request schema contains a ref field (computed from the route catalogue +
   OpenAPI at startup; listed by `router_test`). Padding rounds the total handler time **up to
   the next multiple** of the route's bucket (150 ms default; 600 ms for deep-tier feed/tree
-  work), for success, Problem and 404 alike, inside the same middleware. KS test plus a
+  work), for success, Problem and 404 alike, inside the same middleware. (p1-w07-1: the
+  set is derived by `apix/pad.For`; the deep grid is `600 ms, then 600·k + 150 ms`, so the
+  graph's own 600 ms deep-tier release plus ordinary handler work lands on the next point
+  instead of a whole extra bucket.) KS test plus a
   server-side histogram assertion (found vs not-found land in the same bucket) in INT-1.
 - Pagination: `?cursor=`; responses `{items, next}`.
 

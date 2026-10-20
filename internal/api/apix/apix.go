@@ -15,7 +15,6 @@ import (
 	"math"
 	"net/http"
 	"sort"
-	"strings"
 	"sync"
 
 	"github.com/go-chi/chi/v5"
@@ -91,7 +90,7 @@ func Routes() []RouteInfo {
 }
 
 // PaddedParams are the path parameters that make a route timing-padded in P1.
-var PaddedParams = []string{"{ref}", "{hs}", "{id}", "{snapshot}"}
+var PaddedParams = pad.Params
 
 // Route registers h for method + pattern (relative to /api) with charge class c.
 // The charge happens before the handler and before any ref is resolved (D19).
@@ -100,12 +99,10 @@ func Route(r chi.Router, method, pattern string, c Class, h HandlerFunc) {
 	if c.Kind == 0 || c.Name == "" {
 		panic(errors.New("apix: route " + method + " " + pattern + " has no charge class"))
 	}
-	padded := false
-	for _, p := range PaddedParams {
-		if strings.Contains(pattern, p) {
-			padded = true
-		}
-	}
+	// The padded set is derived by apix/pad (plan §5.1): every route with a
+	// {ref}/{hs}/{id}/{snapshot} parameter or a ref in its request, the
+	// deep-tier feed/tree routes on their own grid (contract request p1-w07-1).
+	grid, padded := pad.For(method, pattern)
 	regMu.Lock()
 	registry[method+" "+pattern] = RouteInfo{Method: method, Pattern: pattern, Class: c, Padded: padded}
 	regMu.Unlock()
@@ -121,7 +118,7 @@ func Route(r chi.Router, method, pattern string, c Class, h HandlerFunc) {
 		}
 	})
 	if padded {
-		handler = pad.Middleware(pad.DefaultBucket)(handler)
+		handler = pad.Wrap(method+" "+pattern, grid)(handler)
 	}
 	r.Method(method, pattern, handler)
 }
