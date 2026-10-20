@@ -21,6 +21,7 @@ import (
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/internal/core"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/internal/coretest"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/records"
+	"github.com/Nibroc6/purple-chicken-cult/internal/gate/wire/wiretest"
 	"github.com/Nibroc6/purple-chicken-cult/internal/platform/sigs"
 )
 
@@ -249,10 +250,19 @@ func TestPasskeyChangeChain(t *testing.T) {
 	}
 }
 
-// addPasskey runs the P0 add-passkey flow (fresh session; no co-sign).
+// addPasskey runs the P0 add-passkey flow (fresh session; no co-sign). Since
+// P1-W07 a session started with a passkey must co-sign passkey changes, so the
+// unsigned flow runs in a credential-less test-hook session of c's account
+// (contract request p1-w07-2).
 func (e *env) addPasskey(c *client) error {
 	e.t.Helper()
-	opts, err := e.a.Auth.AddPasskeyBegin(c.ctx())
+	m, err := e.d.Users.Get(e.ctx, c.id)
+	if err != nil {
+		return err
+	}
+	tok, _ := wiretest.Login(e.t, e.a, m.Handle)
+	h := &client{e: e, cookie: tok, id: c.id}
+	opts, err := e.a.Auth.AddPasskeyBegin(h.ctx())
 	if err != nil {
 		return err
 	}
@@ -261,5 +271,6 @@ func (e *env) addPasskey(c *client) error {
 	if err != nil {
 		return err
 	}
-	return e.a.Auth.AddPasskeyFinish(c.ctx(), resp, "second")
+	_, err = e.a.Auth.AddPasskeyFinish(h.ctx(), resp, "second", "", nil)
+	return err
 }
