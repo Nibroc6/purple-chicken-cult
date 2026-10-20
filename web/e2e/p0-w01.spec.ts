@@ -78,17 +78,47 @@ test('genesis enrollment, passkey login and step-up with a virtual authenticator
   await expect(page.locator('.auth-form [role=alert]')).toBeVisible();
 
   // A second authenticator adds a second passkey (the session is fresh now).
+  // P1 (P1-W07): the session was started with a passkey, so the new one is
+  // co-signed by the existing passkey; that key moves to the new
+  // authenticator for the signature (one virtual authenticator answers at a time).
+  const cdp = await context.newCDPSession(page);
+  const { credentials: old } = (await cdp.send('WebAuthn.getCredentials', { authenticatorId: authn.id })) as {
+    credentials: Record<string, unknown>[];
+  };
   await authn.remove();
-  const second = await addVirtualAuthenticator(context, page);
+  await cdp.send('WebAuthn.enable');
+  const { authenticatorId: secondId } = await cdp.send('WebAuthn.addVirtualAuthenticator', {
+    options: { protocol: 'ctap2', transport: 'internal', hasResidentKey: true, hasUserVerification: true, isUserVerified: true },
+  });
+  const second = {
+    id: secondId,
+    remove: async () => {
+      await cdp.send('WebAuthn.removeVirtualAuthenticator', { authenticatorId: secondId });
+    },
+  };
   await page.locator('.auth-form input[type=text]').fill('Phone');
   await page.getByTestId('passkey-add').click();
+  await expect(page.getByTestId('cosign-dialog')).toBeVisible();
+  // As a non-discoverable credential: the authenticator keeps one resident
+  // credential per account, the new passkey; the co-sign request names the old one.
+  for (const c of old) {
+    const credential = { credentialId: c.credentialId, isResidentCredential: false, rpId: c.rpId, privateKey: c.privateKey, signCount: c.signCount };
+    await cdp.send('WebAuthn.addCredential', { authenticatorId: second.id, credential });
+  }
+  await page.getByTestId('cosign-sign').click();
   await expect(page.getByTestId('passkey-item')).toHaveCount(2);
+  // The old key leaves the new authenticator again: from here on it holds only the new passkey.
+  for (const c of old) {
+    await cdp.send('WebAuthn.removeCredential', { authenticatorId: second.id, credentialId: c.credentialId as string });
+  }
 
-  // Removing the passkey this session signed in with ends the session.
+  // Removing the passkey this session signed in with ends the session (the
+  // removal is co-signed too).
   page.once('dialog', (d) => {
     void d.accept();
   });
   await page.getByTestId('passkey-remove').first().click();
+  await page.getByTestId('cosign-sign').click();
   await expect(page).toHaveURL(`${origin}/login`);
   expect((await session(page)).authenticated).toBe(false);
 
