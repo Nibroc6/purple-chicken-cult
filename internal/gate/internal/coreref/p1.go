@@ -18,6 +18,7 @@ import (
 
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/internal/core"
+	"github.com/Nibroc6/purple-chicken-cult/internal/platform/sigs"
 	"github.com/Nibroc6/purple-chicken-cult/internal/store"
 )
 
@@ -283,16 +284,18 @@ const CosignTTL = 5 * time.Minute
 
 // MemCosign is the reference co-sign gate. An intent belongs to one user and one
 // purpose, lives CosignTTL and is single use; its id is the nonce of the draft
-// (built with DraftRecord at Require, issued_at = the intent's creation time) and
-// the WebAuthn challenge is the id (the reference cannot know the record shape at
-// Begin; P1-W01 challenges over the draft). Require consumes the intent before it
+// (issued_at = the intent's creation time). When the purpose has a registered
+// drafter the draft is built at Begin and the WebAuthn challenge is
+// sigs.Challenge over it; otherwise the draft is built from the body at Require
+// and the challenge is the id. Require consumes the intent before it
 // verifies the assertion through D.Passkeys.VerifyAssertion, so a failed attempt
 // cannot be retried with the same intent.
 type MemCosign struct {
 	D *core.Deps
 
-	mu      sync.Mutex
-	intents map[uuid.UUID]*memIntent
+	mu       sync.Mutex
+	intents  map[uuid.UUID]*memIntent
+	drafters map[string]core.Drafter
 }
 
 type memIntent struct {
@@ -300,40 +303,107 @@ type memIntent struct {
 	purpose string
 	used    bool
 	issued  time.Time
+	kind    core.RecordKind
+	draft   []byte // set when the purpose has a drafter
 }
 
-var _ core.Cosign = (*MemCosign)(nil)
+var (
+	_ core.Cosign         = (*MemCosign)(nil)
+	_ core.CosignDrafters = (*MemCosign)(nil)
+)
+
+// RegisterDrafter registers the drafter of purpose.
+func (c *MemCosign) RegisterDrafter(purpose string, f core.Drafter) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.drafters == nil {
+		c.drafters = map[string]core.Drafter{}
+	}
+	c.drafters[purpose] = f
+}
+
+func (c *MemCosign) drafter(purpose string) core.Drafter {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.drafters[purpose]
+}
+
+// draftFields may appear in a draft without being in the caller's body.
+var draftFields = map[string]bool{"nonce": true, "issued_at": true, "created_at": true, "at": true}
+
+// DraftMatches checks the body a caller passes to Cosign.Require against the
+// stored draft (core.CosignDrafters): same kind, every field of body equal to
+// the draft's, and nothing else in the draft but nonce, issued_at, created_at
+// and at. A mismatch is gate.ErrNotFound.
+func DraftMatches(draft []byte, kind core.RecordKind, body any) error {
+	want, err := sigs.CanonicalRecord(kind.String(), core.RecordSchemaVersion, body)
+	if err != nil {
+		return gate.ErrNotFound
+	}
+	var got, exp map[string]json.RawMessage
+	if json.Unmarshal(draft, &got) != nil || json.Unmarshal(want, &exp) != nil {
+		return gate.ErrNotFound
+	}
+	for k, v := range exp {
+		if !bytes.Equal(got[k], v) {
+			return gate.ErrNotFound
+		}
+	}
+	for k := range got {
+		if _, ok := exp[k]; !ok && !draftFields[k] {
+			return gate.ErrNotFound
+		}
+	}
+	return nil
+}
 
 // BeginIntent creates an intent of v for purpose.
-func (c *MemCosign) BeginIntent(ctx context.Context, v core.Viewer, purpose string, _ gate.Ref) (core.Intent, error) {
+func (c *MemCosign) BeginIntent(ctx context.Context, v core.Viewer, purpose string, target gate.Ref) (core.Intent, error) {
 	if v.ID == 0 || purpose == "" {
 		return core.Intent{}, gate.ErrNotFound
 	}
 	id := uuid.Must(uuid.NewV7())
 	issued := nowOf(c.D)
+	in := &memIntent{user: v.ID, purpose: purpose, issued: issued}
+	challenge := id[:]
+	var rec []byte
+	if f := c.drafter(purpose); f != nil {
+		kind, body, err := f(ctx, v, target, issued)
+		if err != nil {
+			return core.Intent{}, err
+		}
+		canon, ch, err := DraftRecord(kind, body, id, issued)
+		if err != nil {
+			return core.Intent{}, err
+		}
+		in.kind, in.draft, rec, challenge = kind, canon, canon, ch[:]
+	}
 	var opts []byte
 	if c.D.Passkeys != nil {
-		raw, err := c.D.Passkeys.BeginAssertion(ctx, v, id[:], purpose)
+		raw, err := c.D.Passkeys.BeginAssertion(ctx, v, challenge, purpose)
 		if err != nil {
 			return core.Intent{}, err
 		}
 		opts = raw
 	}
-	rec, err := json.Marshal(map[string]string{"purpose": purpose, "nonce": id.String()})
-	if err != nil {
-		return core.Intent{}, err
+	if rec == nil {
+		var err error
+		if rec, err = json.Marshal(map[string]string{"purpose": purpose, "nonce": id.String()}); err != nil {
+			return core.Intent{}, err
+		}
 	}
 	c.mu.Lock()
 	if c.intents == nil {
 		c.intents = map[uuid.UUID]*memIntent{}
 	}
-	c.intents[id] = &memIntent{user: v.ID, purpose: purpose, issued: issued}
+	c.intents[id] = in
 	c.mu.Unlock()
 	return core.Intent{ID: c.D.Refs.Handshake(v.ID, id), Record: rec, Options: opts}, nil
 }
 
 // Require consumes v's intent for purpose, verifies the assertion and returns it
-// with the exact draft bytes of body.
+// with the exact draft bytes: the stored draft when the purpose has a drafter
+// (body must match it, DraftMatches), else the draft of body.
 func (c *MemCosign) Require(ctx context.Context, _ store.Q, v core.Viewer, purpose string, kind core.RecordKind, body any, intent gate.Ref, assertion []byte) (core.Assertion, []byte, error) {
 	id, ok := c.D.Refs.OpenHandshake(v.ID, intent)
 	if !ok {
@@ -347,11 +417,19 @@ func (c *MemCosign) Require(ctx context.Context, _ store.Q, v core.Viewer, purpo
 		return core.Assertion{}, nil, gate.ErrNotFound
 	}
 	in.used = true
-	issued := in.issued
+	issued, stored, storedKind := in.issued, in.draft, in.kind
 	c.mu.Unlock()
-	canon, _, err := DraftRecord(kind, body, id, issued)
-	if err != nil {
-		return core.Assertion{}, nil, err
+	var canon []byte
+	if stored != nil {
+		if storedKind != kind || DraftMatches(stored, kind, body) != nil {
+			return core.Assertion{}, nil, gate.ErrNotFound
+		}
+		canon = stored
+	} else {
+		var err error
+		if canon, _, err = DraftRecord(kind, body, id, issued); err != nil {
+			return core.Assertion{}, nil, err
+		}
 	}
 	if c.D.Passkeys == nil {
 		return core.Assertion{}, nil, gate.ErrNotFound

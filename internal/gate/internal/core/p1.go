@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -27,6 +28,29 @@ type Cosign interface {
 	// UV) and consumes the intent in the caller's transaction. It returns the
 	// assertion and the exact draft bytes that were signed.
 	Require(ctx context.Context, tx store.Q, v Viewer, purpose string, kind RecordKind, body any, intent gate.Ref, assertion []byte) (Assertion, []byte, error)
+}
+
+// Drafter builds the record a co-sign intent of one purpose asks the viewer to
+// sign (P1-W01, steward addition). target is the ref the client sent (empty
+// when none) and is resolved by the drafter, which owns its kind; issuedAt is
+// the intent's creation time, which a drafter uses for the record's own time
+// field (created_at, at) so the write can reproduce the draft. The body must
+// not contain "nonce" or "issued_at": the intent injects them. Any target that
+// does not resolve is the uniform gate.ErrNotFound.
+type Drafter func(ctx context.Context, v Viewer, target gate.Ref, issuedAt time.Time) (RecordKind, any, error)
+
+// CosignDrafters is implemented by every Cosign: the module that owns a purpose
+// registers its drafter in Init (d.Cosign.(core.CosignDrafters)). BeginIntent
+// for a purpose without a drafter is gate.ErrNotFound.
+//
+// Require then checks body against the stored draft: every field of body must
+// equal the draft's, and the draft may add only "nonce", "issued_at" and the
+// fields the caller cannot know before the intent existed ("created_at", "at").
+// Callers sign the returned draft bytes (pass json.RawMessage(draft) to
+// Signer.Sign with the assertion), so the stored record is exactly what the
+// passkey signed.
+type CosignDrafters interface {
+	RegisterDrafter(purpose string, f Drafter)
 }
 
 // Outcome is a handshake score outcome (§7).
