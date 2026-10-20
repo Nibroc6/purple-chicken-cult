@@ -16,6 +16,7 @@ import (
 
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/internal/core"
+	"github.com/Nibroc6/purple-chicken-cult/internal/platform/dbsc"
 	"github.com/Nibroc6/purple-chicken-cult/internal/platform/httpx"
 	"github.com/Nibroc6/purple-chicken-cult/internal/platform/secheaders"
 	"github.com/Nibroc6/purple-chicken-cult/internal/store"
@@ -28,6 +29,10 @@ const (
 	GuestTTL       = 30 * time.Minute
 	EnrollmentTTL  = 30 * time.Minute
 	EnrollTokenTTL = 24 * time.Hour
+	// ShortTTL is the lifetime of a user session that is not device-bound
+	// (§17.2(2), P1): it ends ShortTTL after the last passkey verification and
+	// only a new verification (step-up, login) extends it.
+	ShortTTL = 12 * time.Hour
 )
 
 // slideEvery limits how often a user session's expiry is written.
@@ -42,6 +47,7 @@ type sessInfo struct {
 	seed   []byte
 	kind   core.SessionKind
 	user   core.UserID // set for user and enrollment sessions
+	bound  bool        // DBSC-bound (P1)
 }
 
 type sessKey struct{}
@@ -83,7 +89,10 @@ func (s *Service) csrfToken(idHash [32]byte, seed []byte) string {
 
 // Middleware runs on ALL routes: it loads the session cookie, puts the viewer in
 // the context (core.WithViewer) and slides a user session's expiry (re-sending
-// the cookie when it does). A malformed cookie is cleared. A well-formed cookie
+// the cookie when it does). A DBSC-bound session (P1) is loaded only together
+// with its live bound cookie; its long-lived cookie alone is accepted at the
+// refresh endpoint and nowhere else (the request runs anonymous), so a bound
+// session never accepts an unbound request. A malformed cookie is cleared. A well-formed cookie
 // naming no live session is ignored (the request runs anonymous) but NOT
 // cleared: a request still in flight with the old cookie when a ceremony
 // rotates the session (login, enroll, join) would otherwise answer after the
@@ -101,7 +110,12 @@ func (s *Service) Middleware(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		ctx, slid, ok := s.load(r.Context(), hashToken(c.Value))
+		bound := ""
+		if bc, err := r.Cookie(dbsc.BoundCookieName(s.secure())); err == nil && wellFormed(bc.Value) {
+			bound = bc.Value
+		}
+		refresh := r.Method == http.MethodPost && r.URL.Path == dbsc.RefreshPath
+		ctx, slid, ok := s.load(r.Context(), hashToken(c.Value), bound, refresh)
 		if !ok {
 			next.ServeHTTP(w, r)
 			return
@@ -113,9 +127,10 @@ func (s *Service) Middleware(next http.Handler) http.Handler {
 	})
 }
 
-// load resolves a session by its hash. slid is the new remaining lifetime when
-// the expiry was extended (0 otherwise).
-func (s *Service) load(ctx context.Context, idHash [32]byte) (context.Context, time.Duration, bool) {
+// load resolves a session by its hash. boundTok is the bound cookie of the
+// request (DBSC), refresh whether the request is the DBSC refresh. slid is the
+// new remaining lifetime when the expiry was extended (0 otherwise).
+func (s *Service) load(ctx context.Context, idHash [32]byte, boundTok string, refresh bool) (context.Context, time.Duration, bool) {
 	now := s.d.Clock.Now()
 	var (
 		kind                int16
@@ -125,16 +140,30 @@ func (s *Service) load(ctx context.Context, idHash [32]byte) (context.Context, t
 		stepUp              bool
 		createdAt, lastSeen time.Time
 		role, status        *int16
+		dbscBound, short    bool
+		boundHash           []byte
+		boundExp            *time.Time
 	)
 	err := s.d.DB.Q().QueryRow(ctx, `SELECT s.kind, s.user_id, s.csrf_seed, s.credential_id, s.auth_at, s.stepup_required,
-		s.created_at, s.last_seen_at, u.role, u.status
+		s.created_at, s.last_seen_at, u.role, u.status, s.dbsc_bound, s.short_lived, s.bound_token_hash, s.bound_expires_at
 		FROM sessions s LEFT JOIN users u ON u.id = s.user_id
 		WHERE s.id_hash = $1 AND s.expires_at > $2`, idHash[:], now).
-		Scan(&kind, &userID, &seed, &cred, &authAt, &stepUp, &createdAt, &lastSeen, &role, &status)
+		Scan(&kind, &userID, &seed, &cred, &authAt, &stepUp, &createdAt, &lastSeen, &role, &status,
+			&dbscBound, &short, &boundHash, &boundExp)
 	if err != nil {
 		return ctx, 0, false
 	}
-	si := sessInfo{idHash: idHash, seed: seed, kind: core.SessionKind(kind)} //nolint:gosec // sessions.kind is 0..2
+	if dbscBound {
+		if refresh {
+			// The long-lived cookie's one use: the refresh ceremony (dbsc.go).
+			return context.WithValue(ctx, refreshKey{}, idHash), 0, true
+		}
+		bh := hashToken(boundTok)
+		if boundTok == "" || boundExp == nil || !now.Before(*boundExp) || !hmac.Equal(bh[:], boundHash) {
+			return ctx, 0, false
+		}
+	}
+	si := sessInfo{idHash: idHash, seed: seed, kind: core.SessionKind(kind), bound: dbscBound} //nolint:gosec // sessions.kind is 0..2
 	if userID != nil {
 		si.user = core.UserID(*userID) //nolint:gosec // users.id < 2^32 (DB CHECK)
 	}
@@ -153,10 +182,7 @@ func (s *Service) load(ctx context.Context, idHash [32]byte) (context.Context, t
 	}
 	var slid time.Duration
 	if v.Kind == core.SessUser && now.Sub(lastSeen) > slideEvery {
-		exp := now.Add(UserIdle)
-		if abs := createdAt.Add(UserAbsolute); abs.Before(exp) {
-			exp = abs
-		}
+		exp := userExpiry(now, createdAt, v.AuthAt, short)
 		if _, err := s.d.DB.Q().Exec(ctx, "UPDATE sessions SET last_seen_at = $2, expires_at = $3 WHERE id_hash = $1",
 			idHash[:], now, exp); err == nil {
 			slid = exp.Sub(now)
@@ -175,6 +201,11 @@ func (s *Service) load(ctx context.Context, idHash [32]byte) (context.Context, t
 // only) is delivered by the browser's Reporting API, which sends the page's
 // cookies but never X-PCC-CSRF and may omit Origin: it needs no CSRF token and
 // accepts an absent Origin (a present one must still match). INT-0.
+//
+// The DBSC endpoints (P1) are called by the browser itself, never by page
+// script, so they carry no X-PCC-CSRF either: they are proven by the device
+// key's signature over a single-use challenge instead, and the same Origin
+// rule applies.
 func (s *Service) APIGuard(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if site := r.Header.Get("Sec-Fetch-Site"); site != "" && site != "same-origin" {
@@ -184,7 +215,7 @@ func (s *Service) APIGuard(next http.Handler) http.Handler {
 		switch r.Method {
 		case http.MethodGet, http.MethodHead, http.MethodOptions:
 		default:
-			if r.Method == http.MethodPost && r.URL.Path == secheaders.ReportPath {
+			if r.Method == http.MethodPost && (r.URL.Path == secheaders.ReportPath || dbscPath(r.URL.Path)) {
 				if o := r.Header.Get("Origin"); o != "" && o != s.d.Cfg.Origin {
 					writeNotFound(w)
 					return
@@ -212,6 +243,27 @@ func writeNotFound(w http.ResponseWriter) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusNotFound)
 	_, _ = w.Write([]byte(gate.NotFoundJSON))
+}
+
+// userExpiry is a user session's expiry when it is used at now: UserIdle
+// after now, never past UserAbsolute after its creation and, for a short
+// (not device-bound) session, never past ShortTTL after its last passkey
+// verification.
+func userExpiry(now, created, authAt time.Time, short bool) time.Time {
+	exp := now.Add(UserIdle)
+	if abs := created.Add(UserAbsolute); abs.Before(exp) {
+		exp = abs
+	}
+	if short {
+		base := authAt
+		if base.IsZero() {
+			base = created
+		}
+		if limit := base.Add(ShortTTL); limit.Before(exp) {
+			exp = limit
+		}
+	}
+	return exp
 }
 
 func ttlOf(kind core.SessionKind) time.Duration {
@@ -249,9 +301,14 @@ func (s *Service) issue(ctx context.Context, q store.Q, kind core.SessionKind, u
 	if q == nil {
 		q = s.d.DB.Q()
 	}
+	exp := now.Add(ttlOf(kind))
+	short := kind == core.SessUser // every user session starts short; DBSC binding lengthens it
+	if short {
+		exp = userExpiry(now, now, authAt, true)
+	}
 	_, err = q.Exec(ctx, `INSERT INTO sessions (id_hash, kind, user_id, csrf_seed, created_at, last_seen_at, expires_at,
-		auth_at, credential_id, ceremony) VALUES ($1, $2, $3, $4, $5, $5, $6, $7, $8, $9)`,
-		idHash[:], int16(kind), uid, seed, now, now.Add(ttlOf(kind)), at, cred, cer)
+		auth_at, credential_id, ceremony, short_lived) VALUES ($1, $2, $3, $4, $5, $5, $6, $7, $8, $9, $10)`,
+		idHash[:], int16(kind), uid, seed, now, exp, at, cred, cer, short)
 	if err != nil {
 		return "", err
 	}

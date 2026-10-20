@@ -147,7 +147,10 @@ func (s *Service) StepUpBegin(ctx context.Context) (json.RawMessage, error) {
 	return s.BeginAssertion(ctx, v, nil, purposeStepUp)
 }
 
-// StepUpFinish verifies the step-up, sets auth_at and clears stepup_required.
+// StepUpFinish verifies the step-up, sets auth_at, clears stepup_required
+// (and closes the session's open step-up record) and, for a short (not
+// device-bound) session, extends it ShortTTL from now: the re-verification
+// of §17.2(2).
 func (s *Service) StepUpFinish(ctx context.Context, body []byte) error {
 	v, err := signedIn(ctx)
 	if err != nil {
@@ -160,8 +163,14 @@ func (s *Service) StepUpFinish(ctx context.Context, body []byte) error {
 			if err := s.recordUse(ctx, tx, use); err != nil {
 				return err
 			}
-			_, err := tx.Exec(ctx, "UPDATE sessions SET auth_at = $2, stepup_required = false WHERE id_hash = $1",
-				v.Session[:], s.d.Clock.Now())
+			now := s.d.Clock.Now()
+			if _, err := tx.Exec(ctx, `UPDATE sessions SET auth_at = $2, stepup_required = false, expires_at = CASE
+				WHEN short_lived THEN LEAST(created_at + make_interval(secs => $3), $4) ELSE expires_at END
+				WHERE id_hash = $1`, v.Session[:], now, UserAbsolute.Seconds(), now.Add(min(UserIdle, ShortTTL))); err != nil {
+				return err
+			}
+			_, err := tx.Exec(ctx, "UPDATE stepups SET satisfied_at = $2 WHERE session_hash = $1 AND satisfied_at IS NULL",
+				v.Session[:], now)
 			return err
 		})
 	})
@@ -225,24 +234,42 @@ func cleanName(name string) (string, error) {
 	return name, nil
 }
 
-// AddPasskeyFinish registers the new passkey (fresh step-up required), signs
-// its PasskeyChange record and notifies friends (friend_security).
-func (s *Service) AddPasskeyFinish(ctx context.Context, body []byte, name string) error {
+// AddPasskeyFinish finishes adding a passkey. With a credential (fresh
+// step-up required) it verifies the registration; a session created by a
+// passkey ceremony then parks the credential until it is co-signed
+// (Cosign == "passkey_add", see cosign.go), any other session stores it at
+// once with a server-signed PasskeyChange record. With an intent and its
+// assertion it stores the parked credential with the co-signed record.
+// Either store notifies friends (friend_security).
+func (s *Service) AddPasskeyFinish(ctx context.Context, body []byte, name string, intent gate.Ref, assertion []byte) (AddPasskeyResult, error) {
+	if intent != "" || len(assertion) > 0 {
+		v, err := core.RequireUser(ctx)
+		if err != nil {
+			return AddPasskeyResult{}, err
+		}
+		return AddPasskeyResult{}, s.finishCosignedAdd(ctx, v, intent, assertion)
+	}
 	v, err := core.RequireFresh(ctx, s.d.Clock.Now())
 	if err != nil {
-		return err
+		return AddPasskeyResult{}, err
 	}
 	if name, err = cleanName(name); err != nil {
-		return err
+		return AddPasskeyResult{}, err
 	}
 	cred, c, err := s.finishRegistration(ctx, v.Session, purposeAdd, body)
 	if errors.Is(err, errCeremony) || (err == nil && c.User != int64(v.ID)) {
-		return rejected()
+		return AddPasskeyResult{}, rejected()
 	}
 	if err != nil {
-		return err
+		return AddPasskeyResult{}, err
 	}
-	return s.d.DB.Tx(ctx, func(tx pgx.Tx) error {
+	if mustCosign(v) {
+		if err := s.park(ctx, v.Session, cred, name); err != nil {
+			return AddPasskeyResult{}, err
+		}
+		return AddPasskeyResult{Cosign: PurposePasskeyAdd}, nil
+	}
+	return AddPasskeyResult{}, s.d.DB.Tx(ctx, func(tx pgx.Tx) error {
 		if err := s.bindCredential(ctx, tx, v.ID, cred, name); err != nil {
 			if errors.Is(err, gate.ErrNotFound) {
 				return rejected()
@@ -253,20 +280,42 @@ func (s *Service) AddPasskeyFinish(ctx context.Context, body []byte, name string
 	})
 }
 
-// RemovePasskey removes one of the viewer's passkeys (fresh step-up required),
-// never the last one (Problem last_passkey), and ends every session that
-// credential authenticated.
-func (s *Service) RemovePasskey(ctx context.Context, id gate.Ref) error {
-	v, err := core.RequireFresh(ctx, s.d.Clock.Now())
+// RemovePasskey removes one of the viewer's passkeys, never the last one
+// (Problem last_passkey), and ends every session that credential
+// authenticated. A session created by a passkey ceremony sends the
+// co-signature of the PasskeyChange{op: remove} (intent and assertion, which
+// are its fresh verification); any other needs a fresh step-up and the record
+// is server-signed.
+func (s *Service) RemovePasskey(ctx context.Context, id gate.Ref, intent gate.Ref, assertion []byte) error {
+	var (
+		v   core.Viewer
+		err error
+	)
+	cosigned := intent != "" || len(assertion) > 0
+	if cosigned {
+		v, err = core.RequireUser(ctx)
+	} else {
+		v, err = core.RequireFresh(ctx, s.d.Clock.Now())
+	}
 	if err != nil {
 		return err
 	}
 	credID, ok := s.d.Refs.OpenCred(v.ID, id)
-	if !ok {
+	if !ok || (!cosigned && mustCosign(v)) {
 		return gate.ErrNotFound
 	}
 	var ended []core.SessionEnded
 	err = s.d.DB.Tx(ctx, func(tx pgx.Tx) error {
+		// The co-signature first: its verification records the use of the
+		// signing credential from another connection, so no credential row
+		// may be locked by this transaction yet.
+		var sc signedChange
+		if cosigned {
+			var err error
+			if sc, err = s.cosigned(ctx, tx, v, PurposePasskeyRemove, opRemove, credID, intent, assertion); err != nil {
+				return err
+			}
+		}
 		creds, err := s.credentials(ctx, tx, v.ID, true)
 		if err != nil {
 			return err
@@ -286,7 +335,11 @@ func (s *Service) RemovePasskey(ctx context.Context, id gate.Ref) error {
 		if _, err := tx.Exec(ctx, "DELETE FROM webauthn_credentials WHERE id = $1 AND user_id = $2", credID, int64(v.ID)); err != nil {
 			return err
 		}
-		if err := s.signChange(ctx, tx, v.ID, opRemove, target.id, target.publicKey, target.alg, s.d.Clock.Now()); err != nil {
+		if cosigned {
+			if _, err := s.d.Signer.Sign(ctx, tx, core.RecPasskeyChange, v.ID, nil, []core.UserID{v.ID}, sc.a); err != nil {
+				return err
+			}
+		} else if err := s.signChange(ctx, tx, v.ID, opRemove, target.id, target.publicKey, target.alg, s.d.Clock.Now()); err != nil {
 			return err
 		}
 		if ended, err = endSessions(ctx, tx, sqlEndCredential, int64(v.ID), credID); err != nil {

@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/go-webauthn/webauthn/webauthn"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/internal/core"
@@ -58,12 +59,14 @@ func New(d *core.Deps) *Service { return &Service{d: d} }
 // JobPurge deletes expired sessions (hourly).
 const JobPurge = "sessions.purge"
 
-// Init registers the purge job and the AccountDeleted clean-up.
+// Init registers the purge job, the co-sign purposes of passkey changes and
+// the AccountDeleted clean-up.
 func (s *Service) Init(ctx context.Context) error {
 	if s.d.Jobs != nil {
 		s.d.Jobs.Handle(JobPurge, func(ctx context.Context, _ json.RawMessage) error { return s.purgeExpired(ctx) })
 		s.d.Jobs.Every(JobPurge, time.Hour)
 	}
+	s.registerPurposes()
 	if s.d.Bus != nil {
 		base := context.WithoutCancel(ctx)
 		core.Subscribe(s.d.Bus, func(e core.AccountDeleted) { s.forget(base, e.ID) })
@@ -122,11 +125,48 @@ func signedIn(ctx context.Context) (core.Viewer, error) {
 
 // ---- core.StepUp (P1-W07) ----
 
-// Require marks a session as needing a passkey step-up.
+// Repeated step-ups (§17.2(5)): RepeatMin step-ups of one account within
+// RepeatWindow put a stepup-repeat item on the moderation queue (it merges
+// into the account's open item of that source).
+const (
+	RepeatMin    = 3
+	RepeatWindow = 7 * 24 * time.Hour
+)
+
+// Require marks session (of user) as needing a passkey step-up for reason (a
+// code, e.g. the automation signal kinds that crossed the threshold): every
+// request of that session then answers step_up_required until the person
+// verifies with a passkey (StepUpFinish). It records the step-up (stepups);
+// the RepeatMin-th within RepeatWindow goes to moderators. A session that
+// already awaits a step-up, or does not exist, is left as it is. Signals never
+// do more than this: no ban, no sign-out.
 func (s *Service) Require(ctx context.Context, user core.UserID, session [32]byte, reason string) error {
-	_, err := s.d.DB.Q().Exec(ctx, "UPDATE sessions SET stepup_required = true WHERE id_hash = $1 AND user_id = $2",
-		session[:], int64(user))
-	if err != nil {
+	now := s.d.Clock.Now()
+	var set bool
+	err := s.d.DB.Tx(ctx, func(tx pgx.Tx) error {
+		tag, err := tx.Exec(ctx, `UPDATE sessions SET stepup_required = true
+			WHERE id_hash = $1 AND user_id = $2 AND kind = 1 AND NOT stepup_required AND expires_at > $3`,
+			session[:], int64(user), now)
+		if err != nil || tag.RowsAffected() != 1 {
+			return err
+		}
+		set = true
+		if _, err := tx.Exec(ctx, `INSERT INTO stepups (user_id, session_hash, required_at, reason) VALUES ($1, $2, $3, $4)
+			ON CONFLICT DO NOTHING`, int64(user), session[:], now, reason); err != nil {
+			return err
+		}
+		var n int
+		if err := tx.QueryRow(ctx, "SELECT count(*) FROM stepups WHERE user_id = $1 AND required_at > $2",
+			int64(user), now.Add(-RepeatWindow)).Scan(&n); err != nil {
+			return err
+		}
+		if n < RepeatMin || s.d.ModQueue == nil {
+			return nil
+		}
+		return s.d.ModQueue.Enqueue(ctx, tx, core.ModQueueItem{Source: core.ModSrcStepUpRepeat, Priority: 3,
+			SubjectUser: user, Summary: map[string]int{"stepups": n}})
+	})
+	if err != nil || !set {
 		return err
 	}
 	s.d.Bus.Publish(core.SessionStepUp{User: user, Session: session})

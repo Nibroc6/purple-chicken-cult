@@ -155,8 +155,18 @@ func pendingUser(a account, creds []storedCred) core.PendingUser {
 	return pu
 }
 
-// bindCredential inserts c for user and signs its PasskeyChange add record.
+// bindCredential inserts c for user and signs its PasskeyChange add record
+// (server-signed: the first credential of a chain, or a credential-less session).
 func (s *Service) bindCredential(ctx context.Context, tx store.Q, user core.UserID, c core.Credential, name string) error {
+	if err := s.insertCredential(ctx, tx, user, c, name); err != nil {
+		return err
+	}
+	return s.signChange(ctx, tx, user, opAdd, c.ID, c.PublicKey, c.Alg, s.d.Clock.Now())
+}
+
+// insertCredential stores c for user; an already registered credential (to
+// anyone) is gate.ErrNotFound.
+func (s *Service) insertCredential(ctx context.Context, tx store.Q, user core.UserID, c core.Credential, name string) error {
 	if len(c.ID) == 0 || len(c.PublicKey) == 0 {
 		return errors.New("auth: empty credential")
 	}
@@ -176,7 +186,7 @@ func (s *Service) bindCredential(ctx context.Context, tx store.Q, user core.User
 		}
 		return err
 	}
-	return s.signChange(ctx, tx, user, opAdd, c.ID, c.PublicKey, c.Alg, now)
+	return nil
 }
 
 // signChange writes a PasskeyChange record (party: the account).

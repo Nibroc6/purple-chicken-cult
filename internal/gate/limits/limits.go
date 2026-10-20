@@ -12,6 +12,14 @@
 // two writes of one kind and the anonymous counters live in memory only (no IPs
 // at rest). limits.purge drops windows older than two days.
 //
+// v2 (P1-W07): the P1 classes have budgets of their own — media_full (60 a
+// day, the full-resolution budget of §17.3), save, media and the anonymous
+// dbsc bucket of the device-bound-session endpoints — and every class a route
+// declares must have one (apix/pad's TestEveryRouteClassHasABudget). Padded
+// routes hold their 429 like every other outcome (apix/pad), so a budget's
+// exhaustion is not faster than a charge that passes; charging stays before
+// the handler and before any ref is resolved.
+//
 // Owner: P0-W12 → P1-W07.
 package limits
 

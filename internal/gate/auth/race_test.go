@@ -76,8 +76,9 @@ func TestLoginRefusedWhenCredentialRemovedMidway(t *testing.T) {
 	a, _, s2, _ := e.twoKeys()
 	aRef := e.refOf(s2, false)
 	credA := a.Credentials()[0].ID
+	h := e.hookSession("alice") // a credential-less fresh session removes (no nested ceremony)
 	e.onceAt("before-use", func() {
-		if err := e.a.Auth.RemovePasskey(s2.ctx(), aRef); err != nil {
+		if err := e.a.Auth.RemovePasskey(h.ctx(), aRef, "", nil); err != nil {
 			t.Errorf("remove: %v", err)
 		}
 	})
@@ -97,8 +98,9 @@ func TestRemovalWaitsForLoginAndEndsItsSession(t *testing.T) {
 	aRef := e.refOf(s2, false)
 	credA := a.Credentials()[0].ID
 	done := make(chan error, 1)
+	h := e.hookSession("alice")
 	e.onceAt("after-use", func() {
-		go func() { done <- e.a.Auth.RemovePasskey(s2.ctx(), aRef) }()
+		go func() { done <- e.a.Auth.RemovePasskey(h.ctx(), aRef, "", nil) }()
 		e.waitLockWaiter()
 	})
 	c, err := e.login(a)
@@ -127,9 +129,10 @@ func TestStepUpRefusedWhenCredentialRemovedMidway(t *testing.T) {
 	a2Ref := e.refOf(s2, true)
 	v, _ := s1.viewer()
 	loginAt := v.AuthAt
-	e.advance(time.Minute) // s1 stays fresh, so it may remove a2
+	e.advance(time.Minute)
+	h := e.hookSession("alice")
 	e.onceAt("before-use", func() {
-		if err := e.a.Auth.RemovePasskey(s1.ctx(), a2Ref); err != nil {
+		if err := e.a.Auth.RemovePasskey(h.ctx(), a2Ref, "", nil); err != nil {
 			t.Errorf("remove: %v", err)
 		}
 	})
