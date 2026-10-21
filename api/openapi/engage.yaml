@@ -82,6 +82,39 @@ paths:
               schema: { $ref: '#/components/schemas/EngagePostsPage' }
         "404": { $ref: '_common.yaml#/components/responses/NotFound' }
         "429": { $ref: '#/components/responses/EngageRateLimited' }
+  /posts/{ref}/save:
+    parameters:
+      - { name: ref, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
+    put:
+      operationId: savePost
+      description: >-
+        Saves a visible post for the caller (idempotent). Saves are private:
+        never displayed or counted; only the saver sees saved_by_me.
+      responses:
+        "204": { description: The post is saved. }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/EngageRateLimited' }
+    delete:
+      operationId: unsavePost
+      description: Clears the caller's save (idempotent).
+      responses:
+        "204": { description: The post is not saved. }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/EngageRateLimited' }
+  /saves:
+    get:
+      operationId: listSaves
+      parameters:
+        - { name: cursor, in: query, required: false, schema: { type: string, maxLength: 256 } }
+      responses:
+        "200":
+          description: >-
+            Posts the caller saved and can still see, most recently saved first.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EngagePostsPage' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/EngageRateLimited' }
   /posts/{ref}/hide:
     parameters:
       - { name: ref, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }

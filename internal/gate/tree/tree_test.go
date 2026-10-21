@@ -597,7 +597,10 @@ func TestRowRecenter(t *testing.T) {
 func TestPresets(t *testing.T) {
 	e := newEnv(t)
 	r := e.post("bob", "root")
-	for _, p := range []string{"top", "nope"} {
+	if _, err := e.tr.Open(e.as("alice"), e.ref("alice", r), "top"); err != nil {
+		t.Fatalf("top: %v", err)
+	}
+	for _, p := range []string{"nope", "Top"} {
 		_, err := e.tr.Open(e.as("alice"), e.ref("alice", r), p)
 		var pr *gate.Problem
 		if !errors.As(err, &pr) || pr.Code != tree.CodePresetUnavailable {

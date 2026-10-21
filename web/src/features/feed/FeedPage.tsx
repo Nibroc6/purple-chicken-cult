@@ -2,7 +2,7 @@
 // the first page starts it, "load more" follows its cursor, so pages never
 // reshuffle. Every 60 s while the page is visible it asks how many posts are
 // new in the tiers already reached and offers to start over ("N new posts
-// above"). Latest / Balanced restarts the feed in that order and saves it. A
+// above"). Latest / Balanced / Top restarts the feed in that order and saves it. A
 // session the server no longer keeps (409 feed_session_expired) restarts.
 // The layout comes from the reader's format (Cards or Compact); headers are the
 // API's tier markers only. Owner: P0-W07 → P1-W08.
@@ -22,7 +22,7 @@ import { patchSettings } from '../settings/api';
 import { accountMeKey, useAccountMe } from '../settings/shared';
 import { toUIPrefs } from '../settings/vm';
 import { expandGroup, fetchFeed, fetchNewAbove, fetchWhy } from './api';
-import { countPosts, expandInPages, feedKey, ownPostsKey, presets, withOwnPosts } from './vm';
+import { countPosts, expandInPages, feedKey, ownPostsKey, presets, savedPreset, withOwnPosts } from './vm';
 import './feed.css';
 
 export const NEW_ABOVE_MS = 60_000;
@@ -71,7 +71,7 @@ export default function FeedPage() {
   const qc = useQueryClient();
   const actions = usePostActions();
   const settings = account.data?.settings ?? me?.settings;
-  const saved: Preset = settings?.rank_preset === 'latest' ? 'latest' : 'balanced';
+  const saved = savedPreset(settings?.rank_preset);
   const [chosen, setChosen] = useState<Preset | undefined>(undefined);
   const preset = chosen ?? saved;
   const [gen, setGen] = useState(0);

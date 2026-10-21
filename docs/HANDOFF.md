@@ -11,11 +11,12 @@ notes, which stay the detailed record).
 | 0 | SCAFFOLD-0a/0b, P0-W01…W12, INT-0 | Done, merged to `main`. DoD in `docs/PHASE0-DOD.md` (13/14; the open item is the 20-person, 2-week trial) |
 | 1 | SCAFFOLD-1 | Done, squash-merged to `main` |
 | 1 | P1-W01 co-signing, W02 handshake v2, W03 graph P1, W04 media + CSAM, W05 push + server i18n, W06 moderation queue + signals, W07 device-bound sessions + padding + limits v2 | Done on `claude/phase-1`, not yet on `main` |
-| 1 | P1-W08 ranking P1 (saves, grandchildren credit, Top) | **Next** |
-| 1 | P1-W09…W13, INT-1 | Not started |
+| 1 | P1-W08 ranking P1 (saves, grandchildren credit, Top) | Done on `claude/project-thread-t09nsu`, PR into `claude/phase-1` |
+| 1 | P1-W09…W13 | **Next**, in parallel (plan: W01…W13 in parallel → INT-1); each branches off `claude/phase-1` |
+| 1 | INT-1 | After W09…W13 |
 
-At the last run, `CI=1 scripts/check.sh` on `claude/phase-1` was fully green: Go vet/lint/tests,
-357 Vitest, 153 Playwright (en + en-XA, incl. the INT journeys).
+At the last run (P1-W08 branch), `CI=1 scripts/check.sh` was fully green: Go vet/lint/tests,
+363 Vitest, 157 Playwright (en + en-XA, incl. the INT journeys).
 
 ## Branches and merging
 
@@ -60,6 +61,10 @@ Collected from the P1 package reports. Items already resolved by a later package
 
 **Hand-offs to later packages**
 - W08: asking for a deep graph layer can wait up to 600 ms.
+- From W08 (contract request p1-w08-1): `account.UpdateSettings` accepts `rank_preset: top` and
+  the settings page offers Top. W10 owns those files and may restyle the change.
+- From W08: the `network_likes` and `good_replies` reason texts (integrity, W09) don't mention
+  saves on purpose. Saves are private, and the reason must not hint that someone saved the post.
 - W10: pass the JSON claim body to `Handshakes.ClaimRecovery`; register co-sign purposes.
 - W11: call `Media.Ingest` for preview images.
 - W12: call `Media.Attach` in the post transaction, write `post_media`, render media in posts and

@@ -14,7 +14,7 @@ import { LikeSummary } from './EngageBar';
 import LikesPage from './LikesPage';
 import { resetEngageStore } from './store';
 import { applyLikes, usePostActions } from './usePostActions';
-import { optimistic, patchLikes, toLikesVM } from './vm';
+import { optimistic, patchLikes, patchSaved, toLikesVM } from './vm';
 
 interface Call {
   method: string;
@@ -222,6 +222,43 @@ describe('likes page and post actions', () => {
     fireEvent.click(hides[hides.length - 1] as HTMLElement);
     expect(await screen.findByTestId('engage-error')).toBeTruthy();
     expect(screen.queryAllByTestId('engage-hidden')).toHaveLength(1); // only p1 stays hidden
+  });
+
+  it('saves privately and optimistically, rolling back on failure', async () => {
+    let fail = false;
+    const calls = stubAPI((c) => {
+      if (c.method === 'GET' && c.path === '/posts/p1') return json(200, postJSON({ mine: false, likes: { in_network: 2, others: 2, by_me: false } }));
+      if (c.path === '/posts/p1/save') return fail ? json(429, { error: 'rate_limited', retry_after_s: 30 }) : json(204, null);
+      return undefined;
+    });
+    renderAt('/p/p1/likes');
+    const btn = await screen.findByTestId('engage-save');
+    expect(btn.getAttribute('aria-pressed')).toBe('false');
+    expect(btn.textContent).toBe(tr('engage:save.action'));
+    fireEvent.click(btn);
+    await waitFor(() => {
+      expect(screen.getByTestId('engage-save').getAttribute('aria-pressed')).toBe('true');
+    });
+    // A save never moves the like summary.
+    expect(screen.getByTestId('engage-likes').dataset.count).toBe('2');
+    await waitFor(() => {
+      expect(calls.filter((c) => c.path === '/posts/p1/save').map((c) => c.method)).toEqual(['PUT']);
+    });
+    fail = true;
+    fireEvent.click(screen.getByTestId('engage-save'));
+    expect(await screen.findByTestId('engage-error')).toBeTruthy();
+    expect(screen.getByTestId('engage-save').getAttribute('aria-pressed')).toBe('true');
+    expect(calls.filter((c) => c.path === '/posts/p1/save').map((c) => c.method)).toEqual(['PUT', 'DELETE']);
+  });
+
+  it('patches saved_by_me in every cached post', () => {
+    const p = postVM({ ref: asRef('p1') });
+    const other = postVM({ ref: asRef('p2') });
+    const data = { pages: [{ items: [{ post: p }, { post: other }] }] };
+    const next = patchSaved(data, 'p1', true);
+    expect(next.pages[0]?.items[0]?.post.savedByMe).toBe(true);
+    expect(next.pages[0]?.items[1]).toBe(data.pages[0]?.items[1]);
+    expect(patchSaved(next, 'p1', true)).toBe(next);
   });
 
   it('offers no hide or show-less on your own post', async () => {

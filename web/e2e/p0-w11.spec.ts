@@ -56,12 +56,12 @@ test('display settings persist and switch accessibility on every page', async ({
   await expect(page.locator('input[type=radio][value=compact]').first()).toBeChecked();
 });
 
-test('settings reject translate_to outside languages and the top preset', async ({ page, request, baseURL }) => {
+test('settings reject translate_to outside languages and an unknown preset', async ({ page, request, baseURL }) => {
   const { csrf } = await signIn(page, request, baseURL, 'alice');
   const headers = apiHeaders(baseURL ?? '', csrf);
   for (const [data, code] of [
     [{ translate_to: 'de' }, 'translate_to_not_in_languages'],
-    [{ rank_preset: 'top' }, 'preset_unavailable'],
+    [{ rank_preset: 'Top' }, 'preset_unavailable'],
     [{ ui_prefs: { format: 'explorer' } }, 'ui_prefs_invalid'],
   ] as const) {
     const res = await page.request.patch('/api/me/settings', { data, headers });

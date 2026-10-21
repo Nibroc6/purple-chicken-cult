@@ -10,7 +10,7 @@
 // viewer can see it) → only then anything else. MarkSeen never fails on refs:
 // garbage, foreign and invisible refs are dropped silently and write nothing.
 //
-// Memory: likers are roaring bitmaps per post (window posts preloaded by Load,
+// Memory: likers and savers are roaring bitmaps per post (window posts preloaded by Load,
 // others loaded on demand into an LRU). Seen, hides and show-less stay in
 // Postgres (the feed reads them once per session).
 package engage
@@ -22,7 +22,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/RoaringBitmap/roaring/v2"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate"
@@ -55,8 +54,11 @@ const (
 	Beta       = 0.3 // grandchildren weight (P1, gens = 2)
 )
 
-// kindLike is engagements.kind for a like (2 = save, P1-W08).
-const kindLike int16 = 1
+// engagements.kind.
+const (
+	kindLike int16 = 1
+	kindSave int16 = 2
+)
 
 // Jobs.
 const (
@@ -73,8 +75,8 @@ type Service struct {
 	d *core.Deps
 
 	mu     sync.Mutex
-	likers *lru[core.PostID, *roaring.Bitmap]
-	seq    uint64 // bumped by every like mutation; a load that raced one is not cached
+	likers *lru[core.PostID, *engagers]
+	seq    uint64 // bumped by every like or save mutation; a load that raced one is not cached
 }
 
 var (
@@ -84,7 +86,7 @@ var (
 
 // New returns the service.
 func New(d *core.Deps) *Service {
-	return &Service{d: d, likers: newLRU[core.PostID, *roaring.Bitmap](LikerLRU)}
+	return &Service{d: d, likers: newLRU[core.PostID, *engagers](LikerLRU)}
 }
 
 // Init registers the purge jobs and the deletion clean-ups, then loads the
@@ -155,7 +157,7 @@ func (s *Service) logErr(code string, err error) {
 }
 
 // forgetUser deletes the rows this module owns for a deleted account and
-// drops the account from every cached liker set (plan §3.4 deletion fan-out).
+// drops the account from every cached liker and saver set (plan §3.4 deletion fan-out).
 func (s *Service) forgetUser(u core.UserID) {
 	if s.d.DB != nil {
 		ctx := context.Background()
@@ -179,10 +181,10 @@ func (s *Service) forgetUser(u core.UserID) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.seq++
-	s.likers.each(func(_ core.PostID, b *roaring.Bitmap) { b.Remove(uint32(u)) })
+	s.likers.each(func(_ core.PostID, e *engagers) { e.likes.Remove(uint32(u)); e.saves.Remove(uint32(u)) })
 }
 
-// forgetPost drops a deleted post's likes: nobody can see the post any more,
+// forgetPost drops a deleted post's likes and saves: nobody can see the post any more,
 // so they can never count again (data minimization, §2.3).
 func (s *Service) forgetPost(p core.PostID) {
 	if s.d.DB != nil {

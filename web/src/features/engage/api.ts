@@ -23,6 +23,12 @@ export async function fetchLikes(ref: string): Promise<LikesVM> {
   return toLikesVM(unwrap(await api.GET('/posts/{ref}/likes', at(ref))));
 }
 
+// setSave saves (on) or unsaves a post. Saves are private: only the saver
+// ever sees saved_by_me.
+export async function setSave(ref: string, on: boolean): Promise<void> {
+  ok(on ? await api.PUT('/posts/{ref}/save', at(ref)) : await api.DELETE('/posts/{ref}/save', at(ref)));
+}
+
 export async function hidePost(ref: string): Promise<void> {
   ok(await api.POST('/posts/{ref}/hide', at(ref)));
 }

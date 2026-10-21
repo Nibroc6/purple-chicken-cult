@@ -1,0 +1,19 @@
+{
+  "users": [
+    { "handle": "alice", "name": "Alice" },
+    { "handle": "bob", "name": "Bob" },
+    { "handle": "carol", "name": "Carol" }
+  ],
+  "friends": [
+    { "a": "alice", "b": "bob" },
+    { "a": "bob", "b": "carol" }
+  ],
+  "posts": [
+    { "label": "bob-keep", "author": "bob", "body": "A post worth keeping", "age": "3h" },
+    { "label": "carol-liked", "author": "carol", "body": "Carol's liked post", "age": "2h" },
+    { "label": "bob-new", "author": "bob", "body": "Bob's newest post", "age": "1h" }
+  ],
+  "likes": [
+    { "user": "bob", "post": "carol-liked" }
+  ]
+}

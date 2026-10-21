@@ -60,7 +60,7 @@ func TestMeSettingsAndKeys(t *testing.T) {
 	}
 	for body, code := range map[string]string{
 		`{"translate_to":"de"}`:              "translate_to_not_in_languages",
-		`{"rank_preset":"top"}`:              "preset_unavailable",
+		`{"rank_preset":"Top"}`:              "preset_unavailable",
 		`{"ui_prefs":{"format":"explorer"}}`: "ui_prefs_invalid",
 		`{"display_name":"Alice ✓"}`:         "display_name_invalid",
 		`{"languages":["en","not a tag"]}`:   "lang_invalid",
