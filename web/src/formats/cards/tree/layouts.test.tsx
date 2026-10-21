@@ -1,4 +1,4 @@
-// Cards and Compact family-tree layouts: every integrity element present, a
+// Cards, Compact and Explorer family-tree layouts: every integrity element present, a
 // section header per row from its label, the focal post never folded while
 // tree posts longer than 10 lines fold behind a keyboard / screen-reader
 // button, "+N more" after five (N counts the row's visible posts beyond them),
@@ -16,6 +16,7 @@ import { asRef, type PostVM, type TreeItemVM, type TreeRowVM, type TreeVM } from
 import type { FormatModule, TreeActions } from '../../types';
 import cards from '../index';
 import compact from '../../compact/index';
+import explorer from '../../explorer/index';
 import { side } from '../TreeLayout';
 import { extraCount, VISIBLE } from './parts';
 
@@ -107,6 +108,7 @@ describe('tree helpers', () => {
 describe.each([
   ['cards', cards],
   ['compact', compact],
+  ['explorer', explorer],
 ] as [string, FormatModule][])('%s tree layout', (id, f) => {
   function show(tv: TreeVM = tree(), a: TreeActions = actions()) {
     const r = render(
