@@ -98,3 +98,40 @@
 .md-preview-description {
   color: var(--color-muted);
 }
+
+/* GFM tables (P1-W11): a wide table scrolls inside its own box, never the
+   page. "left"/"right" alignments map to start/end so right-to-left posts
+   mirror like the rest of the layout. */
+.md-table-wrap {
+  max-inline-size: 100%;
+  overflow-x: auto;
+  margin-block: 0 var(--space-2);
+}
+.md-table-wrap:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+.md-table {
+  border-collapse: collapse;
+  font-size: inherit;
+}
+.md-table th,
+.md-table td {
+  border: 1px solid var(--color-border);
+  padding-block: 0.25em;
+  padding-inline: 0.5em;
+  text-align: start;
+  vertical-align: top;
+}
+.md-table th {
+  font-weight: 600;
+}
+.md-table [data-align='left'] {
+  text-align: start;
+}
+.md-table [data-align='center'] {
+  text-align: center;
+}
+.md-table [data-align='right'] {
+  text-align: end;
+}

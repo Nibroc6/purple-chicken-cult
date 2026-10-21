@@ -33,10 +33,34 @@ type page struct {
 // fakeWeb is the fetcher: canned pages by URL, a call log, and a clock it can
 // advance to simulate slow sites.
 type fakeWeb struct {
-	mu    sync.Mutex
-	clk   *clock.Fake
-	pages map[string]page
-	calls []string
+	mu     sync.Mutex
+	clk    *clock.Fake
+	pages  map[string]page
+	images map[string][]byte // GetImage answers (image/png); missing ⇒ ErrStatus
+	calls  []string          // GetHTML and GetImage, in order
+}
+
+func (f *fakeWeb) GetImage(_ context.Context, u *url.URL, max int64) (*safefetch.Response, error) {
+	f.mu.Lock()
+	f.calls = append(f.calls, "img "+u.String())
+	b, ok := f.images[u.String()]
+	f.mu.Unlock()
+	if !ok {
+		return nil, safefetch.ErrStatus
+	}
+	if int64(len(b)) > max {
+		return nil, safefetch.ErrTooLarge
+	}
+	return &safefetch.Response{FinalURL: u, ContentType: "image/png", Body: b}, nil
+}
+
+func (f *fakeWeb) setImage(u string, b []byte) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.images == nil {
+		f.images = map[string][]byte{}
+	}
+	f.images[u] = b
 }
 
 func (f *fakeWeb) GetHTML(_ context.Context, u *url.URL) (*safefetch.Response, error) {

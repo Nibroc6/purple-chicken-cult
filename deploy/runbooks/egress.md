@@ -1,4 +1,4 @@
-# Egress: link-preview fetching
+# Egress: link-preview and preview-image fetching
 
 Owner: P0-W09 → P1-W11. Applies to every environment that fetches link previews.
 
@@ -20,6 +20,17 @@ job (`internal/gate/previews`) once per post version, for at most 3 links. Each 
 - follows at most 3 redirects and checks each one from scratch;
 - stops after 3 s in total, reads at most 16 KiB of headers, keeps at most 512 KiB of
   the body after gzip decoding, and accepts `text/html` only.
+
+From Phase 1 (P1-W11) the same job also fetches the page's `og:image` (or `twitter:image`),
+resolved against the page's final URL and stripped of tracking parameters, through
+`safefetch.GetImage`: every rule above applies, again from scratch (the image host may differ
+from the page's), except that it accepts only `image/png`, `image/jpeg`, `image/gif`,
+`image/webp` and `image/avif` (never SVG) and refuses any image larger than 5 MiB after gzip
+decoding instead of truncating it. The image counts against its own host's limiter budget.
+It is fetched only while media is enabled (`MediaEnabled`, plan D20), once per post, and goes
+straight into `Media.Ingest`, which runs the same CSAM scan as an upload: a match is preserved
+and queued for moderators (`deploy/runbooks/csam.md`) and the preview shows no image. Viewers
+only ever load the stored copy through signed media URLs.
 
 The deny list: `0/8`, `10/8`, `100.64/10`, `127/8`, `169.254/16`, `172.16/12`,
 `192.0.0/24`, `192.0.2/24`, `192.88.99/24`, `192.168/16`, `198.18/15`, `198.51.100/24`,
@@ -91,5 +102,8 @@ set `PCC_TEST_HOOKS` on a reachable host.
 - One site never previews: it may answer non-HTML, need more than 3 redirects, be slower than
   3 s, put its title after `<body>`, or resolve to a denied address. That is expected; the
   post simply shows no preview.
+- Previews show but never an image: media is disabled (the log says `media disabled` at
+  start-up), the image is not one of the accepted types or is over 5 MiB, its host is rate
+  limited, or the scan refused it (a match shows up in the moderation queue at priority 0).
 - A site shows the fetcher something other than what visitors see: users report it with
   "preview misleading" (moderation queue, P0-W12).

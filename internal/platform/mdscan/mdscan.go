@@ -15,6 +15,9 @@
 //     "https://", case-insensitive) — no "www." or bare-domain guessing on
 //     either side. Only http(s) destinations count; everything else renders as
 //     text on the client.
+//   - tables: GFM tables at the top level, at most MaxTableCols columns, with
+//     the stricter rules of table.go on both sides; their cells are scanned
+//     like paragraphs.
 //   - mentions: "@" + [A-Za-z0-9_]{3,20}, not preceded by a word character or
 //     "@" and not followed by a word character; never inside code, links or
 //     URLs. Ord numbers the mentions of a body from 0 (posts stores them by ord,
@@ -55,10 +58,12 @@ type Mention struct {
 type Result struct {
 	Links    []Link    `json:"links"`
 	Mentions []Mention `json:"mentions"`
+	Tables   []Table   `json:"tables,omitempty"` // the shape of each GFM table (table.go)
 }
 
 // md is the shared goldmark parser (safe for concurrent use): CommonMark
-// without the raw-HTML block and inline parsers, plus two-tilde strikethrough.
+// without the raw-HTML block and inline parsers, plus two-tilde strikethrough
+// and top-level GFM tables of at most MaxTableCols columns (table.go).
 var md = func() parser.Parser {
 	blocks := withoutHTMLBlock(parser.DefaultBlockParsers())
 	inlines := withoutRawHTML(parser.DefaultInlineParsers())
@@ -66,7 +71,8 @@ var md = func() parser.Parser {
 	return parser.NewParser(
 		parser.WithBlockParsers(blocks...),
 		parser.WithInlineParsers(inlines...),
-		parser.WithParagraphTransformers(parser.DefaultParagraphTransformers()...),
+		parser.WithParagraphTransformers(append(parser.DefaultParagraphTransformers(),
+			util.Prioritized(tableTransformer{}, 200))...),
 	)
 }()
 
@@ -98,8 +104,9 @@ func withoutRawHTML(ps []util.PrioritizedValue) []util.PrioritizedValue {
 // Scan extracts the links and mentions of body.
 func Scan(body string) Result {
 	src := []byte(body)
-	doc := md.Parse(text.NewReader(src))
-	s := &scanner{src: src, cp: newCPIndex(src)}
+	pc := parser.NewContext()
+	doc := md.Parse(text.NewReader(src), parser.WithContext(pc))
+	s := &scanner{src: src, cp: newCPIndex(src), pc: pc}
 	s.blocks(doc)
 	return s.res
 }
@@ -107,6 +114,7 @@ func Scan(body string) Result {
 type scanner struct {
 	src []byte
 	cp  cpIndex
+	pc  parser.Context // the post's link reference definitions (for table cells)
 	res Result
 	run []rune
 	lit []bool // the rune came from a backslash escape or a character reference
@@ -122,6 +130,8 @@ func (s *scanner) blocks(n ast.Node) {
 		case ast.KindParagraph, ast.KindTextBlock, ast.KindHeading:
 			s.inlines(c)
 			s.flush()
+		case kindTable:
+			s.table(c.(*tableNode))
 		default:
 			s.blocks(c)
 		}
