@@ -110,7 +110,8 @@ describe('settings view-models', () => {
       density: 'comfortable',
       a11y: { contrast: 'normal', text_scale: 'large', reduced_motion: true, dyslexia_font: false },
     });
-    expect(toUIPrefs({ format: 'explorer' }).format).toBe('cards');
+    expect(toUIPrefs({ format: 'explorer' }).format).toBe('explorer');
+    expect(toUIPrefs({ format: 'grid' }).format).toBe('cards');
     expect(toUIPrefs(null).a11y.textScale).toBe('normal');
     expect(toA11y(p)).toEqual({ contrast: 'normal', textScale: 'large', reducedMotion: true, dyslexiaFont: false });
   });

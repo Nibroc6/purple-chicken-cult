@@ -1,8 +1,107 @@
 # OpenAPI fragment of the theme module (plan §5.3). Owner: P1-W09.
 # Paths are relative to /api. Schemas: module-prefixed names in this file, or
 # $ref: '_common.yaml#/components/schemas/X'. Validated on its own by apitest.
+#
+# A theme is design tokens only (§15.2 A): a complete palette, a corner
+# radius, a density, and a font from the allowlist at no less than the size
+# floor. The server rejects a theme whose integrity elements (integrity_text
+# on integrity_bg) fall below WCAG AA, or whose body text, muted text or
+# links do (theme_contrast, field = the failing color). Nothing in a theme is
+# CSS; the client maps the values onto its own custom properties.
 openapi: 3.0.3
 info:
   title: pcc internal API (theme)
   version: "0"
-paths: {}
+paths:
+  /me/theme:
+    get:
+      operationId: themeGet
+      summary: The caller's theme (absent while they use the default)
+      responses:
+        "200":
+          description: The theme
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ThemeOut' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+    put:
+      operationId: themeSet
+      summary: Validate and store the caller's theme, replacing any earlier one
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ThemeIn' }
+      responses:
+        "200":
+          description: The stored theme, normalized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ThemeOut' }
+        "400": { $ref: '_common.yaml#/components/responses/Problem' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "422":
+          description: theme_contrast (field = the color that failed), theme_font (not on the allowlist) or theme_invalid (schema, range or size floor)
+          content:
+            application/json:
+              schema: { $ref: '_common.yaml#/components/schemas/Error' }
+        "429": { $ref: '#/components/responses/ThemeRateLimited' }
+    delete:
+      operationId: themeClear
+      summary: Go back to the default theme
+      responses:
+        "204": { description: "Default theme" }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/ThemeRateLimited' }
+components:
+  responses:
+    ThemeRateLimited:
+      description: rate_limited (account writes, 50/day).
+      content:
+        application/json:
+          schema: { $ref: '_common.yaml#/components/schemas/Error' }
+  schemas:
+    ThemeIn:
+      type: object
+      additionalProperties: false
+      required: [tokens]
+      properties:
+        tokens: { $ref: '#/components/schemas/ThemeTokens' }
+    ThemeOut:
+      type: object
+      additionalProperties: false
+      properties:
+        theme: { $ref: '#/components/schemas/ThemeView' }
+    ThemeView:
+      type: object
+      additionalProperties: false
+      required: [tokens, updated_at]
+      properties:
+        tokens: { $ref: '#/components/schemas/ThemeTokens' }
+        updated_at: { type: string, format: date-time }
+    ThemeTokens:
+      type: object
+      additionalProperties: false
+      required: [colors]
+      properties:
+        colors: { $ref: '#/components/schemas/ThemeColors' }
+        radius: { type: integer, minimum: 0, maximum: 24, description: Corner radius in px }
+        density: { type: string, enum: [compact, comfortable, spacious] }
+        font: { type: string, enum: [system, serif, humanist, rounded, mono, hyperlegible] }
+        font_size: { type: integer, minimum: 14, maximum: 24, description: 'Base text size in px (14 is the size floor)' }
+    ThemeColors:
+      type: object
+      additionalProperties: false
+      required: [bg, surface, text, muted, accent, border, integrity_bg, integrity_text]
+      properties:
+        bg: { $ref: '#/components/schemas/ThemeColor' }
+        surface: { $ref: '#/components/schemas/ThemeColor' }
+        text: { $ref: '#/components/schemas/ThemeColor' }
+        muted: { $ref: '#/components/schemas/ThemeColor' }
+        accent: { $ref: '#/components/schemas/ThemeColor' }
+        border: { $ref: '#/components/schemas/ThemeColor' }
+        integrity_bg: { $ref: '#/components/schemas/ThemeColor' }
+        integrity_text: { $ref: '#/components/schemas/ThemeColor' }
+    ThemeColor:
+      type: string
+      pattern: '^#[0-9a-fA-F]{6}$'

@@ -1,0 +1,18 @@
+{
+  "users": [
+    { "handle": "alice", "name": "Alice", "preset": "latest" },
+    { "handle": "bob", "name": "Bob" },
+    { "handle": "carol", "name": "Carol" }
+  ],
+  "friends": [
+    { "a": "alice", "b": "bob" },
+    { "a": "bob", "b": "carol" }
+  ],
+  "posts": [
+    { "label": "root", "author": "bob", "body": "Explorer root by bob", "age": "6h" },
+    { "label": "r1", "author": "bob", "body": "First reply by bob", "age": "5h", "parents": [{ "post": "root" }] },
+    { "label": "r2", "author": "carol", "body": "Second reply by carol", "age": "4h", "parents": [{ "post": "root" }] },
+    { "label": "r1a", "author": "carol", "body": "Under the first reply", "age": "3h", "parents": [{ "post": "r1" }] },
+    { "label": "r2a", "author": "bob", "body": "Under the second reply", "age": "2h", "parents": [{ "post": "r2" }] }
+  ]
+}

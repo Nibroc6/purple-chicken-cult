@@ -171,6 +171,7 @@ var Catalogue = []Entry{
 	e("modapi", 1, "POST", "/mod/items/{id}/csam-report", wS),
 
 	// themeapi (P1-W09)
+	e("themeapi", 1, "GET", "/me/theme", free), // steward: contract request p1-w09-1
 	e("themeapi", 1, "PUT", "/me/theme", wA),
 	e("themeapi", 1, "DELETE", "/me/theme", wA),
 

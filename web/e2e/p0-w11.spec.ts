@@ -62,7 +62,7 @@ test('settings reject translate_to outside languages and an unknown preset', asy
   for (const [data, code] of [
     [{ translate_to: 'de' }, 'translate_to_not_in_languages'],
     [{ rank_preset: 'Top' }, 'preset_unavailable'],
-    [{ ui_prefs: { format: 'explorer' } }, 'ui_prefs_invalid'],
+    [{ ui_prefs: { format: 'grid' } }, 'ui_prefs_invalid'],
   ] as const) {
     const res = await page.request.patch('/api/me/settings', { data, headers });
     expect(res.status()).toBe(422);
