@@ -1,0 +1,37 @@
+{
+  "users": [
+    { "handle": "alice", "name": "Alice", "preset": "latest" },
+    { "handle": "bob", "name": "Bob" },
+    { "handle": "carol", "name": "Carol", "age": "2160h" }
+  ],
+  "friends": [
+    { "a": "alice", "b": "bob" },
+    { "a": "alice", "b": "carol" }
+  ],
+  "posts": [
+    {
+      "label": "table",
+      "author": "bob",
+      "body": "Scores this week\n| Player | Team | Points |\n|:--|:-:|--:|\n| **Ana** | [Reds](https://reds.example/?utm_source=x) | 31 |\n| Bo \\| Bea | Blues | 7 |",
+      "age": "3h"
+    },
+    {
+      "label": "wide",
+      "author": "bob",
+      "body": "Too wide\n|1|2|3|4|5|6|7|8|9|10|11|\n|-|-|-|-|-|-|-|-|-|-|-|\n|a|b|c|d|e|f|g|h|i|j|k|",
+      "age": "2h50m"
+    },
+    {
+      "label": "long",
+      "author": "bob",
+      "body": "Long cells\n| c1 | c2 | c3 | c4 | c5 | c6 | c7 | c8 | c9 | c10 |\n|-|-|-|-|-|-|-|-|-|-|\n| supercalifragilisticexpialidocious | supercalifragilisticexpialidocious | supercalifragilisticexpialidocious | supercalifragilisticexpialidocious | supercalifragilisticexpialidocious | supercalifragilisticexpialidocious | supercalifragilisticexpialidocious | supercalifragilisticexpialidocious | supercalifragilisticexpialidocious | supercalifragilisticexpialidocious |",
+      "age": "2h40m"
+    },
+    {
+      "label": "quoted",
+      "author": "bob",
+      "body": "Quoted table\n\n> | q | r |\n> | - | - |\n> | s | t |",
+      "age": "2h30m"
+    }
+  ]
+}
