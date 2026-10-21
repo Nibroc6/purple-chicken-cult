@@ -29,8 +29,9 @@ var (
 
 // PartIn is one part of POST /api/posts/thread.
 type PartIn struct {
-	Body string `json:"body"`
-	Lang string `json:"lang"`
+	Body  string     `json:"body"`
+	Lang  string     `json:"lang"`
+	Media []gate.Ref `json:"media,omitempty"` // P1: ≤ 4 of the caller's uploads
 }
 
 // ThreadIn is POST /api/posts/thread: the parts share the audience, ref policy
@@ -92,7 +93,7 @@ func Register(r chi.Router, d *api.Deps) {
 		drafts := make([]posts.Draft, len(in.Parts))
 		for i, p := range in.Parts {
 			drafts[i] = posts.Draft{Body: p.Body, Lang: p.Lang, Audience: in.Audience, RefPolicy: in.RefPolicy,
-				NoPreview: in.NoPreview}
+				NoPreview: in.NoPreview, Media: p.Media}
 		}
 		if len(drafts) > 0 {
 			drafts[0].Parents = in.Parents

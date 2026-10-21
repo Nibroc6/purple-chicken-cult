@@ -3,18 +3,21 @@
 // audience and reference policy (slippery default from settings); language
 // (first of the user's languages, then the UI locale, "und" available); replies
 // and continuations from ?parent=<ref>&kind=ref|cont, with a warning when the
-// parent's audience is limited. Owner: P0-W05 → P1-W12.
+// parent's audience is limited; up to 4 pictures through the media picker
+// (P1; a thread attaches them to its first part; the picker hides itself when
+// media is turned off). Owner: P0-W05 → P1-W12.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router';
 import { useMe } from '../../app/session';
-import type { Audience, PostVM, RefPolicy } from '../../vm/types';
+import type { Audience, MediaVM, PostVM, RefPolicy } from '../../vm/types';
 import { addOwnPosts } from '../feed/vm';
+import { MediaImage, MediaPicker } from '../media';
 import { createPost, createThread, fetchPost, postKey, type DraftIn, type ParentIn } from '../post/api';
 import { defaultLang } from '../post/lang';
 import { AudienceSelect, Counter, ErrorText, LangSelect, PolicySelect, PostPreview } from '../post/shared';
-import { codePoints, HARD_LIMIT, hasAudienceLimit, MAX_PARTS, SOFT_LIMIT } from '../post/vm';
+import { codePoints, HARD_LIMIT, hasAudienceLimit, MAX_MEDIA, MAX_PARTS, SOFT_LIMIT } from '../post/vm';
 import { joinParts, splitThread } from './split';
 import './composer.css';
 
@@ -64,6 +67,7 @@ function Composer({ parent, me, onPublished }: { parent?: ParentIn; me: MeLike; 
   const [audience, setAudience] = useState<Audience>('connected');
   const [policy, setPolicy] = useState<RefPolicy>(me.settings.slippery_default ? 'nobody' : 'anyone');
   const [noPreview, setNoPreview] = useState(false);
+  const [media, setMedia] = useState<MediaVM[]>([]);
   const pq = useQuery({
     queryKey: [...postKey, parent?.ref ?? ''],
     queryFn: () => fetchPost(parent?.ref ?? ''),
@@ -79,6 +83,7 @@ function Composer({ parent, me, onPublished }: { parent?: ParentIn; me: MeLike; 
     refPolicy: policy,
     noPreview,
     parents: parent && parentPost ? [parent] : [],
+    media: media.map((x) => x.ref),
   });
   const m = useMutation({
     mutationFn: () => (parts ? createThread(draft(), parts) : createPost(draft()).then((p) => [p])),
@@ -137,6 +142,7 @@ function Composer({ parent, me, onPublished }: { parent?: ParentIn; me: MeLike; 
           ) : null}
         </>
       )}
+      <MediaSection media={media} onChange={setMedia} />
       <div className="composer-options">
         <LangSelect
           id="composer-lang"
@@ -178,6 +184,46 @@ function Composer({ parent, me, onPublished }: { parent?: ParentIn; me: MeLike; 
       </div>
       <ErrorText err={m.error} />
     </form>
+  );
+}
+
+// MediaSection: the attached pictures (thumbs, removable) and the picker for
+// the rest of the 4. Removing a picture only detaches it from the draft; the
+// server deletes unattached uploads after a day.
+function MediaSection({ media, onChange }: { media: MediaVM[]; onChange: (m: MediaVM[]) => void }) {
+  const { t } = useTranslation('composer');
+  return (
+    <div className="composer-media" data-testid="composer-media">
+      {media.length > 0 ? (
+        <>
+          <p className="muted" data-testid="composer-media-count">
+            {t('media.attached', { count: media.length })}
+          </p>
+          <ul className="composer-media-list">
+            {media.map((m) => (
+              <li key={m.ref} data-testid="composer-media-item">
+                <MediaImage media={m} variant="thumb" />
+                <button
+                  type="button"
+                  data-testid="composer-media-remove"
+                  onClick={() => {
+                    onChange(media.filter((x) => x.ref !== m.ref));
+                  }}
+                >
+                  {t('media.remove')}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+      <MediaPicker
+        max={MAX_MEDIA - media.length}
+        onPicked={(picked) => {
+          onChange([...media, ...picked].slice(0, MAX_MEDIA));
+        }}
+      />
+    </div>
   );
 }
 
