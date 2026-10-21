@@ -1,0 +1,48 @@
+/* Guardian recovery pages (P1-W10). Logical properties only. */
+.recovery-steps {
+  padding-inline-start: var(--space-4);
+}
+
+.recovery-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-block-end: var(--space-4);
+}
+
+.recovery-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.recovery-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-3) var(--space-4);
+}
+
+.recovery-item p {
+  margin: 0;
+  flex-basis: 100%;
+}
+
+.recovery-follow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.recovery-error {
+  color: var(--color-text);
+  border-inline-start: 4px solid var(--color-accent);
+  padding-inline-start: var(--space-2);
+}

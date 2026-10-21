@@ -5,7 +5,9 @@
 // play the handshake sound (or, without sound, scan the second code), and then:
 // an invitee accepts the terms, picks a username, creates a passkey and signs
 // the Invite and Friendship records with it (the signup ceremony); a friend
-// co-signs the friend+ record. Owner: P0-W04 → P1-W02.
+// co-signs the friend+ record. Scan, Waiting, Sound and Dual are exported for
+// the recovering device of a guardian recovery (features/recovery, steward:
+// contract request p1-w10-1). Owner: P0-W04 → P1-W02.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -196,7 +198,7 @@ export default function JoinPage() {
 
 // Scan runs the camera until onFrame accepted a decoded code. A code the
 // server refused is not sent again; the next rotation is.
-function Scan({
+export function Scan({
   accept,
   onFrame,
   onDone,
@@ -272,7 +274,7 @@ function useJoinStatus(dev: ClaimDevice, every = 1500) {
 }
 
 // Waiting shows the SAS until the initiator confirms or cancels.
-function Waiting({
+export function Waiting({
   dev,
   onConfirmed,
   onEnded,
@@ -316,7 +318,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 // Sound plays the handshake sound and waits for the initiator's report.
-function Sound({ dev, first, onPassed }: { dev: ClaimDevice; first: StatusVM; onPassed: (st: StatusVM) => void }) {
+export function Sound({ dev, first, onPassed }: { dev: ClaimDevice; first: StatusVM; onPassed: (st: StatusVM) => void }) {
   const { t } = useTranslation(['join', 'errors']);
   const [st, setSt] = useState<StatusVM>(first);
   const [phase, setPhase] = useState<'ready' | 'playing' | 'waiting'>('ready');
@@ -387,7 +389,7 @@ function Sound({ dev, first, onPassed }: { dev: ClaimDevice; first: StatusVM; on
 }
 
 // Dual scans the initiator's second code (no sound; Accepted at most).
-function Dual({ dev, onPassed }: { dev: ClaimDevice; onPassed: (st: StatusVM) => void }) {
+export function Dual({ dev, onPassed }: { dev: ClaimDevice; onPassed: (st: StatusVM) => void }) {
   const { t } = useTranslation('join');
   const [retry, setRetry] = useState(false);
   return (

@@ -1,7 +1,8 @@
 // Package account owns the signed-in user's own surface: Me, settings, export,
-// deletion and manual recovery (ARCHITECTURE §10.2, §10.3, §10.7, §2.3). It is
-// the writer of the users settings/status/deletion columns, account_stubs,
-// recovery_requests and recovery_approvals.
+// co-signed deletion, manual recovery and (P1) guardian recovery by two friend+
+// friends (ARCHITECTURE §10.2, §10.3, §10.7, §2.3). It is the writer of the
+// users settings/status/deletion columns, account_stubs, recovery_requests and
+// recovery_approvals.
 //
 // Owner: P0-W11 → P1-W10.
 package account
@@ -35,8 +36,10 @@ type Service struct{ d *core.Deps }
 // New returns the service.
 func New(d *core.Deps) *Service { return &Service{d: d} }
 
-// Init registers the account.delete and recovery.release jobs.
+// Init registers the account.delete and recovery.release jobs and the
+// account_delete and recovery_approve co-sign purposes.
 func (s *Service) Init(context.Context) error {
+	s.registerPurposes()
 	if s.d.Jobs == nil {
 		return nil
 	}

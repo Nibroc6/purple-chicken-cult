@@ -76,8 +76,14 @@ paths:
               type: object
               additionalProperties: false
               required: [confirm_handle]
+              description: >-
+                P1: a passkey session co-signs the AccountDelete record (intent from POST
+                /api/cosign {purpose: account_delete} and the passkey assertion over its draft);
+                without it the answer is the uniform 404.
               properties:
                 confirm_handle: { type: string, maxLength: 64 }
+                intent: { $ref: '_common.yaml#/components/schemas/Ref' }
+                assertion: { type: object, additionalProperties: true }
       responses:
         "202": { description: Deletion accepted; every session is revoked. }
         "400": { $ref: '_common.yaml#/components/responses/Problem' }
@@ -157,6 +163,14 @@ paths:
       operationId: modRecoveryApprove
       parameters:
         - { name: id, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
+      requestBody:
+        required: false
+        description: >-
+          P1 co-signature (required for a passkey session): the intent from POST /api/cosign
+          {purpose: recovery_approve, target: id} and the passkey assertion over its draft.
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AccountCosignIn' }
       responses:
         "204": { description: Approved by a second moderator; the 24 h hold starts. }
         "401": { $ref: '#/components/responses/AccountStepUp' }
@@ -190,6 +204,131 @@ paths:
             application/json:
               schema: { $ref: '_common.yaml#/components/schemas/Error' }
         "429": { $ref: '#/components/responses/AccountRateLimited' }
+  /recovery/sessions:
+    post:
+      operationId: recoveryStart
+      description: >-
+        P1. Guardian A (a friend+ of the account), in person with the recovering person, opens a
+        recovery of that friend: an in-person handshake the recovering device scans at /recover.
+        Opening again before the handshake passed replaces the code.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [friend]
+              properties:
+                friend: { $ref: '_common.yaml#/components/schemas/Ref' }
+      responses:
+        "201":
+          description: The recovery handshake (the guardian's device renders the frames).
+          content:
+            application/json:
+              schema: { $ref: '_common.yaml#/components/schemas/HandshakeView' }
+        "400": { $ref: '_common.yaml#/components/responses/Problem' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409":
+          description: recovery_exists (another recovery of the account is under way).
+          content:
+            application/json:
+              schema: { $ref: '_common.yaml#/components/schemas/Error' }
+        "429": { $ref: '#/components/responses/AccountRateLimited' }
+  /recovery/claim:
+    post:
+      operationId: recoveryClaim
+      description: >-
+        P1. The recovering device (guest session from POST /api/join/start) claims the guardian's
+        code. The body is the handshake claim. The device then runs the SAS and the sound through
+        /api/join/* and follows the recovery with the ticket (the guest session is short-lived).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [payload]
+              properties:
+                payload: { type: string }
+                e_v: { type: string }
+                sig_pub: { type: string }
+                proof: { type: string }
+      responses:
+        "200":
+          description: The recovery ticket for GET /api/recovery/status (X-PCC-Recovery).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ticket]
+                properties:
+                  ticket: { type: string }
+        "400": { $ref: '_common.yaml#/components/responses/Problem' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/AccountRateLimited' }
+  /recovery/requests:
+    get:
+      operationId: recoveryRequests
+      description: >-
+        P1. The recoveries waiting for the caller's approval as a second guardian: open, vouched
+        in person by another friend+ of the account.
+      responses:
+        "200":
+          description: Pending approvals.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/AccountGuardianRequest' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/AccountRateLimited' }
+  /recovery/requests/{id}/approve:
+    post:
+      operationId: recoveryApprove
+      parameters:
+        - { name: id, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
+      description: >-
+        P1. The second guardian's approval: starts the 24 h hold. Anyone who is not a guardian of
+        the account gets the uniform 404.
+      requestBody:
+        required: false
+        description: >-
+          Co-signature (required for a passkey session): the intent from POST /api/cosign
+          {purpose: recovery_approve, target: id} and the passkey assertion over its draft.
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AccountCosignIn' }
+      responses:
+        "204": { description: Approved; the 24 h hold starts and the account's friends are told. }
+        "400": { $ref: '_common.yaml#/components/responses/Problem' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409":
+          description: second_guardian_required or recovery_expired.
+          content:
+            application/json:
+              schema: { $ref: '_common.yaml#/components/schemas/Error' }
+        "429": { $ref: '#/components/responses/AccountRateLimited' }
+  /recovery/status:
+    get:
+      operationId: recoveryStatus
+      description: >-
+        P1. The recovering device's view of its recovery, found by its ticket. Once released, every
+        ask answers a fresh one-time enrollment URL (any earlier one stops working).
+      parameters:
+        - { name: X-PCC-Recovery, in: header, required: true, schema: { type: string, maxLength: 64 } }
+      responses:
+        "200":
+          description: The recovery's state.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AccountRecoveryStatus' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/AccountRateLimited' }
 components:
   schemas:
     AccountKeys:
@@ -199,6 +338,35 @@ components:
         server:
           type: array
           items: { $ref: '_common.yaml#/components/schemas/KeyView' }
+        mine:
+          description: P1. The caller's own custodial signing keys.
+          type: array
+          items: { $ref: '_common.yaml#/components/schemas/KeyView' }
+    AccountCosignIn:
+      type: object
+      additionalProperties: false
+      properties:
+        intent: { $ref: '_common.yaml#/components/schemas/Ref' }
+        assertion: { type: object, additionalProperties: true }
+    AccountGuardianRequest:
+      type: object
+      required: [id, account, expires_at]
+      properties:
+        id: { $ref: '_common.yaml#/components/schemas/Ref' }
+        account:
+          type: object
+          required: [handle, display_name]
+          properties:
+            handle: { type: string }
+            display_name: { type: string }
+        expires_at: { type: string, format: date-time }
+    AccountRecoveryStatus:
+      type: object
+      required: [state]
+      properties:
+        state: { type: string, enum: [claimed, approving, holding, released, cancelled, expired] }
+        release_at: { type: string, format: date-time }
+        enroll_url: { type: string }
     AccountRecoveryPending:
       type: object
       properties:

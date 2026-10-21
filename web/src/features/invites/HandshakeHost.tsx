@@ -120,7 +120,7 @@ export function HandshakeHost({ opened, onDone, onAgain }: { opened: OpenedVM; o
 
   return (
     <div className="invites-handshake" data-testid="invite-handshake" data-state={state} data-kind={kind}>
-      {state === 'open' ? dev ? <Frames dev={dev} /> : <p className="muted">{t('hs.preparing')}</p> : null}
+      {state === 'open' ? dev ? <Frames dev={dev} recovery={kind === 'recovery'} /> : <p className="muted">{t('hs.preparing')}</p> : null}
       {state === 'claimed' && st?.sas ? (
         <>
           <p>{t('hs.claimed')}</p>
@@ -206,8 +206,9 @@ function QR({ payload, label, testid }: { payload?: string; label: string; testi
   return <canvas ref={canvas} className="invites-qr" role="img" aria-label={label} data-testid={testid} />;
 }
 
-// Frames shows the rotating QR code the other device scans.
-function Frames({ dev }: { dev: Device }) {
+// Frames shows the rotating QR code the other device scans (a recovering
+// device scans it at /recover, steward: contract request p1-w10-1).
+function Frames({ dev, recovery }: { dev: Device; recovery: boolean }) {
   const { t } = useTranslation('invites');
   const n = useFrameCounter(dev.n0, dev.t0);
   const [payload, setPayload] = useState<string>();
@@ -223,7 +224,7 @@ function Frames({ dev }: { dev: Device }) {
   return (
     <>
       <QR payload={payload} label={t('hs.qrLabel')} testid="invite-qr" />
-      <p>{t('hs.scanHint', { url: joinURL(location.origin) })}</p>
+      <p>{t('hs.scanHint', { url: joinURL(location.origin, recovery ? '/recover' : '/join') })}</p>
     </>
   );
 }

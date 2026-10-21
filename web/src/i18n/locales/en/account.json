@@ -1,6 +1,6 @@
 {
   "banner": {
-    "pending": "A moderator-approved recovery of your account will unlock a new passkey on {at}. If you did not ask for this, cancel it now.",
+    "pending": "A recovery of your account will unlock a new passkey on {at}. If you did not ask for this, cancel it now.",
     "cancel": "Cancel recovery",
     "cancelled": "The recovery was cancelled."
   },
