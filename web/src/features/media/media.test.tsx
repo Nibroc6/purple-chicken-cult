@@ -1,4 +1,5 @@
 // Media feature: upload, the fail-closed picker, signed URLs and their refresh.
+import { File as NodeFile } from 'node:buffer';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { asRef, type MediaVM } from '../../vm/types';
@@ -41,7 +42,14 @@ function stub(upload: () => Response, url: (n: number) => Response = (n) => json
 const view = { ref: 'r1', w: 40, h: 30, alt: 'a pattern' };
 const media: MediaVM = { ref: asRef('r1'), w: 40, h: 30, alt: 'a pattern' };
 
+// Under Node 24, undici's multipart parser (req.formData() in the stub) only
+// accepts files of its own File class, but jsdom replaces the global File and
+// FormData; the uploads here use Node's own classes.
+const NodeFormData = (await new Response(new URLSearchParams('a=1')).formData()).constructor as typeof FormData;
+
 beforeEach(() => {
+  vi.stubGlobal('FormData', NodeFormData);
+  vi.stubGlobal('File', NodeFile);
   vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: () => 'blob:x', revokeObjectURL: () => undefined }));
 });
 
@@ -57,7 +65,7 @@ function pick(files: File[]) {
   fireEvent.change(screen.getByTestId('media-file'), { target: { files } });
 }
 
-const png = (name = 'p.png', n = 4) => new File([new Uint8Array(n)], name, { type: 'image/png' });
+const png = (name = 'p.png', n = 4) => new NodeFile([new Uint8Array(n)], name, { type: 'image/png' }) as unknown as File;
 
 describe('MediaPicker', () => {
   it('uploads each chosen file with its alt text and hands back the media', async () => {
