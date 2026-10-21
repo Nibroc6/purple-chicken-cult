@@ -40,7 +40,8 @@
       "legend": "Feed order",
       "latest": "Latest first",
       "balanced": "Balanced",
-      "help": "Both orders only ever show people in your network."
+      "top": "Top",
+      "help": "Every order only ever shows people in your network."
     }
   },
   "languages": {

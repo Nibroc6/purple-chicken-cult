@@ -98,8 +98,9 @@ func raw(s string) *json.RawMessage {
 	return &m
 }
 
-// Acceptance: settings reject translate_to not in languages and rank_preset
-// top; plus the rest of the settings validation.
+// Acceptance: settings reject translate_to not in languages and an unknown
+// rank_preset (top is accepted from P1-W08); plus the rest of the settings
+// validation.
 func TestUpdateSettingsValidation(t *testing.T) {
 	e := newEnv(t)
 	alice := e.w.User("alice")
@@ -112,7 +113,6 @@ func TestUpdateSettingsValidation(t *testing.T) {
 	}{
 		{"translate_to not in languages", gate.SettingsPatch{TranslateTo: ptr("de")}, "translate_to_not_in_languages"},
 		{"translate_to with other languages", gate.SettingsPatch{Languages: &[]string{"fr", "es"}, TranslateTo: ptr("de")}, "translate_to_not_in_languages"},
-		{"preset top (Phase 1)", gate.SettingsPatch{RankPreset: ptr("top")}, "preset_unavailable"},
 		{"preset unknown", gate.SettingsPatch{RankPreset: ptr("chronological")}, "preset_unavailable"},
 		{"locale not BCP-47", gate.SettingsPatch{UILocale: ptr("english please")}, "locale_invalid"},
 		{"language not BCP-47", gate.SettingsPatch{Languages: &[]string{"en", "xx-!!"}}, "lang_invalid"},
@@ -172,6 +172,9 @@ func TestUpdateSettingsValidation(t *testing.T) {
 	m, _ := e.a.Users.Get(e.ctx, alice)
 	if m.Preset != core.PresetLatest || m.DisplayName != "Alice Ⅱ" || !m.NameInChains {
 		t.Fatalf("users cache not invalidated: %+v", m)
+	}
+	if sv, err := e.a.Account.UpdateSettings(ctx, gate.SettingsPatch{RankPreset: ptr("top")}); err != nil || sv.RankPreset != "top" {
+		t.Fatalf("top: %+v %v", sv, err)
 	}
 	// Dropping the translate_to language clears it; an empty translate_to clears it too.
 	sv, err = e.a.Account.UpdateSettings(ctx, gate.SettingsPatch{Languages: &[]string{"en"}})

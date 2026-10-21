@@ -27,7 +27,7 @@ const textLabel = {
   large: 'display.a11y.textLarge',
   xlarge: 'display.a11y.textXlarge',
 } as const;
-const presetLabel = { latest: 'display.preset.latest', balanced: 'display.preset.balanced' } as const;
+const presetLabel = { latest: 'display.preset.latest', balanced: 'display.preset.balanced', top: 'display.preset.top' } as const;
 
 function DisplayForm({ me }: { me: MeView }) {
   const { t } = useTranslation('settings');
