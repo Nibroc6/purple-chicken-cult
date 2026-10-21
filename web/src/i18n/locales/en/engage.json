@@ -14,6 +14,11 @@
     "others": "{count, plural, one {# other} other {# others}}",
     "explain": "Only likes from people within 2 steps of you count here. Only your own friends are named, and only if they allow it."
   },
+  "save": {
+    "action": "Save",
+    "undo": "Unsave",
+    "private": "Only you can see what you saved."
+  },
   "hide": {
     "action": "Hide",
     "done": "Hidden. This post won't appear in your feed again."

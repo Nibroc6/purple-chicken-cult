@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/internal/core"
 )
@@ -99,15 +101,25 @@ func (s *Service) RecentlySeen(ctx context.Context, cursor string) (gate.Page[ga
 	if err != nil {
 		return gate.Page[gate.PostView]{}, err
 	}
-	after, err := s.openCursor(v.ID, cursor)
+	after, err := s.openCursor(v.ID, cursorSeen, cursor)
 	if err != nil {
 		return gate.Page[gate.PostView]{}, err
 	}
 	since := s.now().Add(-SeenRetention)
+	return s.listPage(ctx, sr, cursorSeen, after, func(cur *seenKey, n int) ([]seenKey, error) {
+		return s.seenAfter(ctx, v.ID, since, cur, n)
+	})
+}
+
+// listPage builds one page of a viewer's own post list (recently seen, saves)
+// from next, which returns up to n keys after cur in list order.
+func (s *Service) listPage(ctx context.Context, sr core.Search, dom string, after *seenKey,
+	next func(cur *seenKey, n int) ([]seenKey, error)) (gate.Page[gate.PostView], error) {
 	page := gate.Page[gate.PostView]{Items: []gate.PostView{}}
 	var (
 		checked []core.Checked
 		more    bool
+		err     error
 	)
 	const batchSize = 2 * SeenPageSize
 	// Posts the viewer can no longer see are skipped, so a page may need more
@@ -115,7 +127,7 @@ func (s *Service) RecentlySeen(ctx context.Context, cursor string) (gate.Page[ga
 	cur := after
 scan:
 	for batch := 0; batch < 5; batch++ {
-		keys, err := s.seenAfter(ctx, v.ID, since, cur, batchSize)
+		keys, err := next(cur, batchSize)
 		if err != nil {
 			return gate.Page[gate.PostView]{}, err
 		}
@@ -149,12 +161,12 @@ scan:
 		}
 	}
 	if more && cur != nil {
-		page.Next = s.cursor(v.ID, *cur)
+		page.Next = s.cursor(sr.Viewer(), dom, *cur)
 	}
 	return page, nil
 }
 
-// seenKey is a position in the recently-seen order (at desc, post_id desc).
+// seenKey is a position in a list ordered by (at desc, post_id desc).
 type seenKey struct {
 	at   time.Time
 	post core.PostID
@@ -169,7 +181,11 @@ func (s *Service) seenAfter(ctx context.Context, v core.UserID, since time.Time,
 			ORDER BY at DESC, post_id DESC LIMIT $3`
 		args = append(args, after.at, after.post)
 	}
-	rows, err := s.d.DB.Q().Query(ctx, q, args...)
+	return scanKeys(s.d.DB.Q().Query(ctx, q, args...))
+}
+
+// scanKeys reads (post_id, at) rows.
+func scanKeys(rows pgx.Rows, err error) ([]seenKey, error) {
 	if err != nil {
 		return nil, err
 	}
@@ -185,30 +201,36 @@ func (s *Service) seenAfter(ctx context.Context, v core.UserID, since time.Time,
 	return out, rows.Err()
 }
 
+// Cursor domains: a cursor of one list never opens in another.
+const (
+	cursorSeen  = "pcc/seen-cursor/v1"
+	cursorSaves = "pcc/saves-cursor/v1"
+)
+
 // Cursors are "<µs>.<post ref>.<mac>": the post travels as the viewer's own
-// ref (never a raw ID) and the MAC binds both to the viewer, so another
-// viewer's cursor, or a forged one, fails like a bad ref.
-func (s *Service) cursorMAC(v core.UserID, payload string) string {
+// ref (never a raw ID) and the MAC binds both to the viewer and the list, so
+// another viewer's cursor, or a forged one, fails like a bad ref.
+func (s *Service) cursorMAC(v core.UserID, dom, payload string) string {
 	m := hmac.New(sha256.New, s.d.Keys.Cursor)
 	var b [4]byte
 	binary.BigEndian.PutUint32(b[:], uint32(v))
-	m.Write([]byte("pcc/seen-cursor/v1\x00"))
+	m.Write([]byte(dom + "\x00"))
 	m.Write(b[:])
 	m.Write([]byte(payload))
 	return base64.RawURLEncoding.EncodeToString(m.Sum(nil)[:16])
 }
 
-func (s *Service) cursor(v core.UserID, k seenKey) string {
+func (s *Service) cursor(v core.UserID, dom string, k seenKey) string {
 	payload := strconv.FormatInt(k.at.UnixMicro(), 10) + "." + string(s.d.Refs.Post(v, k.post))
-	return payload + "." + s.cursorMAC(v, payload)
+	return payload + "." + s.cursorMAC(v, dom, payload)
 }
 
-func (s *Service) openCursor(v core.UserID, c string) (*seenKey, error) {
+func (s *Service) openCursor(v core.UserID, dom, c string) (*seenKey, error) {
 	if c == "" {
 		return nil, nil
 	}
 	i := strings.LastIndexByte(c, '.')
-	if i < 0 || !hmac.Equal([]byte(c[i+1:]), []byte(s.cursorMAC(v, c[:i]))) {
+	if i < 0 || !hmac.Equal([]byte(c[i+1:]), []byte(s.cursorMAC(v, dom, c[:i]))) {
 		return nil, gate.ErrNotFound
 	}
 	micros, ref, ok := strings.Cut(c[:i], ".")

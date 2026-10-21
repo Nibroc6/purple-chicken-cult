@@ -61,6 +61,9 @@ const (
 	// maxRows bounds the ranked rows one snapshot keeps (rows outside the
 	// current view go first).
 	maxRows = 64
+	// kidsGens is the depth of the upward credit (§5.1): children and, P1,
+	// their own children at weight β.
+	kidsGens = 2
 )
 
 // Row labels (gate.TreeRow.Label).
@@ -264,22 +267,18 @@ func (s *Service) resolve(ctx context.Context, sr core.Search, v core.UserID, re
 	return c, nil
 }
 
-// preset resolves the requested preset: "" is the reader's saved preset (Top
-// reads as Balanced in Phase 0); top and unknown names are Problem
-// preset_unavailable.
+// preset resolves the requested preset: "" is the reader's saved preset;
+// unknown names are Problem preset_unavailable.
 func (s *Service) preset(ctx context.Context, v core.UserID, name string) (core.Preset, error) {
 	if name == "" {
 		me, err := s.d.Users.Get(ctx, v)
 		if err != nil {
 			return 0, err
 		}
-		if me.Preset == core.PresetTop {
-			return core.PresetBalanced, nil
-		}
 		return me.Preset, nil
 	}
 	p, ok := core.ParsePreset(name)
-	if !ok || p == core.PresetTop {
+	if !ok {
 		return 0, gate.NewProblem(gate.StatusUnprocessable, "preset_unavailable", "preset")
 	}
 	return p, nil

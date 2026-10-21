@@ -1,5 +1,9 @@
 {
   "page": {
-    "title": "Saved posts"
+    "title": "Saved posts",
+    "intro": "Posts you saved, most recent first. Only you can see what you saved.",
+    "empty": "Nothing saved yet. Use Save on any post to keep it here.",
+    "more": "Load more",
+    "open": "Open"
   }
 }

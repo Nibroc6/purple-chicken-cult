@@ -26,7 +26,9 @@ export default function SeenPage() {
   return (
     <section className="page seen-page">
       <h1>{t('page.title')}</h1>
-      <p className="muted">{t('page.intro')}</p>
+      <p className="muted">
+        {t('page.intro')} <Link to="/saves">{t('page.saves')}</Link>
+      </p>
       {q.isPending ? <Loading /> : null}
       {q.error ? (
         <p className="seen-error" role="alert">
