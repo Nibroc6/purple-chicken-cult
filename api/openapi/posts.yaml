@@ -171,10 +171,15 @@ components:
           type: array
           maxItems: 3
           items: { $ref: '#/components/schemas/PostsParentIn' }
-        media:
-          description: Phase 1 (media attachments); Phase 0 answers feature_disabled.
-          type: array
-          items: { $ref: '_common.yaml#/components/schemas/Ref' }
+        media: { $ref: '#/components/schemas/PostsMediaIn' }
+    PostsMediaIn:
+      description: >-
+        Up to 4 of the caller's own ready, not yet attached uploads (POST /api/media),
+        in display order. Anything else (another user's media, one already attached,
+        a held or deleted item) is the uniform not-found and attaches nothing; more
+        than 4 is too_many_media; feature_disabled when media is turned off.
+      type: array
+      items: { $ref: '_common.yaml#/components/schemas/Ref' }
     PostsPartIn:
       type: object
       required: [body, lang]
@@ -182,6 +187,7 @@ components:
       properties:
         body: { type: string }
         lang: { type: string, maxLength: 35 }
+        media: { $ref: '#/components/schemas/PostsMediaIn' }
     PostsThreadIn:
       type: object
       required: [parts]
@@ -235,14 +241,15 @@ components:
       description: >-
         bad_request, body_empty, body_too_long, lang_invalid, audience_invalid,
         ref_policy_invalid, too_many_parents, duplicate_parent, cont_multiple,
-        cont_not_own, ref_not_allowed, too_many_parts, cont_not_detachable.
+        cont_not_own, ref_not_allowed, too_many_parts, cont_not_detachable,
+        too_many_media.
       content:
         application/json:
           schema: { $ref: '_common.yaml#/components/schemas/Error' }
     PostsConflict:
       description: >-
         cont_taken (the post already has a continuation), ref_cap (a third reference
-        to the same post within 24 hours), or feature_disabled (media, Phase 1).
+        to the same post within 24 hours), or feature_disabled (media is turned off).
       content:
         application/json:
           schema: { $ref: '_common.yaml#/components/schemas/Error' }

@@ -6,10 +6,12 @@
 // Owner: P0-W05 → P1-W12.
 //
 // Check order (plan §0.8): the write was charged by apix → resolve every parent
-// ref (ErrNotFound if it does not open or the caller cannot see the post) → only
-// then Problems (body_empty, body_too_long, lang_invalid, too_many_parents,
-// duplicate_parent, cont_not_own, cont_taken, ref_not_allowed, ref_cap,
-// too_many_parts).
+// ref (ErrNotFound if it does not open or the caller cannot see the post) and
+// open every media ref → only then Problems (too_many_media, body_empty,
+// body_too_long, lang_invalid, too_many_parents, duplicate_parent, cont_not_own,
+// cont_taken, ref_not_allowed, ref_cap, too_many_parts). Media is attached in
+// the post's transaction (core.Media.Attach: the caller's own ready, unattached
+// uploads, all or none); anything else is the uniform not-found.
 //
 // Records (D3): every version signs a Post record over body_commit =
 // sha256(salt ‖ utf8(NFC body)) with a fresh 16-byte salt; delete signs a
@@ -41,6 +43,8 @@ const (
 	// must be for the parent's author to be notified (§10.1.1 default).
 	NotifyWithin = 2
 	saltLen      = 16
+	// MaxMedia is the per-post attachment cap (P1-W12).
+	MaxMedia = 4
 )
 
 // Notification kinds and the preview job (plan §4.7 notify, previews).
@@ -86,7 +90,7 @@ type parentRec struct {
 	Kind string    `json:"kind"`
 }
 
-// postRecord is Post{id, version, author, body_commit, lang, media:[], audience?,
+// postRecord is Post{id, version, author, body_commit, lang, media:[id], audience?,
 // parents:[{id,kind}], ref_policy?, no_preview?, created_at}.
 type postRecord struct {
 	ID         uuid.UUID   `json:"id"`

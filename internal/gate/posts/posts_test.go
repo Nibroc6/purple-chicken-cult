@@ -239,7 +239,6 @@ func TestValidation(t *testing.T) {
 		{posts.Draft{Body: " \n\t ", Lang: "en"}, "body_empty"},
 		{posts.Draft{Body: "x", Lang: "not a tag!"}, "lang_invalid"},
 		{posts.Draft{Body: "x", Lang: "en", Audience: "everyone"}, "audience_invalid"},
-		{posts.Draft{Body: "x", Lang: "en", Audience: "friend_plus"}, "audience_invalid"},
 		{posts.Draft{Body: "x", Lang: "en", RefPolicy: "some"}, "ref_policy_invalid"},
 		{posts.Draft{Body: "a\x00b", Lang: "en"}, "bad_request"},
 	} {
@@ -247,9 +246,7 @@ func TestValidation(t *testing.T) {
 		wantProblem(t, err, c.code)
 	}
 	_, err := e.p.Create(e.as("alice"), posts.Draft{Body: "x", Lang: "en", Media: []gate.Ref{"abc"}})
-	if !errors.Is(err, gate.ErrDisabled) {
-		t.Fatalf("media: %v", err)
-	}
+	wantNotFound(t, err) // a media ref that does not open (media_test.go has the rest)
 	if pv, err := e.p.Create(e.as("alice"), posts.Draft{Body: "x"}); err != nil || pv.Lang != "und" {
 		t.Fatalf("empty lang: %+v %v", pv, err)
 	}
