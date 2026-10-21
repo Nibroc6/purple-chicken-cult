@@ -112,6 +112,9 @@ func TestAnonymousGetsUniformNotFound(t *testing.T) {
 		{http.MethodGet, "/api/seen/recent", nil},
 		{http.MethodPost, "/api/posts/" + r + "/hide", nil},
 		{http.MethodPost, "/api/posts/" + r + "/show-less", nil},
+		{http.MethodPut, "/api/posts/" + r + "/save", nil},
+		{http.MethodDelete, "/api/posts/" + r + "/save", nil},
+		{http.MethodGet, "/api/saves", nil},
 	} {
 		if rec := f.h.Do(c.method, c.path, c.body); rec.Code != http.StatusNotFound || rec.Body.String() != notFound {
 			t.Errorf("%s %s = %d %q", c.method, c.path, rec.Code, rec.Body)
@@ -191,6 +194,42 @@ func TestHideAndShowLess(t *testing.T) {
 	}
 }
 
+// Saves are private: the saver's list and saved_by_me; nothing anyone else
+// reads changes.
+func TestSaveLifecycle(t *testing.T) {
+	f := newFixture(t)
+	f.h.Login("alice")
+	before := string(f.do(t, http.MethodGet, "/api/posts/"+f.ref("alice", "c1")+"/likes", nil, http.StatusOK))
+	f.h.Login("bob")
+	f.do(t, http.MethodPut, "/api/posts/"+f.ref("bob", "c1")+"/save", nil, http.StatusNoContent)
+	f.do(t, http.MethodPut, "/api/posts/"+f.ref("bob", "c1")+"/save", nil, http.StatusNoContent)
+	saved := decode[struct {
+		Items []struct {
+			Ref       string `json:"ref"`
+			SavedByMe bool   `json:"saved_by_me"`
+		} `json:"items"`
+		Next string `json:"next"`
+	}](t, f.do(t, http.MethodGet, "/api/saves", nil, http.StatusOK))
+	if len(saved.Items) != 1 || saved.Items[0].Ref != f.ref("bob", "c1") || !saved.Items[0].SavedByMe || saved.Next != "" {
+		t.Fatalf("saves %+v", saved)
+	}
+	f.do(t, http.MethodGet, "/api/saves?cursor=nope", nil, http.StatusNotFound)
+
+	f.h.Login("alice")
+	if after := string(f.do(t, http.MethodGet, "/api/posts/"+f.ref("alice", "c1")+"/likes", nil, http.StatusOK)); after != before {
+		t.Fatalf("a save shows in the like summary: %s, was %s", after, before)
+	}
+	if p := decode[page](t, f.do(t, http.MethodGet, "/api/saves", nil, http.StatusOK)); len(p.Items) != 0 {
+		t.Fatalf("alice sees bob's saves: %+v", p)
+	}
+
+	f.h.Login("bob")
+	f.do(t, http.MethodDelete, "/api/posts/"+f.ref("bob", "c1")+"/save", nil, http.StatusNoContent)
+	if p := decode[page](t, f.do(t, http.MethodGet, "/api/saves", nil, http.StatusOK)); len(p.Items) != 0 {
+		t.Fatalf("after unsave %+v", p)
+	}
+}
+
 // Acceptance (charging uniformity): a like, hide or show-less on an invisible,
 // foreign or garbage ref answers the uniform 404 and moves the rate counters
 // exactly like a valid one.
@@ -200,6 +239,7 @@ func TestInvisibleRefsAreUniform(t *testing.T) {
 	for _, c := range []struct{ method, suffix string }{
 		{http.MethodPut, "/like"}, {http.MethodDelete, "/like"}, {http.MethodGet, "/likes"},
 		{http.MethodPost, "/hide"}, {http.MethodPost, "/show-less"},
+		{http.MethodPut, "/save"}, {http.MethodDelete, "/save"},
 	} {
 		call := func(ref string) (int, string, int) {
 			before := f.rateCount(t)
@@ -229,6 +269,7 @@ func TestRouteClasses(t *testing.T) {
 		"PUT /posts/{ref}/like": "w:like", "DELETE /posts/{ref}/like": "w:like", "GET /posts/{ref}/likes": "r:post_read",
 		"POST /seen": "-:free", "GET /seen/recent": "r:feed_page", "POST /posts/{ref}/hide": "w:social",
 		"POST /posts/{ref}/show-less": "w:social",
+		"PUT /posts/{ref}/save":       "w:save", "DELETE /posts/{ref}/save": "w:save", "GET /saves": "r:feed_page",
 	}
 	found := 0
 	for _, ri := range apix.Routes() {

@@ -1,6 +1,6 @@
 // Compact post layout: one dense row per post — a single author line
 // (@handle, display name, inviter label, chain, time, "why"), the visible
-// reply context, the folded body, then the integrity footer and the actions on
+// reply context, the folded body, the pictures (P1), then the integrity footer and the actions on
 // one line. Owner: P0-W07 → P1-W12 (P0-W08 reuses it for the tree outline).
 import { useTranslation } from 'react-i18next';
 import { EngageBar, useHidden } from '../../features/engage';
@@ -10,6 +10,8 @@ import type { PostActions } from '../types';
 import {
   ContextRows,
   FoldableBody,
+  MediaList,
+  mediaVariant,
   PersonLink,
   PostLinks,
   PostTime,
@@ -62,6 +64,7 @@ export function PostLayout({
         <div className="row-body">
           <ContextRows rows={post.context} withCont={part === undefined} />
           {post.body ? <FoldableBody doc={post.body} fold={shouldFold(post, variant)} /> : null}
+          <MediaList media={post.media} variant={mediaVariant(variant)} />
           <PreviewList previews={post.previews} />
         </div>
       )}

@@ -11,12 +11,14 @@
 //   - ![alt](url) becomes a plain link (images are never fetched);
 //   - blockquotes and lists nest at most 2 levels (deeper content is lifted);
 //   - <url> autolinks and images are marked no-preview;
+//   - GFM tables only at the top level, with the stricter rules of table.ts;
 //   - a mention links only when the server issued a ref for its ord;
 //   - hrefs are protocol-checked and stripped of tracking parameters, titles
 //     are dropped, everything else renders as text.
 import MarkdownIt, { type Token } from 'markdown-it';
 import { safeLink, type SafeLink } from './host';
 import { isHTTP, scanRun } from './scan';
+import { table, type Align } from './table';
 import type { MarkdownDoc } from '../vm/types';
 
 export type Inline =
@@ -34,7 +36,9 @@ export type Block =
   | { t: 'quote'; c: Block[] }
   | { t: 'list'; ordered: boolean; start: number; items: Block[][] }
   | { t: 'code'; lines: string[] }
-  | { t: 'hr' };
+  | { t: 'hr' }
+  // GFM table (top level only, ≤ MAX_TABLE_COLS columns): rows[0] is the header.
+  | { t: 'table'; align: Align[]; rows: Inline[][][] };
 
 export interface ScanLink {
   raw: string;
@@ -62,6 +66,8 @@ export const MAX_NESTING = 2;
 
 const md = new MarkdownIt('commonmark', { html: false, linkify: false, typographer: false });
 md.enable('strikethrough');
+md.block.ruler.at('table', table, { alt: ['paragraph', 'reference'] });
+md.enable('table');
 md.disable('text_join'); // keep escapes and entities apart: they never start a mention or URL
 md.validateLink = () => true;
 md.normalizeLink = (u) => u;
@@ -91,8 +97,26 @@ class Builder {
     let lists = 0;
     const top = (): Frame => stack[stack.length - 1] ?? { kind: 'root', blocks: root };
     let pendingHeading: number | undefined;
+    let tbl: Extract<Block, { t: 'table' }> | undefined;
+    let row: Inline[][] | undefined;
     for (const tok of tokens) {
       switch (tok.type) {
+        case 'table_open': {
+          const meta = tok.meta as { aligns: Align[] };
+          tbl = { t: 'table', align: [...meta.aligns], rows: [] };
+          top().blocks.push(tbl);
+          break;
+        }
+        case 'table_close':
+          tbl = undefined;
+          break;
+        case 'tr_open':
+          row = [];
+          tbl?.rows.push(row);
+          break;
+        case 'tr_close':
+          row = undefined;
+          break;
         case 'blockquote_open': {
           quotes++;
           if (quotes > MAX_NESTING) {
@@ -149,6 +173,10 @@ class Builder {
           break;
         case 'inline': {
           const c = this.inlines(tok.children ?? [], true);
+          if (row) {
+            row.push(c);
+            break;
+          }
           top().blocks.push(pendingHeading === undefined ? { t: 'p', c } : { t: 'heading', level: pendingHeading, c });
           break;
         }
@@ -312,4 +340,41 @@ export function parse(body: string, mentions?: readonly MentionRef[]): ParsedDoc
 export function extract(body: string): { links: ScanLink[]; mentions: ScanMention[] } {
   const d = parse(body);
   return { links: [...d.links], mentions: [...d.mentions] };
+}
+
+// TableShape is a table's alignments and cell texts (the shared fixtures in
+// testdata/markdown/tables.json compare it with the server's mdscan.Table).
+export interface TableShape {
+  align: Align[];
+  rows: string[][];
+}
+
+// plainText is the text of inline content: text, code, link and mention text.
+export function plainText(nodes: readonly Inline[]): string {
+  let out = '';
+  for (const n of nodes) {
+    switch (n.t) {
+      case 'text':
+      case 'code':
+        out += n.v;
+        break;
+      case 'mention':
+        out += n.text;
+        break;
+      case 'br':
+        break;
+      default:
+        out += plainText(n.c);
+    }
+  }
+  return out;
+}
+
+// tables returns the shape of every table of a parsed body, in order.
+export function tables(doc: ParsedDoc): TableShape[] {
+  const out: TableShape[] = [];
+  for (const b of doc.nodes) {
+    if (b.t === 'table') out.push({ align: [...b.align], rows: b.rows.map((r) => r.map(plainText)) });
+  }
+  return out;
 }

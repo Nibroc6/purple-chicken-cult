@@ -7,6 +7,7 @@ import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetEngageStore } from '../../../features/engage/store';
 import { setHidden } from '../../../features/engage/store';
+import { clearURLs } from '../../../features/media/urls';
 import { i18n } from '../../../i18n/setup';
 import { integrityTestIds } from '../../../integrity/types';
 import { postVM } from '../../../test/fixtures';
@@ -73,6 +74,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  clearURLs();
   vi.unstubAllGlobals();
 });
 
@@ -226,6 +228,44 @@ describe.each([
     for (const tid of integrityTestIds.filter((x) => x !== 'integrity-tier-header')) {
       expect(screen.getAllByTestId(tid).length).toBeGreaterThan(0);
     }
+  });
+
+  it('shows pictures in order with their alt text: display size in the feed, thumbs in tree rows', async () => {
+    const asked: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((req: Request) => {
+        const u = new URL(req.url);
+        asked.push(`${u.pathname}?${u.searchParams.toString()}`);
+        return Promise.resolve(
+          new Response(JSON.stringify({ url: `/m/k?e=1`, expires_at: '2099-01-01T00:00:00Z' }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        );
+      }),
+    );
+    const media = [
+      { ref: asRef('m1'), w: 40, h: 30, alt: 'first' },
+      { ref: asRef('m2'), w: 40, h: 30 },
+    ];
+    const image = { ref: asRef('pi'), w: 20, h: 10, alt: 'site' };
+    const post = p('pic', { media, previews: [{ url: 'https://example.com/', host: 'example.com', hostUnicode: 'example.com', lookalike: false, image }] });
+    const { unmount } = render(<f.PostLayout post={post} actions={actions()} variant="feed" />);
+    const imgs = within(screen.getByTestId('feed-media')).getAllByTestId('media-image');
+    expect(imgs.map((i) => [i.dataset.variant, i.getAttribute('alt')])).toEqual([
+      ['display', 'first'],
+      ['display', tr('media:image.noAlt')],
+    ]);
+    expect(within(screen.getByTestId('feed-preview-images')).getByTestId('media-image').dataset.variant).toBe('thumb');
+    await vi.waitFor(() => {
+      expect(asked).toContain('/api/media/m1/url?variant=display');
+    });
+    unmount();
+    render(<f.PostLayout post={post} actions={actions()} variant="tree" />);
+    expect(within(screen.getByTestId('feed-media')).getAllByTestId('media-image').map((i) => i.dataset.variant)).toEqual(['thumb', 'thumb']);
+    render(<f.PostLayout post={p('none')} actions={actions()} variant="feed" />);
+    expect(screen.getAllByTestId('feed-media')).toHaveLength(1);
   });
 });
 

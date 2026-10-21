@@ -16,6 +16,7 @@ import (
 var (
 	wLike   = apix.Write("like")
 	wSocial = apix.Write("social")
+	wSave   = apix.Write("save")
 	rPost   = apix.Read("post_read")
 	rFeed   = apix.Read("feed_page")
 )
@@ -68,6 +69,23 @@ func Register(r chi.Router, d *api.Deps) {
 	})
 	apix.Route(r, http.MethodGet, "/seen/recent", rFeed, func(w http.ResponseWriter, r *http.Request) error {
 		page, err := es.RecentlySeen(r.Context(), r.URL.Query().Get("cursor"))
+		if err != nil {
+			return err
+		}
+		return apix.JSON(w, http.StatusOK, page)
+	})
+	save := func(on bool) apix.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) error {
+			if err := es.Save(r.Context(), apix.Ref(r, "ref"), on); err != nil {
+				return err
+			}
+			return apix.NoContent(w)
+		}
+	}
+	apix.Route(r, http.MethodPut, "/posts/{ref}/save", wSave, save(true))
+	apix.Route(r, http.MethodDelete, "/posts/{ref}/save", wSave, save(false))
+	apix.Route(r, http.MethodGet, "/saves", rFeed, func(w http.ResponseWriter, r *http.Request) error {
+		page, err := es.Saves(r.Context(), r.URL.Query().Get("cursor"))
 		if err != nil {
 			return err
 		}

@@ -91,6 +91,24 @@ describe('post helpers', () => {
     expect(hasAudienceLimit(toPostVM(postJSON({ audience_forced: true }) as never))).toBe(true);
   });
 
+  it('maps attached media and preview images', () => {
+    const p = toPostVM(
+      postJSON({
+        media: [{ ref: 'm1', w: 4, h: 3, alt: 'a cat' }, { ref: 'm2', w: 1, h: 1 }],
+        previews: [
+          { url: 'https://a.example/', host: 'a.example', host_unicode: 'a.example', lookalike: false, image: { ref: 'pi', w: 2, h: 1 } },
+          { url: 'https://b.example/', host: 'b.example', host_unicode: 'b.example', lookalike: false },
+        ],
+      }) as never,
+    );
+    expect(p.media).toEqual([
+      { ref: 'm1', w: 4, h: 3, alt: 'a cat' },
+      { ref: 'm2', w: 1, h: 1 },
+    ]);
+    expect(p.previews.map((v) => v.image)).toEqual([{ ref: 'pi', w: 2, h: 1 }, undefined]);
+    expect(toPostVM(postJSON() as never).media).toEqual([]);
+  });
+
   it('links the server-resolved mentions of the body', () => {
     const p = toPostVM(postJSON({ body: '@bob and @carol', mentions: [{ ord: 0, ref: 'u1' }, { ord: 1 }] }) as never);
     const para = (p.body as unknown as { nodes: { t: string; c: { t: string; ref?: string }[] }[] }).nodes[0];

@@ -347,6 +347,13 @@ func (s *Service) status(h hsRow, v core.Viewer, join bool, now time.Time) Statu
 	if (st == stClaimed || st == stConfirmed) && h.claimed != nil {
 		out.SAS = sas(h.secret, h.claimed, h.ev)
 	}
+	if st == stDone && h.kind == kindRecovery {
+		// A recovery handshake is done the moment its outcome passed; the
+		// claiming device still learns that outcome (steward: contract
+		// request p1-w10-1).
+		out.Outcome = outcomeName(h.outcome)
+		return out
+	}
 	if st != stConfirmed {
 		return out
 	}

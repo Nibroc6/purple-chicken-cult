@@ -50,10 +50,120 @@ func TestSharedFixtures(t *testing.T) {
 		if got.Mentions == nil {
 			got.Mentions = []Mention{}
 		}
+		got.Tables = nil // tables.json checks them
 		if d := cmp.Diff(Result{Links: c.Links, Mentions: c.Mentions}, got); d != "" {
 			t.Errorf("%s: (-want +got)\n%s", c.Name, d)
 		}
 	}
+}
+
+// TestSharedTableFixtures: the GFM table corpus the web client is checked
+// against too (shapes, links and mentions with their offsets).
+func TestSharedTableFixtures(t *testing.T) {
+	b, err := os.ReadFile("../../../testdata/markdown/tables.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc struct {
+		Cases []struct {
+			fixture
+			Tables []Table `json:"tables"`
+		}
+	}
+	if err := json.Unmarshal(b, &doc); err != nil {
+		t.Fatal(err)
+	}
+	if len(doc.Cases) < 40 {
+		t.Fatalf("corpus has %d cases, want ≥ 40", len(doc.Cases))
+	}
+	names := map[string]bool{}
+	for _, c := range doc.Cases {
+		if names[c.Name] {
+			t.Fatalf("duplicate case name %q", c.Name)
+		}
+		names[c.Name] = true
+		got := Scan(c.Body)
+		if got.Links == nil {
+			got.Links = []Link{}
+		}
+		if got.Mentions == nil {
+			got.Mentions = []Mention{}
+		}
+		if got.Tables == nil {
+			got.Tables = []Table{}
+		}
+		want := Result{Links: c.Links, Mentions: c.Mentions, Tables: c.Tables}
+		if d := cmp.Diff(want, got); d != "" {
+			t.Errorf("%s: (-want +got)\n%s", c.Name, d)
+		}
+		runes := []rune(c.Body)
+		for _, m := range got.Mentions {
+			if runes[m.Offset] != '@' {
+				t.Errorf("%s: mention offset %d", c.Name, m.Offset)
+			}
+		}
+		for _, l := range got.Links {
+			if r := runes[l.Offset]; r != '[' && r != '!' && r != '<' && r != 'h' && r != 'H' {
+				t.Errorf("%s: link offset %d (%q)", c.Name, l.Offset, r)
+			}
+		}
+	}
+}
+
+// TestTableLimits: at most MaxTableCols columns, top level only.
+func TestTableLimits(t *testing.T) {
+	row := func(n int) string { return "|" + strings.Repeat(" x |", n) }
+	delim := func(n int) string { return "|" + strings.Repeat("-|", n) }
+	for n := 1; n <= MaxTableCols+2; n++ {
+		got := len(Scan(row(n) + "\n" + delim(n)).Tables)
+		if want := map[bool]int{true: 1, false: 0}[n <= MaxTableCols]; got != want {
+			t.Errorf("%d columns: %d tables", n, got)
+		}
+	}
+	for _, body := range []string{"> | a |\n> | - |", "- | a |\n  | - |", "1. x\n\n   | a |\n   | - |"} {
+		if r := Scan(body); len(r.Tables) != 0 {
+			t.Errorf("%q: %+v", body, r.Tables)
+		}
+	}
+}
+
+// TestTableProperties: random table-shaped bodies never panic, cells keep
+// valid offsets, and every table has 1..MaxTableCols columns in every row.
+func TestTableProperties(t *testing.T) {
+	parts := []string{"|", "| ", " |", "-", ":", "a", "@bob", "https://x.example/", "\\|", "`", "[l](https://l.example)",
+		"\n", "\n", "\n\n", "> ", "- ", "   ", "\t", "é", "😀", "&amp;", "<https://q.example>", "***", "==="}
+	rapid.Check(t, func(t *rapid.T) {
+		var b strings.Builder
+		for _, p := range rapid.SliceOfN(rapid.SampledFrom(parts), 0, 60).Draw(t, "parts") {
+			b.WriteString(p)
+		}
+		body := "| h | i |\n|---|:-:|\n" + b.String()
+		r := Scan(body)
+		runes := []rune(body)
+		if len(r.Tables) == 0 {
+			t.Fatalf("no table in %q", body)
+		}
+		for _, tb := range r.Tables {
+			if len(tb.Align) < 1 || len(tb.Align) > MaxTableCols {
+				t.Fatalf("columns %d in %q", len(tb.Align), body)
+			}
+			for _, row := range tb.Rows {
+				if len(row) != len(tb.Align) {
+					t.Fatalf("row %v in %q", row, body)
+				}
+			}
+		}
+		for _, m := range r.Mentions {
+			if m.Offset < 0 || m.Offset >= len(runes) || runes[m.Offset] != '@' {
+				t.Fatalf("mention %+v in %q", m, body)
+			}
+		}
+		for _, l := range r.Links {
+			if l.Offset < 0 || l.Offset >= len(runes) {
+				t.Fatalf("link %+v in %q", l, body)
+			}
+		}
+	})
 }
 
 // TestOffsetsAreCodePoints: offsets index code points of the source, so the

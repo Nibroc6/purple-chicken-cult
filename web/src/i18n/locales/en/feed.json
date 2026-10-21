@@ -9,7 +9,8 @@
     "label": "Order",
     "latest": "Latest",
     "balanced": "Balanced",
-    "hint": "{preset, select, latest {Newest first within each step.} other {Newest first, nudged by what people in your network liked.}}"
+    "top": "Top",
+    "hint": "{preset, select, latest {Newest first within each step.} top {What people in your network liked most, within each step.} other {Newest first, nudged by what people in your network liked.}}"
   },
   "newAbove": {
     "banner": "{count, plural, one {# new post above} other {# new posts above}}"

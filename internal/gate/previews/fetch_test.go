@@ -1,6 +1,8 @@
 package previews
 
 import (
+	"net/url"
+	"strings"
 	"testing"
 	"time"
 )
@@ -25,12 +27,63 @@ func TestParseMeta(t *testing.T) {
 		{"script is not title", `<script>var t="<title>x</title>"</script><title>Real</title>`, "", "Real", ""},
 		{"nothing", `<p>text</p>`, "", "", ""},
 	} {
-		title, descr := parseMeta([]byte(c.html), "text/html", c.cs)
-		if title != c.title || descr != c.descr {
-			t.Errorf("%s: %q %q, want %q %q", c.name, title, descr, c.title, c.descr)
+		m := parseMeta([]byte(c.html), "text/html", c.cs)
+		if m.title != c.title || m.descr != c.descr {
+			t.Errorf("%s: %q %q, want %q %q", c.name, m.title, m.descr, c.title, c.descr)
 		}
 	}
 }
+
+func TestParseMetaImage(t *testing.T) {
+	for _, c := range []struct{ name, html, image string }{
+		{"og image", `<meta property="og:image" content="/a.png"><meta name="twitter:image" content="/b.png">`, "/a.png"},
+		{"twitter image", `<meta name="twitter:image" content="https://cdn.example/b.png">`, "https://cdn.example/b.png"},
+		{"first wins", `<meta property="og:image" content="1.png"><meta property="og:image" content="2.png">`, "1.png"},
+		{"none", `<title>T</title>`, ""},
+		{"in body ignored", `<head><title>T</title></head><body><meta property="og:image" content="x.png"></body>`, ""},
+	} {
+		if got := parseMeta([]byte(c.html), "text/html", "").image; got != c.image {
+			t.Errorf("%s: %q, want %q", c.name, got, c.image)
+		}
+	}
+}
+
+func TestImageURL(t *testing.T) {
+	page := mustParse(t, "https://news.example/a/b?id=1")
+	for raw, want := range map[string]string{
+		"/img/x.png":                         "https://news.example/img/x.png",
+		"x.png":                              "https://news.example/a/x.png",
+		"//cdn.example/x.png?utm_source=og":  "https://cdn.example/x.png",
+		"  https://CDN.example/x.png#frag  ": "https://cdn.example/x.png",
+		"http://cdn.example:80/x.png":        "http://cdn.example/x.png",
+		"javascript:alert(1)":                "",
+		"data:image/png;base64,AAAA":         "",
+		"https://user:pw@cdn.example/x.png":  "",
+		"ftp://cdn.example/x.png":            "",
+		"":                                   "",
+		"https://exa mple.com/x.png":         "",
+		"https://cdn.example/" + long(3000):  "",
+	} {
+		if got := imageURL(page, page, raw); got != want {
+			t.Errorf("%q: %q, want %q", raw, got, want)
+		}
+	}
+	// The final URL after redirects is the base.
+	if got := imageURL(mustParse(t, "https://moved.example/p/"), page, "i.png"); got != "https://moved.example/p/i.png" {
+		t.Error(got)
+	}
+}
+
+func mustParse(t *testing.T, s string) *url.URL {
+	t.Helper()
+	u, err := url.Parse(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return u
+}
+
+func long(n int) string { return strings.Repeat("a", n) }
 
 func TestLimiter(t *testing.T) {
 	l := newLimiter()

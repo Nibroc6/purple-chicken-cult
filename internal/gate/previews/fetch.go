@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"mime"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -18,10 +19,12 @@ import (
 	"github.com/Nibroc6/purple-chicken-cult/internal/platform/urlx"
 )
 
-// result is what a preview shows (ok) or that it failed.
+// result is what a preview shows (ok) or that it failed. image is the page's
+// og:image, canonical; it is fetched per post, never by viewers.
 type result struct {
 	ok           bool
 	title, descr string
+	image        string
 }
 
 // lookup answers from the cache, else fetches within the per-host limiter and
@@ -30,14 +33,17 @@ type result struct {
 func (s *Service) lookup(ctx context.Context, t target) result {
 	now := s.now()
 	var (
-		st           int16
-		title, descr *string
+		st                  int16
+		title, descr, image *string
 	)
-	err := s.d.DB.Q().QueryRow(ctx, `SELECT status, title, description FROM link_fetch_cache
-		WHERE url_canon = $1 AND expires_at > $2`, t.u.String(), now).Scan(&st, &title, &descr)
+	err := s.d.DB.Q().QueryRow(ctx, `SELECT status, title, description, image_url FROM link_fetch_cache
+		WHERE url_canon = $1 AND expires_at > $2`, t.u.String(), now).Scan(&st, &title, &descr, &image)
 	switch {
 	case err == nil:
-		return result{ok: st == statusOK && deref(title) != "", title: deref(title), descr: deref(descr)}
+		if st != statusOK || deref(title) == "" {
+			return result{}
+		}
+		return result{ok: true, title: deref(title), descr: deref(descr), image: deref(image)}
 	case !errors.Is(err, pgx.ErrNoRows):
 		s.log().Error("previews: cache read", "err", err.Error())
 		return result{}
@@ -50,12 +56,13 @@ func (s *Service) lookup(ctx context.Context, t target) result {
 	if r.ok {
 		st = statusOK
 	}
-	if _, err := s.d.DB.Q().Exec(ctx, `INSERT INTO link_fetch_cache (url_canon, status, title, description, site_host,
-		fetched_at, expires_at) VALUES ($1, $2, $3, $4, $5, $6, $7)
+	if _, err := s.d.DB.Q().Exec(ctx, `INSERT INTO link_fetch_cache (url_canon, status, title, description, image_url,
+		site_host, fetched_at, expires_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		ON CONFLICT (url_canon) DO UPDATE SET status = EXCLUDED.status, title = EXCLUDED.title,
-		description = EXCLUDED.description, site_host = EXCLUDED.site_host, fetched_at = EXCLUDED.fetched_at,
-		expires_at = EXCLUDED.expires_at`,
-		t.u.String(), st, nilIfEmpty(r.title), nilIfEmpty(r.descr), t.host, now, now.Add(CacheTTL)); err != nil {
+		description = EXCLUDED.description, image_url = EXCLUDED.image_url, site_host = EXCLUDED.site_host,
+		fetched_at = EXCLUDED.fetched_at, expires_at = EXCLUDED.expires_at`,
+		t.u.String(), st, nilIfEmpty(r.title), nilIfEmpty(r.descr), nilIfEmpty(r.image), t.host, now,
+		now.Add(CacheTTL)); err != nil {
 		s.log().Error("previews: cache write", "err", err.Error())
 	}
 	s.purge(ctx, now)
@@ -83,16 +90,46 @@ func (s *Service) fetchMeta(ctx context.Context, t target) result {
 	if err != nil {
 		return result{}
 	}
-	title, descr := parseMeta(res.Body, res.ContentType, res.Charset)
-	title, descr = urlx.CleanText(title, MaxTitle), urlx.CleanText(descr, MaxDescription)
-	return result{ok: title != "", title: title, descr: descr}
+	m := parseMeta(res.Body, res.ContentType, res.Charset)
+	title, descr := urlx.CleanText(m.title, MaxTitle), urlx.CleanText(m.descr, MaxDescription)
+	if title == "" {
+		return result{}
+	}
+	return result{ok: true, title: title, descr: descr, image: imageURL(res.FinalURL, t.u, m.image)}
 }
 
-// parseMeta reads the title and description of an HTML document:
+// imageURL resolves an og:image value against the page's final URL and
+// canonicalizes it (http(s) only, tracking parameters stripped); "" when it is
+// not usable. SSRF rules are applied again by safefetch when it is fetched.
+func imageURL(page, fallback *url.URL, raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	if page == nil {
+		page = fallback
+	}
+	ref, err := url.Parse(raw)
+	if err != nil {
+		return ""
+	}
+	u, err := urlx.Canonicalize(page.ResolveReference(ref).String())
+	if err != nil {
+		return ""
+	}
+	return u.String()
+}
+
+// pageMeta is what parseMeta reads from a document.
+type pageMeta struct {
+	title, descr, image string
+}
+
+// parseMeta reads the title, description and image of an HTML document:
 // og:title | twitter:title | <title>, og:description | twitter:description |
-// <meta name=description>. The document's charset (header, BOM or <meta>) is
-// honored.
-func parseMeta(body []byte, mediaType, cs string) (title, descr string) {
+// <meta name=description>, og:image | twitter:image. The document's charset
+// (header, BOM or <meta>) is honored.
+func parseMeta(body []byte, mediaType, cs string) pageMeta {
 	ct := mediaType
 	if cs != "" {
 		ct = mime.FormatMediaType(mediaType, map[string]string{"charset": cs})
@@ -104,12 +141,18 @@ func parseMeta(body []byte, mediaType, cs string) (title, descr string) {
 	found := map[string]string{}
 	var titleTag strings.Builder
 	inTitle, haveTitle := false, false
+	done := func() pageMeta {
+		return pageMeta{
+			title: pick(found, titleTag.String(), "og:title", "twitter:title"),
+			descr: pick(found, "", "og:description", "twitter:description", "description"),
+			image: pick(found, "", "og:image", "twitter:image"),
+		}
+	}
 	z := html.NewTokenizer(io.LimitReader(r, 2<<20))
 	for {
 		switch z.Next() {
 		case html.ErrorToken:
-			return pick(found, titleTag.String(), "og:title", "twitter:title"),
-				pick(found, "", "og:description", "twitter:description", "description")
+			return done()
 		case html.StartTagToken, html.SelfClosingTagToken:
 			name, hasAttr := z.TagName()
 			switch string(name) {
@@ -121,8 +164,7 @@ func parseMeta(body []byte, mediaType, cs string) (title, descr string) {
 				}
 			case "body":
 				if len(found) > 0 || haveTitle {
-					return pick(found, titleTag.String(), "og:title", "twitter:title"),
-						pick(found, "", "og:description", "twitter:description", "description")
+					return done()
 				}
 			}
 		case html.EndTagToken:
@@ -157,7 +199,8 @@ func meta(z *html.Tokenizer, found map[string]string) {
 		}
 	}
 	switch key {
-	case "og:title", "twitter:title", "og:description", "twitter:description", "description":
+	case "og:title", "twitter:title", "og:description", "twitter:description", "description", "og:image",
+		"twitter:image":
 		if _, dup := found[key]; !dup && hasContent && strings.TrimSpace(content) != "" {
 			found[key] = content
 		}

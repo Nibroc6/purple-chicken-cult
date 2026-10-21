@@ -169,7 +169,7 @@ func TestOpenRowMore(t *testing.T) {
 	}
 
 	// Problems about the caller's own input.
-	for _, p := range []string{"top", "nope"} {
+	for _, p := range []string{"nope", "Top"} {
 		rec := f.h.Do(http.MethodGet, q("/api/tree/"+f.ref("alice", "root"), "preset", p), nil)
 		if rec.Code != http.StatusUnprocessableEntity || !strings.Contains(rec.Body.String(), `"preset_unavailable"`) {
 			t.Fatalf("preset %s: %d %s", p, rec.Code, rec.Body)

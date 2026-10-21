@@ -98,8 +98,9 @@ func raw(s string) *json.RawMessage {
 	return &m
 }
 
-// Acceptance: settings reject translate_to not in languages and rank_preset
-// top; plus the rest of the settings validation.
+// Acceptance: settings reject translate_to not in languages and an unknown
+// rank_preset (top is accepted from P1-W08); plus the rest of the settings
+// validation.
 func TestUpdateSettingsValidation(t *testing.T) {
 	e := newEnv(t)
 	alice := e.w.User("alice")
@@ -112,7 +113,6 @@ func TestUpdateSettingsValidation(t *testing.T) {
 	}{
 		{"translate_to not in languages", gate.SettingsPatch{TranslateTo: ptr("de")}, "translate_to_not_in_languages"},
 		{"translate_to with other languages", gate.SettingsPatch{Languages: &[]string{"fr", "es"}, TranslateTo: ptr("de")}, "translate_to_not_in_languages"},
-		{"preset top (Phase 1)", gate.SettingsPatch{RankPreset: ptr("top")}, "preset_unavailable"},
 		{"preset unknown", gate.SettingsPatch{RankPreset: ptr("chronological")}, "preset_unavailable"},
 		{"locale not BCP-47", gate.SettingsPatch{UILocale: ptr("english please")}, "locale_invalid"},
 		{"language not BCP-47", gate.SettingsPatch{Languages: &[]string{"en", "xx-!!"}}, "lang_invalid"},
@@ -173,6 +173,9 @@ func TestUpdateSettingsValidation(t *testing.T) {
 	if m.Preset != core.PresetLatest || m.DisplayName != "Alice Ⅱ" || !m.NameInChains {
 		t.Fatalf("users cache not invalidated: %+v", m)
 	}
+	if sv, err := e.a.Account.UpdateSettings(ctx, gate.SettingsPatch{RankPreset: ptr("top")}); err != nil || sv.RankPreset != "top" {
+		t.Fatalf("top: %+v %v", sv, err)
+	}
 	// Dropping the translate_to language clears it; an empty translate_to clears it too.
 	sv, err = e.a.Account.UpdateSettings(ctx, gate.SettingsPatch{Languages: &[]string{"en"}})
 	if err != nil || sv.TranslateTo != "" {
@@ -198,10 +201,10 @@ func TestExportAndDeleteNeedFreshAuth(t *testing.T) {
 	if err := e.a.Account.Export(e.stale(alice), &buf); !errors.Is(err, gate.ErrStepUp) || buf.Len() != 0 {
 		t.Fatalf("stale export: %v", err)
 	}
-	if err := e.a.Account.Delete(e.stale(alice), "alice"); !errors.Is(err, gate.ErrStepUp) {
+	if err := e.a.Account.Delete(e.stale(alice), "alice", nil); !errors.Is(err, gate.ErrStepUp) {
 		t.Fatalf("stale delete: %v", err)
 	}
-	if err := e.a.Account.Delete(e.as(alice, time.Time{}), "alice"); !errors.Is(err, gate.ErrStepUp) {
+	if err := e.a.Account.Delete(e.as(alice, time.Time{}), "alice", nil); !errors.Is(err, gate.ErrStepUp) {
 		t.Fatalf("never verified: %v", err)
 	}
 	if err := e.a.Account.Export(e.ctx, &buf); !errors.Is(err, gate.ErrNotFound) {
@@ -241,8 +244,8 @@ func TestDeleteAccount(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	wantProblem(t, e.a.Account.Delete(e.fresh(alice), "bob"), "confirm_mismatch")
-	if err := e.a.Account.Delete(e.fresh(alice), " @Alice "); err != nil {
+	wantProblem(t, e.a.Account.Delete(e.fresh(alice), "bob", nil), "confirm_mismatch")
+	if err := e.a.Account.Delete(e.fresh(alice), " @Alice ", nil); err != nil {
 		t.Fatal(err)
 	}
 	if n := e.count("SELECT count(*) FROM sessions WHERE user_id = $1", int64(alice)); n != 0 {
@@ -251,7 +254,7 @@ func TestDeleteAccount(t *testing.T) {
 	if _, err := e.a.Account.Me(e.fresh(alice)); !errors.Is(err, gate.ErrNotFound) {
 		t.Fatalf("me after delete: %v", err)
 	}
-	if err := e.a.Account.Delete(e.fresh(alice), "alice"); !errors.Is(err, gate.ErrNotFound) {
+	if err := e.a.Account.Delete(e.fresh(alice), "alice", nil); !errors.Is(err, gate.ErrNotFound) {
 		t.Fatalf("second delete: %v", err)
 	}
 	if err := e.a.DrainJobs(e.ctx); err != nil {
@@ -376,14 +379,14 @@ func TestManualRecovery(t *testing.T) {
 		t.Fatalf("banner before approval: %v %v", at, err)
 	}
 	// The same moderator cannot approve twice; moderator 2 must be fresh.
-	wantProblem(t, e.a.Account.RecoveryApprove(e.fresh(mod1), id), "second_moderator_required")
-	if err := e.a.Account.RecoveryApprove(e.stale(mod2), id); !errors.Is(err, gate.ErrStepUp) {
+	wantProblem(t, e.a.Account.RecoveryApprove(e.fresh(mod1), id, nil), "second_moderator_required")
+	if err := e.a.Account.RecoveryApprove(e.stale(mod2), id, nil); !errors.Is(err, gate.ErrStepUp) {
 		t.Fatalf("stale approve: %v", err)
 	}
-	if err := e.a.Account.RecoveryApprove(e.fresh(member), id); !errors.Is(err, gate.ErrNotFound) {
+	if err := e.a.Account.RecoveryApprove(e.fresh(member), id, nil); !errors.Is(err, gate.ErrNotFound) {
 		t.Fatalf("member approve: %v", err)
 	}
-	if err := e.a.Account.RecoveryApprove(e.fresh(mod2), "garbage"); !errors.Is(err, gate.ErrNotFound) {
+	if err := e.a.Account.RecoveryApprove(e.fresh(mod2), "garbage", nil); !errors.Is(err, gate.ErrNotFound) {
 		t.Fatalf("bad id: %v", err)
 	}
 	if _, err := e.a.Account.RecoveryLink(e.fresh(mod1), id); err == nil {
@@ -391,10 +394,10 @@ func TestManualRecovery(t *testing.T) {
 	} else {
 		wantProblem(t, err, "recovery_held")
 	}
-	if err := e.a.Account.RecoveryApprove(e.fresh(mod2), id); err != nil {
+	if err := e.a.Account.RecoveryApprove(e.fresh(mod2), id, nil); err != nil {
 		t.Fatal(err)
 	}
-	wantProblem(t, e.a.Account.RecoveryApprove(e.fresh(mod2), id), "recovery_not_open")
+	wantProblem(t, e.a.Account.RecoveryApprove(e.fresh(mod2), id, nil), "recovery_not_open")
 	// Both moderators are recorded; friends are told; the account sees the banner.
 	var first, second int64
 	var secondAuth []byte
@@ -469,7 +472,7 @@ func TestManualRecovery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := e.a.Account.RecoveryApprove(e.fresh(mod1), id2); err != nil {
+	if err := e.a.Account.RecoveryApprove(e.fresh(mod1), id2, nil); err != nil {
 		t.Fatal(err)
 	}
 	if err := e.a.Account.RecoveryCancel(e.as(alice, time.Time{})); err != nil {
@@ -489,8 +492,8 @@ func TestManualRecovery(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.advance(25 * time.Hour)
-	wantProblem(t, e.a.Account.RecoveryApprove(e.fresh(mod2), id3), "recovery_expired")
-	wantProblem(t, e.a.Account.RecoveryApprove(e.fresh(mod2), id3), "recovery_not_open")
+	wantProblem(t, e.a.Account.RecoveryApprove(e.fresh(mod2), id3, nil), "recovery_expired")
+	wantProblem(t, e.a.Account.RecoveryApprove(e.fresh(mod2), id3, nil), "recovery_not_open")
 	// Cancelling with nothing pending is a no-op.
 	if err := e.a.Account.RecoveryCancel(e.fresh(alice)); err != nil {
 		t.Fatal(err)
@@ -513,7 +516,7 @@ func (e *env) approved(mod1, mod2, user core.UserID) gate.Ref {
 	if err != nil {
 		e.t.Fatal(err)
 	}
-	if err := e.a.Account.RecoveryApprove(e.fresh(mod2), id); err != nil {
+	if err := e.a.Account.RecoveryApprove(e.fresh(mod2), id, nil); err != nil {
 		e.t.Fatal(err)
 	}
 	return id
@@ -597,7 +600,7 @@ func TestDeleteEndsRecovery(t *testing.T) {
 	if _, err := e.a.Account.RecoveryLink(e.fresh(mod2), id); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.a.Account.Delete(e.fresh(alice), "alice"); err != nil {
+	if err := e.a.Account.Delete(e.fresh(alice), "alice", nil); err != nil {
 		t.Fatal(err)
 	}
 	if n := e.count("SELECT count(*) FROM enrollment_tokens WHERE user_id = $1 AND cancelled_at IS NULL", int64(alice)); n != 0 {
@@ -611,7 +614,7 @@ func TestDeleteEndsRecovery(t *testing.T) {
 	bob := e.w.User("bob")
 	id2 := e.approved(mod1, mod2, bob)
 	e.advance(account.HoldFor)
-	if err := e.a.Account.Delete(e.fresh(bob), "bob"); err != nil {
+	if err := e.a.Account.Delete(e.fresh(bob), "bob", nil); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := e.a.Account.RecoveryLink(e.fresh(mod2), id2); !errors.Is(err, gate.ErrNotFound) {
@@ -632,7 +635,7 @@ func TestDeleteEndsRecovery(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.exec("UPDATE users SET status = $2 WHERE id = $1", int64(carol), int16(core.StatusDeleted))
-	if err := e.a.Account.RecoveryApprove(e.fresh(mod2), id3); !errors.Is(err, gate.ErrNotFound) {
+	if err := e.a.Account.RecoveryApprove(e.fresh(mod2), id3, nil); !errors.Is(err, gate.ErrNotFound) {
 		t.Fatalf("approve on a deleted account: %v", err)
 	}
 	e.exec("UPDATE recovery_requests SET state = 3 WHERE user_id = $1", int64(carol))

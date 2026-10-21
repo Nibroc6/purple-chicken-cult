@@ -19,6 +19,7 @@ export interface DraftIn {
   refPolicy: RefPolicy;
   noPreview: boolean;
   parents: ParentIn[];
+  media: string[]; // refs of the caller's uploads (≤ 4); a thread attaches them to its first part
 }
 
 // postKey prefixes every post query (['post', ref]).
@@ -44,13 +45,19 @@ export async function fetchPost(ref: string): Promise<PostVM> {
 }
 
 export async function createPost(d: DraftIn): Promise<PostVM> {
-  return toPostVM(unwrap(await api.POST('/posts', { body: { body: d.body, lang: d.lang, ...shared(d) } })));
+  const media = d.media.length > 0 ? { media: d.media } : {};
+  return toPostVM(unwrap(await api.POST('/posts', { body: { body: d.body, lang: d.lang, ...media, ...shared(d) } })));
 }
 
 // createThread publishes parts as one continuation thread (one write).
 export async function createThread(d: DraftIn, parts: string[]): Promise<PostVM[]> {
   const out = unwrap(
-    await api.POST('/posts/thread', { body: { parts: parts.map((body) => ({ body, lang: d.lang })), ...shared(d) } }),
+    await api.POST('/posts/thread', {
+      body: {
+        parts: parts.map((body, i) => ({ body, lang: d.lang, ...(i === 0 && d.media.length > 0 ? { media: d.media } : {}) })),
+        ...shared(d),
+      },
+    }),
   );
   return out.items.map(toPostVM);
 }

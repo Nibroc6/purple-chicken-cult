@@ -28,7 +28,8 @@ function stubAPI(handler: (c: Call) => Response | undefined, meOver: Record<stri
   vi.stubGlobal(
     'fetch',
     vi.fn(async (req: Request) => {
-      const text = await req.clone().text();
+      const json_ = req.headers.get('Content-Type')?.includes('json') ?? false;
+      const text = json_ ? await req.clone().text() : '';
       const c = { method: req.method, path: new URL(req.url).pathname.replace(/^\/api/, ''), body: text ? (JSON.parse(text) as unknown) : undefined };
       calls.push(c);
       if (c.path === '/session') {
@@ -235,11 +236,80 @@ describe('compose page', () => {
     });
   });
 
+  it('offers the friend+ audience', async () => {
+    const calls = stubAPI((c) => (c.method === 'POST' && c.path === '/posts' ? json(201, postJSON({ audience: 'friend_plus' })) : undefined));
+    renderAt('/compose');
+    fireEvent.change(await screen.findByTestId('composer-body'), { target: { value: 'close friends' } });
+    fireEvent.change(screen.getByTestId('post-audience'), { target: { value: 'friend_plus' } });
+    fireEvent.click(screen.getByTestId('composer-publish'));
+    await screen.findByTestId('composer-published');
+    expect((calls.find((c) => c.method === 'POST')?.body as { audience: string }).audience).toBe('friend_plus');
+  });
+
+  it('attaches uploaded pictures in order, removes one, and sends their refs', async () => {
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: () => 'blob:x', revokeObjectURL: () => undefined }));
+    let n = 0;
+    const calls = stubAPI((c) => {
+      if (c.method === 'POST' && c.path === '/media') {
+        n++;
+        return json(201, { ref: `m${String(n)}`, w: 40, h: 30 });
+      }
+      if (c.path.endsWith('/url')) return json(200, { url: `/m/k${c.path}?e=1`, expires_at: '2099-01-01T00:00:00Z' });
+      if (c.method === 'POST' && c.path === '/posts') {
+        return json(201, postJSON({ media: [{ ref: 'm1', w: 40, h: 30 }, { ref: 'm3', w: 40, h: 30 }] }));
+      }
+      return undefined;
+    });
+    renderAt('/compose');
+    fireEvent.change(await screen.findByTestId('composer-body'), { target: { value: 'pictures' } });
+    const png = (name: string) => new File([new Uint8Array(4)], name, { type: 'image/png' });
+    fireEvent.change(screen.getByTestId('media-file'), { target: { files: [png('a.png'), png('b.png'), png('c.png')] } });
+    fireEvent.click(screen.getByTestId('media-upload'));
+    await waitFor(() => {
+      expect(screen.getAllByTestId('composer-media-item')).toHaveLength(3);
+    });
+    expect(screen.getByTestId('composer-media-count').textContent).toBe(tr('composer:media.attached', { count: 3 }));
+    fireEvent.click(screen.getAllByTestId('composer-media-remove')[1] as HTMLElement);
+    expect(screen.getAllByTestId('composer-media-item')).toHaveLength(2);
+    fireEvent.click(screen.getByTestId('composer-publish'));
+    await screen.findByTestId('composer-published');
+    expect((calls.find((c) => c.method === 'POST' && c.path === '/posts')?.body as { media: string[] }).media).toEqual(['m1', 'm3']);
+    expect(screen.getByTestId('post-preview-media').querySelectorAll('[data-testid=media-image]')).toHaveLength(2);
+  });
+
+  it('hides the picker once four pictures are attached', async () => {
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: () => 'blob:x', revokeObjectURL: () => undefined }));
+    let n = 0;
+    stubAPI((c) => {
+      if (c.method === 'POST' && c.path === '/media') return json(201, { ref: `m${String(++n)}`, w: 4, h: 3 });
+      if (c.path.endsWith('/url')) return json(200, { url: '/m/k?e=1', expires_at: '2099-01-01T00:00:00Z' });
+      return undefined;
+    });
+    renderAt('/compose');
+    await screen.findByTestId('composer-body');
+    const files = Array.from({ length: 5 }, (_, i) => new File([new Uint8Array(4)], `${String(i)}.png`, { type: 'image/png' }));
+    fireEvent.change(screen.getByTestId('media-file'), { target: { files } });
+    expect(screen.getAllByTestId('media-item')).toHaveLength(4);
+    fireEvent.click(screen.getByTestId('media-upload'));
+    await waitFor(() => {
+      expect(screen.getAllByTestId('composer-media-item')).toHaveLength(4);
+    });
+    expect(screen.queryByTestId('media-picker')).toBeNull();
+  });
+
   it('shows Problems from the post catalog', async () => {
     stubAPI((c) => (c.method === 'POST' ? json(409, { error: 'ref_cap', field: 'parents' }) : undefined));
     renderAt('/compose');
     fireEvent.change(await screen.findByTestId('composer-body'), { target: { value: 'x' } });
     fireEvent.click(screen.getByTestId('composer-publish'));
     expect(await screen.findByText(tr('post:errors.ref_cap'))).toBeTruthy();
+  });
+
+  it('localizes too_many_media', async () => {
+    stubAPI((c) => (c.method === 'POST' ? json(422, { error: 'too_many_media', field: 'media' }) : undefined));
+    renderAt('/compose');
+    fireEvent.change(await screen.findByTestId('composer-body'), { target: { value: 'x' } });
+    fireEvent.click(screen.getByTestId('composer-publish'));
+    expect(await screen.findByText(tr('post:errors.too_many_media'))).toBeTruthy();
   });
 });

@@ -27,6 +27,16 @@ function isPostVM(x: object): x is PostVM {
 // arrays only, so it works for any feature's cached view-models (feed pages,
 // tree rows, people's posts, a single post).
 export function patchLikes<T>(data: T, ref: string, likes: LikesVM): T {
+  return patchPost(data, ref, (p) => (p.likes === likes ? p : { ...p, likes }));
+}
+
+// patchSaved sets savedByMe on every cached PostVM whose ref is ref.
+export function patchSaved<T>(data: T, ref: string, saved: boolean): T {
+  return patchPost(data, ref, (p) => (p.savedByMe === saved ? p : { ...p, savedByMe: saved }));
+}
+
+// patchPost replaces every PostVM whose ref is ref with fn(post), the same way.
+export function patchPost<T>(data: T, ref: string, fn: (p: PostVM) => PostVM): T {
   const walk = (x: unknown, depth: number): unknown => {
     if (depth > 8 || x === null || typeof x !== 'object') return x;
     if (Array.isArray(x)) {
@@ -34,7 +44,7 @@ export function patchLikes<T>(data: T, ref: string, likes: LikesVM): T {
       return out.some((v, i) => v !== x[i]) ? out : x;
     }
     if (Object.getPrototypeOf(x) !== Object.prototype) return x; // Dates, Maps, class instances
-    if (isPostVM(x) && x.ref === ref) return { ...x, likes };
+    if (isPostVM(x) && x.ref === ref) return fn(x);
     let changed = false;
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(x)) {

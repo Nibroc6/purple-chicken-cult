@@ -85,7 +85,7 @@ func ParseTag(s string) (string, bool) {
 
 // UpdateSettings validates and applies a settings patch (nil fields are left
 // unchanged). Problems: display_name_invalid, locale_invalid, lang_invalid,
-// translate_to_not_in_languages, preset_unavailable (top in P0, or unknown),
+// translate_to_not_in_languages, preset_unavailable (unknown),
 // ui_prefs_invalid. An empty translate_to clears it; a languages patch that drops
 // the current translate_to clears it too.
 func (s *Service) UpdateSettings(ctx context.Context, p gate.SettingsPatch) (gate.SettingsView, error) {
@@ -180,7 +180,7 @@ func (s *Service) apply(r *settingsRow, p gate.SettingsPatch) error {
 	}
 	if p.RankPreset != nil {
 		pr, ok := core.ParsePreset(*p.RankPreset)
-		if !ok || pr == core.PresetTop { // top is Phase 1
+		if !ok {
 			return gate.NewProblem(gate.StatusUnprocessable, "preset_unavailable", "rank_preset")
 		}
 		r.preset = int16(pr)

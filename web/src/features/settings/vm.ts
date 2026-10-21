@@ -7,13 +7,13 @@ export type FormatChoice = 'cards' | 'compact' | 'explorer';
 export type Density = 'comfortable' | 'compact';
 export type Contrast = 'normal' | 'high';
 export type TextScale = 'small' | 'normal' | 'large' | 'xlarge';
-export type PresetChoice = 'latest' | 'balanced';
+export type PresetChoice = 'latest' | 'balanced' | 'top';
 
 export const formats: readonly FormatChoice[] = ['cards', 'compact', 'explorer'];
 export const densities: readonly Density[] = ['comfortable', 'compact'];
 export const contrasts: readonly Contrast[] = ['normal', 'high'];
 export const textScales: readonly TextScale[] = ['small', 'normal', 'large', 'xlarge'];
-export const presets: readonly PresetChoice[] = ['latest', 'balanced'];
+export const presets: readonly PresetChoice[] = ['latest', 'balanced', 'top'];
 
 // UIPrefs mirrors the server's ui_prefs schema (gate/account.UIPrefs).
 export interface UIPrefs {
@@ -93,7 +93,7 @@ export function translateOptions(languages: readonly string[]): string[] {
 }
 
 export function presetChoice(s: SettingsView): PresetChoice {
-  return s.rank_preset === 'latest' ? 'latest' : 'balanced';
+  return s.rank_preset === 'latest' || s.rank_preset === 'top' ? s.rank_preset : 'balanced';
 }
 
 // The account Problem codes localized in the account namespace.

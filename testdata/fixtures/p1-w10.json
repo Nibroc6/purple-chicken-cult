@@ -1,0 +1,28 @@
+{
+  "users": [
+    {
+      "handle": "pat",
+      "name": "Pat",
+      "age": "2160h"
+    }
+  ],
+  "friends": [
+    {
+      "a": "alice",
+      "b": "gina",
+      "level": "friend_plus",
+      "age": "720h"
+    },
+    {
+      "a": "alice",
+      "b": "gus",
+      "level": "friend_plus",
+      "age": "720h"
+    },
+    {
+      "a": "alice",
+      "b": "pat",
+      "age": "720h"
+    }
+  ]
+}

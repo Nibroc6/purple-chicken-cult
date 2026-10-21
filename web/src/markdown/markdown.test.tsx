@@ -2,10 +2,11 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import sharedHosts from '../../../testdata/markdown/hosts.json';
 import scanFixtures from '../../../testdata/markdown/scan.json';
+import tableFixtures from '../../../testdata/markdown/tables.json';
 import sharedTracking from '../../../testdata/tracking-params.json';
 import { asRef, type PreviewVM } from '../vm/types';
 import { displayHost, safeLink, stripTracking } from './host';
-import { CODE_FOLD_LINES, extract, LinkPreview, Markdown, parse, type MentionRef } from './index';
+import { CODE_FOLD_LINES, extract, LinkPreview, Markdown, parse, tables, type MentionRef } from './index';
 import tracking from './tracking-params.json';
 
 function show(body: string, mentions?: MentionRef[]) {
@@ -25,6 +26,19 @@ describe('shared fixtures with the server (testdata/markdown)', () => {
     }
   });
 
+  it('finds exactly the tables, links and mentions mdscan finds in the table corpus', () => {
+    expect(tableFixtures.cases.length).toBeGreaterThanOrEqual(40);
+    for (const c of tableFixtures.cases) {
+      const d = parse(c.body);
+      expect({ name: c.name, links: d.links, mentions: d.mentions, tables: tables(d) }).toEqual({
+        name: c.name,
+        links: c.links.map((l) => ({ raw: l.raw, noPreview: l.no_preview })),
+        mentions: c.mentions.map((m) => ({ handle: m.handle, ord: m.ord })),
+        tables: c.tables,
+      });
+    }
+  });
+
   it('decodes hosts and flags mixed scripts like urlx', () => {
     for (const c of sharedHosts.cases) {
       expect({ host: c.host, ...displayHost(c.host) }).toEqual({ host: c.host, unicode: c.unicode, lookalike: c.lookalike });
@@ -33,6 +47,55 @@ describe('shared fixtures with the server (testdata/markdown)', () => {
 
   it('embeds the shared tracking-parameter list', () => {
     expect(tracking).toEqual(sharedTracking);
+  });
+});
+
+describe('tables', () => {
+  it('renders a header row, body rows, alignments and inline content', () => {
+    const el = show('| Who | Link | n |\n|:--|:-:|--:|\n| **Ana** | https://a.example | 3 |\n| Bo |');
+    const table = el.querySelector('[data-testid="md-table"] table');
+    expect(table).not.toBeNull();
+    const ths = [...el.querySelectorAll('thead th')];
+    expect(ths.map((th) => th.textContent)).toEqual(['Who', 'Link', 'n']);
+    expect(ths.map((th) => th.getAttribute('scope'))).toEqual(['col', 'col', 'col']);
+    expect(ths.map((th) => th.getAttribute('data-align'))).toEqual(['left', 'center', 'right']);
+    const rows = [...el.querySelectorAll('tbody tr')];
+    expect(rows.map((r) => [...r.querySelectorAll('td')].map((td) => td.textContent))).toEqual([
+      ['Ana', 'https://a.example', '3'],
+      ['Bo', '', ''],
+    ]);
+    expect(rows[0]?.querySelector('td strong')?.textContent).toBe('Ana');
+    expect(rows[0]?.querySelector('td a')?.getAttribute('rel')).toBe('noopener noreferrer nofollow ugc');
+    const wrap = el.querySelector('[data-testid="md-table"]');
+    expect(wrap?.getAttribute('tabindex')).toBe('0');
+    expect(wrap?.getAttribute('role')).toBe('region');
+    expect(wrap?.getAttribute('aria-label')).toBeTruthy();
+  });
+
+  it('keeps over-wide, nested and pipe-less tables as text', () => {
+    const wide = `|${' c |'.repeat(11)}\n|${'-|'.repeat(11)}`;
+    for (const body of [wide, '> | a |\n> | - |', '- | a |\n  | - |', 'a | b\n--- | ---']) {
+      const el = show(body);
+      expect(el.querySelectorAll('table')).toHaveLength(0);
+      expect(el.textContent).toContain('|');
+    }
+    expect(show(`|${' c |'.repeat(10)}\n|${'-|'.repeat(10)}`).querySelectorAll('thead th')).toHaveLength(10);
+  });
+
+  it('numbers mentions through table cells in document order', () => {
+    const d = parse('@one\n\n| @two | x |\n| - | - |\n| @three | y |\n\n@four', [
+      { ord: 0, ref: 'r0' },
+      { ord: 2, ref: 'r2' },
+    ]);
+    expect(d.mentions.map((m) => m.handle)).toEqual(['one', 'two', 'three', 'four']);
+    const el = render(<Markdown doc={d} />).container;
+    expect([...el.querySelectorAll('[data-testid="md-mention"]')].map((a) => a.textContent)).toEqual(['@one', '@three']);
+  });
+
+  it('renders raw HTML in cells as text', () => {
+    const el = show('| <img src=x onerror=alert(1)> |\n| - |');
+    expect(el.querySelectorAll('img')).toHaveLength(0);
+    expect(el.querySelector('th')?.textContent).toBe('<img src=x onerror=alert(1)>');
   });
 });
 

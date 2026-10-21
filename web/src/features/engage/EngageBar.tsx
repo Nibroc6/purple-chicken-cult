@@ -1,4 +1,4 @@
-// The like summary and the like / hide / show-less controls of one post. Pure
+// The like summary and the like / save / hide / show-less controls of one post. Pure
 // over the view-model and PostActions (no API import), so any layout can use
 // it. Once hidden in this session the post collapses to a notice.
 // Owner: P0-W06 → P1-W08.
@@ -83,6 +83,19 @@ export function EngageBar({ post, actions }: { post: PostVM; actions: PostAction
         >
           {post.likes.byMe ? t('like.undo') : t('like.action')}
         </button>
+        {actions.save ? (
+          <button
+            type="button"
+            data-testid="engage-save"
+            aria-pressed={post.savedByMe}
+            title={t('save.private')}
+            onClick={() => {
+              actions.save?.(post.ref, !post.savedByMe);
+            }}
+          >
+            {post.savedByMe ? t('save.undo') : t('save.action')}
+          </button>
+        ) : null}
         {post.mine ? null : (
           <>
             <button

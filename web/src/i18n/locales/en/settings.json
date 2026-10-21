@@ -41,7 +41,8 @@
       "legend": "Feed order",
       "latest": "Latest first",
       "balanced": "Balanced",
-      "help": "Both orders only ever show people in your network."
+      "top": "Top",
+      "help": "Every order only ever shows people in your network."
     }
   },
   "languages": {
@@ -95,6 +96,7 @@
     "warning": "This removes all your posts and friendships and signs you out everywhere. It cannot be undone, and your handle can never be used again.",
     "confirmLabel": "Type your handle ({handle}) to confirm",
     "button": "Delete my account",
-    "working": "Deleting…"
+    "working": "Deleting…",
+    "summary": "Delete the account {handle}"
   }
 }

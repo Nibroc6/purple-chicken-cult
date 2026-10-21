@@ -2,6 +2,7 @@ package account
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strconv"
 	"strings"
@@ -11,20 +12,26 @@ import (
 
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/internal/core"
+	"github.com/Nibroc6/purple-chicken-cult/internal/platform/sigs"
 )
 
 type deletePayload struct {
 	User int64 `json:"user"`
 }
 
-// Notification kind sent to friends on account deletion and recovery.
-const notifyFriendSecurity = "friend_security"
+// Notification kinds: friends are told about deletions and recoveries, the
+// account's other guardians about a recovery waiting for their approval.
+const (
+	notifyFriendSecurity   = "friend_security"
+	notifyRecoveryApproval = "recovery_approval"
+)
 
 // Delete deletes the viewer's account (fresh step-up; confirmHandle must name
-// the account). The account stops working at once — status deleted, every
-// session revoked, any pending recovery cancelled — and the account.delete job
-// does the fan-out. Problem confirm_mismatch.
-func (s *Service) Delete(ctx context.Context, confirmHandle string) error {
+// the account; a passkey session co-signs the AccountDelete record, P1-W10).
+// The account stops working at once — status deleted, every session revoked,
+// any pending recovery cancelled — and the account.delete job does the
+// fan-out. Problem confirm_mismatch.
+func (s *Service) Delete(ctx context.Context, confirmHandle string, c *Cosig) error {
 	v, err := core.RequireFresh(ctx, s.d.Clock.Now())
 	if err != nil {
 		return err
@@ -48,6 +55,21 @@ func (s *Service) Delete(ctx context.Context, confirmHandle string) error {
 		typed := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(confirmHandle), "@"))
 		if typed != canon {
 			return gate.NewProblem(gate.StatusUnprocessable, "confirm_mismatch", "confirm_handle")
+		}
+		sg, err := s.verify(ctx, tx, v, PurposeAccountDelete, core.RecAccountDelete, c)
+		if err != nil {
+			return err
+		}
+		m, err := s.d.Users.Get(ctx, v.ID)
+		if err != nil {
+			return err
+		}
+		if err := s.sign(ctx, tx, core.RecAccountDelete, v.ID, deleteBody{User: m.ExtID, At: sigs.T(now)},
+			[]core.UserID{v.ID}, sg, func(rec []byte) bool {
+				var b deleteBody
+				return json.Unmarshal(rec, &b) == nil && b.User == m.ExtID
+			}); err != nil {
+			return err
 		}
 		if _, err := tx.Exec(ctx, "UPDATE users SET status = $2, deleted_at = $3 WHERE id = $1",
 			int64(v.ID), int16(core.StatusDeleted), now); err != nil {

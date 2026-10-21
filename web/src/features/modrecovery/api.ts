@@ -1,6 +1,7 @@
 // Manual recovery API (moderators; plan §5.3 accountapi). Owner: P0-W11 → P1-W10.
 import { api, unwrap } from '../../api/client';
 import { ApiError, errorKey } from '../../api/errors';
+import type { CosignResult } from '../cosign';
 
 // openRecovery opens a recovery for subject (a moderator-scoped account ref)
 // and returns the request ID every moderator can use.
@@ -8,8 +9,13 @@ export async function openRecovery(subject: string): Promise<string> {
   return unwrap(await api.POST('/mod/recovery', { body: { subject } })).id;
 }
 
-export async function approveRecovery(id: string): Promise<void> {
-  const res = await api.POST('/mod/recovery/{id}/approve', { params: { path: { id } } });
+// approveRecovery is the second moderator's approval, co-signed (the
+// RecoveryApproval record) when the session has a passkey (P1).
+export async function approveRecovery(id: string, cosig?: CosignResult): Promise<void> {
+  const res = await api.POST('/mod/recovery/{id}/approve', {
+    params: { path: { id } },
+    ...(cosig ? { body: { intent: cosig.intent, assertion: cosig.assertion } } : {}),
+  });
   if (!res.response.ok) throw new ApiError(res.response.status, res.error);
 }
 
