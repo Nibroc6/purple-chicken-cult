@@ -38,7 +38,9 @@ const (
 
 const (
 	kindManual        int16 = 0
+	kindGuardian      int16 = 1
 	roleModerator     int16 = 0
+	roleGuardian      int16 = 1
 	purposeRecovery   uint8 = 1
 	modReasonRecovery       = "other"
 )
@@ -99,11 +101,15 @@ func (s *Service) RecoveryRequest(ctx context.Context, subject gate.Ref) (gate.R
 type recoveryRow struct {
 	id            uuid.UUID
 	user          core.UserID
+	kind          int16
 	state         int16
 	createdAt     time.Time
 	releaseAt     *time.Time
+	tokenHash     []byte
 	tokenIssued   bool
 	revokeOld     bool
+	handshake     *uuid.UUID
+	vouchedAt     *time.Time
 	first, second core.UserID
 	firstAuth     *time.Time
 	approvals     int
@@ -131,21 +137,47 @@ func subjectLive(ctx context.Context, tx store.Q, user core.UserID) error {
 // subject's users row (the lock order Delete uses) and answers ErrNotFound
 // when the subject account has been deleted.
 func loadRecovery(ctx context.Context, tx store.Q, id uuid.UUID) (recoveryRow, error) {
+	r, err := loadAny(ctx, tx, id, true)
+	if err == nil && r.kind != kindManual {
+		return r, gate.ErrNotFound
+	}
+	return r, err
+}
+
+// loadAny loads recovery request id of either kind with its approvals (the
+// moderators of a manual request, the guardians of a guardian request, oldest
+// first). With lock it share-locks the subject's users row first (the lock
+// order Delete uses), then locks the request. A deleted subject is ErrNotFound.
+func loadAny(ctx context.Context, q store.Q, id uuid.UUID, lock bool) (recoveryRow, error) {
 	r := recoveryRow{id: id}
 	var user int64
-	err := tx.QueryRow(ctx, "SELECT user_id FROM recovery_requests WHERE id = $1 AND kind = $2", id, kindManual).Scan(&user)
+	err := q.QueryRow(ctx, "SELECT user_id FROM recovery_requests WHERE id = $1", id).Scan(&user)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return r, gate.ErrNotFound
 	}
 	if err != nil {
 		return r, err
 	}
-	if err := subjectLive(ctx, tx, core.UserID(user)); err != nil {
+	if lock {
+		err = subjectLive(ctx, q, core.UserID(user))
+	} else {
+		var status int16
+		if err = q.QueryRow(ctx, "SELECT status FROM users WHERE id = $1", user).Scan(&status); err == nil &&
+			status == int16(core.StatusDeleted) {
+			err = gate.ErrNotFound
+		}
+	}
+	if err != nil {
 		return r, err
 	}
-	err = tx.QueryRow(ctx, `SELECT user_id, state, created_at, release_at, enrollment_token IS NOT NULL, revoke_old
-		FROM recovery_requests WHERE id = $1 AND kind = $2 FOR UPDATE`, id, kindManual).
-		Scan(&user, &r.state, &r.createdAt, &r.releaseAt, &r.tokenIssued, &r.revokeOld)
+	sql := `SELECT user_id, kind, state, created_at, release_at, enrollment_token, revoke_old, handshake, vouched_at
+		FROM recovery_requests WHERE id = $1`
+	if lock {
+		sql = `SELECT user_id, kind, state, created_at, release_at, enrollment_token, revoke_old, handshake, vouched_at
+		FROM recovery_requests WHERE id = $1 FOR UPDATE`
+	}
+	err = q.QueryRow(ctx, sql, id).Scan(&user, &r.kind, &r.state, &r.createdAt, &r.releaseAt, &r.tokenHash, &r.revokeOld,
+		&r.handshake, &r.vouchedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return r, gate.ErrNotFound
 	}
@@ -153,8 +185,13 @@ func loadRecovery(ctx context.Context, tx store.Q, id uuid.UUID) (recoveryRow, e
 		return r, err
 	}
 	r.user = core.UserID(user)
-	rows, err := tx.Query(ctx, `SELECT approver_id, auth_at FROM recovery_approvals
-		WHERE request_id = $1 AND role = $2 ORDER BY at, approver_id`, id, roleModerator)
+	r.tokenIssued = r.tokenHash != nil
+	role := roleModerator
+	if r.kind == kindGuardian {
+		role = roleGuardian
+	}
+	rows, err := q.Query(ctx, `SELECT approver_id, auth_at FROM recovery_approvals
+		WHERE request_id = $1 AND role = $2 ORDER BY at, approver_id`, id, role)
 	if err != nil {
 		return r, err
 	}
@@ -177,10 +214,11 @@ func loadRecovery(ctx context.Context, tx store.Q, id uuid.UUID) (recoveryRow, e
 }
 
 // RecoveryApprove is the second moderator's approval (≠ the first, fresh
-// step-up). It starts the 24 h hold, records the two-person action and tells
-// the account's friends. Problems second_moderator_required, recovery_self,
-// recovery_not_open, recovery_expired.
-func (s *Service) RecoveryApprove(ctx context.Context, id gate.Ref) error {
+// step-up), co-signed with a passkey from a passkey session (P1-W10: the
+// RecoveryApproval record). It starts the 24 h hold, records the two-person
+// action and tells the account's friends. Problems second_moderator_required,
+// recovery_self, recovery_not_open, recovery_expired.
+func (s *Service) RecoveryApprove(ctx context.Context, id gate.Ref, c *Cosig) error {
 	v, err := s.freshModerator(ctx)
 	if err != nil {
 		return err
@@ -211,8 +249,26 @@ func (s *Service) RecoveryApprove(ctx context.Context, id gate.Ref) error {
 		if r.user == v.ID {
 			return gate.NewProblem(gate.StatusConflict, "recovery_self")
 		}
-		if _, err := tx.Exec(ctx, `INSERT INTO recovery_approvals (request_id, approver_id, role, at, auth_at)
-			VALUES ($1, $2, $3, $4, $5)`, rid, int64(v.ID), roleModerator, now, v.AuthAt); err != nil {
+		sg, err := s.verify(ctx, tx, v, PurposeRecoveryApprove, core.RecRecoveryApproval, c)
+		if err != nil {
+			return err
+		}
+		body, err := s.approval(ctx, r, v.ID, methodModerators)
+		if err != nil {
+			return err
+		}
+		if err := s.sign(ctx, tx, core.RecRecoveryApproval, v.ID, body, []core.UserID{r.user, r.first, v.ID}, sg,
+			func(rec []byte) bool { return sameApproval(rec, body) }); err != nil {
+			return err
+		}
+		var asr []byte
+		if sg != nil {
+			if asr, err = json.Marshal(assertionJSON(sg.a)); err != nil {
+				return err
+			}
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO recovery_approvals (request_id, approver_id, role, at, auth_at, assertion)
+			VALUES ($1, $2, $3, $4, $5, $6)`, rid, int64(v.ID), roleModerator, now, v.AuthAt, asr); err != nil {
 			return err
 		}
 		if _, err := tx.Exec(ctx, "UPDATE recovery_requests SET state = $2, release_at = $3 WHERE id = $1",
@@ -220,7 +276,7 @@ func (s *Service) RecoveryApprove(ctx context.Context, id gate.Ref) error {
 			return err
 		}
 		secondAuth, err := json.Marshal(map[string]any{"at": now.UTC(), "auth_at": v.AuthAt.UTC(),
-			"first_auth_at": r.firstAuth})
+			"first_auth_at": r.firstAuth, "cosigned": sg != nil})
 		if err != nil {
 			return err
 		}
@@ -230,13 +286,7 @@ func (s *Service) RecoveryApprove(ctx context.Context, id gate.Ref) error {
 			s.d.IDs.New(), int64(r.first), int64(v.ID), int64(r.user), modReasonRecovery, secondAuth, r.createdAt, now); err != nil {
 			return err
 		}
-		for _, f := range s.d.Graph.Friends(r.user) {
-			if err := s.d.Notify.Notify(ctx, tx, core.Event{To: f.To, Kind: notifyFriendSecurity, SubjectUser: r.user,
-				Data: map[string]any{"reason": "recovery_pending"}}); err != nil {
-				return err
-			}
-		}
-		return nil
+		return s.notifyPending(ctx, tx, r.user)
 	})
 	if err != nil {
 		return err

@@ -1,5 +1,6 @@
-// Account deletion (§10.2): fresh step-up plus typing the handle. The server
-// signs every session out at once; the client drops its session and goes home.
+// Account deletion (§10.2): fresh step-up plus typing the handle; a passkey
+// session also signs the AccountDelete record (P1). The server signs every
+// session out at once; the client drops its session and goes home.
 // Owner: P0-W11 → P1-W10.
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useId, useState, type SyntheticEvent } from 'react';
@@ -7,7 +8,8 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 import { setCSRF } from '../../api/client';
 import type { MeView } from '../../app/session';
-import { deleteAccount } from './api';
+import { requestCosign } from '../cosign';
+import { deleteAccount, sessionCosigns } from './api';
 import { ErrorText, SettingsShell } from './shared';
 import { handleMatches } from './vm';
 
@@ -18,8 +20,19 @@ function DeleteForm({ me }: { me: MeView }) {
   const navigate = useNavigate();
   const [typed, setTyped] = useState('');
   const run = useMutation({
-    mutationFn: () => deleteAccount(typed.trim()),
-    onSuccess: async () => {
+    // A cancelled co-sign dialog deletes nothing.
+    mutationFn: async () => {
+      if (await sessionCosigns()) {
+        const c = await requestCosign({ purpose: 'account_delete', summary: t('delete.summary', { handle: `@${me.handle}` }) });
+        if (!c) return false;
+        await deleteAccount(typed.trim(), c);
+      } else {
+        await deleteAccount(typed.trim());
+      }
+      return true;
+    },
+    onSuccess: async (done) => {
+      if (!done) return;
       setCSRF(undefined);
       await qc.resetQueries();
       await navigate('/', { replace: true });
