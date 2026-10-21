@@ -109,3 +109,9 @@
   margin: 0;
   flex-basis: 100%;
 }
+
+.post-preview-media {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

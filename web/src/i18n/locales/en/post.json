@@ -17,7 +17,8 @@
     "connected": "Everyone connected to you",
     "d1": "Friends only",
     "d2": "Within 2 steps",
-    "d3": "Within 3 steps"
+    "d3": "Within 3 steps",
+    "friend_plus": "Friend+ only (people you met in person)"
   },
   "policy": {
     "anyone": "Anyone who can see it",
@@ -77,6 +78,7 @@
     "ref_not_allowed": "Its author turned replies off for you.",
     "ref_cap": "You already replied to that post twice today.",
     "too_many_parts": "A thread can have at most 25 parts.",
-    "cont_not_detachable": "Continuations of your own thread can't be detached."
+    "cont_not_detachable": "Continuations of your own thread can't be detached.",
+    "too_many_media": "A post can have at most 4 pictures."
   }
 }

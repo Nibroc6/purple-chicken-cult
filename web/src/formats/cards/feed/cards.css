@@ -104,3 +104,22 @@
 .feed-more {
   margin-block: var(--space-4);
 }
+
+/* Attached pictures and preview images (P1-W12). */
+.post-media,
+.post-preview-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-block: var(--space-2);
+}
+
+.post-media-display .media-image {
+  max-block-size: 32rem;
+  object-fit: contain;
+}
+
+.post-media-display:has(> :nth-child(2)) > * {
+  flex: 1 1 calc(50% - var(--space-2));
+  min-inline-size: 0;
+}
