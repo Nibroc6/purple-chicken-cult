@@ -1,0 +1,47 @@
+{
+  "$comment": "Theme presets (P1-W09). Each one passes gate/themes.Validate (themes_test.go reads this file) and INT-1's Playwright contrast pass runs over every one.",
+  "presets": [
+    {
+      "id": "violet",
+      "tokens": {
+        "colors": { "bg": "#fbfaff", "surface": "#ffffff", "text": "#1b1530", "muted": "#5c5470", "accent": "#6b2fd6", "border": "#e3dcf3", "integrity_bg": "#efe8ff", "integrity_text": "#2c1470" },
+        "radius": 12, "density": "comfortable", "font": "system", "font_size": 16
+      }
+    },
+    {
+      "id": "night",
+      "tokens": {
+        "colors": { "bg": "#120e1c", "surface": "#1b1529", "text": "#f1edfa", "muted": "#b3a9c9", "accent": "#b892ff", "border": "#2f2742", "integrity_bg": "#2a1d4d", "integrity_text": "#e9e0ff" },
+        "radius": 12, "density": "comfortable", "font": "system", "font_size": 16
+      }
+    },
+    {
+      "id": "paper",
+      "tokens": {
+        "colors": { "bg": "#f7f3ea", "surface": "#fffdf8", "text": "#2b2620", "muted": "#5f574b", "accent": "#8a3b12", "border": "#e4dccb", "integrity_bg": "#efe5d0", "integrity_text": "#4a2a05" },
+        "radius": 4, "density": "comfortable", "font": "serif", "font_size": 17
+      }
+    },
+    {
+      "id": "forest",
+      "tokens": {
+        "colors": { "bg": "#eef4ef", "surface": "#ffffff", "text": "#14261a", "muted": "#4a5d50", "accent": "#1f6b3a", "border": "#cfdfd3", "integrity_bg": "#dcefe1", "integrity_text": "#0f3b1f" },
+        "radius": 16, "density": "spacious", "font": "humanist", "font_size": 16
+      }
+    },
+    {
+      "id": "ocean",
+      "tokens": {
+        "colors": { "bg": "#0b1622", "surface": "#12212f", "text": "#e6f0f7", "muted": "#a3b6c6", "accent": "#6cc4ff", "border": "#213447", "integrity_bg": "#173550", "integrity_text": "#dff1ff" },
+        "radius": 8, "density": "compact", "font": "rounded", "font_size": 15
+      }
+    },
+    {
+      "id": "clear",
+      "tokens": {
+        "colors": { "bg": "#ffffff", "surface": "#ffffff", "text": "#000000", "muted": "#333333", "accent": "#0040c0", "border": "#000000", "integrity_bg": "#fff2a8", "integrity_text": "#000000" },
+        "radius": 2, "density": "spacious", "font": "hyperlegible", "font_size": 18
+      }
+    }
+  ]
+}
