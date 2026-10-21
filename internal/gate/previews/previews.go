@@ -1,5 +1,5 @@
-// Package previews builds text-only link previews server-side, per post, after a
-// fixed delay bucket (ARCHITECTURE §10.1.6, plan §4.7 previews).
+// Package previews builds link previews server-side, per post, after a fixed
+// delay bucket (ARCHITECTURE §10.1.6, plan §4.7 previews).
 //
 // Job preview.fetch{post} (enqueued by gate/posts on create and edit, unless the
 // author turned previews off) takes the first MaxPerPost http(s) links that
@@ -11,6 +11,16 @@
 // twitter:description | meta description) go through urlx.CleanText (≤ 200 code
 // points each) into the post's own link_previews rows. Viewers never contact
 // the target site; the API never accepts preview data from clients.
+//
+// Preview images (P1): the page's og:image | twitter:image (resolved against
+// the final URL, canonical; cached with the page) is fetched by the server
+// with safefetch.GetImage (same SSRF policy, raster image types only, at most
+// MaxImageBytes, within the per-host limiter) and handed to Media.Ingest, which
+// runs the same CSAM scan as an upload. A clean image's media id goes to
+// link_previews.image_media_id; every post ingests its own copy (media
+// source_post), so deleting a post deletes its image. A matched image is held
+// and queued by Ingest and the preview shows no image; with media disabled no
+// image is fetched at all.
 //
 // Timing (fidelity #23): a row's ready_at is always a fixed bucket from the
 // version's time t (created_at, or edited_at for an edit): t+PreviewDelay when
@@ -190,6 +200,10 @@ func (s *Service) Build(ctx context.Context, id core.PostID) error {
 	}
 	for i, t := range ts {
 		r := s.lookup(ctx, t)
+		var img uuid.UUID
+		if r.ok {
+			img = s.image(ctx, id, r.image)
+		}
 		done := s.now()
 		status, ready := statusOK, b1
 		switch {
@@ -201,16 +215,23 @@ func (s *Service) Build(ctx context.Context, id core.PostID) error {
 		default:
 			status = statusFailed
 		}
-		var title, descr *string
+		var (
+			title, descr *string
+			image        *uuid.UUID
+		)
 		if status == statusOK {
 			title = &r.title
 			if r.descr != "" {
 				descr = &r.descr
 			}
+			if img != uuid.Nil {
+				image = &img
+			}
 		}
 		if _, err := s.d.DB.Q().Exec(ctx, `UPDATE link_previews SET status = $4, title = $5, description = $6,
-			fetched_at = $7, ready_at = $8 WHERE post_id = $1 AND ord = $2 AND url_canon = $3 AND status = $9`,
-			id, int16(i), t.u.String(), status, title, descr, done, ready, statusPending); err != nil { //nolint:gosec // i < MaxPerPost
+			image_media_id = $10, fetched_at = $7, ready_at = $8
+			WHERE post_id = $1 AND ord = $2 AND url_canon = $3 AND status = $9`,
+			id, int16(i), t.u.String(), status, title, descr, done, ready, statusPending, image); err != nil { //nolint:gosec // i < MaxPerPost
 			return err
 		}
 	}
