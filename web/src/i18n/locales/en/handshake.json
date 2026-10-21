@@ -1,1 +1,20 @@
-{}
+{
+  "check": {
+    "title": "Sound check",
+    "body": "The in-person handshake uses one short sound with two layers: a jingle you can hear and a high tone most people can't. Use this page to check that this device can play the sound and hear it from another phone. Nothing is recorded: the sound is decoded on this device and then forgotten.",
+    "play": "Play the sound",
+    "playing": "Playing…",
+    "played": "Played the tune with code {code}. Listen on the other device and compare the codes.",
+    "playQuiet": "Play only the high tone (quiet mode)",
+    "listen": "Listen",
+    "listening": "Listening for up to 15 seconds. Play the sound on the other device now.",
+    "heardJingle": "Heard the jingle (code {code}).",
+    "heardUltra": "Heard the high tone (code {code}).",
+    "missedJingle": "Didn't hear the jingle.",
+    "missedUltra": "Didn't hear the high tone. Some phones can't play or hear it; the jingle still works.",
+    "volumeLow": "The sound was faint. Turn the volume up on the playing device and hold the phones closer.",
+    "nothing": "Didn't hear the sound. Turn the volume up on the playing device and try again.",
+    "noMic": "This device can't use its microphone. Allow microphone access for this site and try again.",
+    "noAudio": "This device can't play sound right now."
+  }
+}
