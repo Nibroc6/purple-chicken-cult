@@ -3,13 +3,13 @@ import { ApiError, errorKey } from '../../api/errors';
 import type { A11yPrefs } from '../../lib/a11y';
 import type { SettingsView } from './api';
 
-export type FormatChoice = 'cards' | 'compact';
+export type FormatChoice = 'cards' | 'compact' | 'explorer';
 export type Density = 'comfortable' | 'compact';
 export type Contrast = 'normal' | 'high';
 export type TextScale = 'small' | 'normal' | 'large' | 'xlarge';
 export type PresetChoice = 'latest' | 'balanced';
 
-export const formats: readonly FormatChoice[] = ['cards', 'compact'];
+export const formats: readonly FormatChoice[] = ['cards', 'compact', 'explorer'];
 export const densities: readonly Density[] = ['comfortable', 'compact'];
 export const contrasts: readonly Contrast[] = ['normal', 'high'];
 export const textScales: readonly TextScale[] = ['small', 'normal', 'large', 'xlarge'];

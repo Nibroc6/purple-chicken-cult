@@ -18,7 +18,7 @@ import {
   type UIPrefs,
 } from './vm';
 
-const formatLabel = { cards: 'display.format.cards', compact: 'display.format.compact' } as const;
+const formatLabel = { cards: 'display.format.cards', compact: 'display.format.compact', explorer: 'display.format.explorer' } as const;
 const densityLabel = { comfortable: 'display.density.comfortable', compact: 'display.density.compact' } as const;
 const contrastLabel = { normal: 'display.a11y.contrastNormal', high: 'display.a11y.contrastHigh' } as const;
 const textLabel = {

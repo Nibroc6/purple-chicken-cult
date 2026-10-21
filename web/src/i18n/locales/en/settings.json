@@ -16,7 +16,8 @@
     "format": {
       "legend": "Layout",
       "cards": "Cards",
-      "compact": "Compact"
+      "compact": "Compact",
+      "explorer": "Explorer"
     },
     "density": {
       "legend": "Density",

@@ -22,7 +22,7 @@ const (
 
 // Closed value sets of ui_prefs (§10.7, §15.1).
 var (
-	Formats    = []string{"cards", "compact"} // P1 adds explorer
+	Formats    = []string{"cards", "compact", "explorer"} // explorer: P1-W09 (steward: p1-w09-1)
 	Densities  = []string{"comfortable", "compact"}
 	Contrasts  = []string{"normal", "high"}
 	TextScales = []string{"small", "normal", "large", "xlarge"}

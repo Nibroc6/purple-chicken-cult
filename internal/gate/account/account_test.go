@@ -118,7 +118,7 @@ func TestUpdateSettingsValidation(t *testing.T) {
 		{"language not BCP-47", gate.SettingsPatch{Languages: &[]string{"en", "xx-!!"}}, "lang_invalid"},
 		{"no languages", gate.SettingsPatch{Languages: &[]string{}}, "lang_invalid"},
 		{"und language", gate.SettingsPatch{Languages: &[]string{"und"}}, "lang_invalid"},
-		{"format explorer (Phase 1)", gate.SettingsPatch{UIPrefs: raw(`{"format":"explorer"}`)}, "ui_prefs_invalid"},
+		{"unknown format", gate.SettingsPatch{UIPrefs: raw(`{"format":"grid"}`)}, "ui_prefs_invalid"},
 		{"unknown pref", gate.SettingsPatch{UIPrefs: raw(`{"theme":"dark"}`)}, "ui_prefs_invalid"},
 		{"bad density", gate.SettingsPatch{UIPrefs: raw(`{"density":"huge"}`)}, "ui_prefs_invalid"},
 		{"bad a11y", gate.SettingsPatch{UIPrefs: raw(`{"a11y":{"text_scale":"giant"}}`)}, "ui_prefs_invalid"},
