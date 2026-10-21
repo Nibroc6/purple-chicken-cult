@@ -189,7 +189,7 @@ func TestRecoveryHandshake(t *testing.T) {
 	if o, err := e.s.Result(e.ctx, e.hsID(h)); err != nil || o != core.OutcomeVerified {
 		t.Fatalf("result %v %v", o, err)
 	}
-	if st, _ := g.status(); st.State != "done" {
+	if st, _ := g.status(); st.State != "done" || st.Outcome != "verified" {
 		t.Fatalf("final status %+v", st)
 	}
 	if _, err := e.s.Result(e.ctx, uuid.UUID{1}); err == nil {

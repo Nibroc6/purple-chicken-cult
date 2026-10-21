@@ -1765,7 +1765,7 @@ type Views interface {
 }
 
 // ---- records (impl: gate/records) ----
-type RecordKind uint8 // RecInvite=1, RecFriendship=2, RecRevocation=3, RecPost=4, RecTombstone=5, RecBlock=6, RecReport=7, RecPasskeyChange=8, RecModAction=9
+type RecordKind uint8 // RecInvite=1, RecFriendship=2, RecRevocation=3, RecPost=4, RecTombstone=5, RecBlock=6, RecReport=7, RecPasskeyChange=8, RecModAction=9, RecAccountDelete=10, RecRecoveryApproval=11 (p1-w10-1)
 type Signer interface {
     // P0: server key. P1: author's custodial key + server countersign; assertions attached when given.
     // body must follow the sigs value grammar; Sign injects "kind" and "schema_version".

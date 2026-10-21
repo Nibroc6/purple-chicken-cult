@@ -378,6 +378,9 @@ const (
 	RecReport        RecordKind = 7
 	RecPasskeyChange RecordKind = 8
 	RecModAction     RecordKind = 9
+	// Steward: contract request p1-w10-1 (co-signed deletion and recovery).
+	RecAccountDelete    RecordKind = 10
+	RecRecoveryApproval RecordKind = 11
 )
 
 // String returns the record body "kind" value.
@@ -401,6 +404,10 @@ func (k RecordKind) String() string {
 		return "passkey_change"
 	case RecModAction:
 		return "mod_action"
+	case RecAccountDelete:
+		return "account_delete"
+	case RecRecoveryApproval:
+		return "recovery_approval"
 	}
 	return ""
 }

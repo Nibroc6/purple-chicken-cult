@@ -152,7 +152,8 @@ export function errorParams(err: unknown): Record<string, number> {
   return {};
 }
 
-// joinURL is the address an invitee opens to scan the code.
-export function joinURL(origin: string): string {
-  return `${new URL(origin).host}/join`;
+// joinURL is the address an invitee (path /join) or a recovering device
+// (path /recover) opens to scan the code.
+export function joinURL(origin: string, path: '/join' | '/recover' = '/join'): string {
+  return `${new URL(origin).host}${path}`;
 }
