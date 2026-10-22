@@ -1182,7 +1182,8 @@ pretend to be one.
   never paste CSS someone sent you. Pasted CSS is the realistic attack, so there's no
   way to import or share theme CSS.
 - **Locked routes.** The sheet isn't applied on sign-in, enrollment, join, recovery,
-  co-signing, settings, moderation, report, blame or terms pages. A passkey prompt
+  co-signing, settings, moderation, report, blame or terms pages, nor while the report
+  form is open as a modal. A passkey prompt
   always looks like the app, and the theme page always works to undo a broken theme.
 - **Accessibility wins.** The sheet is dropped under the high-contrast setting.
 - **Images.** `image(name)` names one of up to 8 of the theme's own uploads. They're

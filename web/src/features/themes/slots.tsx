@@ -13,12 +13,12 @@ const noImages: [] = [];
 export function ThemeApplier() {
   const me = useMe();
   const theme = useStoredTheme();
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   const stored = me ? (theme.data ?? undefined) : undefined;
   useAppliedTheme(stored?.tokens);
   // Theme CSS stays off the surfaces that must look like the app (sign-in,
   // recovery, settings, moderation, report): sheet.ts.
-  useAppliedSheet(stored && !isLockedRoute(pathname) ? stored.css || undefined : undefined, stored?.images ?? noImages, 'app');
+  useAppliedSheet(stored && !isLockedRoute(pathname, search) ? stored.css || undefined : undefined, stored?.images ?? noImages, 'app');
   return null;
 }
 
