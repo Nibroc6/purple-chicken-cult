@@ -2329,10 +2329,16 @@ Invitees keep their label (`kind: "deleted"`).
 
 **`gate/limits`** (P0-W12 → P1-W07) — §17.2(3), §17.4. Implements `core.Limiter`.
 Defaults (configurable): reads/day — `feed_page` 400, `tree_view` 400, `post_read` 1500,
-`graph_read` 200, P1 `media_full` 60; writes — `post` 30/day & 10/h, `like` 100/h,
-`friend_request` 20/day (5 probation), `report` 20/day, `social` (block/mute/detach/hide/
-show-less/notify-mute/ref-policy) 200/day, `account` (passkeys/settings/export/delete) 50/day,
-`invite_handshake` a build-up limit (`Policy.Refills`, table `rate_buckets`): 20 attempts, one back every 72 min, shown as `BudgetView.attempts` on the invite page; min spacing 2 s between writes of one kind (not for a step class `s` — a request the client sends on its own to carry on a write already begun: ceremony finishes, step-up, `/cosign`, and every handshake request after the opening — which counts toward the caps only; `invite_handshake` steps are not charged at all, so its cap counts handshakes opened). `reference` (2 per
+`graph_read` 200, P1 `media_full` 60. Everyday writes are elastic build-up buckets
+(`Policy.Refills`, table `rate_buckets`; burst = old cap, refill at its pace, no spacing) —
+`like` 100 then 1/36 s, `save` 200 then 1/7.2 min, `social` (block/mute/detach/hide/
+show-less/notify-mute/ref-policy) 200 then 1/7.2 min, `post` 10 then 1/48 min, `media` 50
+then 1/28.8 min, `report` 20 then 1/72 min, `settings` (/me/settings, theme, push) 30 then
+1/2 min; a PUT/DELETE that turns the caller's own last toggle of the same path back within
+10 min is free for `like`, `save` and `social` (`ChargeToggle`, before any ref resolves).
+Strict kinds keep windowed counters and the min spacing — `friend_request` 20/day (5
+probation), `account` (passkeys/recovery/export/delete) 50/day, `friend_upgrade` 10/h &
+30/day, and `invite_handshake` a build-up limit: 20 attempts, one back every 72 min, shown as `BudgetView.attempts` on the invite page; min spacing 2 s between writes of one strict kind (not for a step class `s` — a request the client sends on its own to carry on a write already begun: ceremony finishes, step-up, `/cosign`, and every handshake request after the opening — which counts toward the caps only; `invite_handshake` steps are not charged at all, so its cap counts handshakes opened). `reference` (2 per
 parent per 24 h) is enforced in posts after ref resolution — it is a Problem about the
 caller's own repeated action on a post it can already see. Anonymous: 30/min per /24 (v4) or
 /56 (v6) for login/join/enroll/csp-report. **Every charge happens in `apix.Route` before the

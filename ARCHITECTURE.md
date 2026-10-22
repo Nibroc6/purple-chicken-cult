@@ -1423,9 +1423,12 @@ pace**. No auto-likes, auto-replies, auto-accepting, or scheduled or generated p
 without a per-post human action.
 
 - **Human-pace write limits per account.** Starting points:
-  - 30 posts a day and 10 an hour (a thread published in one action counts as one)
+  - 30 posts a day, at most 10 at once (a thread published in one action counts as one)
   - 100 likes an hour
-  - a minimum spacing between writes
+  - elastic buckets for everyday writes: a burst, then a steady refill, so fast
+    toggling never trips them and turning a toggle back is free
+  - a minimum spacing between security-sensitive writes (account, friend
+    requests and upgrades, invites)
   - the reference caps from §10.1.1
 - **Graph and account changes** (creating or revoking edges, blocks, passkey changes,
   recovery, deletion) need a fresh passkey assertion from Phase 1. Its

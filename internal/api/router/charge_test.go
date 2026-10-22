@@ -1,8 +1,6 @@
 package router_test
 
 import (
-	"context"
-	"fmt"
 	"maps"
 	"net/http"
 	"testing"
@@ -16,7 +14,8 @@ import (
 // fidelity #7): for the write routes that carry refs in the body rather than
 // the path (modapi's TestChargingIsUniformForEveryRoute covers path refs), the
 // rate-counter deltas — every bucket and window, not only the total — are the
-// same for a visible parent, an invisible one, another viewer's ref and garbage.
+// same for a visible parent, an invisible one, another viewer's ref and garbage
+// (build-up buckets included).
 func TestChargingUniformForBodyRefs(t *testing.T) {
 	h := apitest.App(t)
 	w := wiretest.World(t, h.App)
@@ -34,24 +33,7 @@ func TestChargingUniformForBodyRefs(t *testing.T) {
 		"foreign":   string(d.Refs.Post(w.ID("bob"), w.PostID("b1"))),
 		"garbage":   "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
 	}
-	counters := func() map[string]int {
-		rows, err := d.DB.Q().Query(context.Background(), "SELECT bucket, window_start, count FROM rate_counters")
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer rows.Close()
-		out := map[string]int{}
-		for rows.Next() {
-			var b string
-			var at time.Time
-			var c int
-			if err := rows.Scan(&b, &at, &c); err != nil {
-				t.Fatal(err)
-			}
-			out[fmt.Sprintf("%s@%s", b, at.Format(time.RFC3339))] = c
-		}
-		return out
-	}
+	counters := h.Charges
 	for _, route := range []string{"/api/posts", "/api/posts/thread"} {
 		var want map[string]int
 		for _, name := range []string{"visible", "invisible", "foreign", "garbage"} {

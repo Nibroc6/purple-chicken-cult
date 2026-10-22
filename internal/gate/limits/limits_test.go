@@ -116,12 +116,34 @@ func TestDefaults(t *testing.T) {
 		}
 	}
 	want := map[string][]limits.Cap{
-		"post": {{Window: limits.Hour, Max: 10}, {Window: limits.Day, Max: 30}}, "like": {{Window: limits.Hour, Max: 100}},
-		"friend_request": {{Window: limits.Day, Max: 20}}, "report": {{Window: limits.Day, Max: 20}},
-		"social": {{Window: limits.Day, Max: 200}}, "account": {{Window: limits.Day, Max: 50}},
+		"friend_request": {{Window: limits.Day, Max: 20}}, "account": {{Window: limits.Day, Max: 50}},
+		"friend_upgrade": {{Window: limits.Hour, Max: 10}, {Window: limits.Day, Max: 30}},
 	}
-	if r := p.Refills["invite_handshake"]; r.Cap != 20 || r.Every != 72*time.Minute || p.Writes["invite_handshake"] != nil {
-		t.Fatalf("invite_handshake refill %+v, caps %v", r, p.Writes["invite_handshake"])
+	refills := map[string]limits.Refill{
+		"invite_handshake": {Cap: 20, Every: 72 * time.Minute},
+		"like":             {Cap: 100, Every: 36 * time.Second},
+		"save":             {Cap: 200, Every: 432 * time.Second},
+		"social":           {Cap: 200, Every: 432 * time.Second},
+		"post":             {Cap: 10, Every: 48 * time.Minute},
+		"media":            {Cap: 50, Every: 1728 * time.Second},
+		"report":           {Cap: 20, Every: 72 * time.Minute},
+		"settings":         {Cap: 30, Every: 2 * time.Minute},
+	}
+	if len(p.Refills) != len(refills) {
+		t.Fatalf("refills %v", p.Refills)
+	}
+	for k, r := range refills {
+		if p.Refills[k] != r || p.Writes[k] != nil || p.Spaced[k] != (k == "invite_handshake") {
+			t.Errorf("%s refill %+v, caps %v, spaced %v", k, p.Refills[k], p.Writes[k], p.Spaced[k])
+		}
+	}
+	for _, k := range []string{"account", "friend_request", "friend_upgrade"} {
+		if !p.Spaced[k] {
+			t.Errorf("%s is not spaced", k)
+		}
+	}
+	if len(p.Toggles) != 3 || !p.Toggles["like"] || !p.Toggles["save"] || !p.Toggles["social"] || p.ToggleWindow != 10*time.Minute {
+		t.Fatalf("toggles %v %v", p.Toggles, p.ToggleWindow)
 	}
 	for k, caps := range want {
 		got := p.Writes[k]
@@ -142,7 +164,7 @@ func TestDefaults(t *testing.T) {
 func TestWriteCapsHourAndDay(t *testing.T) {
 	e := newEnv(t)
 	v := e.viewer("alice")
-	charge := func() error { return e.l.ChargeWrite(e.ctx, v, limits.WritePost, 1) }
+	charge := func() error { return e.l.ChargeWrite(e.ctx, v, limits.WriteUpgrade, 1) }
 	for day := 0; day < 3; day++ {
 		for i := 0; i < 10; i++ {
 			if err := charge(); err != nil {
@@ -159,7 +181,7 @@ func TestWriteCapsHourAndDay(t *testing.T) {
 	if got := retryOf(t, err); got != 21*time.Hour {
 		t.Fatalf("daily retry %v", got)
 	}
-	if n := e.count("alice", "w:post", limits.Day); n != 30 {
+	if n := e.count("alice", "w:friend_upgrade", limits.Day); n != 30 {
 		t.Fatalf("daily count %d", n)
 	}
 	e.advance(21 * time.Hour)
@@ -177,27 +199,35 @@ func TestMinimumSpacing(t *testing.T) {
 	p.Spacing = 2 * time.Second
 	e.l.SetPolicy(p)
 	v := e.viewer("alice")
-	if err := e.l.ChargeWrite(e.ctx, v, limits.WriteLike, 1); err != nil {
+	if err := e.l.ChargeWrite(e.ctx, v, limits.WriteAccount, 1); err != nil {
 		t.Fatal(err)
 	}
 	e.advance(500 * time.Millisecond)
-	if got := retryOf(t, e.l.ChargeWrite(e.ctx, v, limits.WriteLike, 1)); got != 1500*time.Millisecond {
+	if got := retryOf(t, e.l.ChargeWrite(e.ctx, v, limits.WriteAccount, 1)); got != 1500*time.Millisecond {
 		t.Fatalf("spacing retry %v", got)
 	}
 	// A refused write does not move the clock of the kind, and is not counted.
-	if n := e.count("alice", "w:like:h", limits.Hour); n != 1 {
+	if n := e.count("alice", "w:account", limits.Day); n != 1 {
 		t.Fatalf("count %d", n)
 	}
 	// Other kinds and other people are independent.
-	if err := e.l.ChargeWrite(e.ctx, v, limits.WriteSocial, 1); err != nil {
+	if err := e.l.ChargeWrite(e.ctx, v, limits.WriteFriendReq, 1); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.l.ChargeWrite(e.ctx, e.viewer("bob"), limits.WriteLike, 1); err != nil {
+	if err := e.l.ChargeWrite(e.ctx, e.viewer("bob"), limits.WriteAccount, 1); err != nil {
 		t.Fatal(err)
 	}
 	e.advance(1500 * time.Millisecond)
-	if err := e.l.ChargeWrite(e.ctx, v, limits.WriteLike, 1); err != nil {
+	if err := e.l.ChargeWrite(e.ctx, v, limits.WriteAccount, 1); err != nil {
 		t.Fatalf("after 2 s: %v", err)
+	}
+	// The everyday kinds are not spaced: back-to-back likes and saves pass.
+	for i := 0; i < 5; i++ {
+		for _, k := range []core.WriteKind{limits.WriteLike, limits.WriteSave, limits.WriteSocial, limits.WriteSettings} {
+			if err := e.l.ChargeWrite(e.ctx, v, k, 1); err != nil {
+				t.Fatalf("%s %d: %v", k, i, err)
+			}
+		}
 	}
 }
 
@@ -284,6 +314,116 @@ func TestInviteAttemptsBuildUp(t *testing.T) {
 	}
 }
 
+// The everyday kinds are elastic: a burst of Cap passes at once, then one
+// more per Every; a refusal says when the next one builds up.
+func TestElasticBurstThenRefill(t *testing.T) {
+	e := newEnv(t)
+	p := e.l.Policy()
+	p.Spacing = 2 * time.Second // as in production: it must not touch like
+	e.l.SetPolicy(p)
+	v := e.viewer("alice")
+	for i := 0; i < 100; i++ {
+		if err := e.l.ChargeWrite(e.ctx, v, limits.WriteLike, 1); err != nil {
+			t.Fatalf("like %d: %v", i, err)
+		}
+	}
+	if got := retryOf(t, e.l.ChargeWrite(e.ctx, v, limits.WriteLike, 1)); got != 36*time.Second {
+		t.Fatalf("retry %v", got)
+	}
+	e.advance(36 * time.Second)
+	if err := e.l.ChargeWrite(e.ctx, v, limits.WriteLike, 1); err != nil {
+		t.Fatalf("after one refill: %v", err)
+	}
+	retryOf(t, e.l.ChargeWrite(e.ctx, v, limits.WriteLike, 1))
+	// The sustained pace of the refill always passes.
+	for i := 0; i < 200; i++ {
+		e.advance(36 * time.Second)
+		if err := e.l.ChargeWrite(e.ctx, v, limits.WriteLike, 1); err != nil {
+			t.Fatalf("steady like %d: %v", i, err)
+		}
+	}
+	// Saves have a bucket of their own.
+	if err := e.l.ChargeWrite(e.ctx, v, limits.WriteSave, 1); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Turning a toggle back (PUT then DELETE of one path, or the reverse) within
+// the window is free; repeating one direction, another path, another person or
+// a late toggle back is charged.
+func TestToggleBackIsFree(t *testing.T) {
+	e := newEnv(t)
+	p := e.l.Policy()
+	p.Refills["save"] = limits.Refill{Cap: 3, Every: time.Hour}
+	e.l.SetPolicy(p)
+	ctx := e.as("alice")
+	save := gate.Class{Kind: gate.ClassWrite, Name: "save"}
+	left := func() int {
+		t.Helper()
+		var tat time.Time
+		err := e.d.DB.Q().QueryRow(e.ctx, "SELECT tat FROM rate_buckets WHERE user_id = $1 AND bucket = 'b:save'", int64(e.w.ID("alice"))).Scan(&tat)
+		if err != nil {
+			return 3
+		}
+		used := int((tat.Sub(e.d.Clock.Now()) + time.Hour - 1) / time.Hour)
+		return 3 - used
+	}
+	// Save/unsave flips of one post cost one charge per pair: three pairs
+	// spend the bucket of three, and the toggle back of each was free.
+	for i := 0; i < 6; i++ {
+		if err := e.l.ChargeToggle(ctx, save, "/api/posts/p1/save", i%2 == 0); err != nil {
+			t.Fatalf("flip %d: %v", i, err)
+		}
+	}
+	if n := left(); n != 0 {
+		t.Fatalf("left %d after three pairs", n)
+	}
+	retryOf(t, e.l.ChargeToggle(ctx, save, "/api/posts/p1/save", true))
+	// Repeats of one direction are charged each time.
+	e.l.Reset()
+	if _, err := e.d.DB.Q().Exec(e.ctx, "TRUNCATE rate_buckets"); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 3; i++ {
+		if err := e.l.ChargeToggle(ctx, save, "/api/posts/p2/save", true); err != nil {
+			t.Fatalf("repeat %d: %v", i, err)
+		}
+	}
+	retryOf(t, e.l.ChargeToggle(ctx, save, "/api/posts/p3/save", true))
+	// The toggle back of p2 is still free while the bucket is empty.
+	if err := e.l.ChargeToggle(ctx, save, "/api/posts/p2/save", false); err != nil {
+		t.Fatalf("toggle back on an empty bucket: %v", err)
+	}
+	// Only once: a second toggle back has nothing to undo.
+	retryOf(t, e.l.ChargeToggle(ctx, save, "/api/posts/p2/save", true))
+	// A toggle back after the window is charged.
+	e.l.Reset()
+	if _, err := e.d.DB.Q().Exec(e.ctx, "TRUNCATE rate_buckets"); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.l.ChargeToggle(ctx, save, "/api/posts/p4/save", true); err != nil {
+		t.Fatal(err)
+	}
+	e.advance(11 * time.Minute)
+	if err := e.l.ChargeToggle(ctx, save, "/api/posts/p4/save", false); err != nil {
+		t.Fatal(err)
+	}
+	if n := left(); n != 1 {
+		t.Fatalf("late toggle back was free: %d left", n)
+	}
+	// Strict kinds never toggle for free.
+	acct := gate.Class{Kind: gate.ClassWrite, Name: "account"}
+	if err := e.l.ChargeToggle(ctx, acct, "/api/auth/passkeys/1", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.l.ChargeToggle(ctx, acct, "/api/auth/passkeys/1", false); err != nil {
+		t.Fatal(err)
+	}
+	if n := e.count("alice", "w:account", limits.Day); n != 2 {
+		t.Fatalf("account toggles charged %d", n)
+	}
+}
+
 // Opening a friend upgrade spends no code attempt; it has its own caps.
 func TestUpgradeSpendsNoInviteAttempt(t *testing.T) {
 	e := newEnv(t)
@@ -329,13 +469,13 @@ func TestProbationFriendRequests(t *testing.T) {
 func TestChargeRequestClasses(t *testing.T) {
 	e := newEnv(t)
 	ctx := e.as("alice")
-	for _, c := range []gate.Class{{Kind: gate.ClassRead, Name: "feed_page"}, {Kind: gate.ClassWrite, Name: "social"},
+	for _, c := range []gate.Class{{Kind: gate.ClassRead, Name: "feed_page"}, {Kind: gate.ClassWrite, Name: "account"},
 		{Kind: gate.ClassFree, Name: "free"}} {
 		if err := e.l.ChargeRequest(ctx, c); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if e.count("alice", "r:feed_page", limits.Day) != 1 || e.count("alice", "w:social", limits.Day) != 1 {
+	if e.count("alice", "r:feed_page", limits.Day) != 1 || e.count("alice", "w:account", limits.Day) != 1 {
 		t.Fatal("read and write classes are charged to the viewer")
 	}
 	var n int

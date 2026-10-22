@@ -20,6 +20,7 @@ import (
 	"github.com/Nibroc6/purple-chicken-cult/internal/api/modapi"
 	"github.com/Nibroc6/purple-chicken-cult/internal/api/notifyapi"
 	"github.com/Nibroc6/purple-chicken-cult/internal/api/router"
+	"github.com/Nibroc6/purple-chicken-cult/internal/gate/limits"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/wire/wiretest"
 	"github.com/Nibroc6/purple-chicken-cult/internal/platform/httpx"
 )
@@ -86,11 +87,7 @@ func (f *fixture) do(t *testing.T, method, path string, body any, want int) []by
 
 func (f *fixture) rateCount(t *testing.T) int {
 	t.Helper()
-	var n int
-	if err := f.h.App.Deps().DB.Q().QueryRow(context.Background(), "SELECT coalesce(sum(count), 0) FROM rate_counters").Scan(&n); err != nil {
-		t.Fatal(err)
-	}
-	return n
+	return f.h.Total()
 }
 
 func (f *fixture) advance(t *testing.T, d time.Duration) {
@@ -151,8 +148,7 @@ func TestReportAnswersAndChargesAlike(t *testing.T) {
 func TestRateLimitedBodyIsUniform(t *testing.T) {
 	f := newModFixture(t)
 	p := f.h.App.Limits.Policy()
-	p.Writes["report"] = p.Writes["report"][:1]
-	p.Writes["report"][0].Max = 2
+	p.Refills["report"] = limits.Refill{Cap: 2, Every: limits.Day}
 	f.h.App.Limits.SetPolicy(p)
 	f.h.Login("carol")
 	f.do(t, http.MethodPost, "/api/reports", report("post", f.post("carol", "b1"), "spam"), http.StatusAccepted)
@@ -176,7 +172,7 @@ func TestRateLimitedBodyIsUniform(t *testing.T) {
 			t.Fatalf("%s: %s differs from %s", name, rec.Body, first)
 		}
 	}
-	// retry_after_s is the rest of the caller's own UTC day.
+	// retry_after_s is when the caller's own bucket builds one back.
 	if v := decode[map[string]any](t, []byte(first)); v["error"] != "rate_limited" || v["retry_after_s"] != float64(22*3600+30*60) {
 		t.Fatalf("429 %s", first)
 	}
@@ -486,11 +482,14 @@ func TestHeadersOnEveryResponse(t *testing.T) {
 // TestChargingIsUniformForEveryRoute: for every Phase 0 route with a path
 // parameter, a valid post ref, a valid person ref, another viewer's ref and
 // garbage change the rate counters identically (fidelity #7): one charge per
-// window for read and write classes, none for free and anonymous ones,
-// whatever the answer.
+// window for read and write classes (one for a build-up bucket), none for
+// free and anonymous ones, whatever the answer; turning a toggle back is free
+// for every ref alike.
 func TestChargingIsUniformForEveryRoute(t *testing.T) {
 	f := newFixture(t, apitest.App(t))
 	f.h.Login("carol")
+	pol := f.h.App.Limits.Policy()
+	toggled := map[string]string{} // path → method of the last charged toggle
 	for _, e := range router.Catalogue {
 		if e.Phase != 0 || e.Module == "testhooks" || !strings.Contains(e.Pattern, "{") {
 			continue
@@ -504,7 +503,10 @@ func TestChargingIsUniformForEveryRoute(t *testing.T) {
 		case 'r':
 			want = 1
 		case 'w':
-			want = len(f.h.App.Limits.Policy().Writes[e.Class.Name]) // one row per window (post: hour and day)
+			want = len(pol.Writes[e.Class.Name]) // one row per window (friend_upgrade: hour and day)
+			if _, ok := pol.Refills[e.Class.Name]; ok {
+				want = 1
+			}
 		}
 		for name, ref := range map[string]string{
 			"post": f.post("carol", "b1"), "person": f.person("carol", "bob"),
@@ -513,6 +515,16 @@ func TestChargingIsUniformForEveryRoute(t *testing.T) {
 			path := "/api" + e.Pattern
 			for _, p := range []string{"{ref}", "{hs}", "{id}", "{snapshot}"} {
 				path = strings.ReplaceAll(path, p, ref)
+			}
+			want := want
+			toggle := e.Class.Kind == 'w' && pol.Toggles[e.Class.Name] && (e.Method == http.MethodPut || e.Method == http.MethodDelete)
+			if toggle {
+				if m, ok := toggled[path]; ok && m != e.Method {
+					want = 0
+					delete(toggled, path)
+				} else {
+					toggled[path] = e.Method
+				}
 			}
 			before := f.rateCount(t)
 			rec := f.h.Raw(e.Method, path, body, nil)

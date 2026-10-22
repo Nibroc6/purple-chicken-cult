@@ -57,10 +57,31 @@ const middleware: Middleware = {
   },
 };
 
+// QUIET_WAIT_S is the longest rate-limit hint the client waits out by itself:
+// the server charges before the handler, so a 429 did nothing and the request
+// can be sent again. Short waits (the 2 s spacing of the strict kinds) never
+// reach the screen; longer ones are shown with their {seconds}.
+export const QUIET_WAIT_S = 2;
+
+// sendPaced sends req, and once more after a short rate-limit wait.
+async function sendPaced(req: Request): Promise<Response> {
+  const again = req.clone();
+  const res = await globalThis.fetch(req); // resolved per call (tests stub fetch)
+  if (res.status !== 429) return res;
+  const body = (await res
+    .clone()
+    .json()
+    .catch(() => ({}))) as { retry_after_s?: unknown };
+  const wait = body.retry_after_s;
+  if (typeof wait !== 'number' || wait > QUIET_WAIT_S) return res;
+  await new Promise((r) => setTimeout(r, wait * 1000 + 100));
+  return globalThis.fetch(again);
+}
+
 export const api = createClient<paths>({
   baseUrl: `${globalThis.location.origin}/api`,
   credentials: 'same-origin',
-  fetch: (req: Request) => globalThis.fetch(req), // resolved per call (tests stub fetch)
+  fetch: sendPaced,
 });
 api.use(middleware);
 

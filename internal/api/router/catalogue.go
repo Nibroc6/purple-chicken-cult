@@ -24,6 +24,7 @@ var (
 	wR   = apix.Write("report")
 	wS   = apix.Write("social")
 	wA   = apix.Write("account")
+	wSt  = apix.Write("settings")
 	sA   = apix.Step("account")
 	wI   = apix.Write("invite_handshake")
 	sI   = apix.Step("invite_handshake")
@@ -141,12 +142,12 @@ var Catalogue = []Entry{
 	// pushapi (P1-W05)
 	e("pushapi", 1, "GET", "/push/key", free),
 	e("pushapi", 1, "GET", "/push/subscriptions", free), // p1-w05-1: the caller's state of one endpoint
-	e("pushapi", 1, "POST", "/push/subscriptions", wA),
-	e("pushapi", 1, "DELETE", "/push/subscriptions", wA),
+	e("pushapi", 1, "POST", "/push/subscriptions", wSt),
+	e("pushapi", 1, "DELETE", "/push/subscriptions", wSt),
 
 	// accountapi (P0-W11 → P1-W10)
 	e("accountapi", 0, "GET", "/me", free),
-	e("accountapi", 0, "PATCH", "/me/settings", wA),
+	e("accountapi", 0, "PATCH", "/me/settings", wSt),
 	e("accountapi", 0, "POST", "/me/export", wA),
 	e("accountapi", 0, "POST", "/me/delete", wA),
 	e("accountapi", 0, "GET", "/me/recovery", free),
@@ -178,8 +179,8 @@ var Catalogue = []Entry{
 
 	// themeapi (P1-W09)
 	e("themeapi", 1, "GET", "/me/theme", free), // steward: contract request p1-w09-1
-	e("themeapi", 1, "PUT", "/me/theme", wA),
-	e("themeapi", 1, "DELETE", "/me/theme", wA),
+	e("themeapi", 1, "PUT", "/me/theme", wSt),
+	e("themeapi", 1, "DELETE", "/me/theme", wSt),
 
 	// mediaapi (P1-W04)
 	e("mediaapi", 1, "POST", "/media", wM),

@@ -111,6 +111,21 @@ func App(t testing.TB) *Harness {
 	return newHarness(t, mods, router.Modules...)
 }
 
+// Charges is wiretest.Charges of the harness app.
+func (h *Harness) Charges() map[string]int {
+	h.T.Helper()
+	return wiretest.Charges(h.T, h.App)
+}
+
+// Total is the sum of Charges.
+func (h *Harness) Total() int {
+	n := 0
+	for _, v := range h.Charges() {
+		n += v
+	}
+	return n
+}
+
 // Login signs in as handle (creating a genesis user if needed).
 func (h *Harness) Login(handle string) {
 	h.cookie, h.csrf = wiretest.Login(h.T, h.App, handle)
