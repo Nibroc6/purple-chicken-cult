@@ -97,6 +97,11 @@ type Policy struct {
 	ProbationFriendRequests int
 	// Spacing is the minimum time between two writes of one kind (§17.4).
 	Spacing time.Duration
+	// FreeSteps lists the write kinds whose steps (gate.ClassStep) are not
+	// charged at all: their cap counts the actions people start, and the
+	// server already bounds the steps of each one (an invite handshake takes
+	// one key, a few sound reports, one confirm and one co-signature).
+	FreeSteps map[string]bool
 	// Anon caps each anonymous bucket per client prefix (/24 or /56) per AnonWindow.
 	Anon map[string]int
 	// DefaultRead, DefaultWrite and DefaultAnon apply to names outside the maps.
@@ -125,6 +130,7 @@ func DefaultPolicy() Policy {
 		},
 		ProbationFriendRequests: 5,
 		Spacing:                 2 * time.Second,
+		FreeSteps:               map[string]bool{string(WriteInvite): true},
 		// 30/min per prefix for login, enroll and CSP reports. The join flow polls
 		// /join/status every 1.5 s while the invitee waits for the SAS, so join
 		// gets room for that plus the claim and the two registration calls.
@@ -234,6 +240,14 @@ func (s *Service) ChargeRequest(ctx context.Context, c gate.Class) error {
 		v, ok := core.ViewerFrom(ctx)
 		if !ok || v.Kind != core.SessUser || v.ID == 0 {
 			return s.ChargeAnon(clientPrefix(ctx), UnauthBucket)
+		}
+		if c.Kind == gate.ClassStep {
+			s.mu.Lock()
+			free := s.policy.FreeSteps[c.Name]
+			s.mu.Unlock()
+			if free {
+				return nil
+			}
 		}
 		if c.Kind == gate.ClassRead {
 			return s.ChargeRead(ctx, v, core.ReadClass(c.Name))

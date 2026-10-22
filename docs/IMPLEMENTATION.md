@@ -2332,7 +2332,7 @@ Defaults (configurable): reads/day — `feed_page` 400, `tree_view` 400, `post_r
 `graph_read` 200, P1 `media_full` 60; writes — `post` 30/day & 10/h, `like` 100/h,
 `friend_request` 20/day (5 probation), `report` 20/day, `social` (block/mute/detach/hide/
 show-less/notify-mute/ref-policy) 200/day, `account` (passkeys/settings/export/delete) 50/day,
-`invite_handshake` 10/day; min spacing 2 s between writes of one kind (not for a step class `s` — a request the client sends on its own to carry on a write already begun: ceremony finishes, step-up, `/cosign`, handshake `epub`/`report`/`cosign` — which counts toward the caps only). `reference` (2 per
+`invite_handshake` 10/day; min spacing 2 s between writes of one kind (not for a step class `s` — a request the client sends on its own to carry on a write already begun: ceremony finishes, step-up, `/cosign`, and every handshake request after the opening — which counts toward the caps only; `invite_handshake` steps are not charged at all, so its cap counts handshakes opened). `reference` (2 per
 parent per 24 h) is enforced in posts after ref resolution — it is a Problem about the
 caller's own repeated action on a post it can already see. Anonymous: 30/min per /24 (v4) or
 /56 (v6) for login/join/enroll/csp-report. **Every charge happens in `apix.Route` before the

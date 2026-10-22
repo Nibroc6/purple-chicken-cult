@@ -228,6 +228,30 @@ func TestStepSkipsSpacing(t *testing.T) {
 	}
 }
 
+// invite_handshake steps are free: the daily cap counts handshakes opened.
+func TestInviteStepsAreFree(t *testing.T) {
+	e := newEnv(t)
+	ctx := e.as("alice")
+	step := gate.Class{Kind: gate.ClassStep, Name: string(limits.WriteInvite)}
+	for i := 0; i < 20; i++ {
+		if err := e.l.ChargeRequest(ctx, step); err != nil {
+			t.Fatalf("step %d: %v", i, err)
+		}
+	}
+	if n := e.count("alice", "w:invite_handshake", limits.Day); n != 0 {
+		t.Fatalf("count %d", n)
+	}
+	open := gate.Class{Kind: gate.ClassWrite, Name: string(limits.WriteInvite)}
+	for i := 0; i < 10; i++ {
+		if err := e.l.ChargeRequest(ctx, open); err != nil {
+			t.Fatalf("open %d: %v", i, err)
+		}
+	}
+	if err := e.l.ChargeRequest(ctx, open); err == nil {
+		t.Fatal("11th handshake of the day was allowed")
+	}
+}
+
 func TestProbationFriendRequests(t *testing.T) {
 	e := newEnv(t)
 	carol := e.w.User("carol", func(m *core.UserMeta) {
