@@ -2,16 +2,16 @@
 // (optimistic, then the server's summary), save (optimistic, rolled back on
 // failure; private, so nothing but saved_by_me changes), hide and show less (the post leaves
 // the layouts at once through useHidden), seen (queued for the batched POST),
-// and navigation for reply, the family tree and reports. Every cached
+// navigation for reply and the family tree, and the report modal. Every cached
 // view-model of the post is patched in place, whichever feature cached it.
 // Owner: P0-W06 → P1-W08.
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import type { PostActions } from '../../formats/types';
-import type { ReportTarget } from '../../integrity/types';
 import type { LikesVM, PostVM, Ref } from '../../vm/types';
 import { clearPicks, composeURL, getPicks } from '../composer';
+import { useOpenReport } from '../moderation/ReportModal';
 import { savesKey } from '../saves/api';
 import { queueSeen } from '../seen/tracker';
 import { hidePost, likesKey, setLike, setSave, showLess } from './api';
@@ -74,6 +74,7 @@ export function applySaved(qc: QueryClient, ref: string, saved: boolean): void {
 export function usePostActions(): PostActions {
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const openReport = useOpenReport();
   return useMemo(() => {
     const hideAs = (kind: HiddenKind, call: (ref: string) => Promise<void>) => (ref: Ref) => {
       setFailed(ref, undefined);
@@ -125,9 +126,7 @@ export function usePostActions(): PostActions {
       openTree: (ref: Ref) => {
         void navigate(`/p/${ref}`);
       },
-      report: (target: ReportTarget) => {
-        void navigate(`/report?${new URLSearchParams({ kind: target.kind, ref: target.ref }).toString()}`);
-      },
+      report: openReport,
     };
-  }, [qc, navigate]);
+  }, [qc, navigate, openReport]);
 }

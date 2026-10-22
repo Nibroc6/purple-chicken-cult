@@ -25,6 +25,19 @@ A PhotoDNA match on an upload **or** on a link-preview image (never dropped sile
    `match_info.evidence = "unavailable"`, and an ERROR is logged: treat that as an incident
    (the material could not be preserved; record why in the report).
 
+## Matches found outside the app (unscanned mode)
+
+With `PCC_SCANNER=unscanned` (media.md) the steps above never run on their own. Detection
+comes from Cloudflare's CSAM Scanning Tool email (matched paths, already blocked at the
+edge) or a user report. A match is actual knowledge under § 2258A, so on the day it arrives:
+
+1. Map each path (`/m/<key>`) to its `media` row and uploader. Do not open the image.
+2. Preserve: copy the object from the media bucket into the evidence bucket under break-glass
+   (two people, logged, as below) and record the key, then delete it from the media bucket.
+3. Report to the CyberTipline as below, with the Cloudflare notice time and path in place of
+   the PhotoDNA details, and hold or suspend the account (two-person moderation actions).
+4. Keep the Cloudflare email with the incident log for at least a year.
+
 ## Who sees what
 
 - **Moderators** see the queue item and `match_info` (driver, PhotoDNA tracking id, match

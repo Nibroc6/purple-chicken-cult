@@ -108,8 +108,3 @@ export function peopleErrorKey(err: unknown): string {
 export function errorParams(err: unknown): Record<string, number> {
   return err instanceof ApiError && err.retryAfterS !== undefined ? { seconds: err.retryAfterS } : {};
 }
-
-// reportPath is where the report flow (moderation) opens for a target.
-export function reportPath(kind: 'person' | 'inviter', ref: string): string {
-  return `/report?${new URLSearchParams({ kind, ref }).toString()}`;
-}

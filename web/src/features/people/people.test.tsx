@@ -13,7 +13,8 @@ import FriendsPage from './FriendsPage';
 import PersonPage from './PersonPage';
 import RequestsPage from './RequestsPage';
 import SuggestionsPage from './SuggestionsPage';
-import { canUpgrade, cosignPurpose, peopleErrorKey, primaryActions, reportPath, secondaryActions, toPersonVM } from './vm';
+import { ReportModal } from '../moderation/ReportModal';
+import { canUpgrade, cosignPurpose, peopleErrorKey, primaryActions, secondaryActions, toPersonVM } from './vm';
 
 // The co-sign dialog is the cosign feature's; here it signs (or is cancelled) at once.
 interface Signed {
@@ -72,8 +73,15 @@ function stubAPI(handler: (c: Call) => Response | undefined): Call[] {
 function renderAt(path: string, pattern: string, el: ReactNode) {
   const router = createMemoryRouter(
     [
-      { path: pattern, element: el },
-      { path: '/report', element: <p>report page</p> },
+      {
+        path: pattern,
+        element: (
+          <>
+            {el}
+            <ReportModal />
+          </>
+        ),
+      },
     ],
     { initialEntries: [path] },
   );
@@ -141,10 +149,9 @@ describe('people view-models', () => {
     }
   });
 
-  it('names errors and report paths', () => {
+  it('names errors', () => {
     expect(peopleErrorKey(new ApiError(409, { error: 'friend_cap' }))).toBe('people:errors.friend_cap');
     expect(peopleErrorKey(new ApiError(404, { error: 'not_found' }))).toBe('errors:not_found');
-    expect(reportPath('inviter', 'r-x')).toBe('/report?kind=inviter&ref=r-x');
   });
 });
 
@@ -308,7 +315,7 @@ describe('people pages', () => {
     stubAPI((c) => (c.path === '/people/r-bob' ? json(200, person('bob')) : undefined));
     renderAt('/people/r-bob', '/people/:ref', <PersonPage />);
     fireEvent.click(await screen.findByTestId('integrity-report'));
-    expect(await screen.findByText('report page')).toBeTruthy();
+    expect(await screen.findByTestId('report-modal')).toBeTruthy();
   });
 
   it('pages through friends', async () => {

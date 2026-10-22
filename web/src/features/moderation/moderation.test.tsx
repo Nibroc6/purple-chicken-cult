@@ -25,6 +25,7 @@ import {
   isTargetKind,
   modReasons,
   moderationErrorKey,
+  parseReport,
   reportReasons,
   type BlameItem,
   type LogItem,
@@ -34,6 +35,7 @@ import {
 import BlamePage from './BlamePage';
 import ModLogPage from './ModLogPage';
 import ModQueuePage from './ModQueuePage';
+import { ReportModal, useOpenReport } from './ReportModal';
 import ReportPage from './ReportPage';
 import RolesPage from './RolesPage';
 
@@ -172,6 +174,89 @@ describe('report page', () => {
     renderAt('/report?kind=person&ref=u1', <ReportPage />);
     fireEvent.click(await screen.findByRole('button', { name: tr('moderation:report.cancel') }));
     expect(await screen.findByTestId('home')).toBeTruthy();
+  });
+});
+
+describe('report modal', () => {
+  function Opener() {
+    const open = useOpenReport();
+    return (
+      <button
+        type="button"
+        data-testid="open-report"
+        onClick={() => {
+          open({ kind: 'post', ref: 'p1' });
+        }}
+      >
+        report
+      </button>
+    );
+  }
+
+  function renderPage(path: string) {
+    const router = createMemoryRouter(
+      [
+        {
+          path: '/',
+          element: (
+            <>
+              <p data-testid="home">home</p>
+              <Opener />
+              <ReportModal />
+            </>
+          ),
+        },
+      ],
+      { initialEntries: [path] },
+    );
+    render(
+      <QueryClientProvider client={makeQueryClient()}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>,
+    );
+    return router;
+  }
+
+  it('reads ?report=<kind>:<ref>', () => {
+    expect(parseReport('post:p1')).toEqual({ kind: 'post', ref: 'p1' });
+    expect(parseReport('inviter:a_b-c')).toEqual({ kind: 'inviter', ref: 'a_b-c' });
+    expect(parseReport('account:p1')).toBeUndefined();
+    expect(parseReport('post:')).toBeUndefined();
+    expect(parseReport('post')).toBeUndefined();
+    expect(parseReport(null)).toBeUndefined();
+  });
+
+  it('opens over the page, sends, and goes back to the page', async () => {
+    const calls = stub('member', (c) => (c.method === 'POST' && c.path === '/reports' ? json(202, {}) : undefined));
+    const router = renderPage('/');
+    fireEvent.click(screen.getByTestId('open-report'));
+    const modal = await screen.findByTestId('report-modal');
+    expect(modal.tagName).toBe('DIALOG');
+    expect(router.state.location.search).toBe('?report=post%3Ap1');
+    expect(screen.getByTestId('home')).toBeTruthy();
+    fireEvent.click(screen.getByTestId('report-submit'));
+    expect(await screen.findByTestId('report-sent')).toBeTruthy();
+    expect(calls.find((c) => c.path === '/reports')?.body).toMatchObject({ target: { kind: 'post', ref: 'p1' } });
+    fireEvent.click(screen.getByRole('button', { name: tr('moderation:report.back') }));
+    await waitFor(() => {
+      expect(screen.queryByTestId('report-modal')).toBeNull();
+    });
+    expect(router.state.location.search).toBe('');
+  });
+
+  it('closes in place on cancel when opened from a link; says so for a bad target', async () => {
+    stub('member', () => undefined);
+    const router = renderPage('/?report=person:u1');
+    fireEvent.click(await screen.findByRole('button', { name: tr('moderation:report.cancel') }));
+    await waitFor(() => {
+      expect(screen.queryByTestId('report-modal')).toBeNull();
+    });
+    expect(router.state.location.pathname).toBe('/');
+    await act(async () => {
+      await router.navigate('/?report=account:x');
+    });
+    expect(await screen.findByTestId('report-invalid')).toBeTruthy();
+    expect(screen.queryByTestId('report-form')).toBeNull();
   });
 });
 

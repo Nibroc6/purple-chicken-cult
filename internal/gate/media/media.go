@@ -132,6 +132,9 @@ func (s *Service) Init(context.Context) error {
 		}
 		return nil
 	}
+	if s.d.Cfg.UnscannedMedia() {
+		s.d.Log.Warn("media enabled without a CSAM scanner (PCC_SCANNER=unscanned)", "feature", "media")
+	}
 	if s.d.Cfg.Prod() && s.d.Cfg.Blob.Driver == config.BlobS3 && s.d.Cfg.CDN.Purge == config.CDNPurgeNone {
 		s.d.Log.Warn("media CDN purge not configured", "feature", "media")
 	}
