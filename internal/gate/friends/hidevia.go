@@ -58,9 +58,10 @@ func (s *Service) HideVia(ctx context.Context, who gate.Ref, on bool) error {
 // core.Handshakes.OpenUpgrade): the caller's device shows the rotating code,
 // the friend scans it from their own signed-in session at /join, both hear
 // the sound, and a Verified outcome lets both co-sign the friend+ Friendship.
-// Anyone else — a friend+ already, not a friend, an inactive account — is the
+// Quiet turns the jingle off (the ultrasonic layer still verifies). Anyone
+// else — a friend+ already, not a friend, an inactive account — is the
 // uniform not-found.
-func (s *Service) UpgradeBegin(ctx context.Context, who gate.Ref) (gate.HandshakeView, error) {
+func (s *Service) UpgradeBegin(ctx context.Context, who gate.Ref, quiet bool) (gate.HandshakeView, error) {
 	v, err := core.RequireUser(ctx)
 	if err != nil {
 		return gate.HandshakeView{}, err
@@ -72,5 +73,5 @@ func (s *Service) UpgradeBegin(ctx context.Context, who gate.Ref) (gate.Handshak
 	if s.d.Handshakes == nil {
 		return gate.HandshakeView{}, gate.ErrNotFound
 	}
-	return s.d.Handshakes.OpenUpgrade(ctx, v, u)
+	return s.d.Handshakes.OpenUpgrade(ctx, v, u, quiet)
 }

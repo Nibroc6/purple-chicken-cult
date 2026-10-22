@@ -222,7 +222,7 @@ func (h *MemHandshakes) open(kind uint8, a, b core.UserID) (gate.HandshakeView, 
 }
 
 // OpenUpgrade opens a friend → friend+ handshake between v and a plain friend.
-func (h *MemHandshakes) OpenUpgrade(_ context.Context, v core.Viewer, peer core.UserID) (gate.HandshakeView, error) {
+func (h *MemHandshakes) OpenUpgrade(_ context.Context, v core.Viewer, peer core.UserID, _ bool) (gate.HandshakeView, error) {
 	if h.D == nil || v.ID == 0 || peer == 0 || peer == v.ID {
 		return gate.HandshakeView{}, gate.ErrNotFound
 	}

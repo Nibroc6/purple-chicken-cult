@@ -57,8 +57,12 @@ const (
 	ProbationJobEvery = 24 * time.Hour
 	DiversityJobEvery = 24 * time.Hour
 	notifyRedeemed    = "invite_redeemed"
-	metricRedeemed    = "invites.redeemed"
-	liveTopic         = "handshake"
+	// notifyFriendUpgrade and topicFriendUpgrade offer the scanner to the
+	// other side of an upgrade (notify.KindFriendUpgrade, TopicFriendUpgrade).
+	notifyFriendUpgrade = "friend_upgrade"
+	topicFriendUpgrade  = "friend_upgrade"
+	metricRedeemed      = "invites.redeemed"
+	liveTopic           = "handshake"
 )
 
 // users.probation_rule values.

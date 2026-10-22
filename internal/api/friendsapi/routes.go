@@ -21,11 +21,12 @@ import (
 )
 
 var (
-	rGraph     = apix.Read("graph_read")
-	rPost      = apix.Read("post_read")
-	wRequest   = apix.Write("friend_request")
-	wSocial    = apix.Write("social")
-	wHandshake = apix.Write("invite_handshake")
+	rGraph   = apix.Read("graph_read")
+	rPost    = apix.Read("post_read")
+	wRequest = apix.Write("friend_request")
+	wSocial  = apix.Write("social")
+	// An upgrade spends no code attempt (invite_handshake): it has its own cap.
+	wHandshake = apix.Write("friend_upgrade")
 )
 
 // maxCosig bounds a co-signed change's body (an intent ref and one WebAuthn assertion).
@@ -80,6 +81,11 @@ type RequestSent struct {
 // PeopleView is GET /api/blocks.
 type PeopleView struct {
 	Items []gate.PersonView `json:"items"`
+}
+
+// UpgradeIn is POST /api/friends/{ref}/upgrade (optional body).
+type UpgradeIn struct {
+	Quiet bool `json:"quiet"`
 }
 
 // SuggestionsView is GET /api/suggestions.
@@ -174,7 +180,15 @@ func Register(r chi.Router, d *api.Deps) {
 		return f.HideVia(r.Context(), ref, false)
 	}))
 	apix.Route(r, http.MethodPost, "/friends/{ref}/upgrade", wHandshake, func(w http.ResponseWriter, r *http.Request) error {
-		hv, err := f.UpgradeBegin(r.Context(), apix.Ref(r, "ref"))
+		// The body is optional: {"quiet": true} turns the jingle off.
+		var in UpgradeIn
+		if r.ContentLength != 0 {
+			var err error
+			if in, err = apix.Decode[UpgradeIn](r, 0); err != nil {
+				return err
+			}
+		}
+		hv, err := f.UpgradeBegin(r.Context(), apix.Ref(r, "ref"), in.Quiet)
 		if err != nil {
 			return err
 		}

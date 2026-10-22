@@ -104,13 +104,13 @@ func TestReferenceHandshakes(t *testing.T) {
 	ctx := context.Background()
 	va := core.Viewer{ID: a, Kind: core.SessUser}
 
-	if _, err := m.D.Handshakes.OpenUpgrade(ctx, va, x); !errors.Is(err, gate.ErrNotFound) {
+	if _, err := m.D.Handshakes.OpenUpgrade(ctx, va, x, false); !errors.Is(err, gate.ErrNotFound) {
 		t.Fatalf("upgrade with a stranger: %v", err)
 	}
-	if _, err := m.D.Handshakes.OpenUpgrade(ctx, va, c); !errors.Is(err, gate.ErrNotFound) {
+	if _, err := m.D.Handshakes.OpenUpgrade(ctx, va, c, false); !errors.Is(err, gate.ErrNotFound) {
 		t.Fatalf("upgrade of a friend+ edge: %v", err)
 	}
-	hv, err := m.D.Handshakes.OpenUpgrade(ctx, va, b)
+	hv, err := m.D.Handshakes.OpenUpgrade(ctx, va, b, false)
 	if err != nil || hv.HS == "" {
 		t.Fatalf("upgrade: %+v %v", hv, err)
 	}

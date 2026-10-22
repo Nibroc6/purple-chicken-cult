@@ -27,6 +27,7 @@ var (
 	sA   = apix.Step("account")
 	wI   = apix.Write("invite_handshake")
 	sI   = apix.Step("invite_handshake")
+	wU   = apix.Write("friend_upgrade")
 	wV   = apix.Write("save")
 	wM   = apix.Write("media")
 )
@@ -95,7 +96,7 @@ var Catalogue = []Entry{
 	e("friendsapi", 0, "GET", "/suggestions", rG),
 	e("friendsapi", 1, "PUT", "/people/{ref}/hide-via", wS),
 	e("friendsapi", 1, "DELETE", "/people/{ref}/hide-via", wS),
-	e("friendsapi", 1, "POST", "/friends/{ref}/upgrade", wI),
+	e("friendsapi", 1, "POST", "/friends/{ref}/upgrade", wU),
 
 	// postsapi (P0-W05 → P1-W12)
 	e("postsapi", 0, "POST", "/posts", wP),

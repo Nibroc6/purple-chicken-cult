@@ -92,5 +92,10 @@
   },
   "recovery": {
     "done": "Done. Continue on the recovery page."
+  },
+  "toast": {
+    "body": "{handle} is showing you their code to become friends.",
+    "scan": "Scan their code",
+    "dismiss": "Not now"
   }
 }

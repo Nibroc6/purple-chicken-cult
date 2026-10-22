@@ -68,7 +68,9 @@ paths:
         Server-sent events for the caller's session. Events: hello {unread}
         first, notification {unread} after each new notification (a batched
         post pings at most once per hour), handshake {state} for an open invite
-        handshake, stepup {} (P1). A ": ping" comment every 25 s. The stream
+        handshake, stepup {} (P1), friend_upgrade {from, handle} when an
+        acquaintance opens a friend upgrade with the caller (the app offers the
+        scanner). A ": ping" comment every 25 s. The stream
         closes when the session ends (logout, expiry, revocation, deletion).
       responses:
         "200":
