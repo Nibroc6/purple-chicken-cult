@@ -5,6 +5,7 @@
 // the public log (names vs pseudonyms), the footer slot and a pseudo-locale pass.
 // P1-W06: the unified queue (csam holds without content, signals, claims), the
 // co-signed confirmation of a passkey session, the csam report and quarantine.
+// The admin roles page: the team, adding and removing moderators, the history.
 import { QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
@@ -28,11 +29,13 @@ import {
   type BlameItem,
   type LogItem,
   type ModItem,
+  type Staff,
 } from './api';
 import BlamePage from './BlamePage';
 import ModLogPage from './ModLogPage';
 import ModQueuePage from './ModQueuePage';
 import ReportPage from './ReportPage';
+import RolesPage from './RolesPage';
 import { ModerationFooter } from './slots';
 
 vi.mock('../cosign', () => ({ requestCosign: vi.fn() }));
@@ -517,6 +520,57 @@ describe('moderation log', () => {
   });
 });
 
+describe('roles page', () => {
+  const staff: Staff = {
+    members: [
+      { ref: 'aliceRef', handle: 'alice', role: 'admin', me: true, since: '2026-10-01T00:00:00Z' },
+      { ref: 'mo1Ref', handle: 'mo1', display_name: 'Mo One', role: 'moderator' },
+    ],
+    changes: [{ action: 'grant_admin', handle: 'alice', by_handle: 'alice', at: '2026-10-01T00:00:00Z' }],
+  };
+  it('is for admins only', async () => {
+    const calls = stub('moderator', () => undefined);
+    renderAt('/mod/roles', <RolesPage />);
+    expect(await screen.findByText(tr('moderation:roles.adminsOnly'))).toBeTruthy();
+    expect(calls.some((c) => c.path === '/mod/roles')).toBe(false);
+  });
+  it('lists the team and the history, adds and removes moderators', async () => {
+    const calls = stub('admin', (c) => {
+      if (c.path === '/mod/roles' && c.method === 'GET') return json(200, staff);
+      if (c.path === '/mod/roles' && c.method === 'POST') {
+        const h = (c.body as { handle: string }).handle;
+        return h === 'nobody' ? json(422, { error: 'handle_unknown', field: 'handle' }) : new Response(null, { status: 204 });
+      }
+      if (c.path === '/mod/roles/mo1Ref/revoke') return new Response(null, { status: 204 });
+      return undefined;
+    });
+    renderAt('/mod/roles', <RolesPage />);
+    const members = await screen.findAllByTestId('roles-member');
+    expect(members.map((m) => m.getAttribute('data-role'))).toEqual(['admin', 'moderator']);
+    const [admin, mod] = members as [HTMLElement, HTMLElement];
+    expect(within(admin).queryByTestId('roles-remove')).toBeNull();
+    expect(screen.getAllByTestId('roles-change')).toHaveLength(1);
+
+    fireEvent.change(screen.getByTestId('roles-handle'), { target: { value: '@nobody' } });
+    fireEvent.click(screen.getByTestId('roles-add-submit'));
+    expect((await screen.findByTestId('roles-add-error')).textContent).toBe(tr('moderation:errors.handle_unknown'));
+    fireEvent.change(screen.getByTestId('roles-handle'), { target: { value: ' carol' } });
+    fireEvent.click(screen.getByTestId('roles-add-submit'));
+    expect((await screen.findByTestId('roles-notice')).textContent).toBe(tr('moderation:roles.added', { handle: 'carol' }));
+    expect(calls.filter((c) => c.method === 'POST' && c.path === '/mod/roles').map((c) => c.body)).toEqual([
+      { handle: 'nobody' },
+      { handle: 'carol' },
+    ]);
+
+    fireEvent.click(within(mod).getByTestId('roles-remove'));
+    fireEvent.click(within(mod).getByTestId('roles-remove-yes'));
+    await waitFor(() => {
+      expect(screen.getByTestId('roles-notice').textContent).toBe(tr('moderation:roles.removed', { handle: 'mo1' }));
+    });
+    expect(calls.some((c) => c.method === 'POST' && c.path === '/mod/roles/mo1Ref/revoke')).toBe(true);
+  });
+});
+
 describe('footer', () => {
   function renderFooter() {
     const router = createMemoryRouter([{ path: '/', element: <ModerationFooter /> }]);
@@ -546,6 +600,14 @@ describe('footer', () => {
         '/mod',
         '/mod/recovery',
       ]);
+    });
+  });
+  it('adds the roles page for admins', async () => {
+    stub('admin', () => undefined);
+    renderFooter();
+    const footer = await screen.findByTestId('site-footer');
+    await waitFor(() => {
+      expect([...footer.querySelectorAll('a')].map((a) => a.getAttribute('href'))).toContain('/mod/roles');
     });
   });
 });

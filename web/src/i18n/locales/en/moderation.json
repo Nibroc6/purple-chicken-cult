@@ -33,7 +33,8 @@
     "illegal": "Illegal content",
     "csam": "Child sexual abuse material",
     "other": "Something else",
-    "ban_evasion": "Evading a suspension"
+    "ban_evasion": "Evading a suspension",
+    "role_change": "Change of moderators"
   },
   "reasonHint": {
     "spam": "Unwanted advertising, repeated posts, scams.",
@@ -48,7 +49,10 @@
   "action": {
     "remove_post": "Remove the post",
     "suspend_user": "Suspend the account",
-    "dismiss": "Dismiss"
+    "dismiss": "Dismiss",
+    "grant_moderator": "Made a moderator",
+    "revoke_moderator": "Removed as moderator",
+    "grant_admin": "Made an admin"
   },
   "blame": {
     "title": "Blame inbox",
@@ -88,7 +92,7 @@
   },
   "log": {
     "title": "Moderation log",
-    "intro": "Every confirmed removal and suspension, by day. People you are connected to are named; everyone else has a stand-in name.",
+    "intro": "Every confirmed removal and suspension, and every change of moderators, by day. People you are connected to are named; everyone else has a stand-in name.",
     "empty": "No moderator actions yet.",
     "day": "Day",
     "action": "Action",
@@ -100,13 +104,36 @@
     "pseudonym": "Account {id}",
     "pseudonymHint": "Someone outside your network. The same account always has the same stand-in name."
   },
+  "roles": {
+    "title": "Moderators and admins",
+    "adminsOnly": "Only admins can see this page.",
+    "intro": "Making someone a moderator or removing them asks you to confirm with your passkey, and every change goes into the public moderation log. Admins can only be added or removed from the server command line.",
+    "current": "Current team",
+    "empty": "Nobody yet.",
+    "role": "{role, select, admin {Admin} other {Moderator}}",
+    "you": "(you)",
+    "since": "since {date}",
+    "remove": "Remove as moderator",
+    "removeConfirm": "Remove @{handle} as moderator? They go back to being a member, and anything they were handling goes back to the queue.",
+    "removeYes": "Remove",
+    "cancel": "Cancel",
+    "removed": "@{handle} is no longer a moderator.",
+    "addTitle": "Add a moderator",
+    "handle": "Their handle",
+    "add": "Make moderator",
+    "added": "@{handle} is now a moderator.",
+    "history": "Recent changes",
+    "historyEmpty": "No changes recorded yet.",
+    "change": "{action, select, grant_moderator {@{by} made @{handle} a moderator} revoke_moderator {@{by} removed @{handle} as moderator} grant_admin {@{handle} became an admin} other {@{by} changed the role of @{handle}}}"
+  },
   "footer": {
     "label": "About and moderation",
     "terms": "Terms",
     "log": "Moderation log",
     "blame": "Blame inbox",
     "queue": "Moderation queue",
-    "recovery": "Account recovery"
+    "recovery": "Account recovery",
+    "roles": "Moderators and admins"
   },
   "errors": {
     "kind_invalid": "This cannot be reported.",
@@ -123,7 +150,11 @@
     "item_claimed": "Another moderator is handling this.",
     "quarantine_threshold": "Not enough accounts in this invite tree are confirmed bad yet.",
     "quarantine_active": "This invite tree was quarantined less than 30 days ago.",
-    "csam_already_reported": "This image was already reported."
+    "csam_already_reported": "This image was already reported.",
+    "handle_unknown": "Nobody active has that handle.",
+    "already_staff": "They are already a moderator or an admin.",
+    "admin_role": "Admins can only be changed from the server command line.",
+    "not_moderator": "They are not a moderator anymore."
   },
   "source": {
     "report": "Report",

@@ -407,6 +407,31 @@ type LogItem struct {
 	Subject *LogSubject `json:"subject,omitempty"`
 }
 
+// StaffMember is one active moderator or admin on the admin roles page.
+type StaffMember struct {
+	Ref         Ref        `json:"ref"`
+	Handle      string     `json:"handle"`
+	DisplayName string     `json:"display_name,omitempty"`
+	Role        string     `json:"role"`            // moderator | admin
+	Since       *time.Time `json:"since,omitempty"` // the logged grant, if any
+	Me          bool       `json:"me,omitempty"`
+}
+
+// RoleChange is one logged role change: who changed whose role, and when.
+type RoleChange struct {
+	Action   string    `json:"action"` // grant_moderator | revoke_moderator | grant_admin
+	Handle   string    `json:"handle"`
+	ByHandle string    `json:"by_handle"`
+	At       time.Time `json:"at"`
+}
+
+// Staff is the admin roles page: the current moderators and admins and the
+// latest role changes, newest first.
+type Staff struct {
+	Members []StaffMember `json:"members"`
+	Changes []RoleChange  `json:"changes"`
+}
+
 // LogSubject names a log subject: a pseudonym, or a ref+handle for viewers who
 // already have that person in their horizon.
 type LogSubject struct {

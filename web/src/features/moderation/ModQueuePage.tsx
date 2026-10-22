@@ -57,6 +57,7 @@ export default function ModQueuePage() {
 
 function Queue() {
   const { t } = useTranslation(['moderation', 'errors']);
+  const me = useMe();
   const q = useInfiniteQuery({
     queryKey: queueKey,
     queryFn: ({ pageParam }) => fetchQueue(pageParam),
@@ -75,6 +76,13 @@ function Queue() {
         <li>
           <Link to="/mod/recovery">{t('footer.recovery')}</Link>
         </li>
+        {me?.role === 'admin' ? (
+          <li>
+            <Link to="/mod/roles" data-testid="queue-roles-link">
+              {t('footer.roles')}
+            </Link>
+          </li>
+        ) : null}
       </ul>
       {q.isPending ? <Loading /> : null}
       {q.error ? (

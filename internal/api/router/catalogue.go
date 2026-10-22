@@ -171,6 +171,9 @@ var Catalogue = []Entry{
 	e("modapi", 0, "POST", "/csp-report", apix.Anon("csp_report")),
 	e("modapi", 1, "POST", "/mod/quarantine", wS),
 	e("modapi", 1, "POST", "/mod/items/{id}/csam-report", wS),
+	e("modapi", 1, "GET", "/mod/roles", rG),
+	e("modapi", 1, "POST", "/mod/roles", wS),
+	e("modapi", 1, "POST", "/mod/roles/{ref}/revoke", wS),
 
 	// themeapi (P1-W09)
 	e("themeapi", 1, "GET", "/me/theme", free), // steward: contract request p1-w09-1
