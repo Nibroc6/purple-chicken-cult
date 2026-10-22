@@ -8,12 +8,57 @@ import { openMic } from './mic';
 import { checkBits, renderSound } from './synth';
 
 const CHUNK = 4096;
+// How long play waits for a suspended context to start (Safari leaves resume()
+// pending forever outside a user gesture) and, past the sound's length, for it
+// to end.
+const RESUME_MS = 2000;
+const END_SLACK_MS = 3000;
+
+interface AudioSessionNav {
+  audioSession?: { type: string };
+}
+
+// playbackSession asks iOS Safari (17+) to treat the sound as media playback,
+// which plays even with the ring/silent switch on; it returns the undo.
+function playbackSession(): () => void {
+  const s = (navigator as AudioSessionNav).audioSession;
+  if (!s || s.type !== 'auto') return () => undefined;
+  try {
+    s.type = 'playback';
+  } catch {
+    return () => undefined;
+  }
+  return () => {
+    s.type = 'auto';
+  };
+}
+
+// started resumes ctx if needed, and throws audio_blocked if it won't run.
+async function started(ctx: AudioContext): Promise<void> {
+  if (ctx.state !== 'running') {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([
+      ctx.resume().catch(() => undefined),
+      new Promise<void>((r) => {
+        timer = setTimeout(r, RESUME_MS);
+      }),
+    ]);
+    clearTimeout(timer);
+  }
+  if (ctx.state !== 'running') throw new Error('audio_blocked');
+}
 
 export function createHandshakeAudio(ctx: AudioContext): HandshakeAudio {
   return {
     play: async (bits: PlayBits, opts: { quiet: boolean }) => {
       checkBits(bits);
-      if (ctx.state === 'suspended') await ctx.resume();
+      const restore = playbackSession();
+      try {
+        await started(ctx);
+      } catch (e) {
+        restore();
+        throw e;
+      }
       const pcm = renderSound(bits, {
         quiet: opts.quiet,
         sampleRate: ctx.sampleRate,
@@ -23,13 +68,28 @@ export function createHandshakeAudio(ctx: AudioContext): HandshakeAudio {
       const src = ctx.createBufferSource();
       src.buffer = buf;
       src.connect(ctx.destination);
-      return new Promise<{ startedAt: number }>((resolve) => {
+      return new Promise<{ startedAt: number }>((resolve, reject) => {
         const startedAt = performance.now();
-        src.onended = () => {
+        const done = (err?: Error) => {
+          clearTimeout(timer);
+          src.onended = null;
           src.disconnect();
-          resolve({ startedAt });
+          restore();
+          if (err) reject(err);
+          else resolve({ startedAt });
         };
-        src.start();
+        // A context interrupted mid-sound never fires onended.
+        const timer = setTimeout(() => {
+          done(new Error('audio_stalled'));
+        }, (pcm.length / ctx.sampleRate) * 1000 + END_SLACK_MS);
+        src.onended = () => {
+          done();
+        };
+        try {
+          src.start();
+        } catch (e) {
+          done(e instanceof Error ? e : new Error('audio_blocked'));
+        }
       });
     },
     listen: async (opts: { timeoutMs: number; input?: AudioInput }) => {
