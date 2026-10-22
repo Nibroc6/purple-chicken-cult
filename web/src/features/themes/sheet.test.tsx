@@ -47,6 +47,10 @@ it('knows the locked routes', () => {
   for (const p of ['/', '/compose', '/p/abc', '/friends', '/settingsx', '/people/x']) {
     expect(isLockedRoute(p)).toBe(false);
   }
+  // The report form as a modal over any page; other modals (likes) are not locked.
+  expect(isLockedRoute('/p/abc', '?report=post:abc')).toBe(true);
+  expect(isLockedRoute('/', '?x=1&report=user:u1')).toBe(true);
+  expect(isLockedRoute('/p/abc', '?likes=abc')).toBe(false);
 });
 
 function json(status: number, body: unknown): Response {

@@ -2,8 +2,9 @@
 // reader's own raw CSS, applied only to their own view. The editor warns that
 // it can change or hide anything, the integrity elements included. Two things
 // still hold: the app drops the sheet on locked routes (sign-in, recovery,
-// co-signing, settings, moderation, report), so a passkey prompt always looks
-// like the app and the theme page always works to undo a theme; and it is
+// co-signing, settings, moderation, report, the report modal), so a passkey
+// prompt always looks like the app and the theme page always works to undo a
+// theme; and it is
 // dropped under high contrast. image(name) names one of the theme's own
 // uploads and becomes its signed URL. The sheet is a constructed stylesheet
 // (no style element: style-src 'self' stays strict), and the CSP still decides
@@ -15,11 +16,14 @@ export const MAX_IMAGES = 8;
 export const imageName = /^[a-z][a-z0-9-]{0,31}$/;
 const imageRef = /image\(\s*([a-z][a-z0-9-]{0,31})\s*\)/g;
 
-// Routes where the sheet is dropped (prefixes).
+// Routes where the sheet is dropped (prefixes), and search params that open a
+// locked flow as a modal over any page (the report form: ?report=<kind>:<ref>).
 const lockedRoutes = ['/login', '/enroll', '/join', '/recover', '/cosign', '/settings', '/mod', '/report', '/blame', '/terms'];
+const lockedParams = ['report'];
 
-export function isLockedRoute(path: string): boolean {
-  return lockedRoutes.some((p) => path === p || path.startsWith(`${p}/`));
+export function isLockedRoute(path: string, search = ''): boolean {
+  const params = new URLSearchParams(search);
+  return lockedRoutes.some((p) => path === p || path.startsWith(`${p}/`)) || lockedParams.some((k) => params.has(k));
 }
 
 export interface SheetError {
