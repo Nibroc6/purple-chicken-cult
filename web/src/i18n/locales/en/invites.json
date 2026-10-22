@@ -1,13 +1,14 @@
 {
   "page": {
     "title": "Meet someone in person",
-    "intro": "Show your code to someone you're with. If they're new here, they join with it. If they already have an account, they scan it signed in and you become friends."
+    "intro": "Show your code to someone you're with.",
+    "introTip": "If they're new here, they join with it. If they already have an account, they scan it while signed in and you become friends."
   },
   "budget": {
     "available": "{count, plural, =0 {No invites saved} one {# invite saved} other {# invites saved}} (up to {cap})",
     "next": "Next invite in {time}",
     "full": "Your invites are full. Use one before more can build up.",
-    "probationIntro": "New accounts can't invite anyone yet, but you can still become friends in person with people who already have an account.",
+    "probationIntro": "You can't invite new people yet, but you can still become friends in person.",
     "probationTime": "Invites unlock in {time}",
     "probationTimeDone": "The waiting time is over.",
     "probationFriends": "{count, plural, one {# more acquaintance} other {# more acquaintances}} outside your invite tree",

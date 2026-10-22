@@ -60,7 +60,7 @@ export function InfoTip({ children, label, testId }: { children: ReactNode; labe
       className="infotip"
       data-testid={testId}
       onBlur={(e) => {
-        if (!wrap.current?.contains(e.relatedTarget as Node | null)) close();
+        if (!wrap.current?.contains(e.relatedTarget)) close();
       }}
       onPointerLeave={(e) => {
         if (e.pointerType === 'mouse' && !pinned) setOpen(false);

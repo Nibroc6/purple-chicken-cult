@@ -1,7 +1,8 @@
 {
   "check": {
     "title": "Sound check",
-    "body": "The in-person handshake uses one short sound with two layers: a jingle you can hear and a high tone most people can't. Use this page to check that this device can play the sound and hear it from another phone. Nothing is recorded: the sound is decoded on this device and then forgotten.",
+    "body": "Check that this phone can play and hear the handshake sound.",
+    "bodyTip": "The sound has two layers: a jingle you can hear and a high tone most people can't. Nothing is recorded: the sound is decoded on this device and then forgotten.",
     "play": "Play the sound",
     "playing": "Playing…",
     "played": "Played the tune with code {code}. Listen on the other device and compare the codes.",

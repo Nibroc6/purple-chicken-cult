@@ -1,7 +1,8 @@
 {
   "page": {
     "title": "Theme",
-    "intro": "Choose the colors, shapes and font of the app. Labels like tier headers, chains and the report button always stay readable, so a theme that would make them hard to read can't be saved."
+    "intro": "Choose the app's colors, shapes and font.",
+    "introTip": "Labels like tier headers, chains and the report button always stay readable, so a theme that would make them hard to read can't be saved."
   },
   "preset": {
     "legend": "Theme",

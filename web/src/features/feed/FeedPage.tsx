@@ -24,6 +24,7 @@ import { toUIPrefs } from '../settings/vm';
 import { expandGroup, fetchFeed, fetchNewAbove, fetchWhy } from './api';
 import { countPosts, expandInPages, feedKey, ownPostsKey, presets, savedPreset, withOwnPosts } from './vm';
 import './feed.css';
+import { InfoTip } from '../../lib/InfoTip';
 
 export const NEW_ABOVE_MS = 60_000;
 
@@ -59,7 +60,9 @@ function PresetSwitch({ value, onChange }: { value: Preset; onChange: (p: Preset
           {t(`preset.${p}` as 'preset.latest')}
         </button>
       ))}
-      <span className="muted feed-preset-hint">{t('preset.hint', { preset: value })}</span>
+      <InfoTip label={t('preset.hintLabel')} testId="feed-preset-hint">
+        {t('preset.hint', { preset: value })}
+      </InfoTip>
     </div>
   );
 }
@@ -171,6 +174,7 @@ export default function FeedPage() {
       {caughtUpEmpty ? (
         <p className="muted" data-testid="feed-empty">
           {t('page.empty')}
+          <InfoTip>{t('page.emptyTip')}</InfoTip>
         </p>
       ) : null}
       {expandError ? (

@@ -11,6 +11,7 @@ import { usePostActions } from '../engage/usePostActions';
 import { PostPreview } from '../post/shared';
 import { fetchRecent, recentKey } from './api';
 import './seen.css';
+import { InfoTip } from '../../lib/InfoTip';
 
 export default function SeenPage() {
   const { t } = useTranslation(['seen', 'errors']);
@@ -27,7 +28,8 @@ export default function SeenPage() {
     <section className="page seen-page">
       <h1>{t('page.title')}</h1>
       <p className="muted">
-        {t('page.intro')} <Link to="/saves">{t('page.saves')}</Link>
+        {t('page.intro')}
+        <InfoTip>{t('page.introTip')}</InfoTip> <Link to="/saves">{t('page.saves')}</Link>
       </p>
       {q.isPending ? <Loading /> : null}
       {q.error ? (

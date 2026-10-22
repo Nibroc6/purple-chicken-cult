@@ -12,7 +12,8 @@
     "likedBy": "Liked by",
     "you": "you",
     "others": "{count, plural, one {# other} other {# others}}",
-    "explain": "Only likes from people within 2 steps of you count here. Only your own acquaintances are named, and only if they allow it."
+    "explain": "Only likes from people within 2 steps of you count here. Only your own acquaintances are named, and only if they allow it.",
+    "explainShort": "Only your network counts."
   },
   "save": {
     "action": "Save",

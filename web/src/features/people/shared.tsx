@@ -9,6 +9,7 @@ import { requestCosign } from '../cosign';
 import { runAction, sessionCosigns, type Cosig, type PersonAction } from './api';
 import { confirmActions, cosignPurpose, errorParams, peopleErrorKey, primaryActions, reportPath, secondaryActions } from './vm';
 import './people.css';
+import { InfoTip } from '../../lib/InfoTip';
 
 // peopleKey prefixes every query of this feature (any action refreshes them all).
 export const peopleKey = ['people'] as const;
@@ -162,12 +163,19 @@ export function PersonCard({
 }
 
 // PeopleList renders cards, or the empty text.
-export function PeopleList({ people, empty, render }: {
+export function PeopleList({ people, empty, emptyTip, render }: {
   people: PersonVM[];
   empty: string;
+  emptyTip?: string;
   render?: (p: PersonVM) => ReactNode;
 }) {
-  if (people.length === 0) return <p className="muted">{empty}</p>;
+  if (people.length === 0)
+    return (
+      <p className="muted">
+        {empty}
+        {emptyTip ? <InfoTip>{emptyTip}</InfoTip> : null}
+      </p>
+    );
   return <ul className="people-list">{people.map((p) => render?.(p) ?? <PersonCard key={p.ref} person={p} />)}</ul>;
 }
 

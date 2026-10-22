@@ -15,6 +15,7 @@ import { fetchBudget, openHandshake, type HandshakeMode, type OpenedVM } from '.
 import { HandshakeHost } from './HandshakeHost';
 import { ErrorText, invitesKey, useNow } from './shared';
 import { canInvite, countdown, type BudgetVM } from './vm';
+import { InfoTip } from '../../lib/InfoTip';
 
 export default function InvitePage() {
   const { t } = useTranslation('invites');
@@ -32,7 +33,10 @@ export default function InvitePage() {
   return (
     <section className="page invites-page">
       <h1>{t('page.title')}</h1>
-      <p>{t('page.intro')}</p>
+      <p>
+        {t('page.intro')}
+        <InfoTip>{t('page.introTip')}</InfoTip>
+      </p>
       {budget.isPending ? <Loading /> : budget.error ? <ErrorText err={budget.error} /> : <Budget b={budget.data} />}
       {opened && !opened.invite ? (
         <p className="muted" data-testid="invite-connect-only">

@@ -13,6 +13,7 @@ import { listPasskeys, logout } from './api';
 import { addPasskey, removeKey } from './passkeyFlow';
 import { authError, toPasskeyVM, type PasskeyVM } from './vm';
 import './auth.css';
+import { InfoTip } from '../../lib/InfoTip';
 
 export const passkeysKey = ['auth', 'passkeys'] as const;
 
@@ -204,7 +205,10 @@ export default function PasskeysPage() {
       <p>
         <Link to="/settings">{t('common:nav.settings')}</Link>
       </p>
-      <p>{t('passkeys.intro')}</p>
+      <p>
+        {t('passkeys.intro')}
+        <InfoTip>{t('passkeys.introTip')}</InfoTip>
+      </p>
       <Passkeys />
     </section>
   );

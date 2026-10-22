@@ -43,7 +43,8 @@
   "edit": {
     "title": "Edit",
     "body": "Text",
-    "parentsFixed": "An edit changes the text only. What the post replies to stays the same, and readers see that it was edited.",
+    "parentsFixed": "Only the text can change.",
+    "parentsFixedTip": "What the post replies to stays the same, and readers see that it was edited.",
     "save": "Save the new version",
     "saved": "Saved."
   },

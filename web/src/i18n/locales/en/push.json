@@ -1,7 +1,8 @@
 {
   "page": {
     "title": "Push notifications",
-    "intro": "Get your notifications on this device even when the app is closed. Notifications never include what people wrote."
+    "intro": "Get notifications on this device, even when the app is closed.",
+    "introTip": "Notifications never include what people wrote."
   },
   "server": {
     "disabled": "Push notifications are turned off on this server."

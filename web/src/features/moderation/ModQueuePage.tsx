@@ -39,6 +39,7 @@ import {
   type ModReason,
 } from './api';
 import './moderation.css';
+import { InfoTip } from '../../lib/InfoTip';
 
 export const queueKey = ['moderation', 'queue'] as const;
 const cosignsKey = ['moderation', 'cosigns'] as const;
@@ -67,7 +68,10 @@ function Queue() {
   const items = q.data?.pages.flatMap((p) => p.items) ?? [];
   return (
     <>
-      <p className="muted">{t('queue.intro')}</p>
+      <p className="muted">
+        {t('queue.intro')}
+        <InfoTip>{t('queue.introTip')}</InfoTip>
+      </p>
       <ul className="link-list">
         <li>
           <Link to="/mod/log">{t('footer.log')}</Link>
