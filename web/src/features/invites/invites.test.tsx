@@ -124,6 +124,8 @@ describe('invites view-models', () => {
     expect(b).toEqual({ available: 2, cap: 3, nextAt: new Date('2026-01-02T00:00:00Z'), revoked: false });
     expect(canOpen(b)).toBe(true);
     expect(canOpen({ ...b, available: 0 })).toBe(false);
+    expect(canOpen({ ...b, attempts: { available: 0, cap: 20 } })).toBe(false);
+    expect(canOpen({ ...b, attempts: { available: 1, cap: 20 } })).toBe(true);
     const p = toBudgetVM({
       available: 0,
       cap: 3,
@@ -175,6 +177,20 @@ describe('invite page', () => {
     expect(await screen.findByText(tr('invites:budget.available', { count: 2, cap: 5 }))).toBeTruthy();
     expect(screen.getByTestId('invite-next').textContent).toContain(tr('invites:countdown.hours', { h: 2, m: 5 }).slice(0, 7));
     expect(screen.getByTestId<HTMLButtonElement>('invite-open').disabled).toBe(false);
+  });
+
+  it('labels the code attempts and offers no code once they are used up', async () => {
+    const next = new Date(Date.now() + 40 * 60_000);
+    stubAPI((c) =>
+      c.path === '/invites/budget'
+        ? json(200, { available: 2, cap: 5, attempts: { available: 0, cap: 20, next_at: next.toISOString() } })
+        : undefined,
+    );
+    renderAt('/invite', <InvitePage />);
+    expect(await screen.findByText(tr('invites:attempts.left', { count: 0, cap: 20 }))).toBeTruthy();
+    expect(screen.getByTestId('invite-attempts-next')).toBeTruthy();
+    expect(screen.getByText(tr('invites:attempts.hint'))).toBeTruthy();
+    expect(screen.getByTestId<HTMLButtonElement>('invite-open').disabled).toBe(true);
   });
 
   it('shows what is left of probation and offers no code', async () => {

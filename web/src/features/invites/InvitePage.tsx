@@ -26,6 +26,8 @@ export default function InvitePage() {
     onSuccess: (o) => {
       setOpened(o);
     },
+    // Opening uses an attempt (or was refused for want of one): show the count.
+    onSettled: () => qc.invalidateQueries({ queryKey: [...invitesKey, 'budget'] }),
   });
   return (
     <section className="page invites-page">
@@ -157,6 +159,17 @@ function Budget({ b }: { b: BudgetVM }) {
       ) : (
         <p className="muted">{t('budget.full')}</p>
       )}
+      {b.attempts ? (
+        <div className="invites-attempts" data-testid="invite-attempts">
+          <p data-testid="invite-attempts-left">
+            {t('attempts.left', { count: b.attempts.available, cap: b.attempts.cap })}
+          </p>
+          {b.attempts.nextAt ? (
+            <p data-testid="invite-attempts-next">{t('attempts.next', { time: remaining(b.attempts.nextAt) })}</p>
+          ) : null}
+          <p className="muted">{t('attempts.hint')}</p>
+        </div>
+      ) : null}
     </div>
   );
 }

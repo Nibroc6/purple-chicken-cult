@@ -200,6 +200,9 @@ func TestEveryRouteClassHasABudget(t *testing.T) {
 			_, ok = p.Reads[ri.Class.Name]
 		case gate.ClassWrite:
 			_, ok = p.Writes[ri.Class.Name]
+			if !ok {
+				_, ok = p.Refills[ri.Class.Name]
+			}
 		case gate.ClassAnon:
 			_, ok = p.Anon[ri.Class.Name]
 		}

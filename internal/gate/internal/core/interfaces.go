@@ -545,4 +545,14 @@ type Limiter interface {
 	ChargeRead(ctx context.Context, v Viewer, c ReadClass) error         // gate.ErrRateLimited
 	ChargeWrite(ctx context.Context, v Viewer, k WriteKind, n int) error // gate.ErrRateLimited
 	ChargeAnon(ip netip.Prefix, bucket string) error                     // unauthenticated surface (memory only)
+	// WriteAllowance reports what is left of a build-up write limit of kind k
+	// (ok false when k has none).
+	WriteAllowance(ctx context.Context, v Viewer, k WriteKind) (a Allowance, ok bool, err error)
+}
+
+// Allowance is what is left of a build-up limit: Available of Cap now, and
+// when the next one builds up (nil while full).
+type Allowance struct {
+	Available, Cap int
+	NextAt         *time.Time
 }
