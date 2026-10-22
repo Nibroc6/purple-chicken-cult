@@ -257,11 +257,13 @@ test('Explorer: feed cards with a tree thumbnail, the tree as a canvas with the 
   await page.getByTestId('explorer-zoom-in').click();
   await expect(page.getByTestId('explorer-minimap')).toHaveCount(0);
 
-  // No minimap on a phone.
+  // No minimap on a phone, and no zoom buttons (pinch, or + and −).
   await page.setViewportSize({ width: 390, height: 844 });
   await page.reload();
   await expect(page.getByTestId('explorer-canvas')).toBeVisible();
-  await page.getByTestId('explorer-zoom-out').click();
-  await page.getByTestId('explorer-zoom-out').click();
+  await expect(page.getByTestId('explorer-zoom-out')).toBeHidden();
+  await expect(page.getByTestId('explorer-fit')).toBeVisible();
+  await page.getByTestId('explorer-svg').press('-');
+  await page.getByTestId('explorer-svg').press('-');
   await expect(page.getByTestId('explorer-minimap')).toHaveCount(0);
 });

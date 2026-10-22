@@ -366,36 +366,40 @@ export function Canvas({
   return (
     <div className="explorer-canvas" data-testid="explorer-canvas" data-zoom={view.k.toFixed(2)}>
       <div className="explorer-toolbar tree-overlay" role="group" aria-label={t('canvas.tools')}>
-        <button
-          type="button"
-          data-testid="explorer-zoom-out"
-          aria-label={t('canvas.zoomOut')}
-          disabled={view.k <= MIN_ZOOM}
-          onClick={() => {
-            zoomBy(1 / STEP);
-          }}
-        >
-          <Icon name="zoom-out" />
-        </button>
-        <span className="explorer-zoom muted" data-testid="explorer-zoom">
-          {t('canvas.zoom', { percent: Math.round(view.k * 100) })}
+        <span className="explorer-zoom-group">
+          <button
+            type="button"
+            data-testid="explorer-zoom-out"
+            aria-label={t('canvas.zoomOut')}
+            disabled={view.k <= MIN_ZOOM}
+            onClick={() => {
+              zoomBy(1 / STEP);
+            }}
+          >
+            <Icon name="zoom-out" />
+          </button>
+          <span className="explorer-zoom muted" data-testid="explorer-zoom">
+            {t('canvas.zoom', { percent: Math.round(view.k * 100) })}
+          </span>
+          <button
+            type="button"
+            data-testid="explorer-zoom-in"
+            aria-label={t('canvas.zoomIn')}
+            disabled={view.k >= MAX_ZOOM}
+            onClick={() => {
+              zoomBy(STEP);
+            }}
+          >
+            <Icon name="zoom-in" />
+          </button>
         </span>
-        <button
-          type="button"
-          data-testid="explorer-zoom-in"
-          aria-label={t('canvas.zoomIn')}
-          disabled={view.k >= MAX_ZOOM}
-          onClick={() => {
-            zoomBy(STEP);
-          }}
-        >
-          <Icon name="zoom-in" />
+        <button type="button" className="explorer-tool" data-testid="explorer-fit" onClick={showAll}>
+          <Icon name="fit" />
+          <span className="explorer-tool-label">{t('canvas.fit')}</span>
         </button>
-        <button type="button" data-testid="explorer-fit" onClick={showAll}>
-          {t('canvas.fit')}
-        </button>
-        <button type="button" data-testid="explorer-recenter" onClick={showFocal}>
-          {t('canvas.recenter')}
+        <button type="button" className="explorer-tool" data-testid="explorer-recenter" onClick={showFocal}>
+          <Icon name="recenter" />
+          <span className="explorer-tool-label">{t('canvas.recenter')}</span>
         </button>
         {tools}
       </div>
