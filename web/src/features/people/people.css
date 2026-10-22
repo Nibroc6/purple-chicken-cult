@@ -5,6 +5,12 @@
   gap: var(--space-3);
   margin-block-end: var(--space-4);
 }
+/* On touch screens the links are 44px tall already (styles/controls.css). */
+@media (pointer: coarse) {
+  .people-nav {
+    row-gap: 0;
+  }
+}
 
 .people-list {
   list-style: none;

@@ -106,10 +106,12 @@ a {
   border-radius: var(--radius-control);
   cursor: pointer;
 }
-.sidebar-toggle:hover,
-.sidebar-menu:hover {
-  color: var(--color-accent);
-  background: var(--color-hover);
+@media (hover: hover) {
+  .sidebar-toggle:hover,
+  .sidebar-menu:hover {
+    color: var(--color-accent);
+    background: var(--color-hover);
+  }
 }
 .sidebar-menu {
   display: none;
@@ -148,8 +150,13 @@ a {
   text-decoration: none;
   transition: background-color var(--ease);
 }
-.link-cards a:hover {
-  color: var(--color-accent);
+@media (hover: hover) {
+  .link-cards a:hover {
+    color: var(--color-accent);
+    background: var(--color-hover);
+  }
+}
+.link-cards a:active {
   background: var(--color-hover);
 }
 .link-cards a:focus-visible {
@@ -188,9 +195,11 @@ a {
     background-color var(--ease),
     color var(--ease);
 }
-.sidebar-nav a:hover {
-  background: var(--color-hover);
-  color: var(--color-accent);
+@media (hover: hover) {
+  .sidebar-nav a:hover {
+    background: var(--color-hover);
+    color: var(--color-accent);
+  }
 }
 .sidebar-nav a[aria-current='page'] {
   font-weight: 650;
@@ -280,8 +289,11 @@ a {
 
 /* Narrow screens: a top bar and an off-canvas drawer. */
 @media (max-width: 47.99rem) {
+  /* One column; the rows hug their content, so a short page starts right
+     under the top bar instead of the spare height pushing it down. */
   .shell {
     grid-template-columns: minmax(0, 1fr);
+    align-content: start;
   }
   .shell .sidebar,
   :root[data-nav='header'] .shell .sidebar {
@@ -622,9 +634,11 @@ a {
   border-radius: 999px;
 }
 
-.modal-close:hover {
-  color: var(--color-text);
-  background: var(--color-hover);
+@media (hover: hover) {
+  .modal-close:hover {
+    color: var(--color-text);
+    background: var(--color-hover);
+  }
 }
 
 :root:has(.modal[open]) {

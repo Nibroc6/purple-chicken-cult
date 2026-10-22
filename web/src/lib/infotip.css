@@ -5,6 +5,7 @@
   vertical-align: middle;
 }
 .infotip-button {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -20,7 +21,11 @@
   line-height: 1;
   cursor: pointer;
 }
-.infotip-button:hover,
+@media (hover: hover) {
+  .infotip-button:hover {
+    color: var(--color-accent);
+  }
+}
 .infotip-button[aria-expanded='true'] {
   color: var(--color-accent);
 }
