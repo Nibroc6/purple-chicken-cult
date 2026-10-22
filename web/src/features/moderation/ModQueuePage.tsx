@@ -12,7 +12,7 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { errorKey } from '../../api/errors';
+import { errorText } from '../../api/errors';
 import { Loading } from '../../app/Loading';
 import { useMe } from '../../app/session';
 import { formatDateTime, formatRelative } from '../../lib/time';
@@ -22,7 +22,7 @@ import {
   canQuarantine,
   claimItem,
   confirmItem,
-  errorParams,
+  
   fetchQueue,
   modReasons,
   moderationErrorKey,
@@ -76,7 +76,7 @@ function Queue() {
       {q.isPending ? <Loading /> : null}
       {q.error ? (
         <p className="moderation-error" role="alert">
-          {t(errorKey(q.error) as 'errors:unknown')}
+          {errorText(t, q.error)}
         </p>
       ) : null}
       {q.isSuccess && items.length === 0 ? (
@@ -434,7 +434,7 @@ function QueueItem({ it }: { it: ModItem }) {
       {csam.isSuccess || quarantine.isSuccess ? <p role="status">{t('queue.started')}</p> : null}
       {err ? (
         <p className="moderation-error" role="alert" data-testid="queue-error">
-          {t(moderationErrorKey(err) as 'errors:unknown', errorParams(err))}
+          {errorText(t, err, moderationErrorKey)}
         </p>
       ) : null}
     </li>

@@ -1,6 +1,6 @@
 // Moderation API calls (plan §5.3 modapi). Owner: P0-W12 → P1-W06.
 import { api, unwrap } from '../../api/client';
-import { ApiError, errorKey } from '../../api/errors';
+import { ApiError, errorKey, errorParams } from '../../api/errors';
 import type { components } from '../../api/schema.gen';
 
 export type ModItem = components['schemas']['ModItem'];
@@ -215,6 +215,5 @@ export function moderationErrorKey(err: unknown): string {
   return errorKey(err);
 }
 
-export function errorParams(err: unknown): Record<string, number> {
-  return err instanceof ApiError && err.retryAfterS !== undefined ? { seconds: err.retryAfterS } : {};
-}
+// errorParams are the shared ICU arguments of an error message (api/errors).
+export { errorParams };

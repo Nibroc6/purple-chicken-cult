@@ -1,7 +1,7 @@
 // View-models and error keys of the auth feature. Owner: P0-W01 → P1-W07.
 // i18n-dynamic: auth:errors.
 // i18n-dynamic: auth:passkey.
-import { ApiError, errorKey } from '../../api/errors';
+import { ApiError, errorKey, errorMsg, type ErrorMsg, errorParams } from '../../api/errors';
 import type { PasskeyJSON } from './api';
 import { CancelledError } from './passkeyFlow';
 import { PasskeyError } from './webauthn';
@@ -36,24 +36,16 @@ export function authErrorKey(err: unknown): string | undefined {
   return errorKey(err);
 }
 
-// errorParams supplies the variables some error messages need.
-export function errorParams(err: unknown): Record<string, number> {
-  if (err instanceof ApiError && err.retryAfterS !== undefined) return { seconds: err.retryAfterS };
-  return {};
-}
+// errorParams are the shared ICU arguments of an error message (api/errors).
+export { errorParams };
 
-// ErrorMsg is a failure to show: the catalog key and its ICU arguments (a
-// rate_limited message needs {seconds}, or it shows its raw template).
-export interface ErrorMsg {
-  key: string;
-  params: Record<string, number>;
-}
+export type { ErrorMsg };
 
 // authError is authErrorKey with the arguments, or undefined when nothing
 // should be shown.
 export function authError(err: unknown): ErrorMsg | undefined {
   const key = authErrorKey(err);
-  return key ? { key, params: errorParams(err) } : undefined;
+  return key ? errorMsg(err, key) : undefined;
 }
 
 // readFragmentToken takes the enrollment token from the URL fragment and

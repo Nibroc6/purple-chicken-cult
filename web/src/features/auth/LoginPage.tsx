@@ -2,6 +2,7 @@
 // (conditional mediation) on the input and a button for the regular prompt.
 // Every attempt is its own server ceremony in a fresh guest session; a
 // successful one replaces it with a new user session. Owner: P0-W01 → P1-W07.
+import { errorText } from '../../api/errors';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -104,7 +105,7 @@ export default function LoginPage() {
       </form>
       {err ? (
         <p className="auth-error" role="alert">
-          {t(err.key as 'errors:unknown', err.params)}
+          {errorText(t, err)}
         </p>
       ) : null}
       <p className="muted">{t('login.noAccount')}</p>

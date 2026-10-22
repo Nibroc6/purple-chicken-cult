@@ -1,5 +1,5 @@
 // View-models and pure helpers of the people feature. Owner: P0-W03 → P1-W03.
-import { ApiError, errorKey } from '../../api/errors';
+import { ApiError, errorKey, errorParams } from '../../api/errors';
 import type { components } from '../../api/schema.gen';
 import { asRef, type ChainVM, type PersonVM } from '../../vm/types';
 import type { PersonAction } from './api';
@@ -104,7 +104,5 @@ export function peopleErrorKey(err: unknown): string {
   return errorKey(err);
 }
 
-// errorParams are the ICU arguments of an error message.
-export function errorParams(err: unknown): Record<string, number> {
-  return err instanceof ApiError && err.retryAfterS !== undefined ? { seconds: err.retryAfterS } : {};
-}
+// errorParams are the shared ICU arguments of an error message (api/errors).
+export { errorParams };

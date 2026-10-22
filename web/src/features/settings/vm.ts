@@ -1,5 +1,5 @@
 // View-models and pure helpers of the settings feature. Owner: P0-W11 → P1-W10.
-import { ApiError, errorKey } from '../../api/errors';
+import { ApiError, errorKey, errorParams } from '../../api/errors';
 import type { A11yPrefs } from '../../lib/a11y';
 import { navLayouts, type NavLayout } from '../../lib/navLayout';
 import type { SettingsView } from './api';
@@ -118,10 +118,8 @@ export function accountErrorKey(err: unknown): string {
   return errorKey(err);
 }
 
-// errorParams are the ICU arguments of an error message.
-export function errorParams(err: unknown): Record<string, number> {
-  return err instanceof ApiError && err.retryAfterS !== undefined ? { seconds: err.retryAfterS } : {};
-}
+// errorParams are the shared ICU arguments of an error message (api/errors).
+export { errorParams };
 
 // handleMatches compares a typed handle with the account's the way the server
 // does (case-insensitive, optional leading @).

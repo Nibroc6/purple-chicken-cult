@@ -1,4 +1,5 @@
 // Shared pieces of the people pages. Owner: P0-W03 → P1-W03.
+import { errorText } from '../../api/errors';
 import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -11,7 +12,7 @@ import type { PersonVM } from '../../vm/types';
 import { requestCosign } from '../cosign';
 import { useOpenReport } from '../moderation/ReportModal';
 import { runAction, sessionCosigns, type Cosig, type PersonAction } from './api';
-import { confirmActions, cosignPurpose, errorParams, peopleErrorKey, primaryActions, secondaryActions } from './vm';
+import { confirmActions, cosignPurpose, peopleErrorKey, primaryActions, secondaryActions } from './vm';
 import './people.css';
 import { SubNav } from '../../app/SubNav';
 
@@ -24,7 +25,7 @@ export function ErrorText({ err }: { err: unknown }) {
   if (!err) return null;
   return (
     <p className="people-error" role="alert">
-      {t(peopleErrorKey(err) as 'errors:unknown', errorParams(err))}
+      {errorText(t, err, peopleErrorKey)}
     </p>
   );
 }

@@ -11,6 +11,7 @@ import { faBookmark, faComment, faEyeSlash, faHeart } from '@fortawesome/free-re
 import {
   faAnglesLeft,
   faAnglesRight,
+  faArrowRotateRight,
   faBan,
   faBars,
   faBell,
@@ -77,6 +78,7 @@ const icons = {
   info: faCircleInfo,
   ok: faCheck,
   fail: faXmark,
+  refresh: faArrowRotateRight,
   // Post actions (features/engage, formats/*): the -on icons mark a pressed toggle.
   like: faHeart,
   'like-on': faHeartSolid,

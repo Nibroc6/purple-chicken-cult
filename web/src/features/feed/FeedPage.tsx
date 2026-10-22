@@ -3,14 +3,15 @@
 // reshuffle. Every 60 s while the page is visible it asks how many posts are
 // new in the tiers already reached and offers to start over ("N new posts
 // above"). Latest / Balanced / Top restarts the feed in that order and saves it. A
-// session the server no longer keeps (409 feed_session_expired) restarts.
+// session the server no longer keeps (409 feed_session_expired) restarts. On
+// touch screens pulling down at the top starts over too.
 // The layout comes from the reader's format (Cards or Compact); headers are the
 // API's tier markers only. Owner: P0-W07 → P1-W08.
 import { useInfiniteQuery, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { onFeedSessionExpired } from '../../api/client';
-import { errorKey } from '../../api/errors';
+import { errorText } from '../../api/errors';
 import { Loading } from '../../app/Loading';
 import { sessionKey, useMe } from '../../app/session';
 import { useFormat } from '../../formats/useFormat';
@@ -23,7 +24,9 @@ import { toUIPrefs } from '../settings/vm';
 import { expandGroup, fetchFeed, fetchNewAbove, fetchWhy } from './api';
 import { countPosts, expandInPages, feedKey, ownPostsKey, presets, savedPreset, withOwnPosts } from './vm';
 import './feed.css';
+import { Icon } from '../../lib/Icon';
 import { InfoTip } from '../../lib/InfoTip';
+import { PULL_TRIGGER, usePullToRefresh } from '../../lib/pullToRefresh';
 
 export const NEW_ABOVE_MS = 60_000;
 
@@ -100,6 +103,15 @@ export default function FeedPage() {
 
   useEffect(() => onFeedSessionExpired(restart), [restart]);
 
+  // The pull indicator follows the finger through CSS variables, not state.
+  const pullRef = useRef<HTMLDivElement>(null);
+  usePullToRefresh(restart, (d) => {
+    const el = pullRef.current;
+    if (!el) return;
+    el.style.setProperty('--pull', String(d));
+    el.dataset.state = d === 0 ? 'idle' : d >= PULL_TRIGGER ? 'armed' : 'pulling';
+  });
+
   const fresh = useQuery({
     queryKey: [...feedKey, 'new', gen, session],
     queryFn: () => fetchNewAbove(session ?? ''),
@@ -143,6 +155,9 @@ export default function FeedPage() {
   return (
     <section className="page feed-page" data-testid="feed-page" data-session-gen={gen}>
       <h1 className="visually-hidden">{t('page.title')}</h1>
+      <div ref={pullRef} className="feed-pull" data-testid="feed-pull" data-state="idle" aria-hidden="true">
+        <Icon name="refresh" />
+      </div>
       <PresetSwitch value={preset} onChange={changePreset} />
       {fresh.data.count > 0 ? (
         <button type="button" className="feed-new-above" data-testid="feed-new-above" data-count={fresh.data.count} onClick={restart}>
@@ -152,7 +167,7 @@ export default function FeedPage() {
       {q.isPending || !format ? <Loading /> : null}
       {q.error ? (
         <div className="feed-error" role="alert" data-testid="feed-error">
-          <p>{t(errorKey(q.error) as 'errors:unknown')}</p>
+          <p>{errorText(t, q.error)}</p>
           <button type="button" onClick={restart}>
             {t('page.retry')}
           </button>

@@ -1,6 +1,7 @@
 // The global co-sign dialog (ARCHITECTURE §3 Phase 1, §17.4): opens when a
 // feature calls requestCosign(), fetches the intent, shows the exact record and
 // signs it with one of the person's own passkeys. Owner: P1-W01.
+import { errorText } from '../../api/errors';
 import { useEffect, useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { authError, type ErrorMsg } from '../auth/vm';
@@ -82,7 +83,7 @@ function Dialog({ req }: { req: CosignRequest }) {
           {records ? <AdvancedRecords records={records} /> : null}
           {state.phase === 'failed' && state.error ? (
             <p className="cosign-error" role="alert">
-              {t(state.error.key as 'errors:unknown', state.error.params)}
+              {errorText(t, state.error)}
             </p>
           ) : null}
         </div>

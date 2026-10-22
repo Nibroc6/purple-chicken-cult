@@ -3,6 +3,7 @@
 // that passkey started). From Phase 1 a session started with a passkey
 // co-signs both changes with an existing passkey (passkeyFlow.ts).
 // Owner: P0-W01 → P1-W07.
+import { errorText } from '../../api/errors';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -24,7 +25,7 @@ function ErrorLine({ err }: { err: unknown }) {
   if (!msg) return null;
   return (
     <p className="auth-error" role="alert">
-      {t(msg.key as 'errors:unknown', msg.params)}
+      {errorText(t, msg)}
     </p>
   );
 }

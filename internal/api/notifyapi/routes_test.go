@@ -175,17 +175,18 @@ func TestNotifyMute(t *testing.T) {
 	f := newFixture(t)
 	f.h.Login("alice")
 	p := "/api/posts/" + f.post("alice", "p1") + "/notify-mute"
-	social := f.bucketCount(t, limits.WriteBucket(limits.WriteSocial, limits.Day))
+	social := f.h.Charges()["b:social"]
 	f.do(t, http.MethodPut, p, nil, http.StatusNoContent)
 	f.do(t, http.MethodPut, p, nil, http.StatusNoContent)
 	f.do(t, http.MethodDelete, p, nil, http.StatusNoContent)
-	// Each is a social write (W:social), garbage included (charged before the ref resolves).
-	if got := f.bucketCount(t, limits.WriteBucket(limits.WriteSocial, limits.Day)); got != social+3 {
-		t.Fatalf("notify-mute charged %d social writes, want 3", got-social)
+	// Each is a social write (W:social), garbage included (charged before the
+	// ref resolves); the DELETE that turns the last PUT back is free.
+	if got := f.h.Charges()["b:social"]; got != social+2 {
+		t.Fatalf("notify-mute charged %d social writes, want 2", got-social)
 	}
-	social += 3
+	social += 2
 	defer func() {
-		if got := f.bucketCount(t, limits.WriteBucket(limits.WriteSocial, limits.Day)); got != social+3 {
+		if got := f.h.Charges()["b:social"]; got != social+3 {
 			t.Errorf("not-found notify-mute charged %d social writes, want 3", got-social)
 		}
 	}()

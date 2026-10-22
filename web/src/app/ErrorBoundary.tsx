@@ -4,7 +4,7 @@
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { isRouteErrorResponse, useRouteError } from 'react-router';
-import { errorKey, isStaleBuild } from '../api/errors';
+import { errorText, isStaleBuild } from '../api/errors';
 import { NotFound } from './NotFound';
 
 const RELOADED = 'pcc.reloadedFor';
@@ -27,7 +27,7 @@ export function ErrorBoundary() {
   return (
     <section className="page" role="alert">
       <h1>{t('common:error.title')}</h1>
-      <p>{t(errorKey(err) as 'errors:unknown')}</p>
+      <p>{errorText(t, err)}</p>
       <button
         type="button"
         onClick={() => {

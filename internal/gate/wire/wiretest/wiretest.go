@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/internal/core"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/internal/coretest"
@@ -67,4 +68,52 @@ type TestWorld = coretest.World
 // World returns a fixture builder writing to the App's database and memory.
 func World(t testing.TB, a *wire.App) *TestWorld {
 	return coretest.NewWorld(t, a.Deps(), a.Deps().DB)
+}
+
+// Charges is every charge on record of a, summed over users: rate_counters per
+// "bucket@window start", and per build-up bucket ("b:<kind>", rate_buckets)
+// the charges it still holds at the harness clock (whole refill intervals
+// between now and its tat).
+func Charges(t testing.TB, a *wire.App) map[string]int {
+	t.Helper()
+	ctx := context.Background()
+	d := a.Deps()
+	out := map[string]int{}
+	rows, err := d.DB.Q().Query(ctx, "SELECT bucket, window_start, count FROM rate_counters")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for rows.Next() {
+		var (
+			b  string
+			at time.Time
+			n  int
+		)
+		if err := rows.Scan(&b, &at, &n); err != nil {
+			t.Fatal(err)
+		}
+		out[b+"@"+at.UTC().Format(time.RFC3339)] += n
+	}
+	rows.Close()
+	refills := a.Limits.Policy().Refills
+	now := d.Clock.Now()
+	rows, err = d.DB.Q().Query(ctx, "SELECT bucket, tat FROM rate_buckets")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var (
+			b   string
+			tat time.Time
+		)
+		if err := rows.Scan(&b, &tat); err != nil {
+			t.Fatal(err)
+		}
+		r, ok := refills[strings.TrimPrefix(b, "b:")]
+		if ahead := tat.Sub(now); ok && ahead > 0 {
+			out[b] += int((ahead + r.Every - 1) / r.Every)
+		}
+	}
+	return out
 }

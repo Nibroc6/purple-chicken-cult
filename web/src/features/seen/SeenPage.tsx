@@ -4,7 +4,7 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Loading } from '../../app/Loading';
-import { errorKey } from '../../api/errors';
+import { errorText } from '../../api/errors';
 import { usePostActions } from '../engage/usePostActions';
 import { PostCard } from '../post/PostCard';
 import { fetchRecent, recentKey } from './api';
@@ -34,7 +34,7 @@ export default function SeenPage() {
       {q.isPending ? <Loading /> : null}
       {q.error ? (
         <p className="seen-error" role="alert">
-          {t(errorKey(q.error) as 'errors:unknown')}
+          {errorText(t, q.error)}
         </p>
       ) : null}
       {q.isSuccess && posts.length === 0 ? (

@@ -4,6 +4,7 @@
 // A second friend+ friend of theirs then approves it here, signing with a
 // passkey; their account's own devices can cancel during the 24 h hold.
 // Owner: P1-W10.
+import { errorText } from '../../api/errors';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -25,7 +26,7 @@ function ErrorLine({ err }: { err: unknown }) {
   if (!err) return null;
   return (
     <p className="recovery-error" role="alert">
-      {t(recoveryErrorKey(err) as 'errors:unknown')}
+      {errorText(t, err, recoveryErrorKey)}
     </p>
   );
 }

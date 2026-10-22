@@ -270,7 +270,9 @@ describe('likes page and post actions', () => {
     await waitFor(() => {
       expect(screen.getByTestId('engage-like').getAttribute('aria-pressed')).toBe('false');
     });
-    expect(calls.filter((c) => c.path === '/posts/p1/like').map((c) => c.method)).toEqual(['PUT', 'DELETE']);
+    await waitFor(() => {
+      expect(calls.filter((c) => c.path === '/posts/p1/like').map((c) => c.method)).toEqual(['PUT', 'DELETE']);
+    });
   });
 
   it('rolls a failed like back and says why', async () => {
@@ -375,6 +377,39 @@ describe('likes page and post actions', () => {
     expect(await screen.findByTestId('engage-error')).toBeTruthy();
     expect(screen.getByTestId('engage-save').getAttribute('aria-pressed')).toBe('true');
     expect(calls.filter((c) => c.path === '/posts/p1/save').map((c) => c.method)).toEqual(['PUT', 'DELETE']);
+    // The message is formatted (it once showed its raw {seconds, plural, …} template).
+    expect(screen.getByTestId('engage-error').textContent).toBe(tr('errors:rate_limited', { seconds: 30 }));
+  });
+
+  it('takes a quick save and unsave without an error', async () => {
+    const calls = stubAPI((c) => {
+      if (c.method === 'GET' && c.path === '/posts/p1') return json(200, postJSON({ mine: false }));
+      if (c.path === '/posts/p1/like') return json(200, { likes: { in_network: c.method === 'PUT' ? 1 : 0, others: 0, by_me: c.method === 'PUT' } });
+      return json(204, null);
+    });
+    renderAt('/p/p1/likes');
+    const pressed = (id: string, on: boolean) =>
+      waitFor(() => {
+        expect(screen.getByTestId(id).getAttribute('aria-pressed')).toBe(String(on));
+      });
+    fireEvent.click(await screen.findByTestId('engage-save'));
+    await pressed('engage-save', true);
+    fireEvent.click(screen.getByTestId('engage-save'));
+    await pressed('engage-save', false);
+    fireEvent.click(screen.getByTestId('engage-like'));
+    await pressed('engage-like', true);
+    fireEvent.click(screen.getByTestId('engage-like'));
+    await pressed('engage-like', false);
+    // Each toggle went out and came back; nothing was refused or rolled back.
+    const sent = (path: string) => calls.filter((c) => c.path === path).map((c) => c.method);
+    await waitFor(() => {
+      expect(sent('/posts/p1/save')).toEqual(['PUT', 'DELETE']);
+      expect(sent('/posts/p1/like')).toEqual(['PUT', 'DELETE']);
+    });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(screen.getByTestId('engage-save').getAttribute('aria-pressed')).toBe('false');
+    expect(screen.getByTestId('engage-like').getAttribute('aria-pressed')).toBe('false');
+    expect(screen.queryByTestId('engage-error')).toBeNull();
   });
 
   it('patches saved_by_me in every cached post', () => {

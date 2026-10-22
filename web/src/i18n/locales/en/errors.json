@@ -1,6 +1,7 @@
 {
   "not_found": "Not found.",
   "rate_limited": "You're going a bit fast. Try again in {seconds, plural, one {# second} other {# seconds}}.",
+  "rate_limited_soon": "You're going a bit fast. Try again in a moment.",
   "step_up_required": "Confirm it is you with your passkey.",
   "feature_disabled": "This feature is turned off.",
   "bad_request": "That request did not look right.",

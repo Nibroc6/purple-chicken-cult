@@ -57,15 +57,42 @@ const middleware: Middleware = {
   },
 };
 
+// QUIET_WAIT_S is the longest rate-limit hint the client waits out by itself:
+// the server charges before the handler, so a 429 did nothing and the request
+// can be sent again. Short waits (the 2 s spacing of the strict kinds) never
+// reach the screen; longer ones are shown with their {seconds}.
+export const QUIET_WAIT_S = 2;
+
+// send is fetch resolved per call (tests stub fetch); a request that never got
+// an answer is a NetworkError, so only it reads as "offline".
+function send(req: Request): Promise<Response> {
+  return globalThis.fetch(req).catch((err: unknown) => {
+    throw new NetworkError(err);
+  });
+}
+
+// sendPaced sends req, and once more after a short rate-limit wait. The body
+// is read once into a buffer (not a cloned stream) so both sends carry it as
+// a plain body.
+async function sendPaced(req: Request): Promise<Response> {
+  const sent = req.body ? await req.arrayBuffer() : undefined;
+  const make = () => (sent === undefined ? req : new Request(req, { body: sent }));
+  const res = await send(make());
+  if (res.status !== 429) return res;
+  const body = (await res
+    .clone()
+    .json()
+    .catch(() => ({}))) as { retry_after_s?: unknown };
+  const wait = body.retry_after_s;
+  if (typeof wait !== 'number' || wait > QUIET_WAIT_S) return res;
+  await new Promise((r) => setTimeout(r, wait * 1000 + 100));
+  return send(make());
+}
+
 export const api = createClient<paths>({
   baseUrl: `${globalThis.location.origin}/api`,
   credentials: 'same-origin',
-  // Resolved per call (tests stub fetch); a request that never got an answer
-  // is a NetworkError, so only it reads as "offline".
-  fetch: (req: Request) =>
-    globalThis.fetch(req).catch((err: unknown) => {
-      throw new NetworkError(err);
-    }),
+  fetch: sendPaced,
 });
 api.use(middleware);
 

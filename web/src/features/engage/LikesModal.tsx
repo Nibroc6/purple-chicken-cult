@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { Loading } from '../../app/Loading';
 import { Modal, useModalParam } from '../../app/Modal';
-import { ApiError, errorKey } from '../../api/errors';
+import { ApiError, errorText } from '../../api/errors';
 import { asRef, type Ref } from '../../vm/types';
 import { fetchLikes, likesKey } from './api';
 import { likesParam } from './EngageBar';
@@ -36,7 +36,7 @@ function LikesBody({ post }: { post: Ref }) {
     const missing = q.error instanceof ApiError && q.error.isNotFound;
     return (
       <p className="engage-error" role="alert" data-testid="likes-modal-error">
-        {missing ? t('modal.missing') : t(errorKey(q.error) as 'errors:unknown')}
+        {missing ? t('modal.missing') : errorText(t, q.error)}
       </p>
     );
   }
@@ -75,7 +75,7 @@ function LikesBody({ post }: { post: Ref }) {
       </div>
       {failed ? (
         <p className="engage-error" role="alert">
-          {t(errorKey(failed) as 'errors:unknown')}
+          {errorText(t, failed)}
         </p>
       ) : null}
     </>
