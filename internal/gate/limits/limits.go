@@ -60,6 +60,10 @@ const (
 	WriteAccount   core.WriteKind = "account"
 	WriteSave      core.WriteKind = "save"  // P1
 	WriteMedia     core.WriteKind = "media" // P1
+	// WriteUpgrade opens a friend upgrade with an acquaintance: no new account
+	// and no new connection, so it spends no code attempt (WriteInvite); its
+	// own cap bounds the scanner offers it sends.
+	WriteUpgrade core.WriteKind = "friend_upgrade"
 )
 
 // Window lengths.
@@ -139,6 +143,7 @@ func DefaultPolicy() Policy {
 			string(WriteAccount):   {{Day, 50}},
 			string(WriteSave):      {{Day, 200}},
 			string(WriteMedia):     {{Day, 50}},
+			string(WriteUpgrade):   {{Hour, 10}, {Day, 30}},
 		},
 		// 20 handshakes, one more every 72 min: a full day's worth at once,
 		// shown on the invite page (trial feedback).

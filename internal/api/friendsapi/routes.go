@@ -21,11 +21,12 @@ import (
 )
 
 var (
-	rGraph     = apix.Read("graph_read")
-	rPost      = apix.Read("post_read")
-	wRequest   = apix.Write("friend_request")
-	wSocial    = apix.Write("social")
-	wHandshake = apix.Write("invite_handshake")
+	rGraph   = apix.Read("graph_read")
+	rPost    = apix.Read("post_read")
+	wRequest = apix.Write("friend_request")
+	wSocial  = apix.Write("social")
+	// An upgrade spends no code attempt (invite_handshake): it has its own cap.
+	wHandshake = apix.Write("friend_upgrade")
 )
 
 // maxCosig bounds a co-signed change's body (an intent ref and one WebAuthn assertion).

@@ -12,7 +12,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useNavigate } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { ApiError } from '../../api/errors';
 import { Loading } from '../../app/Loading';
 import { sessionKey, useSession } from '../../app/session';
@@ -62,6 +62,10 @@ export default function JoinPage() {
   const [busy, setBusy] = useState(false);
   const [d, setDev] = useState<ClaimDevice | undefined>();
   const signedIn = session.data?.authenticated === true;
+  // ?scan=1 (the friend upgrade offer, or its push) opens the scanner at once.
+  const [params] = useSearchParams();
+  const autoScan = params.get('scan') === '1';
+  const autoStarted = useRef(false);
 
   const begin = async () => {
     setBusy(true);
@@ -76,6 +80,15 @@ export default function JoinPage() {
       setBusy(false);
     }
   };
+
+  useEffect(() => {
+    if (autoScan && signedIn && !autoStarted.current) {
+      autoStarted.current = true;
+      void begin();
+    }
+    // begin is recreated each render; the ref makes this run once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoScan, signedIn]);
 
   // passedTo moves on once the handshake's outcome passed.
   const passedTo = (st: StatusVM) => {

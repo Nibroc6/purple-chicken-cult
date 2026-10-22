@@ -284,6 +284,23 @@ func TestInviteAttemptsBuildUp(t *testing.T) {
 	}
 }
 
+// Opening a friend upgrade spends no code attempt; it has its own caps.
+func TestUpgradeSpendsNoInviteAttempt(t *testing.T) {
+	e := newEnv(t)
+	ctx := e.as("alice")
+	up := gate.Class{Kind: gate.ClassWrite, Name: string(limits.WriteUpgrade)}
+	for i := 0; i < 10; i++ {
+		if err := e.l.ChargeRequest(ctx, up); err != nil {
+			t.Fatalf("upgrade %d: %v", i, err)
+		}
+		e.advance(3 * time.Second) // past the minimum spacing
+	}
+	if a, ok, err := e.l.WriteAllowance(e.ctx, e.viewer("alice"), limits.WriteInvite); err != nil || !ok || a.Available != a.Cap {
+		t.Fatalf("code attempts after upgrades %+v %v %v", a, ok, err)
+	}
+	retryOf(t, e.l.ChargeRequest(ctx, up)) // 10 an hour
+}
+
 func TestProbationFriendRequests(t *testing.T) {
 	e := newEnv(t)
 	carol := e.w.User("carol", func(m *core.UserMeta) {

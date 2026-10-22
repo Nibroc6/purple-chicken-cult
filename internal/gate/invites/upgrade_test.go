@@ -33,6 +33,21 @@ func TestAcceptedInviteThenVerifiedUpgradeMakesFriendPlus(t *testing.T) {
 	core.Subscribe(e.d.Bus, func(ev core.EdgeUpgraded) { upgraded = append(upgraded, ev) })
 
 	h, p := e.upgrade(alice, nb)
+	// The friend is offered the scanner (notification and push).
+	var offers, live int
+	for _, ev := range e.rec.Events {
+		if ev.To == nb.id && ev.Kind == "friend_upgrade" && ev.SubjectUser == alice.id {
+			offers++
+		}
+	}
+	for _, ev := range e.rec.LiveEv {
+		if ev.To == nb.id && ev.Topic == "friend_upgrade" {
+			live++
+		}
+	}
+	if offers != 1 || live != 1 {
+		t.Fatalf("scanner offers: %d notifications, %d live events", offers, live)
+	}
 	st, err := p.status()
 	e.must(err)
 	if st.Kind != "upgrade" || st.State != "confirmed" || st.HS == "" || st.SignupToken != "" {

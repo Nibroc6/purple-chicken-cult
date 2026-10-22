@@ -55,12 +55,16 @@ const (
 	KindInviteRedeemed   = "invite_redeemed"
 	KindRecoveryApproval = "recovery_approval" // P1
 	KindAccountRecovery  = "account_recovery"  // a recovery of the recipient's own account
+	KindFriendUpgrade    = "friend_upgrade"    // an acquaintance shows their code to become friends
 )
 
 // Live topics (ephemeral SSE events).
 const (
 	TopicHandshake = "handshake"
 	TopicStepUp    = "stepup" // P1
+	// TopicFriendUpgrade offers the scanner to the other side of a friend+
+	// upgrade the moment it opens (an open app shows a toast).
+	TopicFriendUpgrade = "friend_upgrade"
 )
 
 // SSE event types besides the live topics.
@@ -114,6 +118,7 @@ var rules = map[string]kindRule{
 	KindInviteeAction:    {person: optional, post: optional},
 	KindRecoveryApproval: {person: optional},
 	KindAccountRecovery:  {},
+	KindFriendUpgrade:    {person: required},
 }
 
 var codeRE = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
@@ -266,7 +271,7 @@ func (s *Service) Notify(ctx context.Context, tx store.Q, e core.Event) error {
 // Live sends an ephemeral event to every open stream of to (topics: handshake,
 // stepup). Nothing is stored; a recipient without a stream misses it.
 func (s *Service) Live(to core.UserID, topic string, data any) {
-	if to == 0 || (topic != TopicHandshake && topic != TopicStepUp) {
+	if to == 0 || (topic != TopicHandshake && topic != TopicStepUp && topic != TopicFriendUpgrade) {
 		return
 	}
 	if data == nil {

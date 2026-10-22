@@ -17,7 +17,9 @@ import (
 
 // OpenUpgrade opens a friend → friend+ upgrade handshake by v with a plain
 // friend (callers: friends, POST /api/friends/{ref}/upgrade). Opening again
-// cancels v's unfinished upgrade with the same friend.
+// cancels v's unfinished upgrade with the same friend. The friend is offered
+// the scanner: a friend_upgrade notification (a push when no app is open) and
+// a live friend_upgrade event (a toast in an open app).
 func (s *Service) OpenUpgrade(ctx context.Context, v core.Viewer, peer core.UserID) (gate.HandshakeView, error) {
 	if v.Kind != core.SessUser || v.ID == 0 || peer == 0 || peer == v.ID {
 		return gate.HandshakeView{}, gate.ErrNotFound
@@ -28,7 +30,19 @@ func (s *Service) OpenUpgrade(ctx context.Context, v core.Viewer, peer core.User
 	if !s.active(ctx, v.ID) || !s.active(ctx, peer) {
 		return gate.HandshakeView{}, gate.ErrNotFound
 	}
-	return s.openKind(ctx, v.ID, peer, kindUpgrade, modeQRAudio, false, s.d.Clock.Now())
+	hv, err := s.openKind(ctx, v.ID, peer, kindUpgrade, modeQRAudio, false, s.d.Clock.Now())
+	if err != nil {
+		return gate.HandshakeView{}, err
+	}
+	if s.d.Notify != nil {
+		if err := s.d.Notify.Notify(ctx, nil, core.Event{To: peer, Kind: notifyFriendUpgrade, SubjectUser: v.ID}); err != nil {
+			return gate.HandshakeView{}, err
+		}
+		if m, err := s.d.Users.Get(ctx, v.ID); err == nil {
+			s.d.Notify.Live(peer, topicFriendUpgrade, map[string]any{"from": s.d.Refs.User(peer, v.ID), "handle": m.Handle})
+		}
+	}
+	return hv, nil
 }
 
 // OpenRecovery opens a recovery handshake by guardian (a friend+ of account)

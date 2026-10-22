@@ -56,6 +56,8 @@ const (
 	sendTimeout = 15 * time.Second
 	// NotificationsURL is where a click on a push notification leads.
 	NotificationsURL = "/notifications"
+	// ScanURL opens the join page's scanner signed in (friend upgrades).
+	ScanURL = "/join?scan=1"
 	// genericTag collapses hidden-content notifications into one on the lock screen.
 	genericTag = "activity"
 )
@@ -381,7 +383,16 @@ func (s *Service) payload(locale string, nv gate.NotificationView, hide bool) ([
 	}
 	// The tag is the notification's opaque ref, so a batched group's newer push
 	// replaces the older one on the device.
-	return webpush.Message{Title: title, Tag: string(nv.ID), URL: NotificationsURL}.Marshal()
+	return webpush.Message{Title: title, Tag: string(nv.ID), URL: pushURL(nv.Kind)}.Marshal()
+}
+
+// pushURL is where a click on a push of kind leads: the scanner for a friend
+// upgrade (the other side is showing their code), else the notifications.
+func pushURL(kind string) string {
+	if kind == KindFriendUpgrade {
+		return ScanURL
+	}
+	return NotificationsURL
 }
 
 // pushKey is the catalog key and arguments of nv: push.<kind>, the visible
