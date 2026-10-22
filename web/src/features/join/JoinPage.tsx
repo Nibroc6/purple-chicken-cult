@@ -18,7 +18,7 @@ import { Loading } from '../../app/Loading';
 import { sessionKey, useSession } from '../../app/session';
 import { SecondPasskeyPrompt } from '../auth/SecondPasskeyPrompt';
 import { createPasskey, getAssertion } from '../auth/webauthn';
-import { RecordView, requestCosign, toRecordVMs } from '../cosign';
+import { AdvancedRecords, requestCosign, toRecordVMs } from '../cosign';
 import { cosignHandshake } from '../invites/api';
 import { handshakeAudio } from '../invites/audio';
 import { ClaimDevice, isDualFrame, isFrame } from '../invites/handshake';
@@ -620,9 +620,7 @@ function SignupCeremony({
         {t('ceremony.body')}
         <InfoTip>{t('ceremony.bodyTip')}</InfoTip>
       </p>
-      {records.map((r) => (
-        <RecordView key={r.rawKind} record={r} />
-      ))}
+      <AdvancedRecords records={records} />
       <button type="button" data-testid="join-sign" disabled={sign.isPending}
         onClick={() => {
           sign.mutate();
