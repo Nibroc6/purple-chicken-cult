@@ -79,6 +79,46 @@
   border-color: color-mix(in srgb, var(--color-accent) 86%, var(--color-text));
 }
 
+/* Icon buttons (lib/IconButton.tsx): borderless round targets in the muted
+   colour, accent when hovered or pressed. After the button rules, so they win
+   at the same (zero) weight; a theme's `button { … }` still wins over them. */
+:where(.icon-button) {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  min-inline-size: 2.25rem;
+  min-block-size: 2.25rem;
+  padding-block: var(--space-1);
+  padding-inline: var(--space-2);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--color-muted);
+  font: inherit;
+  font-size: 0.875rem;
+  line-height: 1;
+  cursor: pointer;
+}
+:where(.icon-button .icon) {
+  font-size: 1.25em;
+}
+:where(.icon-button:hover:not(:disabled)) {
+  color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+}
+:where(.icon-button[aria-pressed='true']) {
+  background: transparent;
+  border-color: transparent;
+  color: var(--color-accent);
+}
+:where(.icon-button:disabled) {
+  opacity: 0.5;
+  cursor: default;
+}
+
 /* Text fields, selects and text areas. */
 :where(
     input:not([type='checkbox'], [type='radio'], [type='range'], [type='file'], [type='color'], [type='button'], [type='submit'], [type='reset'], [type='image'], [type='hidden']),

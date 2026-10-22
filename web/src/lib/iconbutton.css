@@ -1,41 +1,7 @@
-/* IconButton (lib/IconButton.tsx). Logical properties only. The tip sits above
-   the button, centred, and appears on hover (pointer devices) and on keyboard
+/* IconButton tooltip (lib/IconButton.tsx; the button itself is styled in
+   styles/controls.css). Logical properties only. The tip sits above the
+   button, centred, and appears on hover (pointer devices) and on keyboard
    focus; it never takes pointer events, so it cannot cover what it labels. */
-.icon-button {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-1);
-  min-inline-size: 2.25rem;
-  min-block-size: 2.25rem;
-  padding-block: var(--space-1);
-  padding-inline: var(--space-2);
-  border: 1px solid transparent;
-  border-radius: 999px;
-  background: transparent;
-  box-shadow: none;
-  color: var(--color-muted);
-  font: inherit;
-  font-size: 0.875rem;
-  line-height: 1;
-  cursor: pointer;
-}
-.icon-button .icon {
-  font-size: 1.1rem;
-}
-.icon-button:hover:not(:disabled) {
-  color: var(--color-accent);
-  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
-}
-.icon-button[aria-pressed='true'] {
-  color: var(--color-accent);
-}
-.icon-button:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
 .icon-button-tip {
   position: absolute;
   z-index: 20;
@@ -74,6 +40,12 @@
 .icon-button:focus-visible .icon-button-tip {
   display: block;
   animation: icon-tip-in 120ms ease-out both;
+}
+/* A button whose panel is open (the why panel) needs no tip over it. */
+.icon-button[aria-expanded='true'] .icon-button-tip,
+.icon-button[aria-expanded='true']:hover .icon-button-tip,
+.icon-button[aria-expanded='true']:focus-visible .icon-button-tip {
+  display: none;
 }
 @keyframes icon-tip-in {
   from {
