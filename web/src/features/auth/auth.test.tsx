@@ -146,6 +146,10 @@ describe('webauthn wrapper', () => {
     expect(wa.startAuthentication).toHaveBeenCalledWith({ optionsJSON: loginOptions.publicKey, useBrowserAutofill: true });
     await expect(createPasskey(createOptions)).resolves.toBe(attestation);
     expect(wa.startRegistration).toHaveBeenCalledWith({ optionsJSON: createOptions.publicKey });
+    await expect(createPasskey(createOptions, true)).resolves.toBe(attestation);
+    expect(wa.startRegistration).toHaveBeenLastCalledWith({
+      optionsJSON: { ...createOptions.publicKey, hints: ['hybrid'], authenticatorSelection: { authenticatorAttachment: 'cross-platform' } },
+    });
 
     const cases: [unknown, string][] = [
       [Object.assign(new Error('x'), { name: 'NotAllowedError' }), 'cancelled'],
@@ -463,6 +467,22 @@ describe('PasskeysPage', () => {
     wa.startRegistration.mockRejectedValueOnce(Object.assign(new Error('x'), { name: 'InvalidStateError' }));
     fireEvent.click(screen.getByTestId('passkey-add'));
     expect((await screen.findByRole('alert')).textContent).toBe(i18n.t('auth:passkey.exists'));
+  });
+
+  it('adds a passkey on a phone through the hybrid QR flow', async () => {
+    const calls = stubAPI(signedIn, (c) => {
+      if (c.path === '/auth/passkeys') return json(200, { items: one });
+      if (c.path === '/auth/passkeys/begin') return json(200, { options: createOptions });
+      if (c.path === '/auth/passkeys/finish') return json(204, null);
+      return undefined;
+    });
+    renderAt('/settings/passkeys', <PasskeysPage />);
+    fireEvent.change(await screen.findByLabelText(i18n.t('auth:passkeys.nameLabel')), { target: { value: 'Phone' } });
+    fireEvent.click(screen.getByTestId('passkey-add-phone'));
+    expect(await screen.findByText(i18n.t('auth:passkeys.added'))).toBeTruthy();
+    const optionsJSON = (wa.startRegistration.mock.calls[0]?.[0] as { optionsJSON: { hints?: string[] } }).optionsJSON;
+    expect(optionsJSON.hints).toEqual(['hybrid']);
+    expect(calls.find((c) => c.path === '/auth/passkeys/finish')?.body).toEqual({ credential: attestation, name: 'Phone' });
   });
 
   it('restarts the whole add flow when finish asks for a step-up', async () => {
