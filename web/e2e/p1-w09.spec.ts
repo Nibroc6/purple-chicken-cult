@@ -178,7 +178,7 @@ test('every preset keeps the integrity elements legible on a feed card', async (
     await expect.poll(() => rootVar(page, '--color-bg'), p.id).toBe(p.tokens.colors.bg);
     const card = page.locator(`[data-testid="feed-post"][data-ref="${post.ref}"]`);
     await expect(card).toBeVisible();
-    const scope = (id: string) => (id === 'integrity-tier-header' ? page.getByTestId('feed-tier').first() : card);
+    const scope = (id: string) => (id === 'integrity-tier-header' ? page.getByTestId('feed-layout') : card);
     for (const id of onCards) {
       const el = scope(id).getByTestId(id).first();
       await expect(el, `${p.id}: ${id}`).toBeVisible();

@@ -74,7 +74,7 @@ async function loadMore(page: Page): Promise<Response> {
 
 const posts = (p: PageJSON): PostJSON[] => p.items.flatMap((it) => (it.post ? [it.post] : (it.thread ?? [])));
 
-test('tiers in order under marker headers, one session across pages, caught up at the end', async ({ page, request, baseURL }) => {
+test('tiers in order in one list without tier headers, one session across pages, caught up at the end', async ({ page, request, baseURL }) => {
   await setup(request, baseURL);
   await loginAs(page, baseURL, 'alice');
   const p1 = await openFeed(page);
@@ -85,7 +85,8 @@ test('tiers in order under marker headers, one session across pages, caught up a
 
   // One seen target per card: 20 cards, though the thread card shows 3 posts.
   await expect(page.locator('[data-seen-ref]')).toHaveCount(20);
-  await expect(page.getByTestId('integrity-tier-header')).toHaveCount(1);
+  // No per-tier headers: the first page (not the last) shows none.
+  await expect(page.getByTestId('integrity-tier-header')).toHaveCount(0);
   const thread = page.getByTestId('feed-thread');
   await expect(thread).toHaveAttribute('data-parts', '3');
   await expect(thread.locator('[data-seen-ref]')).toHaveCount(1);
@@ -114,11 +115,10 @@ test('tiers in order under marker headers, one session across pages, caught up a
   ]);
   expect(p2.items.at(-1)).toEqual({ type: 'caught_up' });
   expect(p2.next).toBeUndefined();
-  // Headers come only from the markers: one per tier_start / tier_end / caught_up.
-  const markers = [...p1.items, ...p2.items].filter((it) => ['tier_start', 'tier_end', 'caught_up'].includes(it.type)).length;
-  await expect(page.getByTestId('integrity-tier-header')).toHaveCount(markers);
-  await expect(page.getByTestId('feed-tier')).toHaveCount(3);
-  expect(await page.getByTestId('feed-tier').evaluateAll((els) => els.map((e) => e.getAttribute('data-tier')))).toEqual(['1', '2', '3']);
+  // One list: the only header is the final caught_up marker.
+  expect(p2.items.at(-1)).toEqual({ type: 'caught_up' });
+  await expect(page.getByTestId('integrity-tier-header')).toHaveCount(1);
+  await expect(page.getByTestId('integrity-tier-header')).toHaveAttribute('data-kind', 'caught_up');
   await expect(page.getByTestId('feed-more')).toHaveCount(0);
 
   // Every tier-1 post before every tier-2 one; the reader's own posts and another component never appear.
@@ -303,7 +303,7 @@ test('why, folding by keyboard and the Compact format', async ({ page, request, 
   expect(patch.status()).toBe(200);
   await openFeed(page);
   await expect(page.getByTestId('feed-layout')).toHaveAttribute('data-format', 'compact');
-  await expect(page.getByTestId('integrity-tier-header').first()).toBeVisible();
+  await expect(page.getByTestId('integrity-tier-header')).toHaveCount(0);
   const card = page.locator('[data-seen-ref]').first();
   for (const id of ['integrity-chain', 'integrity-why', 'integrity-audience', 'integrity-report']) {
     await expect(card.getByTestId(id)).toBeVisible();

@@ -144,6 +144,18 @@ describe('WhyButton', () => {
     fireEvent.click(screen.getByTestId('integrity-why-close'));
     expect(screen.queryByTestId('integrity-why-panel')).toBeNull();
   });
+  it("names the reader's own tie for a post one step away", async () => {
+    for (const [plus, text] of [
+      [true, 'From a friend'],
+      [false, 'From an acquaintance'],
+    ] as const) {
+      const near: WhyVM = { ...why, tier: 1, via: chain({ dist: 1, firstHopPlus: plus }) };
+      const { unmount } = withLoader(() => Promise.resolve(near), <WhyButton post={dave} />);
+      fireEvent.click(screen.getByTestId('integrity-why'));
+      expect(within(await screen.findByTestId('integrity-why-body')).getByTestId('integrity-why-tier').textContent).toBe(text);
+      unmount();
+    }
+  });
   it('offers a retry after a failure', async () => {
     const load = vi.fn<WhyLoader>().mockRejectedValueOnce(new Error('x')).mockResolvedValueOnce(why);
     withLoader(load, <WhyButton post={dave} />);

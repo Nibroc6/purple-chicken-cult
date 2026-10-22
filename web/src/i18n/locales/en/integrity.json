@@ -26,7 +26,7 @@
     "failed": "Couldn't load the explanation.",
     "retry": "Try again",
     "author": "the author",
-    "tier": "{tier, select, 0 {This is your own post} 1 {From an acquaintance} 2 {From an acquaintance of an acquaintance} other {From someone {tier} steps away}}",
+    "tier": "{tier, select, 0 {This is your own post} 1 {{tie, select, friend {From a friend} other {From an acquaintance}}} 2 {From an acquaintance of an acquaintance} other {From someone {tier} steps away}}",
     "posted": "Posted",
     "preset": "{preset, select, latest {Order: Latest, newest first} top {Order: Top} other {Order: Balanced}}",
     "shift": "{dir, select, none {Shown at the time it was posted} up {{unit, select, h {Moved up by about {hours, plural, one {# hour} other {# hours}}} other {Moved up by {minutes, plural, one {# minute} other {# minutes}}}}} other {{unit, select, h {Moved down by about {hours, plural, one {# hour} other {# hours}}} other {Moved down by {minutes, plural, one {# minute} other {# minutes}}}}}}",
