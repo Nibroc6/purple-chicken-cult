@@ -13,13 +13,14 @@ import (
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/media"
 )
 
-// RegisterPublic registers GET /m/{key} on the ROOT router: the dev/test
-// signed-media origin, which verifies the URL exactly like the Worker (403
-// for an unsigned, tampered, other-viewer or expired URL; 404 for a valid
+// RegisterPublic registers GET /m/{key} on the ROOT router: the signed-media
+// origin when this process serves media (cfg.ServesMedia: dev/test, or prod
+// with an fs store), which verifies the URL exactly like the Worker (403 for
+// an unsigned, tampered, other-viewer or expired URL; 404 for a valid
 // signature over deleted or unknown media) and sends the media-origin headers.
-// Nothing is registered in prod.
+// Nothing is registered in prod with an s3 store (the Worker serves it).
 func RegisterPublic(r chi.Router, d *api.Deps) {
-	if d.Cfg == nil || !d.Cfg.DevLike() {
+	if d.Cfg == nil || !d.Cfg.ServesMedia() {
 		return
 	}
 	serve := func(w http.ResponseWriter, r *http.Request) {
@@ -27,6 +28,10 @@ func RegisterPublic(r chi.Router, d *api.Deps) {
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("Content-Security-Policy", "sandbox; default-src 'none'")
 		h.Set("Content-Disposition", "inline")
+		if d.Cfg.Prod() {
+			// The prod media host is a sibling of the app (same site), as with the Worker's CORP.
+			h.Set("Cross-Origin-Resource-Policy", "same-site")
+		}
 		b, err := d.Media.Serve(r.Context(), chi.URLParam(r, "key"), r.URL.Query())
 		if err != nil {
 			h.Set("Cache-Control", "no-store")

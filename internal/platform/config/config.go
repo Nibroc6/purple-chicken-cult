@@ -428,6 +428,14 @@ func (c *Config) UnscannedMedia() bool {
 	return c.Scanner.Driver == ScannerUnscanned && c.Scanner.AllowUnscanned
 }
 
+// ServesMedia reports whether this process serves signed media itself at
+// GET /m/{key}: always in dev/test, and in prod when media is on and stored on
+// local disk (PCC_BLOB_DRIVER=fs), where no Worker reads the store. With s3 the
+// media Worker serves it and prod registers no /m/ route.
+func (c *Config) ServesMedia() bool {
+	return c.DevLike() || (c.Prod() && c.Blob.Driver == BlobFS && c.MediaEnabled())
+}
+
 // PushEnabled reports whether VAPID keys are present.
 func (c *Config) PushEnabled() bool {
 	return c.Push.VAPIDPublic != "" && c.Push.VAPIDPrivate != "" && c.Push.VAPIDSubject != ""
