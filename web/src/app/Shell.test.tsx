@@ -6,18 +6,23 @@ import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { i18n } from '../i18n/setup';
 import { makeQueryClient } from './App';
-import { mainNav } from './mainNav';
+import { mainNav, moreNav } from './mainNav';
 import { routes } from './routes';
 
-function renderSignedIn() {
+function renderSignedIn(role?: string, authenticated = true) {
   vi.stubGlobal(
     'fetch',
     vi.fn(() =>
       Promise.resolve(
-        new Response(JSON.stringify({ authenticated: true, kind: 'user', csrf: 'x' }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }),
+        new Response(
+          JSON.stringify(
+            authenticated ? { authenticated: true, kind: 'user', csrf: 'x', me: role ? { role } : undefined } : { authenticated: false, kind: 'none' },
+          ),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        ),
       ),
     ),
   );
@@ -42,9 +47,34 @@ describe('shell navigation', () => {
     const nav = await screen.findByRole('navigation', {
       name: i18n.t('common:nav.label'),
     });
-    for (const e of mainNav.filter((n) => !n.moderator)) {
+    for (const e of mainNav.filter((n) => n.who === undefined)) {
       expect(nav.querySelector(`a[href="${e.to}"]`)?.textContent).toContain(i18n.t(`common:${e.label}`));
     }
+  });
+
+  function hrefs(el: Element | null | undefined): (string | null)[] {
+    return [...(el?.querySelectorAll('a') ?? [])].map((a) => a.getAttribute('href'));
+  }
+
+  it('puts the terms and the moderation pages under the main entries, by role', async () => {
+    const { unmount } = renderSignedIn();
+    const nav = await screen.findByRole('navigation', { name: i18n.t('common:nav.label') });
+    expect(hrefs(nav.querySelector('.nav-more'))).toEqual(['/terms', '/mod/log', '/blame']);
+    expect(hrefs(nav)).not.toContain('/mod');
+    unmount();
+    renderSignedIn('admin');
+    const admin = await screen.findByRole('navigation', { name: i18n.t('common:nav.label') });
+    await vi.waitFor(() => {
+      expect(hrefs(admin.querySelector('.nav-more'))).toEqual(moreNav.map((e) => e.to));
+    });
+    expect(hrefs(admin)).toContain('/mod');
+  });
+
+  it('shows only the terms, in the footer, when signed out', async () => {
+    renderSignedIn(undefined, false);
+    const footer = await screen.findByTestId('site-footer');
+    expect(hrefs(footer)).toEqual(['/terms']);
+    expect(screen.queryByRole('navigation', { name: i18n.t('common:nav.label') })).toBeNull();
   });
 
   it('remembers the collapsed sidebar', async () => {

@@ -127,10 +127,7 @@
     "change": "{action, select, grant_moderator {@{by} made @{handle} a moderator} revoke_moderator {@{by} removed @{handle} as moderator} grant_admin {@{handle} became an admin} other {@{by} changed the role of @{handle}}}"
   },
   "footer": {
-    "label": "About and moderation",
-    "terms": "Terms",
     "log": "Moderation log",
-    "blame": "Blame inbox",
     "queue": "Moderation queue",
     "recovery": "Account recovery",
     "roles": "Moderators and admins"
