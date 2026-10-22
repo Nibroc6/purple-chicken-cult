@@ -4,9 +4,8 @@
 // still hold: the app drops the sheet on locked routes (sign-in, recovery,
 // co-signing, settings, moderation, report, the report modal), so a passkey
 // prompt always looks like the app and the theme page always works to undo a
-// theme; and it is
-// dropped under high contrast. image(name) names one of the theme's own
-// uploads and becomes its signed URL. The sheet is a constructed stylesheet
+// theme; and it is dropped under high contrast. image(name) names one of the
+// theme's own uploads and becomes its signed URL. The sheet is a constructed stylesheet
 // (no style element: style-src 'self' stays strict), and the CSP still decides
 // what it may load. gate/themes (sheet.go) checks size and image names.
 // Owner: P1-W09.
