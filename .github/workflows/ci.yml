@@ -8,6 +8,7 @@ on:
     paths-ignore: ["docs/**", "**/*.md"]
   pull_request:
     paths-ignore: ["docs/**", "**/*.md"]
+  workflow_dispatch:
   schedule:
     - cron: "0 3 * * *"
 
@@ -25,10 +26,12 @@ env:
   PCC_REQUIRE_DB: "1"
 
 jobs:
-  # The checks run as parallel jobs (go, web, e2e shards); each e2e shard has its
-  # own Postgres, database and server. The nightly schedule runs perf only: the
-  # checks already ran on every PR and push. Minutes matter (private repo, Free
-  # plan: 2,000/month, each job rounded up to the minute), so jobs stay few.
+  # Minutes matter (private repo, Free plan: 2,000/month, each job rounded up to
+  # the minute), so jobs stay few and the browser tests do not run per push:
+  # - go + web: every PR push, pushes to main, manual runs.
+  # - e2e: daily against claude/phase-1 (skipped when that commit already passed;
+  #   a failure opens or updates an issue), and manual runs on any branch.
+  # - perf: daily, or a "[perf]" commit.
   go:
     if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
@@ -113,42 +116,83 @@ jobs:
         run: bash scripts/build.sh
 
   e2e:
-    if: github.event_name != 'schedule'
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2]
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      issues: write
+    env:
+      # Scheduled runs use the workflow on main; test the integration branch.
+      E2E_REF: ${{ github.event_name == 'schedule' && 'claude/phase-1' || github.ref }}
     services:
       postgres: *postgres
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.E2E_REF }}
+      - name: commit under test
+        id: head
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      # A marker cache per commit that passed; a daily run on an unchanged branch stops here.
+      - name: already green?
+        id: green
+        if: github.event_name == 'schedule'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .e2e-green
+          key: e2e-green-${{ steps.head.outputs.sha }}
+          lookup-only: true
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        if: steps.green.outputs.cache-hit != 'true'
         with:
           go-version: "1.27.x"
           cache: true
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        if: steps.green.outputs.cache-hit != 'true'
         with:
           node-version: "24"
           cache: npm
           cache-dependency-path: web/package-lock.json
       - name: postgres for tests (no fsync)
+        if: steps.green.outputs.cache-hit != 'true'
         run: *pgfast
       - name: npm ci
+        if: steps.green.outputs.cache-hit != 'true'
         run: npm ci --prefix web
       - name: playwright browsers
+        if: steps.green.outputs.cache-hit != 'true'
         run: npx --prefix web playwright install --with-deps chromium
       # scripts/e2e.sh builds the SPA (running gen) and the binary itself.
-      - name: e2e (shard ${{ matrix.shard }}/2)
-        run: bash scripts/e2e.sh --shard=${{ matrix.shard }}/2
+      - name: e2e
+        if: steps.green.outputs.cache-hit != 'true'
+        run: bash scripts/e2e.sh
+      - name: mark green
+        if: steps.green.outputs.cache-hit != 'true'
+        run: mkdir -p .e2e-green && echo "${{ steps.head.outputs.sha }}" > .e2e-green/sha
+      - name: save green marker
+        if: steps.green.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .e2e-green
+          key: e2e-green-${{ steps.head.outputs.sha }}
       - name: playwright report
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: playwright-report-${{ matrix.shard }}
+          name: playwright-report
           path: web/playwright-report
           retention-days: 7
+      - name: open or update the failure issue
+        if: failure() && github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TITLE: "Daily e2e failing on claude/phase-1"
+        run: |
+          body="Daily e2e failed on \`${{ steps.head.outputs.sha }}\`: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          n="$(gh issue list --state open --search "in:title \"$TITLE\"" --json number --jq '.[0].number')"
+          if [ -n "$n" ]; then gh issue comment "$n" --body "$body"; else gh issue create --title "$TITLE" --body "$body"; fi
 
   perf:
     if: github.event_name == 'schedule' || contains(github.event.head_commit.message, '[perf]')
