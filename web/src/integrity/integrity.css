@@ -35,6 +35,18 @@ button.integrity:focus-visible {
   outline: 2px solid var(--color-integrity-text);
   outline-offset: 2px;
 }
+/* The integrity icon buttons (report, report the inviter, why): round chips. */
+button.integrity.icon-button {
+  padding: 0;
+  min-block-size: 28px;
+  min-inline-size: 28px;
+  border-radius: 999px;
+  background: var(--color-integrity-bg);
+  color: var(--color-integrity-text);
+}
+button.integrity.icon-button .icon {
+  font-size: 0.8rem;
+}
 button.integrity[aria-disabled='true'] {
   cursor: default;
   opacity: 0.75;

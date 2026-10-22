@@ -79,7 +79,9 @@ a {
 }
 
 .brand {
-  font-weight: 700;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
   text-decoration: none;
   overflow: hidden;
   white-space: nowrap;
@@ -96,12 +98,17 @@ a {
   block-size: 2.5rem;
   padding: 0;
   font: inherit;
-  font-size: 1.1rem;
-  color: var(--color-text);
+  font-size: 1rem;
+  color: var(--color-muted);
   background: transparent;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
   cursor: pointer;
+}
+.sidebar-toggle:hover,
+.sidebar-menu:hover {
+  color: var(--color-accent);
+  background: var(--color-hover);
 }
 .sidebar-menu {
   display: none;
@@ -119,6 +126,34 @@ a {
 .link-list {
   flex-direction: column;
 }
+/* A list of links shown as one card of rows (the settings index, mod pages). */
+.link-cards {
+  gap: 0;
+  overflow: hidden;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+.link-cards li + li {
+  border-block-start: 1px solid var(--color-border);
+}
+.link-cards a {
+  display: block;
+  padding-block: var(--space-3);
+  padding-inline: var(--space-4);
+  color: var(--color-text);
+  font-weight: 500;
+  text-decoration: none;
+  transition: background-color var(--ease);
+}
+.link-cards a:hover {
+  color: var(--color-accent);
+  background: var(--color-hover);
+}
+.link-cards a:focus-visible {
+  outline-offset: -2px;
+}
 
 .sidebar-nav .nav-list {
   flex-direction: column;
@@ -131,20 +166,23 @@ a {
   gap: var(--space-3);
   padding-block: var(--space-2);
   padding-inline: var(--space-3);
-  border-radius: var(--radius);
+  border-radius: var(--radius-control);
+  color: var(--color-text);
+  font-weight: 500;
   text-decoration: none;
   white-space: nowrap;
+  transition:
+    background-color var(--ease),
+    color var(--ease);
 }
 .sidebar-nav a:hover {
-  background: var(--color-bg);
+  background: var(--color-hover);
+  color: var(--color-accent);
 }
 .sidebar-nav a[aria-current='page'] {
-  font-weight: 700;
-  background: var(--color-bg);
-  box-shadow: inset 3px 0 0 var(--color-accent);
-}
-.sidebar-nav a[aria-current='page']:dir(rtl) {
-  box-shadow: inset -3px 0 0 var(--color-accent);
+  font-weight: 650;
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
 }
 .sidebar-toggle:focus-visible,
 .sidebar-menu:focus-visible,
@@ -154,8 +192,10 @@ a {
 }
 .nav-icon {
   flex: none;
+  display: inline-flex;
+  justify-content: center;
   inline-size: 1.25rem;
-  text-align: center;
+  font-size: 1.05rem;
 }
 
 /* Collapsed (wide screens, sidebar layout): icons only; labels stay for
@@ -306,8 +346,9 @@ a {
 }
 
 .page h1 {
-  font-size: 1.4rem;
-  margin-block: 0 var(--space-3);
+  font-size: 1.6rem;
+  font-weight: 750;
+  margin-block: var(--space-2) var(--space-4);
 }
 
 .muted {
@@ -318,8 +359,12 @@ a {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
   padding: var(--space-4);
   margin-block-end: var(--space-3);
+  transition:
+    box-shadow var(--ease),
+    border-color var(--ease);
 }
 
 /* Integrity elements (§15.5): reserved styles, never available to user content. */
@@ -353,7 +398,8 @@ a {
 .modal {
   padding: 0;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius);
+  border-radius: calc(var(--radius) + 4px);
+  box-shadow: var(--shadow-lg);
   background: var(--color-surface);
   color: var(--color-text);
   inline-size: min(32rem, calc(100% - 2 * var(--space-4)));
@@ -362,11 +408,12 @@ a {
 }
 
 .modal::backdrop {
-  background: rgb(0 0 0 / 45%);
+  background: rgb(15 10 30 / 50%);
+  backdrop-filter: blur(3px);
 }
 
 .modal-body {
-  padding: var(--space-4);
+  padding: var(--space-6);
   overflow-wrap: anywhere;
 }
 
@@ -384,19 +431,26 @@ a {
 }
 
 .modal-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-inline-size: 2.75rem;
   min-block-size: 2.75rem;
-  font-size: 1.25rem;
+  margin-block-start: calc(-1 * var(--space-2));
+  margin-inline-end: calc(-1 * var(--space-2));
+  padding: 0;
+  font-size: 1.125rem;
   line-height: 1;
   background: none;
   border: 0;
-  color: inherit;
+  color: var(--color-muted);
   cursor: pointer;
-  border-radius: var(--radius);
+  border-radius: 999px;
 }
 
 .modal-close:hover {
-  background: var(--color-bg);
+  color: var(--color-text);
+  background: var(--color-hover);
 }
 
 :root:has(.modal[open]) {

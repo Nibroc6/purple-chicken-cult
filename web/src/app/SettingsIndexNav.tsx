@@ -7,7 +7,7 @@ export function SettingsIndexNav() {
   const { t } = useTranslation('common');
   return (
     <nav aria-label={t('settingsNav.label')}>
-      <ul className="link-list">
+      <ul className="link-list link-cards">
         {visibleSettingsNav.map((e) => (
           <li key={e.path}>
             <Link to={e.path}>{t(e.label)}</Link>

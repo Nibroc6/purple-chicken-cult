@@ -8,6 +8,7 @@
 // outlined; dragging in it moves the view. Owner: P1-W09.
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Icon } from '../../../lib/Icon';
 import { lines, NODE_H, NODE_W, route, type Bounds, type CanvasLayout, type CanvasMore, type CanvasNode } from './layout';
 import { Minimap } from './Minimap';
 import { capture } from './pointer';
@@ -374,7 +375,7 @@ export function Canvas({
             zoomBy(1 / STEP);
           }}
         >
-          {t('canvas.zoomOutShort')}
+          <Icon name="zoom-out" />
         </button>
         <span className="explorer-zoom muted" data-testid="explorer-zoom">
           {t('canvas.zoom', { percent: Math.round(view.k * 100) })}
@@ -388,7 +389,7 @@ export function Canvas({
             zoomBy(STEP);
           }}
         >
-          {t('canvas.zoomInShort')}
+          <Icon name="zoom-in" />
         </button>
         <button type="button" data-testid="explorer-fit" onClick={showAll}>
           {t('canvas.fit')}

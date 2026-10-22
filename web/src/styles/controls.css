@@ -1,0 +1,175 @@
+/* Default look of plain HTML controls and surfaces (buttons, fields, cards,
+   links, focus). Every selector sits in :where(), so it weighs nothing: a
+   component's own class, and a theme's CSS (features/themes/sheet.ts), always
+   win over it. Colours come only from the tokens, so presets and custom themes
+   restyle it too. Logical properties only. */
+
+:root {
+  accent-color: var(--color-accent);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+:where(h1, h2, h3) {
+  letter-spacing: -0.011em;
+  line-height: 1.25;
+}
+
+:where(a) {
+  text-decoration-thickness: from-font;
+  text-underline-offset: 0.18em;
+}
+:where(a:hover) {
+  text-decoration-thickness: 2px;
+}
+
+/* Focus: one visible ring for every focusable thing (forced colours keep the
+   outline, which the system colours repaint). */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Buttons: a quiet bordered surface by default, filled accent for .primary
+   and for a form's submit button. */
+:where(button, input[type='button'], input[type='submit'], input[type='reset']) {
+  font: inherit;
+  font-weight: 550;
+  line-height: 1.25;
+  padding-block: 0.5rem;
+  padding-inline: 0.875rem;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  transition:
+    background-color var(--ease),
+    border-color var(--ease),
+    color var(--ease),
+    box-shadow var(--ease),
+    translate var(--ease);
+}
+:where(button, input[type='button'], input[type='submit'], input[type='reset']):where(:hover:not(:disabled)) {
+  background: var(--color-hover);
+  border-color: color-mix(in srgb, var(--color-accent) 45%, var(--color-border-strong));
+}
+:where(button, input[type='button'], input[type='submit'], input[type='reset']):where(:active:not(:disabled)) {
+  translate: 0 1px;
+}
+:where(button, input, select, textarea):where(:disabled, [aria-disabled='true']) {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+:where(button[aria-pressed='true']) {
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+  border-color: color-mix(in srgb, var(--color-accent) 50%, var(--color-border-strong));
+}
+
+:where(button.primary, button[type='submit'], input[type='submit']) {
+  color: var(--color-on-accent);
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  box-shadow: var(--shadow-sm);
+}
+:where(button.primary, button[type='submit'], input[type='submit']):where(:hover:not(:disabled)) {
+  color: var(--color-on-accent);
+  background: color-mix(in srgb, var(--color-accent) 86%, var(--color-text));
+  border-color: color-mix(in srgb, var(--color-accent) 86%, var(--color-text));
+}
+
+/* Text fields, selects and text areas. */
+:where(
+    input:not([type='checkbox'], [type='radio'], [type='range'], [type='file'], [type='color'], [type='button'], [type='submit'], [type='reset'], [type='image'], [type='hidden']),
+    select,
+    textarea
+  ) {
+  font: inherit;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  padding-block: 0.5rem;
+  padding-inline: 0.75rem;
+  max-inline-size: 100%;
+  transition:
+    border-color var(--ease),
+    box-shadow var(--ease);
+}
+:where(input[type='file']) {
+  font: inherit;
+  max-inline-size: 100%;
+}
+:where(input[type='file'])::file-selector-button {
+  font: inherit;
+  font-weight: 550;
+  margin-inline-end: var(--space-3);
+  padding-block: 0.4rem;
+  padding-inline: 0.875rem;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  cursor: pointer;
+}
+:where(input[type='file'])::file-selector-button:hover {
+  background: var(--color-hover);
+}
+:where(textarea) {
+  line-height: 1.5;
+}
+:where(input, select, textarea):where(:hover:not(:disabled, :focus)) {
+  border-color: color-mix(in srgb, var(--color-text) 35%, var(--color-border-strong));
+}
+:where(input, select, textarea):focus-visible {
+  outline: 2px solid transparent;
+  outline-offset: 0;
+  border-color: var(--color-accent);
+  box-shadow: var(--focus-ring);
+}
+:where(input, select, textarea)::placeholder {
+  color: var(--color-muted);
+  opacity: 0.8;
+}
+:where(input[type='checkbox'], input[type='radio']) {
+  inline-size: 1.05em;
+  block-size: 1.05em;
+  vertical-align: -0.15em;
+}
+:where(label) {
+  line-height: 1.4;
+}
+:where(fieldset) {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding-block: var(--space-3) var(--space-4);
+  padding-inline: var(--space-4);
+}
+:where(legend) {
+  padding-inline: var(--space-1);
+  font-weight: 600;
+}
+
+:where(hr) {
+  border: 0;
+  border-block-start: 1px solid var(--color-border);
+}
+
+:where(code, kbd, samp) {
+  font-size: 0.9em;
+}
+
+:where(details > summary) {
+  cursor: pointer;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--color-accent) 25%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(button, input, select, textarea) {
+    transition: none;
+  }
+}

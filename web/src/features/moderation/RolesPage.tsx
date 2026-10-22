@@ -35,7 +35,7 @@ function Roles() {
   return (
     <>
       <p className="muted">{t('roles.intro')}</p>
-      <ul className="link-list">
+      <ul className="link-list link-cards">
         <li>
           <Link to="/mod">{t('footer.queue')}</Link>
         </li>

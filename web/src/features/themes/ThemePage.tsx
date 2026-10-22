@@ -33,6 +33,7 @@ import { useAppliedSheet, useAppliedTheme, useImageURLs, useStoredTheme, type Sh
 import './themes.css';
 import { InfoTip } from '../../lib/InfoTip';
 import { Icon } from '../../lib/Icon';
+import { IconButton } from '../../lib/IconButton';
 
 const themeCodes = new Set(['theme_contrast', 'theme_css', 'theme_font', 'theme_invalid', 'rate_limited']);
 
@@ -316,12 +317,8 @@ function ThemeForm({ stored }: { stored: ThemeView | null }) {
               <ReportAction target={{ kind: 'post', ref: asRef('preview') }} onReport={noop} />
             </footer>
             <div className="engage-bar">
-              <button type="button" data-part="like" aria-pressed={false}>
-                {t('preview.like')}
-              </button>
-              <button type="button" data-part="save" aria-pressed={true}>
-                {t('preview.saved')}
-              </button>
+              <IconButton icon="like" label={t('preview.like')} data-part="like" aria-pressed={false} />
+              <IconButton icon="save-on" label={t('preview.saved')} data-part="save" aria-pressed={true} />
             </div>
           </article>
           <p>

@@ -4,7 +4,7 @@
 // loader the button is shown but has nothing to open.
 import { useContext, useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Icon } from '../lib/Icon';
+import { IconButton } from '../lib/IconButton';
 import { WhyLoaderContext, type WhyButtonProps, type WhyVM } from './types';
 import { WhyPanel } from './WhyPanel';
 import './integrity.css';
@@ -50,21 +50,18 @@ export function WhyButton({ post }: WhyButtonProps) {
 
   return (
     <span className="why-wrap">
-      <button
+      <IconButton
         ref={button}
-        type="button"
+        icon="info"
+        label={t('why.button')}
         className="integrity why"
         data-testid="integrity-why"
         data-post={post}
-        aria-label={t('why.button')}
-        title={t('why.button')}
         aria-expanded={load ? open : undefined}
         aria-controls={open ? panelId : undefined}
         aria-disabled={load ? undefined : true}
         onClick={toggle}
-      >
-        <Icon name="info" />
-      </button>
+      />
       {open ? (
         <WhyPanel
           id={panelId}

@@ -7,28 +7,32 @@
 // hook for theme CSS (features/themes/sheet.ts), e.g.
 //   .icon[data-icon=feed] { display: none }
 //   .nav-icon:has([data-icon=feed]) { background: image(home) center / contain no-repeat }
-import { faBookmark } from '@fortawesome/free-regular-svg-icons';
+import { faBookmark, faComment, faEyeSlash, faHeart } from '@fortawesome/free-regular-svg-icons';
 import {
   faAnglesLeft,
   faAnglesRight,
   faBars,
   faBell,
+  faBookmark as faBookmarkSolid,
   faCheck,
   faChevronLeft,
   faChevronRight,
   faCircleCheck,
   faCircleInfo,
+  faCircleMinus,
   faCircleQuestion,
   faDiamond,
-  faEnvelope,
   faEye,
+  faFeather,
   faFlag,
   faGear,
+  faHeart as faHeartSolid,
   faHouse,
   faMinus,
   faPen,
   faPenToSquare,
   faPlus,
+  faReply,
   faUserGroup,
   faUserPlus,
   faUsers,
@@ -41,7 +45,7 @@ const icons = {
   // Main navigation (app/mainNav.ts).
   feed: faHouse,
   compose: faPenToSquare,
-  invite: faEnvelope,
+  invite: faFeather,
   people: faUserGroup,
   saves: faBookmark,
   seen: faEye,
@@ -61,6 +65,15 @@ const icons = {
   info: faCircleInfo,
   ok: faCheck,
   fail: faXmark,
+  // Post actions (features/engage, formats/*): the -on icons mark a pressed toggle.
+  like: faHeart,
+  'like-on': faHeartSolid,
+  save: faBookmark,
+  'save-on': faBookmarkSolid,
+  hide: faEyeSlash,
+  'show-less': faCircleMinus,
+  reply: faReply,
+  replies: faComment,
   // Integrity elements (integrity/).
   tier: faDiamond,
   'tier-done': faCircleCheck,
