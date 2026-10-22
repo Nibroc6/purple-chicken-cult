@@ -18,7 +18,6 @@ export interface PostActions {
 }
 
 export interface TreeActions extends PostActions {
-  recenter: (gen: number, center: Ref) => void;
   more: (gen: number, center: Ref, cursor: string) => void;
   loadEarlier: () => void;
   loadLater: () => void;
