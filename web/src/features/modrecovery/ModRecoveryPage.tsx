@@ -11,6 +11,7 @@ import { requestCosign } from '../cosign';
 import { sessionCosigns } from '../settings/api';
 import { approveRecovery, isRef, openRecovery, recoveryErrorKey, recoveryLink } from './api';
 import '../settings/settings.css';
+import { InfoTip } from '../../lib/InfoTip';
 
 function ErrorLine({ err }: { err: unknown }) {
   const { t } = useTranslation(['modrecovery', 'errors']);
@@ -92,7 +93,10 @@ function RecoverySteps() {
   const link = useMutation({ mutationFn: recoveryLink });
   return (
     <>
-      <p>{t('page.intro')}</p>
+      <p>
+        {t('page.intro')}
+        <InfoTip>{t('page.introTip')}</InfoTip>
+      </p>
       <Step legend={t('request.legend')} label={t('request.subject')} button={t('request.button')} run={open}>
         <small className="muted">{t('request.help')}</small>
         {open.data ? (

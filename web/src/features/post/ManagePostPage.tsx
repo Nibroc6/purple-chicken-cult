@@ -14,6 +14,7 @@ import type { PostVM, RefPolicy } from '../../vm/types';
 import { deletePost, detachAll, editPost, fetchPost, postKey, setRefPolicy } from './api';
 import { Counter, ErrorText, LangSelect, PolicySelect, PostPreview } from './shared';
 import { codePoints, HARD_LIMIT } from './vm';
+import { InfoTip } from '../../lib/InfoTip';
 
 export default function ManagePostPage() {
   const { t } = useTranslation('post');
@@ -113,7 +114,10 @@ function EditForm({ post }: { post: PostVM }) {
         uiLocale={me?.settings.ui_locale ?? 'en'}
         onChange={setLang}
       />
-      <p className="muted">{t('edit.parentsFixed')}</p>
+      <p className="muted">
+        {t('edit.parentsFixed')}
+        <InfoTip>{t('edit.parentsFixedTip')}</InfoTip>
+      </p>
       <button type="submit" data-testid="post-edit-save" disabled={m.isPending || body.trim() === '' || n > HARD_LIMIT}>
         {t('edit.save')}
       </button>

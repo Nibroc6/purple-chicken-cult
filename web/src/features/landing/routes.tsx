@@ -5,7 +5,9 @@ import { lazy } from 'react';
 import type { RouteObject } from 'react-router';
 
 const TermsPage = lazy(() => import('./TermsPage'));
+const AboutPage = lazy(() => import('./AboutPage'));
 
 export const routes: RouteObject[] = [
   { path: '/terms', element: <TermsPage /> },
+  { path: '/about', element: <AboutPage /> },
 ];

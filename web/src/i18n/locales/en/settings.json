@@ -90,8 +90,8 @@
   },
   "export": {
     "title": "Export your data",
-    "intro": "Download every signed record you are part of, the server's public keys, your posts and your passkeys' public parts.",
-    "verify": "Anyone can check the signatures offline, without trusting this server.",
+    "intro": "Download everything you're part of.",
+    "verify": "The file holds every signed record you're part of, the server's public keys, your posts and your passkeys' public parts. Anyone can check the signatures offline, without trusting this server.",
     "button": "Download export",
     "working": "Preparing your export…",
     "done": "Your export has been downloaded."

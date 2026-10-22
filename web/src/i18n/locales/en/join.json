@@ -71,7 +71,8 @@
   },
   "ceremony": {
     "title": "Sign your invite",
-    "body": "Your new passkey signs these records. Your account is created once you and the person who invited you have both signed.",
+    "body": "Sign with your new passkey to finish.",
+    "bodyTip": "Your passkey signs these records. Your account is created once you and the person who invited you have both signed.",
     "sign": "Sign and join",
     "working": "Signing…",
     "awaiting": "Waiting for the person who invited you to sign…",

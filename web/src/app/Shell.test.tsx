@@ -59,7 +59,7 @@ describe('shell navigation', () => {
   it('puts the terms and the moderation pages under the main entries, by role', async () => {
     const { unmount } = renderSignedIn();
     const nav = await screen.findByRole('navigation', { name: i18n.t('common:nav.label') });
-    expect(hrefs(nav.querySelector('.nav-more'))).toEqual(['/terms', '/mod/log', '/blame']);
+    expect(hrefs(nav.querySelector('.nav-more'))).toEqual(['/about', '/terms', '/mod/log', '/blame']);
     expect(hrefs(nav)).not.toContain('/mod');
     unmount();
     renderSignedIn('admin');
@@ -70,10 +70,10 @@ describe('shell navigation', () => {
     expect(hrefs(admin)).toContain('/mod');
   });
 
-  it('shows only the terms, in the footer, when signed out', async () => {
+  it('shows only the about page and the terms, in the footer, when signed out', async () => {
     renderSignedIn(undefined, false);
     const footer = await screen.findByTestId('site-footer');
-    expect(hrefs(footer)).toEqual(['/terms']);
+    expect(hrefs(footer)).toEqual(['/about', '/terms']);
     expect(screen.queryByRole('navigation', { name: i18n.t('common:nav.label') })).toBeNull();
   });
 

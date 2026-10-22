@@ -1,6 +1,6 @@
 // The main navigation (SCAFFOLD-owned list): every entry of the sidebar, or of
 // the top header when a user picks that layout. A feature adds its page here.
-// moreNav is the smaller list under it (terms and moderation pages, the old
+// moreNav is the smaller list under it (about, terms and moderation pages, the old
 // site footer); signed out, or in the top-header layout on wide screens, it
 // renders as a page footer instead. Labels live in the common namespace.
 // i18n-dynamic: common:nav.
@@ -18,6 +18,7 @@ export interface MainNavEntry {
     | 'nav.notifications'
     | 'nav.moderation'
     | 'nav.settings'
+    | 'nav.about'
     | 'nav.terms'
     | 'nav.modLog'
     | 'nav.blame'
@@ -44,6 +45,7 @@ export const mainNav: MainNavEntry[] = [
 ];
 
 export const moreNav: MainNavEntry[] = [
+  { to: '/about', label: 'nav.about', icon: '?', who: 'everyone' },
   { to: '/terms', label: 'nav.terms', icon: '§', who: 'everyone' },
   { to: '/mod/log', label: 'nav.modLog', icon: '≡' },
   { to: '/blame', label: 'nav.blame', icon: '⚠' },

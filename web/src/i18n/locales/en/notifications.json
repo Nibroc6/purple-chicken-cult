@@ -1,7 +1,8 @@
 {
   "page": {
     "title": "Notifications",
-    "empty": "Nothing yet. Acquaintance requests, mentions and replies to your posts show up here.",
+    "empty": "Nothing yet.",
+    "emptyTip": "Acquaintance requests, mentions and replies to your posts show up here.",
     "more": "Show older"
   },
   "badge": {

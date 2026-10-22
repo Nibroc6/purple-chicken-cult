@@ -18,7 +18,8 @@
   },
   "friends": {
     "title": "Acquaintances",
-    "empty": "No acquaintances yet. They start in person, with an invite, or with a request to someone you are connected to.",
+    "empty": "No acquaintances yet.",
+    "emptyTip": "Connections start in person, with an invite, or with a request to someone you've come across here.",
     "more": "Show more"
   },
   "requests": {
@@ -35,7 +36,8 @@
   },
   "blocks": {
     "title": "Blocked people",
-    "help": "Blocked people never see that you blocked them. Your posts and paths no longer reach them through you, and theirs no longer reach you.",
+    "help": "Blocked people never see that you blocked them. Your posts and paths stop reaching them through you, and theirs stop reaching you.",
+    "helpShort": "They're never told.",
     "empty": "You have not blocked anyone."
   },
   "action": {

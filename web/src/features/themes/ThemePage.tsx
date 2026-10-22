@@ -31,6 +31,7 @@ import {
 } from './theme';
 import { useAppliedSheet, useAppliedTheme, useImageURLs, useStoredTheme, type SheetImage } from './useTheme';
 import './themes.css';
+import { InfoTip } from '../../lib/InfoTip';
 
 const themeCodes = new Set(['theme_contrast', 'theme_css', 'theme_font', 'theme_invalid', 'rate_limited']);
 
@@ -514,7 +515,10 @@ export default function ThemePage() {
   return (
     <section className="page theme-page" data-testid="theme-page">
       <h1>{t('page.title')}</h1>
-      <p className="muted">{t('page.intro')}</p>
+      <p className="muted">
+        {t('page.intro')}
+        <InfoTip>{t('page.introTip')}</InfoTip>
+      </p>
       {theme.isPending ? <Loading /> : <ThemeForm stored={theme.data ?? null} />}
     </section>
   );

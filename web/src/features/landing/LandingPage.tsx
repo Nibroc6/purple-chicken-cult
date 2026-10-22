@@ -31,7 +31,10 @@ export default function LandingPage() {
         </Link>
       </div>
       <p className="muted">{t('page.noInvite')}</p>
-      <p>
+      <p className="landing-links">
+        <Link to="/about" data-testid="landing-about">
+          {t('page.about')}
+        </Link>
         <Link to="/terms" data-testid="landing-terms">
           {t('page.terms')}
         </Link>

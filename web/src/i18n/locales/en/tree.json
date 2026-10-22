@@ -6,40 +6,15 @@
   "layout": {
     "label": "Reply tree"
   },
-  "row": {
-    "earlier": "Earlier",
-    "replying_to": "Replying to",
-    "this_post": "This post",
-    "replies": "Replies",
-    "replies_to_replies": "Replies to replies",
-    "generations_down": "{count, plural, one {# generation down} other {# generations down}}",
-    "generations_up": "{count, plural, one {# generation up} other {# generations up}}",
-    "nav": "Move along this row",
-    "prev": "Previous post in this row",
-    "next": "Next post in this row",
-    "prevShort": "‹",
-    "nextShort": "›",
-    "position": "{index, number} of {total, number}",
-    "more": "+{count, number} more",
-    "moreLabel": "{count, plural, one {# more post in this row} other {# more posts in this row}}",
-    "loadMore": "Load more"
-  },
-  "item": {
-    "shownAbove": "↑ shown above (@{handle})",
-    "also": "also replies to @{handle}",
-    "alsoLabel": "Other posts this replies to",
-    "center": "Show its replies"
-  },
-  "divider": "{tier, select, 0 {Your posts} 1 {Acquaintances} 2 {Acquaintances of acquaintances} other {{tier} steps away}}",
   "edge": {
     "earlier": "Load earlier",
     "later": "Load later"
   },
-  "outline": {
-    "count": "{count, plural, one {# post} other {# posts}}"
-  },
   "errors": {
     "not_found": "This post isn't available.",
     "tree_snapshot_expired": "This view was out of date, so it was reloaded."
+  },
+  "focus": {
+    "title": "The post in focus"
   }
 }

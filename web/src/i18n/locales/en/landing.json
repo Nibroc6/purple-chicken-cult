@@ -5,6 +5,7 @@
     "login": "Sign in with your passkey",
     "join": "Join with an invite",
     "noInvite": "There is no sign-up form. To join, meet a member and scan their invite code.",
+    "about": "How it works",
     "terms": "Terms of service"
   },
   "points": {

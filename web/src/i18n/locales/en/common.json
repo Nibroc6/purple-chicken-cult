@@ -21,6 +21,7 @@
     "blame": "Blame inbox",
     "modRecovery": "Account recovery",
     "roles": "Moderators and admins",
+    "about": "How it works",
     "menu": "Menu",
     "close": "Close menu",
     "collapse": "Collapse sidebar",
@@ -40,6 +41,9 @@
   "error": {
     "title": "Something went wrong",
     "retry": "Try again"
+  },
+  "infotip": {
+    "label": "More about this"
   },
   "settingsNav": {
     "label": "Settings sections",
