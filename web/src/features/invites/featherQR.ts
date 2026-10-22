@@ -1,9 +1,10 @@
-// The handshake QR code with a feather in its centre (the invite nav icon).
-// Error correction is Q (25 % of codewords recoverable): the feather's box
-// takes about 5 % of the modules, and H would make the 138-character frame a
-// version 12 code (65 modules) instead of version 10 (57), which measurably
-// hurts decoding at the scanner's 640 px frames. The logo box is aligned to
-// whole modules and keeps clear of the finder patterns. Owner: P1-W02.
+// The handshake QR code with a feather in its centre (the invite nav icon),
+// drawn over the modules with a thin white outline. Error correction is Q
+// (25 % of codewords recoverable): the feather's box spans about 5 % of the
+// modules and the feather covers fewer. H would make the 138-character frame
+// a version 12 code (65 modules) instead of version 10 (57), which measurably
+// hurts decoding at the scanner's 640 px frames. The feather's box is centred
+// on whole modules and keeps clear of the finder patterns. Owner: P1-W02.
 import QRCode from 'qrcode';
 
 // Font Awesome Free 7 "feather" (solid), CC BY 4.0, viewBox 0 0 512 512.
@@ -14,27 +15,25 @@ const FEATHER =
 // every theme, so it does not follow the theme (a dark theme's accent is pale).
 const FEATHER_COLOR = '#6b2fd6';
 const MARGIN = 2; // quiet zone in modules (the CSS padding adds the rest)
-const LOGO = 0.22; // the logo box's side, as a share of the code's side
+const LOGO = 0.22; // the feather box's side, as a share of the code's side
 
 export interface FeatherCode {
   size: number; // modules per side
-  // The logo box: modules [start, start + side) on both axes are left light.
+  // The feather's box: modules [start, start + side) on both axes.
   logo: { start: number; side: number };
   dark: (x: number, y: number) => boolean;
 }
 
-// featherCode encodes payload at level Q and reserves the centred logo box.
+// featherCode encodes payload at level Q and places the centred feather box.
 export function featherCode(payload: string): FeatherCode {
   const q = QRCode.create(payload, { errorCorrectionLevel: 'Q' });
   const size = q.modules.size;
   let side = Math.round(size * LOGO);
   if (side % 2 !== size % 2) side += 1; // centred on whole modules
-  const start = (size - side) / 2;
-  const inLogo = (v: number) => v >= start && v < start + side;
   return {
     size,
-    logo: { start, side },
-    dark: (x, y) => !(inLogo(x) && inLogo(y)) && q.modules.get(y, x) === 1,
+    logo: { start: (size - side) / 2, side },
+    dark: (x, y) => q.modules.get(y, x) === 1,
   };
 }
 
@@ -55,13 +54,20 @@ export function drawFeatherQR(canvas: HTMLCanvasElement, payload: string, cssPx 
       if (code.dark(x, y)) ctx.fillRect((x + MARGIN) * scale, (y + MARGIN) * scale, scale, scale);
     }
   }
-  // The feather, inset by one module from the box so it never touches a module.
-  const inner = (code.logo.side - 2) * scale;
-  const at = (code.logo.start + 1 + MARGIN) * scale;
+  // The feather over the box, inset by its white outline (half a module wide).
+  const outline = scale / 2;
+  const inner = code.logo.side * scale - 2 * outline;
+  const at = (code.logo.start + MARGIN) * scale + outline;
+  const k = inner / 512;
+  const feather = new Path2D(FEATHER);
   ctx.save();
   ctx.translate(at, at);
-  ctx.scale(inner / 512, inner / 512);
+  ctx.scale(k, k);
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = (2 * outline) / k; // half of the stroke falls under the fill
+  ctx.strokeStyle = '#fff';
+  ctx.stroke(feather);
   ctx.fillStyle = FEATHER_COLOR;
-  ctx.fill(new Path2D(FEATHER));
+  ctx.fill(feather);
   ctx.restore();
 }

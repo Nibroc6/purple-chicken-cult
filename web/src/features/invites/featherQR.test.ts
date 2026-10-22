@@ -1,6 +1,5 @@
 // The feathered handshake QR code still decodes (P1-W02).
 import jsQR from 'jsqr';
-import QRCode from 'qrcode';
 import { describe, expect, it } from 'vitest';
 import { featherCode } from './featherQR';
 import { renderDualFrame, renderFrame } from './handshake';
@@ -41,26 +40,19 @@ async function payloads(): Promise<string[]> {
 }
 
 describe('feather QR', () => {
-  it('decodes with the logo box cleared', async () => {
-    for (const p of await payloads()) {
-      const c = featherCode(p);
-      expect(decode(c.size, c.dark)).toBe(p);
-    }
-  });
-
-  it('decodes even with every module under the logo wrong', async () => {
+  it('decodes even with every module under the feather wrong', async () => {
     // The worst any drawing in the box can do: each module there flipped.
     for (const p of await payloads()) {
       const c = featherCode(p);
-      const q = QRCode.create(p, { errorCorrectionLevel: 'Q' });
       const { start, side } = c.logo;
       const inLogo = (v: number) => v >= start && v < start + side;
-      const flipped = (x: number, y: number) => (inLogo(x) && inLogo(y) ? !q.modules.get(y, x) : c.dark(x, y));
+      expect(decode(c.size, c.dark)).toBe(p);
+      const flipped = (x: number, y: number) => (inLogo(x) && inLogo(y) ? !c.dark(x, y) : c.dark(x, y));
       expect(decode(c.size, flipped)).toBe(p);
     }
   });
 
-  it('keeps the logo centred and clear of the finder patterns', async () => {
+  it('keeps the feather centred and clear of the finder patterns', async () => {
     const [frame = ''] = await payloads();
     const c = featherCode(frame);
     expect(c.size).toBe(57); // version 10 at level Q
