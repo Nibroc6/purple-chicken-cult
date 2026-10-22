@@ -22,8 +22,16 @@ import (
 
 var (
 	wMedia = apix.Write("media")
+	// sMedia carries on an upload the person already made (alt text sent at
+	// publish, a picture removed from a draft): free steps, see limits.
+	sMedia = apix.Step("media")
 	rPost  = apix.Read("post_read")
 )
+
+// AltIn is the body of PATCH /media/{ref}.
+type AltIn struct {
+	Alt string `json:"alt"`
+}
 
 // maxBody is the multipart limit of POST /media: the 15 MiB file plus the
 // alt field and the multipart framing.
@@ -46,6 +54,23 @@ func Register(r chi.Router, d *api.Deps) {
 			return err
 		}
 		return apix.JSON(w, http.StatusOK, URLOut{URL: u, ExpiresAt: exp})
+	})
+	apix.Route(r, http.MethodPatch, "/media/{ref}", sMedia, func(w http.ResponseWriter, r *http.Request) error {
+		in, err := apix.Decode[AltIn](r, 0)
+		if err != nil {
+			return err
+		}
+		mv, err := d.Media.SetAlt(r.Context(), apix.Ref(r, "ref"), in.Alt)
+		if err != nil {
+			return err
+		}
+		return apix.JSON(w, http.StatusOK, mv)
+	})
+	apix.Route(r, http.MethodDelete, "/media/{ref}", sMedia, func(w http.ResponseWriter, r *http.Request) error {
+		if err := d.Media.Discard(r.Context(), apix.Ref(r, "ref")); err != nil {
+			return err
+		}
+		return apix.NoContent(w)
 	})
 }
 

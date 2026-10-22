@@ -46,7 +46,7 @@ const (
 	DisplayEdge     = 1080
 	MaxOriginalEdge = 4096
 	Retention       = 365 * 24 * time.Hour // evidence preservation (REPORT Act 2024)
-	OrphanTTL       = 24 * time.Hour       // unattached uploads are deleted after this
+	OrphanTTL       = 2 * time.Hour        // unattached uploads are deleted after this
 	ProcessEvery    = 10 * time.Minute
 	// JobProcess is the deletion job: marks deleted posts' and accounts' media,
 	// sweeps unattached uploads, deletes blobs, purges the CDN, and deletes

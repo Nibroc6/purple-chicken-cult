@@ -23,7 +23,7 @@ function json(status: number, body: unknown): Response {
   });
 }
 
-function stubAPI(handler: (c: Call) => Response | undefined, meOver: Record<string, unknown> = {}): Call[] {
+function stubAPI(handler: (c: Call) => Response | undefined | Promise<Response | undefined>, meOver: Record<string, unknown> = {}): Call[] {
   const calls: Call[] = [];
   vi.stubGlobal(
     'fetch',
@@ -35,7 +35,7 @@ function stubAPI(handler: (c: Call) => Response | undefined, meOver: Record<stri
       if (c.path === '/session') {
         return json(200, { authenticated: true, kind: 'user', csrf: 'x', me: { ...me, settings: { ...me.settings, ...meOver } } });
       }
-      return handler(c) ?? json(404, { error: 'not_found' });
+      return (await handler(c)) ?? json(404, { error: 'not_found' });
     }),
   );
   return calls;
@@ -299,7 +299,14 @@ describe('compose page', () => {
     expect((calls.find((c) => c.method === 'POST')?.body as { audience: string }).audience).toBe('friend_plus');
   });
 
-  it('attaches uploaded pictures in order, removes one, and sends their refs', async () => {
+  const png = (name: string) => new File([new Uint8Array(4)], name, { type: 'image/png' });
+  const ready = async (n: number) => {
+    await waitFor(() => {
+      expect(screen.getAllByTestId('media-item').filter((i) => i.dataset.status === 'ready')).toHaveLength(n);
+    });
+  };
+
+  it('uploads pictures as they are picked, discards a removed one, and sends alt text and refs at publish', async () => {
     vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: () => 'blob:x', revokeObjectURL: () => undefined }));
     let n = 0;
     const calls = stubAPI((c) => {
@@ -307,6 +314,8 @@ describe('compose page', () => {
         n++;
         return json(201, { ref: `m${String(n)}`, w: 40, h: 30 });
       }
+      if (c.method === 'PATCH') return json(200, { ref: c.path.split('/')[2], w: 40, h: 30, alt: (c.body as { alt: string }).alt });
+      if (c.method === 'DELETE') return json(204, null);
       if (c.path.endsWith('/url')) return json(200, { url: `/m/k${c.path}?e=1`, expires_at: '2099-01-01T00:00:00Z' });
       if (c.method === 'POST' && c.path === '/posts') {
         return json(201, postJSON({ media: [{ ref: 'm1', w: 40, h: 30 }, { ref: 'm3', w: 40, h: 30 }] }));
@@ -315,39 +324,92 @@ describe('compose page', () => {
     });
     renderAt('/compose');
     fireEvent.change(await screen.findByTestId('composer-body'), { target: { value: 'pictures' } });
-    const png = (name: string) => new File([new Uint8Array(4)], name, { type: 'image/png' });
     fireEvent.change(screen.getByTestId('media-file'), { target: { files: [png('a.png'), png('b.png'), png('c.png')] } });
-    fireEvent.click(screen.getByTestId('media-upload'));
+    expect(screen.queryByTestId('media-upload')).toBeNull();
+    await ready(3);
+    expect(calls.filter((c) => c.method === 'POST' && c.path === '/media')).toHaveLength(3);
+    fireEvent.change(screen.getAllByTestId('media-alt')[0] as HTMLElement, { target: { value: ' a red square ' } });
+    fireEvent.click(screen.getAllByTestId('media-remove')[1] as HTMLElement);
+    expect(screen.getAllByTestId('media-item')).toHaveLength(2);
     await waitFor(() => {
-      expect(screen.getAllByTestId('composer-media-item')).toHaveLength(3);
+      expect(calls.some((c) => c.method === 'DELETE' && c.path === '/media/m2')).toBe(true);
     });
-    expect(screen.getByTestId('composer-media-count').textContent).toBe(tr('composer:media.attached', { count: 3 }));
-    fireEvent.click(screen.getAllByTestId('composer-media-remove')[1] as HTMLElement);
-    expect(screen.getAllByTestId('composer-media-item')).toHaveLength(2);
     fireEvent.click(screen.getByTestId('composer-publish'));
     await screen.findByTestId('composer-published');
+    expect(calls.filter((c) => c.method === 'PATCH')).toEqual([{ method: 'PATCH', path: '/media/m1', body: { alt: 'a red square' } }]);
     expect((calls.find((c) => c.method === 'POST' && c.path === '/posts')?.body as { media: string[] }).media).toEqual(['m1', 'm3']);
     expect(screen.getByTestId('post-preview-media').querySelectorAll('[data-testid=media-image]')).toHaveLength(2);
+    // Published uploads are not discarded when the composer goes away.
+    expect(calls.filter((c) => c.method === 'DELETE')).toHaveLength(1);
   });
 
-  it('hides the picker once four pictures are attached', async () => {
+  it('publish waits for a picture still uploading', async () => {
     vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: () => 'blob:x', revokeObjectURL: () => undefined }));
-    let n = 0;
-    stubAPI((c) => {
-      if (c.method === 'POST' && c.path === '/media') return json(201, { ref: `m${String(++n)}`, w: 4, h: 3 });
-      if (c.path.endsWith('/url')) return json(200, { url: '/m/k?e=1', expires_at: '2099-01-01T00:00:00Z' });
+    let finish: (r: Response) => void = () => undefined;
+    const calls = stubAPI((c) => {
+      if (c.method === 'POST' && c.path === '/media') {
+        return new Promise<Response>((r) => {
+          finish = r;
+        });
+      }
+      if (c.method === 'POST' && c.path === '/posts') return json(201, postJSON({ media: [{ ref: 'm1', w: 4, h: 3 }] }));
       return undefined;
     });
     renderAt('/compose');
+    fireEvent.change(await screen.findByTestId('composer-body'), { target: { value: 'a picture' } });
+    fireEvent.change(screen.getByTestId('media-file'), { target: { files: [png('a.png')] } });
+    fireEvent.click(screen.getByTestId('composer-publish'));
+    await waitFor(() => {
+      expect(screen.getByTestId('composer-publish').textContent).toBe(tr('composer:publish.waiting'));
+    });
+    expect(calls.some((c) => c.path === '/posts')).toBe(false);
+    finish(json(201, { ref: 'm1', w: 4, h: 3 }));
+    await screen.findByTestId('composer-published');
+    expect((calls.find((c) => c.path === '/posts')?.body as { media: string[] }).media).toEqual(['m1']);
+  });
+
+  it('blocks publishing while a refused picture is still in the draft', async () => {
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: () => 'blob:x', revokeObjectURL: () => undefined }));
+    stubAPI((c) => (c.method === 'POST' && c.path === '/media' ? json(422, { error: 'media_type', field: 'file' }) : undefined));
+    renderAt('/compose');
+    fireEvent.change(await screen.findByTestId('composer-body'), { target: { value: 'a picture' } });
+    fireEvent.change(screen.getByTestId('media-file'), { target: { files: [png('a.png')] } });
+    expect((await screen.findByTestId('media-error')).dataset.code).toBe('media_type');
+    expect(screen.getByTestId<HTMLButtonElement>('composer-publish').disabled).toBe(true);
+    expect(screen.getByTestId('composer-media-failed')).toBeTruthy();
+    fireEvent.click(screen.getByTestId('media-remove'));
+    expect(screen.getByTestId<HTMLButtonElement>('composer-publish').disabled).toBe(false);
+  });
+
+  it('discards the uploads when the composer is left without publishing', async () => {
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: () => 'blob:x', revokeObjectURL: () => undefined }));
+    let n = 0;
+    const calls = stubAPI((c) => {
+      if (c.method === 'POST' && c.path === '/media') return json(201, { ref: `m${String(++n)}`, w: 4, h: 3 });
+      if (c.method === 'DELETE') return json(204, null);
+      return undefined;
+    });
+    const view = renderAt('/compose');
     await screen.findByTestId('composer-body');
-    const files = Array.from({ length: 5 }, (_, i) => new File([new Uint8Array(4)], `${String(i)}.png`, { type: 'image/png' }));
+    fireEvent.change(screen.getByTestId('media-file'), { target: { files: [png('a.png'), png('b.png')] } });
+    await ready(2);
+    view.unmount();
+    await waitFor(() => {
+      expect(calls.filter((c) => c.method === 'DELETE').map((c) => c.path)).toEqual(['/media/m1', '/media/m2']);
+    });
+  });
+
+  it('takes at most four pictures', async () => {
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: () => 'blob:x', revokeObjectURL: () => undefined }));
+    let n = 0;
+    stubAPI((c) => (c.method === 'POST' && c.path === '/media' ? json(201, { ref: `m${String(++n)}`, w: 4, h: 3 }) : undefined));
+    renderAt('/compose');
+    await screen.findByTestId('composer-body');
+    const files = Array.from({ length: 5 }, (_, i) => png(`${String(i)}.png`));
     fireEvent.change(screen.getByTestId('media-file'), { target: { files } });
     expect(screen.getAllByTestId('media-item')).toHaveLength(4);
-    fireEvent.click(screen.getByTestId('media-upload'));
-    await waitFor(() => {
-      expect(screen.getAllByTestId('composer-media-item')).toHaveLength(4);
-    });
-    expect(screen.queryByTestId('media-picker')).toBeNull();
+    expect(screen.getByTestId<HTMLInputElement>('media-file').disabled).toBe(true);
+    await ready(4);
   });
 
   it('shows Problems from the post catalog', async () => {

@@ -192,7 +192,7 @@ func DefaultPolicy() Policy {
 		},
 		Toggles:      map[string]bool{string(WriteLike): true, string(WriteSave): true, string(WriteSocial): true},
 		ToggleWindow: 10 * time.Minute,
-		FreeSteps:    map[string]bool{string(WriteInvite): true},
+		FreeSteps:    map[string]bool{string(WriteInvite): true, string(WriteMedia): true},
 		// 30/min per prefix for login, enroll and CSP reports. The join flow polls
 		// /join/status every 1.5 s while the invitee waits for the SAS, so join
 		// gets room for that plus the claim and the two registration calls.

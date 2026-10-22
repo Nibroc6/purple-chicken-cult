@@ -5,7 +5,8 @@
     "altPlaceholder": "What is in it, for people who cannot see it",
     "remove": "Remove",
     "upload": "{count, plural, one {Upload the picture} other {Upload # pictures}}",
-    "uploading": "Uploading…"
+    "uploading": "Uploading…",
+    "uploaded": "Uploaded"
   },
   "image": {
     "noAlt": "Picture",

@@ -7,16 +7,16 @@
 // parent's audience is limited; a reply to several posts (up to 3) from
 // repeated ?parent=, more added by pasting a post's link, any taken out; up to
 // 4 pictures through the media picker
-// (P1; a thread attaches them to its first part; the picker hides itself when
-// media is turned off). Owner: P0-W05 → P1-W12.
+// (P1; uploaded as soon as picked, attached at publish; a thread attaches them
+// to its first part; the picker hides itself when media is turned off). Owner: P0-W05 → P1-W12.
 import { useMutation, useQueries, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router';
 import { useMe } from '../../app/session';
-import type { Audience, MediaVM, PostVM, RefPolicy } from '../../vm/types';
+import type { Audience, PostVM, Ref, RefPolicy } from '../../vm/types';
 import { addOwnPosts } from '../feed/vm';
-import { MediaImage, MediaPicker } from '../media';
+import { DraftMediaPicker, useDraftMedia, type DraftMedia } from '../media';
 import { createPost, createThread, fetchPost, postKey, type DraftIn, type ParentIn } from '../post/api';
 import { defaultLang, detectLang } from '../post/lang';
 import { AudienceSelect, AutoLang, Counter, ErrorText, PolicySelect, PostPreview } from '../post/shared';
@@ -82,7 +82,7 @@ function Composer({
   const [audience, setAudience] = useState<Audience>(defaultAudience);
   const [policy, setPolicy] = useState<RefPolicy>(me.settings.slippery_default ? 'nobody' : 'anyone');
   const [noPreview, setNoPreview] = useState(false);
-  const [media, setMedia] = useState<MediaVM[]>([]);
+  const pics = useDraftMedia();
   const pqs = useQueries({
     queries: parents.map((p) => ({
       queryKey: [...postKey, p.ref],
@@ -97,18 +97,23 @@ function Composer({
   const loading = pqs.some((q) => q.data === undefined && !q.isError);
   const detected = detectLang((parts ?? [body]).join('\n'), me.settings.languages);
   const lang = chosenLang ?? detected ?? defaultLang(me.settings.languages, me.settings.ui_locale);
-  const draft = (): DraftIn => ({
+  const draft = (media: Ref[]): DraftIn => ({
     body,
     lang,
     audience,
     refPolicy: policy,
     noPreview,
     parents,
-    media: media.map((x) => x.ref),
+    media,
   });
   const m = useMutation({
-    mutationFn: () => (parts ? createThread(draft(), parts) : createPost(draft()).then((p) => [p])),
+    // Publish waits for pictures still uploading, then attaches them.
+    mutationFn: async () => {
+      const d = draft(await pics.finalize());
+      return parts ? createThread(d, parts) : [await createPost(d)];
+    },
     onSuccess: async (ps) => {
+      pics.commit(); // the uploads now belong to the post
       addOwnPosts(qc, ps); // D16: shown on top of the feed
       await qc.invalidateQueries({ queryKey: postKey });
       onPublished(ps);
@@ -191,7 +196,7 @@ function Composer({
           ) : null}
         </>
       )}
-      <MediaSection media={media} onChange={setMedia} />
+      <MediaSection pics={pics} />
       <div className="composer-options" data-testid="composer-options">
         <AudienceSelect id="composer-audience" value={audience} onChange={setAudience} />
         <PolicySelect id="composer-policy" value={policy} onChange={setPolicy} />
@@ -228,51 +233,27 @@ function Composer({
             {t('split.undo')}
           </button>
         ) : null}
-        <button type="submit" data-testid="composer-publish" disabled={!ready || m.isPending}>
-          {parts ? t('publish.thread', { count: parts.length }) : t('publish.one')}
+        <button type="submit" data-testid="composer-publish" disabled={!ready || m.isPending || pics.failed}>
+          {m.isPending && pics.uploading ? t('publish.waiting') : parts ? t('publish.thread', { count: parts.length }) : t('publish.one')}
         </button>
       </div>
-      <ErrorText err={m.error} />
+      {pics.failed ? (
+        <p className="muted" role="note" data-testid="composer-media-failed">
+          {t('publish.mediaFailed')}
+        </p>
+      ) : (
+        <ErrorText err={m.error} />
+      )}
     </form>
   );
 }
 
-// MediaSection: the attached pictures (thumbs, removable) and the picker for
-// the rest of the 4. Removing a picture only detaches it from the draft; the
-// server deletes unattached uploads after a day.
-function MediaSection({ media, onChange }: { media: MediaVM[]; onChange: (m: MediaVM[]) => void }) {
-  const { t } = useTranslation('composer');
+// MediaSection: the draft's pictures. Each uploads as soon as it is picked;
+// removing one, or leaving without publishing, discards its upload.
+function MediaSection({ pics }: { pics: DraftMedia }) {
   return (
     <div className="composer-media" data-testid="composer-media">
-      {media.length > 0 ? (
-        <>
-          <p className="muted" data-testid="composer-media-count">
-            {t('media.attached', { count: media.length })}
-          </p>
-          <ul className="composer-media-list">
-            {media.map((m) => (
-              <li key={m.ref} data-testid="composer-media-item">
-                <MediaImage media={m} variant="thumb" />
-                <button
-                  type="button"
-                  data-testid="composer-media-remove"
-                  onClick={() => {
-                    onChange(media.filter((x) => x.ref !== m.ref));
-                  }}
-                >
-                  {t('media.remove')}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </>
-      ) : null}
-      <MediaPicker
-        max={MAX_MEDIA - media.length}
-        onPicked={(picked) => {
-          onChange([...media, ...picked].slice(0, MAX_MEDIA));
-        }}
-      />
+      <DraftMediaPicker draft={pics} max={MAX_MEDIA} />
     </div>
   );
 }
