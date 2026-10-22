@@ -36,3 +36,25 @@ func TestCleanDisplayName(t *testing.T) {
 		}
 	}
 }
+
+func TestCanonReserved(t *testing.T) {
+	bad := []string{
+		"admin", "ADMIN", "Admin", "@admin", "ａｄｍｉｎ", "аdmin", "mod", "MOD", "moderator", "staff", "support",
+		"system", "root", "official", "pcc", "login", "settings", "people", "invite", "join", "messages",
+		"adm1n", "4dmin", "adrnin", "m0d", "r00t", "5taff", "l0gin", "s3ttings", "admin_", "_admin", "a_d_m_i_n",
+		"mod1", "mod_team", "the_mod", "the_staff", "staff2", "support_desk", "system_bot", "official_news",
+		"superadmin", "admin123", "moderatorbob", "headmoderator", "pcc_team", "genesis_1",
+	}
+	for _, h := range bad {
+		if c, ok := Canon(h); ok {
+			t.Errorf("Canon(%q) accepted as %q", h, c)
+		}
+	}
+	ok := []string{"alice", "bob_99", "modern_art", "model", "moderna", "rooted", "staffordshire", "systematic",
+		"supportive", "badminton_fan", "carl", "helper", "mode", "joiner", "abc"}
+	for _, h := range ok {
+		if _, valid := Canon(h); !valid {
+			t.Errorf("Canon(%q) rejected", h)
+		}
+	}
+}

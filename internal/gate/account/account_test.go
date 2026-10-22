@@ -344,7 +344,7 @@ func TestDeleteAccount(t *testing.T) {
 // account's live session voids it.
 func TestManualRecovery(t *testing.T) {
 	e := newEnv(t)
-	mod1, mod2 := e.moderator("mod_one"), e.moderator("mod_two")
+	mod1, mod2 := e.moderator("keeper_one"), e.moderator("keeper_two")
 	alice := e.w.User("alice")
 	friend := e.w.User("friend")
 	e.d.Graph.AddEdge(alice, friend, core.LevelFriend, e.now())
@@ -527,7 +527,7 @@ func (e *env) approved(mod1, mod2, user core.UserID) gate.Ref {
 // banner and cancel (release_at + LinkFor), and the token dies with that window.
 func TestRecoveryLinkWindow(t *testing.T) {
 	e := newEnv(t)
-	mod1, mod2 := e.moderator("mod_one"), e.moderator("mod_two")
+	mod1, mod2 := e.moderator("keeper_one"), e.moderator("keeper_two")
 	alice := e.w.User("alice")
 
 	// Fetched 23 h after release: the token expires at release_at + 24 h,
@@ -592,7 +592,7 @@ func TestRecoveryLinkWindow(t *testing.T) {
 // account afterwards.
 func TestDeleteEndsRecovery(t *testing.T) {
 	e := newEnv(t)
-	mod1, mod2 := e.moderator("mod_one"), e.moderator("mod_two")
+	mod1, mod2 := e.moderator("keeper_one"), e.moderator("keeper_two")
 
 	// Released with the link out: deletion voids the token.
 	alice := e.w.User("alice")
