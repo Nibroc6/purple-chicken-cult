@@ -1,0 +1,81 @@
+{
+  "comment": "Theme CSS test vectors: gate/themes (Go, the authority) and sheet.ts (the client mirror) must agree on every case. out is the normalized source; error/field the refusal.",
+  "colors": {
+    "bg": "#fbfaff",
+    "surface": "#ffffff",
+    "text": "#1b1530",
+    "muted": "#5c5470",
+    "accent": "#6b2fd6",
+    "border": "#e3dcf3",
+    "integrity_bg": "#efe8ff",
+    "integrity_text": "#2c1470"
+  },
+  "images": ["heart", "heart-full", "logo", "paper"],
+  "cases": [
+    { "name": "empty", "css": "", "out": "" },
+    { "name": "comment only", "css": "/* nothing yet */\n", "out": "" },
+    {
+      "name": "normalizes case, short hex and spacing",
+      "css": "Card{Background-Color:#FFF;border-radius:1REM}",
+      "out": "card {\n  background-color: #ffffff;\n  border-radius: 1rem;\n}\n"
+    },
+    {
+      "name": "image button",
+      "css": "like { background-image: image(heart); label: hidden; min-inline-size: 40px; min-block-size: 40px }\nlike:pressed { background-image: image(heart-full); label: hidden }",
+      "out": "like {\n  background-image: image(heart);\n  label: hidden;\n  min-inline-size: 40px;\n  min-block-size: 40px;\n}\n\nlike:pressed {\n  background-image: image(heart-full);\n  label: hidden;\n}\n"
+    },
+    {
+      "name": "selector lists, states, gradient, shadow",
+      "css": "button, primary-button:hover { background-image: linear-gradient(90deg, #ffffff, #eeeeee); box-shadow: 0 2px 4px #00000; }",
+      "error": "theme_css",
+      "field": "css.1"
+    },
+    {
+      "name": "gradient and shadow",
+      "css": "button,\nprimary-button:hover {\n  background-image: linear-gradient(90deg, #ffffff, #eee);\n  box-shadow: 0 2px 4px transparent;\n  border-width: 2px; border-style: dashed; border-color: #6b2fd6;\n}",
+      "out": "button, primary-button:hover {\n  background-image: linear-gradient(90deg, #ffffff, #eeeeee);\n  box-shadow: 0 2px 4px transparent;\n  border-width: 2px;\n  border-style: dashed;\n  border-color: #6b2fd6;\n}\n"
+    },
+    {
+      "name": "page background image",
+      "css": "page { background-image: image(paper); background-repeat: repeat; background-size: 200px auto; background-position: center top }",
+      "out": "page {\n  background-image: image(paper);\n  background-repeat: repeat;\n  background-size: 200px auto;\n  background-position: center top;\n}\n"
+    },
+    {
+      "name": "typography",
+      "css": "nav:current { font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; text-decoration: underline; font-style: italic }",
+      "out": "nav:current {\n  font-weight: 700;\n  text-transform: uppercase;\n  letter-spacing: 0.1em;\n  text-decoration: underline;\n  font-style: italic;\n}\n"
+    },
+    { "name": "readable text color", "css": "card { color: #000000 }", "out": "card {\n  color: #000000;\n}\n" },
+    { "name": "unreadable text color", "css": "\ncard {\n  color: #eeeeee;\n}", "error": "theme_contrast", "field": "css.3" },
+    { "name": "unreadable own background", "css": "button { color: #ffffff; background-color: #ffff00 }", "error": "theme_contrast", "field": "css.1" },
+    { "name": "background checked against theme text", "css": "card { background-color: #1b1530 }", "error": "theme_contrast", "field": "css.1" },
+    { "name": "hidden label skips contrast", "css": "save { background-image: image(heart); label: hidden; background-color: #1b1530 }", "out": "save {\n  background-image: image(heart);\n  label: hidden;\n  background-color: #1b1530;\n}\n" },
+    { "name": "link default color is accent", "css": "link { background-color: #6b2fd6 }", "error": "theme_contrast", "field": "css.1" },
+    { "name": "hidden label needs an image", "css": "like { label: hidden }", "error": "theme_css", "field": "css.1" },
+    { "name": "label only on buttons", "css": "card { background-image: image(paper); label: hidden }", "error": "theme_css", "field": "css.1" },
+    { "name": "unknown image", "css": "like { background-image: image(nope) }", "error": "theme_css", "field": "css.1" },
+    { "name": "no url()", "css": "card {\n  background-image: url(https://evil.example/x.png);\n}", "error": "theme_css", "field": "css.2" },
+    { "name": "no strings", "css": "card { background-image: image(\"heart\") }", "error": "theme_css", "field": "css.1" },
+    { "name": "no escapes", "css": "card { color: \\23 000 }", "error": "theme_css", "field": "css.1" },
+    { "name": "no at-rules", "css": "@import x;", "error": "theme_css", "field": "css.1" },
+    { "name": "no important", "css": "card { color: #000000 !important }", "error": "theme_css", "field": "css.1" },
+    { "name": "no unicode", "css": "card {}\ncärd {}", "error": "theme_css", "field": "css.2" },
+    { "name": "no class selectors", "css": ".integrity { color: #000000 }", "error": "theme_css", "field": "css.1" },
+    { "name": "no descendant selectors", "css": "card button { color: #000000 }", "error": "theme_css", "field": "css.1" },
+    { "name": "no integrity parts", "css": "chain { color: #000000 }", "error": "theme_css", "field": "css.1" },
+    { "name": "unknown state", "css": "button:before { color: #000000 }", "error": "theme_css", "field": "css.1" },
+    { "name": "no hiding", "css": "card {\n  display: none;\n}", "error": "theme_css", "field": "css.2" },
+    { "name": "no opacity", "css": "card { opacity: 0 }", "error": "theme_css", "field": "css.1" },
+    { "name": "no positioning", "css": "card { position: absolute }", "error": "theme_css", "field": "css.1" },
+    { "name": "no content", "css": "button { content: x }", "error": "theme_css", "field": "css.1" },
+    { "name": "bounded padding", "css": "button { padding-inline: 49px }", "error": "theme_css", "field": "css.1" },
+    { "name": "bounded radius percent", "css": "button { border-radius: 51% }", "error": "theme_css", "field": "css.1" },
+    { "name": "colors are hex", "css": "button { color: red }", "error": "theme_css", "field": "css.1" },
+    { "name": "no nesting", "css": "card { button { color: #000000 } }", "error": "theme_css", "field": "css.1" },
+    { "name": "unclosed rule", "css": "card { color: #000000", "error": "theme_css", "field": "css.1" },
+    { "name": "unclosed comment", "css": "card {}\n/* oops", "error": "theme_css", "field": "css.2" },
+    { "name": "stray slash", "css": "card { padding-block: 4px / 2px }", "error": "theme_css", "field": "css.1" },
+    { "name": "gradient needs two colors", "css": "card { background-image: linear-gradient(45deg, #ffffff) }", "error": "theme_css", "field": "css.1" },
+    { "name": "no nested functions", "css": "card { background-image: linear-gradient(image(paper), #ffffff) }", "error": "theme_css", "field": "css.1" }
+  ]
+}

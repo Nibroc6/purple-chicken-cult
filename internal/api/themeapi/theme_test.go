@@ -116,3 +116,35 @@ func TestRejections(t *testing.T) {
 		t.Fatalf("a rejected theme was stored: %+v", o.Theme)
 	}
 }
+
+func TestThemeCSS(t *testing.T) {
+	h := harness(t)
+	h.Login("alice")
+	body := map[string]any{"tokens": map[string]any{"colors": colors("#3a2a10")}, "css": "Button{Border-Radius:0;}"}
+	var o struct {
+		Theme struct {
+			CSS    string `json:"css"`
+			Images []any  `json:"images"`
+		} `json:"theme"`
+	}
+	if err := json.Unmarshal(do(t, h, http.MethodPut, "/api/me/theme", body, http.StatusOK), &o); err != nil {
+		t.Fatal(err)
+	}
+	if o.Theme.CSS != "button {\n  border-radius: 0;\n}\n" || o.Theme.Images == nil {
+		t.Fatalf("theme = %+v", o.Theme)
+	}
+	for css, field := range map[string]string{
+		"card {\n  background-image: url(https://x.example/a.png);\n}": "css.2",
+		".integrity { color: #000000 }":                                "css.1",
+	} {
+		body["css"] = css
+		raw := do(t, h, http.MethodPut, "/api/me/theme", body, http.StatusUnprocessableEntity)
+		if !strings.Contains(string(raw), `"theme_css"`) || !strings.Contains(string(raw), `"`+field+`"`) {
+			t.Errorf("%q: %s", css, raw)
+		}
+	}
+	body["css"] = "card { color: #f0f0f0 }"
+	if raw := do(t, h, http.MethodPut, "/api/me/theme", body, http.StatusUnprocessableEntity); !strings.Contains(string(raw), `"theme_contrast"`) {
+		t.Errorf("contrast: %s", raw)
+	}
+}

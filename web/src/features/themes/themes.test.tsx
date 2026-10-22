@@ -41,13 +41,13 @@ function stubServer(over: Partial<Server> = {}): Server {
       if (path === '/session') {
         return json(200, srv.signedIn ? { authenticated: true, kind: 'user', csrf: 'x', me: { ref: 'r', handle: 'alice', display_name: '', role: 'member', inviter: { kind: 'genesis' }, settings: {} } } : { authenticated: false, kind: 'none' });
       }
-      if (path === '/me/theme' && req.method === 'GET') return json(200, srv.theme ? { theme: { tokens: srv.theme, updated_at: '2026-10-21T00:00:00Z' } } : {});
+      if (path === '/me/theme' && req.method === 'GET') return json(200, srv.theme ? { theme: { tokens: srv.theme, css: '', images: [], updated_at: '2026-10-21T00:00:00Z' } } : {});
       if (path === '/me/theme' && req.method === 'PUT') {
         if (srv.reject) return srv.reject;
         const b = (await req.json()) as { tokens: ThemeTokens };
         srv.puts.push(b.tokens);
         srv.theme = b.tokens;
-        return json(200, { theme: { tokens: b.tokens, updated_at: '2026-10-21T00:00:00Z' } });
+        return json(200, { theme: { tokens: b.tokens, css: '', images: [], updated_at: '2026-10-21T00:00:00Z' } });
       }
       if (path === '/me/theme' && req.method === 'DELETE') {
         srv.deletes++;
