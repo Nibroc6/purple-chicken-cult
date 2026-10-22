@@ -123,7 +123,7 @@ type fakeHandshakes struct {
 	claimed map[uuid.UUID]bool
 }
 
-func (f *fakeHandshakes) OpenUpgrade(context.Context, core.Viewer, core.UserID) (gate.HandshakeView, error) {
+func (f *fakeHandshakes) OpenUpgrade(context.Context, core.Viewer, core.UserID, bool) (gate.HandshakeView, error) {
 	return gate.HandshakeView{}, gate.ErrNotFound
 }
 

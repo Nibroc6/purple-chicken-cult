@@ -19,8 +19,9 @@ import (
 // friend (callers: friends, POST /api/friends/{ref}/upgrade). Opening again
 // cancels v's unfinished upgrade with the same friend. The friend is offered
 // the scanner: a friend_upgrade notification (a push when no app is open) and
-// a live friend_upgrade event (a toast in an open app).
-func (s *Service) OpenUpgrade(ctx context.Context, v core.Viewer, peer core.UserID) (gate.HandshakeView, error) {
+// a live friend_upgrade event (a toast in an open app). Quiet turns the jingle
+// off as for invites: the ultrasonic layer still plays, so it can verify.
+func (s *Service) OpenUpgrade(ctx context.Context, v core.Viewer, peer core.UserID, quiet bool) (gate.HandshakeView, error) {
 	if v.Kind != core.SessUser || v.ID == 0 || peer == 0 || peer == v.ID {
 		return gate.HandshakeView{}, gate.ErrNotFound
 	}
@@ -30,7 +31,7 @@ func (s *Service) OpenUpgrade(ctx context.Context, v core.Viewer, peer core.User
 	if !s.active(ctx, v.ID) || !s.active(ctx, peer) {
 		return gate.HandshakeView{}, gate.ErrNotFound
 	}
-	hv, err := s.openKind(ctx, v.ID, peer, kindUpgrade, modeQRAudio, false, s.d.Clock.Now())
+	hv, err := s.openKind(ctx, v.ID, peer, kindUpgrade, modeQRAudio, quiet, s.d.Clock.Now())
 	if err != nil {
 		return gate.HandshakeView{}, err
 	}

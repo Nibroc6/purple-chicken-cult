@@ -275,12 +275,27 @@ describe('people pages', () => {
     fireEvent.click(await screen.findByTestId('action-upgrade'));
     expect(await screen.findByTestId('invite-handshake')).toBeTruthy();
     expect(screen.getByText(tr('people:upgrade.hint', { handle: 'bob' }))).toBeTruthy();
-    expect(calls.some((c) => c.method === 'POST' && c.path === '/friends/r-bob/upgrade')).toBe(true);
+    expect(calls.find((c) => c.method === 'POST' && c.path === '/friends/r-bob/upgrade')?.body).toBe('{"quiet":false}');
     view.unmount();
     rel = 'friend_plus';
     renderAt('/people/r-bob', '/people/:ref', <PersonPage />);
     expect(await screen.findByTestId('person-relation')).toBeTruthy();
     expect(screen.queryByTestId('action-upgrade')).toBeNull();
+  });
+
+  it('opens a quiet upgrade when the jingle is switched off', async () => {
+    const calls = stubAPI((c) => {
+      if (c.path === '/people/r-bob' && c.method === 'GET') return json(200, person('bob', { relation: 'friend' }));
+      if (c.path === '/friends/r-bob/upgrade' && c.method === 'POST') {
+        return json(201, { hs: 'h-1', mode: 'qr_audio', frame_ttl_ms: 250, frame_key: 'AAAA' });
+      }
+      return undefined;
+    });
+    renderAt('/people/r-bob', '/people/:ref', <PersonPage />);
+    fireEvent.click(await screen.findByTestId('upgrade-quiet'));
+    fireEvent.click(screen.getByTestId('action-upgrade'));
+    expect(await screen.findByTestId('invite-handshake')).toBeTruthy();
+    expect(calls.find((c) => c.method === 'POST' && c.path === '/friends/r-bob/upgrade')?.body).toBe('{"quiet":true}');
   });
 
   it('shows the not-found page for a person the viewer cannot see', async () => {

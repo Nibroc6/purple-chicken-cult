@@ -83,6 +83,11 @@ type PeopleView struct {
 	Items []gate.PersonView `json:"items"`
 }
 
+// UpgradeIn is POST /api/friends/{ref}/upgrade (optional body).
+type UpgradeIn struct {
+	Quiet bool `json:"quiet"`
+}
+
 // SuggestionsView is GET /api/suggestions.
 type SuggestionsView struct {
 	Items []friends.Suggestion `json:"items"`
@@ -175,7 +180,15 @@ func Register(r chi.Router, d *api.Deps) {
 		return f.HideVia(r.Context(), ref, false)
 	}))
 	apix.Route(r, http.MethodPost, "/friends/{ref}/upgrade", wHandshake, func(w http.ResponseWriter, r *http.Request) error {
-		hv, err := f.UpgradeBegin(r.Context(), apix.Ref(r, "ref"))
+		// The body is optional: {"quiet": true} turns the jingle off.
+		var in UpgradeIn
+		if r.ContentLength != 0 {
+			var err error
+			if in, err = apix.Decode[UpgradeIn](r, 0); err != nil {
+				return err
+			}
+		}
+		hv, err := f.UpgradeBegin(r.Context(), apix.Ref(r, "ref"), in.Quiet)
 		if err != nil {
 			return err
 		}

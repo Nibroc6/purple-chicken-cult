@@ -221,7 +221,14 @@ paths:
       description: >-
         P1. Open a friend+ upgrade with a plain friend: an in-person handshake (the same
         protocol as invites; the friend scans the code from their own signed-in session at
-        /join). Only a Verified outcome upgrades, after both friends co-signed.
+        /join). Only a Verified outcome upgrades, after both friends co-signed. The body is
+        optional: quiet turns the jingle off (the ultrasonic layer still plays, so a quiet
+        upgrade can still be Verified).
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FriendsUpgradeIn' }
       responses:
         "201":
           description: The upgrade handshake (the initiator's device renders the frames).
@@ -243,6 +250,11 @@ paths:
         "429": { $ref: '#/components/responses/FriendsRateLimited' }
 components:
   schemas:
+    FriendsUpgradeIn:
+      type: object
+      additionalProperties: false
+      properties:
+        quiet: { type: boolean }
     FriendsCosignIn:
       type: object
       additionalProperties: false

@@ -68,6 +68,7 @@
     "title": "Become friends in person",
     "offer": "Met @{handle} in person? Show them your code and let them hear the handshake sound to become friends.",
     "open": "Become friends",
+    "quiet": "Quiet: only the near-silent tone, no jingle",
     "hint": "Ask @{handle} to open Join on their phone, signed in, choose “Scan their code” and scan this code."
   },
   "cosign": {
