@@ -167,10 +167,18 @@ export async function feedToEnd(page: Page): Promise<void> {
   const header = page.locator('[data-testid="integrity-tier-header"][data-kind="caught_up"]');
   const more = page.getByTestId('feed-more');
   await expect(header.or(more).first()).toBeVisible();
+  // Follow the cursor page by page, judging the end from the API, not from
+  // the button (the old one stays on screen until the next page lands).
+  const items = page.getByTestId('feed-layout').locator('li[data-type]');
   while ((await header.count()) === 0) {
+    const shown = await items.count();
+    const res = page.waitForResponse((r) => new URL(r.url()).pathname === '/api/feed' && new URL(r.url()).searchParams.has('cursor'));
     await more.click();
-    await expect(header.or(more).first()).toBeVisible();
+    const body = (await (await res).json()) as { next?: string };
+    if (!body.next) break;
+    await expect.poll(() => items.count()).toBeGreaterThan(shown);
   }
+  await expect(header).toBeVisible();
 }
 
 // seedWorld resets the run's database and loads a fixture.
