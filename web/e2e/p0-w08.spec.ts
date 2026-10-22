@@ -42,6 +42,7 @@ interface TreeJSON {
   snapshot: string;
   focal: string;
   rows: RowJSON[];
+  kin?: { post: PostJSON; parent: string; gen: number; degree: number }[];
   has_earlier: boolean;
   has_later: boolean;
 }
@@ -367,4 +368,33 @@ test('reply to two posts on different rows: picked from the tree, placed below t
   const y = async (l: Locator) => (await l.boundingBox())?.y ?? Number.NaN;
   expect(await y(mine)).toBeGreaterThan(await y(nodeOf(page, reply)));
   await expect(page.locator('.explorer-edge[data-kind="also"]')).toHaveCount(3);
+});
+
+test("past the direct line, relatives fill the map: a sibling's replies are nieces and nephews", async ({ page, request, baseURL }) => {
+  await setup(request, baseURL);
+  await loginAs(page, baseURL, 'alice');
+  const focal = await refOf(page, 'The focal post');
+  const sibling = await refOf(page, 'Sibling by fran');
+
+  // fran's sibling post has no replies of its own, so the focal post's replies
+  // (its nieces and nephews, three at most) hang below the focal post.
+  const tv = await openTree(page, sibling);
+  const kin = tv.kin ?? [];
+  const nephews = kin.filter((k) => k.parent === focal);
+  expect(nephews.map((k) => [k.gen, k.degree])).toEqual([
+    [1, 3],
+    [1, 3],
+    [1, 3],
+  ]);
+  expect(JSON.stringify(kin)).not.toContain('Dave for his friends only');
+  await expect(page.locator('[data-testid="explorer-node"][data-kin="true"]')).toHaveCount(kin.length);
+  await expect(page.locator('.explorer-edge[data-kind="kin"]')).toHaveCount(kin.length);
+  const nephew = nodeOf(page, nephews[0]?.post.ref ?? '');
+  const y = async (l: Locator) => (await l.boundingBox())?.y ?? Number.NaN;
+  expect(await y(nephew)).toBeGreaterThan(await y(nodeOf(page, focal)));
+
+  // A relative opens like any post.
+  const reopened = page.waitForResponse(isOpen);
+  await nephew.dispatchEvent('click');
+  expect(((await (await reopened).json()) as TreeJSON).focal).toBe(nephews[0]?.post.ref);
 });

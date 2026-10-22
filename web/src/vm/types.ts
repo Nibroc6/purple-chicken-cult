@@ -127,10 +127,20 @@ export interface TreeRowVM {
   cursor?: string;
   beyond?: boolean; // rows loaded one by one: a further row lies beyond this one (INT-0)
 }
+// TreeKinVM is a relative beyond the direct line (§10.1.4): a reply to parent,
+// a post on the map, one generation below it; degree is its kinship distance.
+export interface TreeKinVM {
+  post: PostVM;
+  parent: Ref;
+  gen: number;
+  degree: number;
+  alsoParents: Ref[];
+}
 export interface TreeVM {
   snapshot: string;
   focal: Ref;
   rows: TreeRowVM[];
+  kin?: TreeKinVM[];
   hasEarlier: boolean;
   hasLater: boolean;
 }

@@ -9,8 +9,11 @@
 // parents join it with an "also" edge. A post already shown higher up ("shown
 // above", a diamond) gets no second node: its edge goes, dashed, to the node it
 // already has. Edges are routed as family-tree elbows (down, across, down) so
-// siblings hang from one shared line. Owner: P1-W09.
-import type { Ref, TreeItemVM, TreeRowVM, TreeVM } from '../../../vm/types';
+// siblings hang from one shared line. Relatives beyond the direct line (aunts
+// and uncles, cousins, nieces and nephews …) hang from their own parents, a band
+// below them, outside the direct posts on their parent's side, marked kin so
+// the canvas can play them down. Owner: P1-W09.
+import type { PostVM, Ref, TreeRowVM, TreeVM } from '../../../vm/types';
 
 export const NODE_W = 208;
 export const NODE_H = 96;
@@ -27,6 +30,7 @@ export interface CanvasNode {
   y: number; // center
   centered: boolean;
   focal: boolean;
+  kin: boolean;
   tier: number;
   handle: string;
   name: string;
@@ -34,7 +38,7 @@ export interface CanvasNode {
   replies: number;
 }
 
-export type EdgeKind = 'reply' | 'also' | 'above';
+export type EdgeKind = 'reply' | 'also' | 'above' | 'kin';
 
 export interface CanvasEdge {
   from: Ref; // upper end
@@ -135,9 +139,10 @@ export type Centers = (row: TreeRowVM) => Ref | undefined;
 // A post's slot on the canvas while laying out: its row, the band it ends up
 // in, and its parents on the canvas (the row's parent first).
 interface Slot {
-  it: TreeItemVM;
+  post: PostVM;
   gen: number;
   center: boolean;
+  kin: boolean;
   band: number;
   moved: boolean;
   parents: Ref[];
@@ -167,11 +172,19 @@ export function layoutTree(tree: TreeVM, centered: Centers): CanvasLayout {
       if (slotOf.has(it.post.ref)) continue;
       const above = centers.get(row.gen - 1);
       const parents = row.gen >= 0 ? [...(above ? [above] : []), ...it.alsoParents.filter((p) => p !== above)] : [];
-      const sl: Slot = { it, gen: row.gen, center: it.post.ref === center, band, moved: false, parents };
+      const sl: Slot = { post: it.post, gen: row.gen, center: it.post.ref === center, kin: false, band, moved: false, parents };
       slots.push(sl);
       slotOf.set(it.post.ref, sl);
     }
   });
+  // Relatives, nearest first, each under a parent already on the map.
+  for (const k of tree.kin ?? []) {
+    if (slotOf.has(k.post.ref) || !slotOf.has(k.parent)) continue;
+    const parents = [k.parent, ...k.alsoParents.filter((p) => p !== k.parent && slotOf.has(p))];
+    const sl: Slot = { post: k.post, gen: k.gen, center: false, kin: true, band: 0, moved: false, parents };
+    slots.push(sl);
+    slotOf.set(k.post.ref, sl);
+  }
   // A reply sits one band below its lowest parent (and its own replies below
   // it in turn), so it hangs from every parent it has on the canvas.
   for (let changed = true, pass = 0; changed && pass <= slots.length; pass++) {
@@ -188,46 +201,73 @@ export function layoutTree(tree: TreeVM, centered: Centers): CanvasLayout {
     }
   }
 
+  const place = (sl: Slot, off: number) => {
+    const p = sl.post;
+    const n: CanvasNode = {
+      ref: p.ref,
+      gen: sl.gen,
+      x: off * (NODE_W + GAP_X),
+      y: sl.band * ROW_H,
+      centered: sl.center,
+      focal: p.ref === tree.focal,
+      kin: sl.kin,
+      tier: p.tier,
+      handle: p.author.handle,
+      name: p.author.displayName,
+      excerpt: excerpt(p.body?.nodes),
+      replies: p.replyCount,
+    };
+    nodes.push(n);
+    byRef.set(n.ref, n);
+  };
   // Slots per band: the band's own posts in order, then the ones moved into it.
   const bands = new Map<number, Slot[]>();
-  for (const sl of [...slots.filter((x) => !x.moved), ...slots.filter((x) => x.moved)]) {
+  for (const sl of [...slots.filter((x) => !x.kin && !x.moved), ...slots.filter((x) => !x.kin && x.moved)]) {
     bands.set(sl.band, [...(bands.get(sl.band) ?? []), sl]);
   }
-  const maxOffset = new Map<number, number>();
+  const right = new Map<number, number>();
+  const left = new Map<number, number>();
   for (const [band, list] of bands) {
     list.forEach((sl, rank) => {
       const off = slotOffset(rank);
-      maxOffset.set(band, Math.max(maxOffset.get(band) ?? 0, off));
-      const p = sl.it.post;
-      const n: CanvasNode = {
-        ref: p.ref,
-        gen: sl.gen,
-        x: off * (NODE_W + GAP_X),
-        y: band * ROW_H,
-        centered: sl.center,
-        focal: p.ref === tree.focal,
-        tier: p.tier,
-        handle: p.author.handle,
-        name: p.author.displayName,
-        excerpt: excerpt(p.body?.nodes),
-        replies: p.replyCount,
-      };
-      nodes.push(n);
-      byRef.set(n.ref, n);
+      right.set(band, Math.max(right.get(band) ?? 0, off));
+      left.set(band, Math.min(left.get(band) ?? 0, off));
+      place(sl, off);
     });
   }
   tree.rows.forEach((row, band) => {
     if (row.more > 0) {
+      const off = (right.get(band) ?? 0) + 1;
+      right.set(band, off);
       more.push({
         gen: row.gen,
         center: row.center,
         ...(row.cursor ? { cursor: row.cursor } : {}),
-        x: ((maxOffset.get(band) ?? 0) + 1) * (NODE_W + GAP_X),
+        x: off * (NODE_W + GAP_X),
         y: band * ROW_H,
         count: row.more,
       });
     }
   });
+  // Relatives go outside the band's direct posts, on their parent's side.
+  for (const sl of slots.filter((x) => x.kin)) {
+    const parent = sl.parents[0];
+    const px = parent ? (byRef.get(parent)?.x ?? 0) : 0;
+    const empty = !right.has(sl.band) && !left.has(sl.band);
+    let off: number;
+    if (empty) {
+      off = Math.round(px / (NODE_W + GAP_X));
+      right.set(sl.band, off);
+      left.set(sl.band, off);
+    } else if (px >= 0) {
+      off = (right.get(sl.band) ?? 0) + 1;
+      right.set(sl.band, off);
+    } else {
+      off = (left.get(sl.band) ?? 0) - 1;
+      left.set(sl.band, off);
+    }
+    place(sl, off);
+  }
 
   const seen = new Set<string>();
   const add = (from: Ref | undefined, to: Ref | undefined, kind: EdgeKind) => {
@@ -238,8 +278,12 @@ export function layoutTree(tree: TreeVM, centered: Centers): CanvasLayout {
     edges.push({ from, to, kind });
   };
   for (const sl of slots) {
-    const ref = sl.it.post.ref;
-    if (sl.gen >= 0) {
+    const ref = sl.post.ref;
+    if (sl.kin) {
+      sl.parents.forEach((p, i) => {
+        add(p, ref, i === 0 ? 'kin' : 'also');
+      });
+    } else if (sl.gen >= 0) {
       sl.parents.forEach((p, i) => {
         add(p, ref, i === 0 ? 'reply' : 'also');
       });

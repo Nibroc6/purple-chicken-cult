@@ -5,7 +5,7 @@
 // Owner: P0-W08 → P1-W09.
 import { ApiError, errorKey } from '../../api/errors';
 import type { components } from '../../api/schema.gen';
-import type { PostVM, Ref, TreeItemVM, TreeRowVM, TreeVM } from '../../vm/types';
+import type { PostVM, Ref, TreeItemVM, TreeKinVM, TreeRowVM, TreeVM } from '../../vm/types';
 import { asRef } from '../../vm/types';
 import { codePoints, toHopVM, toPostVM } from '../post/vm';
 
@@ -51,11 +51,22 @@ export function toTreeRowVM(r: S['TreeRow']): TreeRowVM {
   };
 }
 
+export function toTreeKinVM(k: S['TreeKin']): TreeKinVM {
+  return {
+    post: toTreePostVM(k.post),
+    parent: asRef(k.parent),
+    gen: k.gen,
+    degree: k.degree,
+    alsoParents: (k.also_parents ?? []).map(asRef),
+  };
+}
+
 export function toTreeVM(v: S['TreeView']): TreeVM {
   return {
     snapshot: v.snapshot,
     focal: asRef(v.focal),
     rows: v.rows.map(toTreeRowVM),
+    kin: (v.kin ?? []).map(toTreeKinVM),
     hasEarlier: v.has_earlier,
     hasLater: v.has_later,
   };

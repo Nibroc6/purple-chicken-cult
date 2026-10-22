@@ -809,18 +809,23 @@ full, with its integrity elements and actions, under the map. The rows are:
    of them, with a line to each (the extra ones dashed); lines that cross rows run in the
    lanes between cards. If a post would still appear a second time, its second spot is a
    dashed line to the card it already has.
-5. **No section headers.** The lines show how posts relate; siblings hang from one shared
+5. **Relatives fill the room.** While the map has room (40 posts), it grows past the
+   direct line by kinship, nearest first: a grandparent's other replies (aunts and
+   uncles), a sibling's replies (nieces and nephews), then cousins and so on, at most 3
+   under one post and never below the second row of replies. Each hangs from its own
+   parent, faded until hovered, and passes the same checks and filters as a row.
+6. **No section headers.** The lines show how posts relate; siblings hang from one shared
    line under their parent.
-6. **Loading.** The view opens with the focal post plus 2 rows above and 2 below. More
+7. **Loading.** The view opens with the focal post plus 2 rows above and 2 below. More
    rows load near the edges.
    - Each row reads only link IDs from `post_parents`, then filters through the gate.
      Every visible candidate in the row is ranked, and bodies are loaded for the top ~10.
    - Authors deeper than the reader's current search layer come back in the fixed
      latency bucket (§4.1).
-7. **Interaction.** Drag (or the arrow keys) pans; the wheel, a pinch or + / − zooms;
+8. **Interaction.** Drag (or the arrow keys) pans; the wheel, a pinch or + / − zooms;
    "show everything" fits the whole tree and "back to this post" returns to the focal
    post. Every card is a keyboard button. On desktop, zooming out shows a minimap.
-8. **Layout.** The canvas fills the screen beside the navigation. The controls and the
+9. **Layout.** The canvas fills the screen beside the navigation. The controls and the
    focused post, in full, float on it; the focus card folds away, and on phones it is a
    bottom sheet.
 

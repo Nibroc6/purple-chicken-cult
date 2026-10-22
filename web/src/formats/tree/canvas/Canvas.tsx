@@ -120,6 +120,7 @@ function Node({ n, clip, onPick }: { n: CanvasNode; clip: string; onPick: (n: Ca
       data-tier={n.tier}
       data-centered={n.centered}
       data-focal={n.focal}
+      data-kin={n.kin}
       role="button"
       tabIndex={0}
       aria-label={label}

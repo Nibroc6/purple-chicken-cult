@@ -701,3 +701,71 @@ func TestHidesAndMutesFilterRows(t *testing.T) {
 		t.Fatalf("mute after open: %s", got)
 	}
 }
+
+// kinShape renders the relatives as "gen:body<parent body" in order.
+func kinShape(e *env, tv gate.TreeView, bodies map[gate.Ref]string) string {
+	var out []string
+	for _, k := range tv.Kin {
+		out = append(out, fmt.Sprintf("%d:%s<%s/%d", k.Gen, k.Post.Body, bodies[k.Parent], k.Degree))
+	}
+	return strings.Join(out, " ")
+}
+
+// Past the direct line the map grows by kinship, nearest first: aunts and
+// uncles (the grandparent's other replies) and nieces and nephews (a sibling's
+// replies) before cousins; at most KinPerParent under one post, never past the
+// view's last row, never a post the rows already show or one the reader can't
+// see.
+func TestKinGrowsOutward(t *testing.T) {
+	e := newEnv(t)
+	gp := e.post("carol", "grand")
+	p := e.post("bob", "parent", gp)
+	u1 := e.post("carol", "uncle 1", gp)
+	e.post("fran", "uncle 2", gp)
+	e.post("fran", "uncle 3", gp)
+	e.post("bob", "uncle 4", gp)
+	s := e.post("fran", "sibling", p)
+	f := e.post("alice", "focal", p)
+	e.post("bob", "child", f)
+	e.post("fran", "niece", s)
+	e.post("bob", "cousin", u1)
+	e.postDraft("dave", posts.Draft{Body: "dave for friends", Lang: "en", Audience: "d1"}, u1)
+
+	tv := e.open("alice", f, "latest")
+	if got, want := shape(tv), "-2:earlier[grand] -1:replying_to[parent] 0:this_post[focal,|sibling] 1:replies[child]"; got != want {
+		t.Fatalf("shape\n got %s\nwant %s", got, want)
+	}
+	bodies := map[gate.Ref]string{}
+	for _, r := range tv.Rows {
+		for _, it := range r.Items {
+			bodies[it.Post.Ref] = it.Post.Body
+		}
+	}
+	for _, k := range tv.Kin {
+		bodies[k.Post.Ref] = k.Post.Body
+	}
+	want := "-1:uncle 4<grand/3 -1:uncle 3<grand/3 -1:uncle 2<grand/3 1:niece<sibling/3"
+	if got := kinShape(e, tv, bodies); got != want {
+		t.Fatalf("kin\n got %s\nwant %s", got, want)
+	}
+
+	// With the newest uncles hidden, the oldest one makes the cut and brings
+	// his reply, a cousin, one row further out; dave's friends-only reply stays out.
+	for _, h := range []string{"uncle 4", "uncle 3", "uncle 2"} {
+		for _, k := range tv.Kin {
+			if k.Post.Body == h {
+				if err := e.a.Engage.Hide(e.as("alice"), k.Post.Ref); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+	}
+	tv = e.open("alice", f, "latest")
+	for _, k := range tv.Kin {
+		bodies[k.Post.Ref] = k.Post.Body
+	}
+	want = "-1:uncle 1<grand/3 1:niece<sibling/3 0:cousin<uncle 1/4"
+	if got := kinShape(e, tv, bodies); got != want {
+		t.Fatalf("kin after hiding\n got %s\nwant %s", got, want)
+	}
+}
