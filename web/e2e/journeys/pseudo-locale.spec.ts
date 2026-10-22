@@ -5,7 +5,7 @@
 // catalogs (user content lives in data-user-content containers) and no
 // truncated integrity element. Runs in the en-XA project only.
 import type { Locator, Page } from '@playwright/test';
-import { Actor, actor, expect, garbageRef, seedWorld, signInPage, test, truncatedIntegrity, untranslated } from './helpers';
+import { Actor, actor, expect, feedToEnd, garbageRef, seedWorld, signInPage, test, truncatedIntegrity, untranslated } from './helpers';
 
 test.skip(({ locale }) => locale !== 'en-XA', 'the pseudo-locale pass runs in the en-XA project');
 
@@ -73,6 +73,7 @@ test('every page renders in the pseudo-locale with no untranslated or truncated 
   const bobPost = await alice.feedPost('Bob has seeds to share');
 
   await check(page, '/', (p) => p.getByTestId('feed-post'));
+  await feedToEnd(page);
   await expect(page.getByTestId('integrity-tier-header').first()).toBeVisible();
   // The "why" panel of the first card.
   await page.getByTestId('feed-post').first().getByTestId('integrity-why').click();

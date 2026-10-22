@@ -104,7 +104,6 @@ test('enroll, invite in person, post, reply, notify, like, export and verify', a
     await page.goto('/');
     const card = page.locator('[data-testid="feed-post"]', { hasText: 'Hello, I just joined' });
     await expect(card).toHaveAttribute('data-tier', '1');
-    await expect(page.getByTestId('integrity-tier-header').first()).toHaveAttribute('data-tier', '1');
     await expect(card.getByTestId('integrity-chain')).toContainText(at('bob'));
     await expect(card.getByTestId('integrity-inviter-label')).toHaveCount(0);
     await card.getByTestId('integrity-chain-open').click();

@@ -12,7 +12,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Locator, Page } from '@playwright/test';
-import { actor, expect, seedWorld, signInPage, test, type Actor } from './journeys/helpers';
+import { actor, expect, feedToEnd, seedWorld, signInPage, test, type Actor } from './journeys/helpers';
 
 interface Tokens {
   colors: Record<string, string>;
@@ -178,6 +178,7 @@ test('every preset keeps the integrity elements legible on a feed card', async (
     await expect.poll(() => rootVar(page, '--color-bg'), p.id).toBe(p.tokens.colors.bg);
     const card = page.locator(`[data-testid="feed-post"][data-ref="${post.ref}"]`);
     await expect(card).toBeVisible();
+    await feedToEnd(page);
     const scope = (id: string) => (id === 'integrity-tier-header' ? page.getByTestId('feed-layout') : card);
     for (const id of onCards) {
       const el = scope(id).getByTestId(id).first();

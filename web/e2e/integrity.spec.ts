@@ -10,7 +10,7 @@
 // Vitest suite only asserts presence. Selectors avoid English text, so the spec
 // runs in en and in the pseudo-locale en-XA.
 import type { Locator, Page } from '@playwright/test';
-import { actor, expect, seedWorld, signInPage, test, truncatedIntegrity } from './journeys/helpers';
+import { actor, expect, feedToEnd, seedWorld, signInPage, test, truncatedIntegrity } from './journeys/helpers';
 
 const seven = [
   'integrity-tier-header',
@@ -129,6 +129,7 @@ for (const format of ['cards', 'compact'] as const) {
         await expect(page.getByTestId('feed-layout')).toHaveAttribute('data-format', format);
         await expect(page.locator('html')).toHaveAttribute('data-contrast', contrast);
         const card = page.locator(`[data-testid="feed-post"][data-ref="${post.ref}"]`);
+        await feedToEnd(page);
         await checkPage(page, card, page.getByTestId('feed-layout'), `${what} feed`);
 
         // Tree: the post in focus (the tree carries no tier header, so the

@@ -161,6 +161,18 @@ export async function signInPage(page: Page, origin: string, handle: string): Pr
   return Actor.login(page.request, origin, handle);
 }
 
+// feedToEnd loads every feed page, so the caught-up header (the feed's only
+// tier header) is on the page.
+export async function feedToEnd(page: Page): Promise<void> {
+  const header = page.locator('[data-testid="integrity-tier-header"][data-kind="caught_up"]');
+  const more = page.getByTestId('feed-more');
+  await expect(header.or(more).first()).toBeVisible();
+  while ((await header.count()) === 0) {
+    await more.click();
+    await expect(header.or(more).first()).toBeVisible();
+  }
+}
+
 // seedWorld resets the run's database and loads a fixture.
 export async function seedWorld(request: APIRequestContext, origin: string, fixture: string): Promise<World> {
   const world = new World(request, origin);
