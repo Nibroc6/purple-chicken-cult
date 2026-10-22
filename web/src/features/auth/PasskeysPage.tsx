@@ -65,8 +65,8 @@ function Passkeys() {
   const list = useQuery({ queryKey: passkeysKey, queryFn: async () => (await listPasskeys()).map(toPasskeyVM) });
 
   const add = useMutation({
-    mutationFn: async () => {
-      await addPasskey(name, t('cosign.addSummary', { name: name.trim() || t('passkeys.unnamed') }));
+    mutationFn: async (onPhone: boolean) => {
+      await addPasskey(name, t('cosign.addSummary', { name: name.trim() || t('passkeys.unnamed') }), onPhone);
     },
     onMutate: () => {
       setNotice(undefined);
@@ -136,7 +136,7 @@ function Passkeys() {
         className="auth-form"
         onSubmit={(e) => {
           e.preventDefault();
-          add.mutate();
+          add.mutate(false);
         }}
       >
         <h2>{t('passkeys.addTitle')}</h2>
@@ -156,9 +156,20 @@ function Passkeys() {
         </div>
         <div className="auth-actions">
           <button type="submit" className="primary" data-testid="passkey-add" disabled={add.isPending}>
-            {add.isPending ? t('passkeys.adding') : t('passkeys.add')}
+            {add.isPending && !add.variables ? t('passkeys.adding') : t('passkeys.add')}
+          </button>
+          <button
+            type="button"
+            data-testid="passkey-add-phone"
+            disabled={add.isPending}
+            onClick={() => {
+              add.mutate(true);
+            }}
+          >
+            {add.isPending && add.variables ? t('passkeys.adding') : t('passkeys.addPhone')}
           </button>
         </div>
+        <p className="muted">{t('passkeys.addPhoneHint')}</p>
         <ErrorLine err={add.error} />
       </form>
       {notice ? (

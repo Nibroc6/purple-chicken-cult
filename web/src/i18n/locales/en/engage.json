@@ -30,7 +30,14 @@
   },
   "page": {
     "title": "Likes",
-    "open": "Open in the family tree",
-    "seen": "Recently seen"
+    "open": "Open in the reply tree",
+    "seen": "All seen posts"
+  },
+  "modal": {
+    "title": "Likes",
+    "you": "You",
+    "others": "{count, plural, one {# more person in your network} other {# more people in your network}}",
+    "open": "Open the reply tree",
+    "missing": "This post does not exist, or you cannot see it."
   }
 }

@@ -38,20 +38,73 @@ a {
   inset-block-start: var(--space-2);
 }
 
+/* Shell layout. The navigation is a sidebar (default) or, with
+   <html data-nav="header">, a top header; below 48rem either one is a top bar
+   whose menu button opens the navigation as a drawer. Themes reach it through
+   the tokens and the .shell-header / .nav-list classes. */
+.shell {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  min-block-size: 100vh;
+}
+.shell[data-signed-in='false'],
+:root[data-nav='header'] .shell {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .shell-header {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  flex-direction: column;
   gap: var(--space-4);
   padding-block: var(--space-3);
-  padding-inline: var(--space-4);
-  border-block-end: 1px solid var(--color-border);
+  padding-inline: var(--space-3);
   background: var(--color-surface);
+}
+
+.sidebar {
+  position: sticky;
+  inset-block-start: 0;
+  inline-size: var(--sidebar-width);
+  block-size: 100vh;
+  overflow-y: auto;
+  border-inline-end: 1px solid var(--color-border);
+}
+.sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-block-size: 2.5rem;
 }
 
 .brand {
   font-weight: 700;
   text-decoration: none;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.sidebar-toggle,
+.sidebar-menu {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 2.5rem;
+  block-size: 2.5rem;
+  padding: 0;
+  font: inherit;
+  font-size: 1.1rem;
+  color: var(--color-text);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.sidebar-menu {
+  display: none;
 }
 
 .nav-list,
@@ -67,18 +120,189 @@ a {
   flex-direction: column;
 }
 
-.shell-main {
-  max-inline-size: var(--content-width);
-  margin-inline: auto;
-  padding: var(--space-4);
+.sidebar-nav .nav-list {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: var(--space-1);
+}
+.sidebar-nav a {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-block: var(--space-2);
+  padding-inline: var(--space-3);
+  border-radius: var(--radius);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.sidebar-nav a:hover {
+  background: var(--color-bg);
+}
+.sidebar-nav a[aria-current='page'] {
+  font-weight: 700;
+  background: var(--color-bg);
+  box-shadow: inset 3px 0 0 var(--color-accent);
+}
+.sidebar-nav a[aria-current='page']:dir(rtl) {
+  box-shadow: inset -3px 0 0 var(--color-accent);
+}
+.sidebar-toggle:focus-visible,
+.sidebar-menu:focus-visible,
+.sidebar-nav a:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+.nav-icon {
+  flex: none;
+  inline-size: 1.25rem;
+  text-align: center;
 }
 
-.shell-footer {
+/* Collapsed (wide screens, sidebar layout): icons only; labels stay for
+   screen readers. */
+@media (min-width: 48rem) {
+  :root:not([data-nav='header']) .shell[data-collapsed='true'] .sidebar {
+    inline-size: var(--sidebar-width-collapsed);
+  }
+  :root:not([data-nav='header']) .shell[data-collapsed='true'] .brand,
+  :root:not([data-nav='header']) .shell[data-collapsed='true'] .nav-label {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  :root:not([data-nav='header']) .shell[data-collapsed='true'] .sidebar-head {
+    justify-content: center;
+  }
+  :root:not([data-nav='header']) .shell[data-collapsed='true'] .sidebar-nav a {
+    justify-content: center;
+    padding-inline: var(--space-2);
+  }
+}
+
+/* Header layout, and the signed-out bar. */
+.shell[data-signed-in='false'] .sidebar,
+:root[data-nav='header'] .sidebar {
+  position: static;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  inline-size: auto;
+  block-size: auto;
+  overflow: visible;
+  padding-inline: var(--space-4);
+  border-inline-end: none;
+  border-block-end: 1px solid var(--color-border);
+}
+:root[data-nav='header'] .sidebar-toggle,
+:root[data-nav='header'] .nav-icon {
+  display: none;
+}
+:root[data-nav='header'] .sidebar-nav .nav-list {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+/* Narrow screens: a top bar and an off-canvas drawer. */
+@media (max-width: 47.99rem) {
+  .shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .shell .sidebar,
+  :root[data-nav='header'] .shell .sidebar {
+    position: sticky;
+    inset-block-start: 0;
+    z-index: 30;
+    flex-direction: row;
+    align-items: center;
+    inline-size: auto;
+    block-size: auto;
+    overflow: visible;
+    padding-block: var(--space-2);
+    padding-inline: var(--space-4);
+    border-inline-end: none;
+    border-block-end: 1px solid var(--color-border);
+  }
+  .sidebar-head {
+    flex: 1;
+  }
+  .sidebar-toggle,
+  :root[data-nav='header'] .sidebar-toggle {
+    display: none;
+  }
+  .sidebar-menu {
+    display: inline-flex;
+  }
+  .sidebar-nav {
+    display: none;
+  }
+  .shell[data-drawer-open='true'] .sidebar-nav {
+    display: block;
+    position: fixed;
+    inset-block: 0;
+    inset-inline-start: 0;
+    z-index: 30;
+    inline-size: min(var(--sidebar-width), 85vw);
+    padding: var(--space-4);
+    overflow-y: auto;
+    background: var(--color-surface);
+    border-inline-end: 1px solid var(--color-border);
+    animation: drawer-in 150ms ease-out;
+  }
+  .shell[data-drawer-open='true'] .sidebar-nav .nav-list {
+    flex-direction: column;
+    flex-wrap: nowrap;
+  }
+  :root[data-nav='header'] .shell[data-drawer-open='true'] .nav-icon {
+    display: inline;
+  }
+  .sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    inline-size: 100%;
+    block-size: 100%;
+    z-index: 25;
+    padding: 0;
+    border: none;
+    background: rgb(0 0 0 / 40%);
+    cursor: pointer;
+  }
+}
+
+@keyframes drawer-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-nav {
+    animation: none !important;
+  }
+}
+
+.visually-hidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.shell-body {
+  min-inline-size: 0;
+}
+
+.shell-main {
+  inline-size: 100%;
   max-inline-size: var(--content-width);
   margin-inline: auto;
   padding: var(--space-4);
-  border-block-start: 1px solid var(--color-border);
-  font-size: 0.875rem;
 }
 
 .page h1 {
@@ -127,4 +351,70 @@ a {
 
 .why::before {
   content: 'ⓘ';
+}
+
+/* The shared modal (app/Modal.tsx): a centred card, a full-screen sheet on phones. */
+.modal {
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+  inline-size: min(32rem, calc(100% - 2 * var(--space-4)));
+  max-block-size: calc(100% - 2 * var(--space-6));
+  overscroll-behavior: contain;
+}
+
+.modal::backdrop {
+  background: rgb(0 0 0 / 45%);
+}
+
+.modal-body {
+  padding: var(--space-4);
+  overflow-wrap: anywhere;
+}
+
+.modal-header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-block-end: var(--space-3);
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.modal-close {
+  min-inline-size: 2.75rem;
+  min-block-size: 2.75rem;
+  font-size: 1.5rem;
+  line-height: 1;
+  background: none;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  border-radius: var(--radius);
+}
+
+.modal-close:hover {
+  background: var(--color-bg);
+}
+
+:root:has(.modal[open]) {
+  overflow: hidden;
+}
+
+@media (max-width: 40rem) {
+  .modal {
+    inline-size: 100%;
+    max-inline-size: 100%;
+    block-size: 100%;
+    max-block-size: 100%;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+  }
 }

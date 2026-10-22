@@ -69,7 +69,10 @@
     "author": "alex",
     "body": "This is how a post reads with this theme.",
     "muted": "Secondary text, like times and counts.",
-    "link": "A link"
+    "link": "A link",
+    "like": "Like",
+    "saved": "Saved",
+    "primary": "Main button"
   },
   "save": "Save theme",
   "saving": "Saving…",
@@ -79,5 +82,30 @@
     "theme_font": "That font isn't available.",
     "theme_invalid": "This theme has a value that isn't allowed.",
     "rate_limited": "You've changed your theme a lot today. Try again later."
+  },
+  "advanced": {
+    "legend": "Advanced: theme CSS and images",
+    "intro": "Write your own CSS to restyle anything in the app. image(name) uses an image you upload below, for example to turn the like button into a picture. Theme CSS only affects what you see, and it isn't applied on sign-in, recovery, settings or moderation pages, so you can always come back here to undo it.",
+    "css": "Theme CSS",
+    "placeholder": "[data-part=like] '{' background: image(heart) center / contain no-repeat; font-size: 0; min-inline-size: 40px; '}'",
+    "example": "Handy hooks: .shell (the page), .post (a card), .post-body, button, button.primary, [data-part=like], [data-part=save], .nav-list a, .brand.",
+    "images": "Images",
+    "imagesOff": "Image uploads are off on this server, so theme CSS can't use images right now.",
+    "imageUsage": "image({name})",
+    "imageName": "Image name (lowercase letters, digits and dashes)",
+    "imageFile": "Image file",
+    "imageAdd": "Add image",
+    "imageUploading": "Uploading…",
+    "imageRemove": "Remove {name}",
+    "imageNameBad": "Use a name that starts with a letter and has only lowercase letters, digits and dashes.",
+    "imageNameTaken": "This theme already has an image with that name.",
+    "imagesFull": "A theme can have up to 8 images.",
+    "imageFileMissing": "Choose an image file first.",
+    "errors": {
+      "theme_css": "Line {line, number}: image() names an image this theme doesn't have.",
+      "whole": "This theme CSS is too long (32 KB at most)."
+    },
+    "warning": "Theme CSS can change or hide anything, including the labels that keep you safe: tier headers, chains, \"Why am I seeing this?\" and the report button. Only use CSS you wrote yourself or fully understand. Never paste CSS someone sent you.",
+    "ack": "I understand the risks"
   }
 }

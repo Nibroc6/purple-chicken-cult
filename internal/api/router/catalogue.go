@@ -61,8 +61,8 @@ var Catalogue = []Entry{
 	e("invitesapi", 0, "POST", "/invites/handshakes", wI),
 	e("invitesapi", 0, "GET", "/invites/handshakes/{hs}/frame", free),
 	e("invitesapi", 0, "GET", "/invites/handshakes/{hs}", free),
-	e("invitesapi", 0, "POST", "/invites/handshakes/{hs}/confirm", wI),
-	e("invitesapi", 0, "DELETE", "/invites/handshakes/{hs}", wI),
+	e("invitesapi", 0, "POST", "/invites/handshakes/{hs}/confirm", sI),
+	e("invitesapi", 0, "DELETE", "/invites/handshakes/{hs}", sI),
 	e("invitesapi", 0, "POST", "/join/start", apix.Anon("join")),
 	e("invitesapi", 0, "POST", "/join/claim", apix.Anon("join")),
 	e("invitesapi", 0, "GET", "/join/status", apix.Anon("join")),
@@ -171,6 +171,9 @@ var Catalogue = []Entry{
 	e("modapi", 0, "POST", "/csp-report", apix.Anon("csp_report")),
 	e("modapi", 1, "POST", "/mod/quarantine", wS),
 	e("modapi", 1, "POST", "/mod/items/{id}/csam-report", wS),
+	e("modapi", 1, "GET", "/mod/roles", rG),
+	e("modapi", 1, "POST", "/mod/roles", wS),
+	e("modapi", 1, "POST", "/mod/roles/{ref}/revoke", wS),
 
 	// themeapi (P1-W09)
 	e("themeapi", 1, "GET", "/me/theme", free), // steward: contract request p1-w09-1

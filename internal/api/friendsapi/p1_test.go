@@ -92,7 +92,7 @@ func (f *fixture) enroll(t *testing.T, handle string) *passkey {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p.cookie, _, err = a.Auth.EnrollFinish(p.ctx(t, f), resp, false, a.Deps().Cfg.TOSVersion, true); err != nil {
+	if p.cookie, _, err = a.Auth.EnrollFinish(p.ctx(t, f), resp, a.Deps().Cfg.TOSVersion, true); err != nil {
 		t.Fatal(err)
 	}
 	if p.csrf, err = a.Auth.CSRFForToken(ctx, p.cookie); err != nil {

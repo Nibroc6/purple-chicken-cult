@@ -1,15 +1,25 @@
 {
   "app": {
-    "name": "Purple Chicken Cult"
+    "name": "Purple Chicken Cult",
+    "pageTitle": "{page} | Purple Chicken Cult"
   },
   "nav": {
     "label": "Main",
+    "skip": "Skip to content",
     "feed": "Feed",
     "compose": "New post",
     "invite": "Meet in person",
-    "friends": "Acquaintances",
+    "people": "People",
+    "saves": "Saved",
+    "seen": "Seen",
     "notifications": "Notifications",
-    "settings": "Settings"
+    "moderation": "Moderation",
+    "settings": "Settings",
+    "about": "How it works",
+    "menu": "Menu",
+    "close": "Close menu",
+    "collapse": "Collapse sidebar",
+    "expand": "Expand sidebar"
   },
   "placeholder": {
     "body": "This page is not built yet."
@@ -19,14 +29,12 @@
     "body": "This page does not exist, or you cannot see it."
   },
   "loading": "Loading…",
+  "modal": {
+    "close": "Close"
+  },
   "error": {
     "title": "Something went wrong",
     "retry": "Try again"
-  },
-  "footer": {
-    "label": "Site",
-    "about": "How it works",
-    "terms": "Terms"
   },
   "infotip": {
     "label": "More about this"

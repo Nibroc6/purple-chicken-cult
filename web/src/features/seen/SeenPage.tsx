@@ -46,7 +46,7 @@ export default function SeenPage() {
             <PostPreview post={p} />
             <EngageBar post={p} actions={actions} />
             <p className="post-links">
-              <Link to={`/p/${p.ref}`}>{t('page.open')}</Link> <Link to={`/p/${p.ref}/likes`}>{t('page.likes')}</Link>
+              <Link to={`/p/${p.ref}`}>{t('page.open')}</Link>
             </p>
           </li>
         ))}

@@ -491,6 +491,16 @@ type Enrollments interface {
 	CancelEnrollment(ctx context.Context, tx store.Q, tokenHash []byte) error
 }
 
+// RecoveryGuard lets a passkey the account already had veto a recovery of it
+// (impl: gate/account). Steward: contract request p1-w10-3.
+type RecoveryGuard interface {
+	// PasskeyLogin is told, before the login's session is issued, that user
+	// signed in with a passkey created at credCreated. It cancels every live
+	// recovery of user that opened once that passkey existed (in its own
+	// transaction).
+	PasskeyLogin(ctx context.Context, user UserID, credCreated time.Time) error
+}
+
 // ---- invites (impl: gate/invites) ----
 
 // Invites exposes the invite tree.
@@ -545,4 +555,14 @@ type Limiter interface {
 	ChargeRead(ctx context.Context, v Viewer, c ReadClass) error         // gate.ErrRateLimited
 	ChargeWrite(ctx context.Context, v Viewer, k WriteKind, n int) error // gate.ErrRateLimited
 	ChargeAnon(ip netip.Prefix, bucket string) error                     // unauthenticated surface (memory only)
+	// WriteAllowance reports what is left of a build-up write limit of kind k
+	// (ok false when k has none).
+	WriteAllowance(ctx context.Context, v Viewer, k WriteKind) (a Allowance, ok bool, err error)
+}
+
+// Allowance is what is left of a build-up limit: Available of Cap now, and
+// when the next one builds up (nil while full).
+type Allowance struct {
+	Available, Cap int
+	NextAt         *time.Time
 }

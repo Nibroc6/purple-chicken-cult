@@ -266,7 +266,7 @@ components:
         id: { $ref: '#/components/schemas/Ref' }
         kind:
           type: string
-          enum: [friend_request, request_accepted, post_referenced, mention, invitee_action, friend_security, invite_redeemed, recovery_approval]
+          enum: [friend_request, request_accepted, post_referenced, mention, invitee_action, friend_security, invite_redeemed, recovery_approval, account_recovery]
         count: { type: integer }
         person: { $ref: '#/components/schemas/ChainHop' }
         post: { $ref: '#/components/schemas/Ref' }
@@ -290,6 +290,17 @@ components:
         probation: { $ref: '#/components/schemas/ProbationView' }
         paused_until: { type: string, format: date-time }
         revoked: { type: boolean }
+        attempts: { $ref: '#/components/schemas/AllowanceView' }
+    AllowanceView:
+      type: object
+      description: >-
+        A build-up limit: available of cap now, and when the next one builds up
+        (absent while full). On BudgetView, the attempts at opening a handshake.
+      required: [available, cap]
+      properties:
+        available: { type: integer }
+        cap: { type: integer }
+        next_at: { type: string, format: date-time }
     HandshakeView:
       type: object
       required: [hs, mode, frame_ttl_ms]

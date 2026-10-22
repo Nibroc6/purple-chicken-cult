@@ -231,6 +231,7 @@ describe('NotificationsPage', () => {
       nv('n8', 'invite_redeemed', { person: carol }),
       nv('n9', 'invitee_action', { data: { action: 'suspend_user' }, read: true }),
       nv('n10', 'recovery_approval', { person: carol, read: true }),
+      nv('n11', 'account_recovery', { data: { reason: 'recovery_pending' }, read: true }),
     ];
     const calls = stubAPI((c) => {
       if (c.path === '/notifications' && c.method === 'GET') return json(200, { items, unread: 8 });
@@ -239,7 +240,7 @@ describe('NotificationsPage', () => {
     });
     renderPage();
     const list = await screen.findAllByTestId('notification');
-    expect(list).toHaveLength(10);
+    expect(list).toHaveLength(11);
     const text = (i: number) => within(list[i] as HTMLElement).getByText((_, el) => el?.tagName === 'SPAN' && el.parentElement?.className === 'notification-text').textContent;
     expect(text(0)).toBe(tr('notifications:kind.friend_request'));
     expect(text(2)).toBe('and 2 others replied to your post');
@@ -247,10 +248,11 @@ describe('NotificationsPage', () => {
     expect(text(5)).toBe('removed a passkey from their account');
     expect(text(6)).toBe('An acquaintance deleted their account');
     expect(text(8)).toBe('A moderator suspended someone you invited');
+    expect(text(10)).toMatch(/^A recovery of your account was approved/);
     expect(within(list[0] as HTMLElement).getByTestId('notification-person').getAttribute('href')).toBe('/people/r-carol');
     expect(within(list[0] as HTMLElement).getByTestId('notification-person').textContent).toBe('@carol');
     expect(within(list[4] as HTMLElement).getByTestId('notification-post').getAttribute('href')).toBe('/p/p3');
-    expect(list.map((l) => l.dataset.read)).toEqual([...Array<string>(8).fill('false'), 'true', 'true']);
+    expect(list.map((l) => l.dataset.read)).toEqual([...Array<string>(8).fill('false'), 'true', 'true', 'true']);
     await waitFor(() => {
       expect(calls.filter((c) => c.path === '/notifications/read').map((c) => c.body)).toEqual([{ up_to: 'n1' }]);
     });

@@ -247,6 +247,17 @@ type BudgetView struct {
 	Probation   *ProbationView `json:"probation,omitempty"`
 	PausedUntil *time.Time     `json:"paused_until,omitempty"`
 	Revoked     bool           `json:"revoked,omitempty"`
+	// Attempts is the build-up limit on opening handshakes (shown next to the
+	// budget, so a refused attempt is never a surprise).
+	Attempts *AllowanceView `json:"attempts,omitempty"`
+}
+
+// AllowanceView is what is left of a build-up limit: available of cap now,
+// and when the next one builds up (absent while full).
+type AllowanceView struct {
+	Available int        `json:"available"`
+	Cap       int        `json:"cap"`
+	NextAt    *time.Time `json:"next_at,omitempty"`
 }
 
 // ProbationView shows what is left of the caller's probation.
@@ -408,6 +419,31 @@ type LogItem struct {
 	Reason  string      `json:"reason"`
 	Count   int         `json:"count"`
 	Subject *LogSubject `json:"subject,omitempty"`
+}
+
+// StaffMember is one active moderator or admin on the admin roles page.
+type StaffMember struct {
+	Ref         Ref        `json:"ref"`
+	Handle      string     `json:"handle"`
+	DisplayName string     `json:"display_name,omitempty"`
+	Role        string     `json:"role"`            // moderator | admin
+	Since       *time.Time `json:"since,omitempty"` // the logged grant, if any
+	Me          bool       `json:"me,omitempty"`
+}
+
+// RoleChange is one logged role change: who changed whose role, and when.
+type RoleChange struct {
+	Action   string    `json:"action"` // grant_moderator | revoke_moderator | grant_admin
+	Handle   string    `json:"handle"`
+	ByHandle string    `json:"by_handle"`
+	At       time.Time `json:"at"`
+}
+
+// Staff is the admin roles page: the current moderators and admins and the
+// latest role changes, newest first.
+type Staff struct {
+	Members []StaffMember `json:"members"`
+	Changes []RoleChange  `json:"changes"`
 }
 
 // LogSubject names a log subject: a pseudonym, or a ref+handle for viewers who

@@ -4,7 +4,9 @@
 // with the contrast checks the server applies, and save. The default follows
 // the app's light and dark palettes; a theme is one palette. The server
 // validates every theme and rejects one whose integrity elements fall below
-// WCAG AA (theme_contrast). Owner: P1-W09.
+// WCAG AA (theme_contrast). Advanced mode adds the reader's own raw CSS
+// (sheet.ts), behind a warning that it can change or hide anything, and the
+// theme's own images for image(name). Owner: P1-W09.
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useId, useRef, useState, type SyntheticEvent } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -12,7 +14,9 @@ import { ApiError, errorKey } from '../../api/errors';
 import { Loading } from '../../app/Loading';
 import { AudienceBadge, Chain, EditedMark, InviterLabel, ReportAction, TierHeader } from '../../integrity';
 import { asRef } from '../../vm/types';
+import { useUpload } from '../media';
 import { clearTheme, saveTheme, themeKey, type ThemeView } from './api';
+import { MAX_IMAGES, checkSheet, imageName, sheetImages, type SheetError } from './sheet';
 import {
   FONT_SIZE,
   RADIUS,
@@ -25,11 +29,11 @@ import {
   type ColorName,
   type ThemeTokens,
 } from './theme';
-import { useAppliedTheme, useStoredTheme } from './useTheme';
+import { useAppliedSheet, useAppliedTheme, useImageURLs, useStoredTheme, type SheetImage } from './useTheme';
 import './themes.css';
 import { InfoTip } from '../../lib/InfoTip';
 
-const themeCodes = new Set(['theme_contrast', 'theme_font', 'theme_invalid', 'rate_limited']);
+const themeCodes = new Set(['theme_contrast', 'theme_css', 'theme_font', 'theme_invalid', 'rate_limited']);
 
 // The check a theme_contrast field belongs to.
 const fieldCheck: Record<string, string> = {
@@ -42,8 +46,15 @@ const fieldCheck: Record<string, string> = {
 // themeErrorKey is themes:errors.<code> for the codes this page explains.
 // i18n-dynamic: themes:errors.
 export function themeErrorKey(err: unknown): string {
+  if (err instanceof ApiError && cssLine(err) !== undefined) return 'themes:advanced.errors.theme_css';
   if (err instanceof ApiError && themeCodes.has(err.code)) return `themes:errors.${err.code}`;
   return errorKey(err);
+}
+
+// cssLine is the theme CSS line a rejection names (field css.<line>).
+function cssLine(err: ApiError): number | undefined {
+  const m = /^css\.(\d+)$/.exec(err.field ?? '');
+  return m && err.code === 'theme_css' ? Number(m[1]) : undefined;
 }
 
 type Choice = 'default' | 'custom' | (string & {});
@@ -73,8 +84,13 @@ function ThemeForm({ stored }: { stored: ThemeView | null }) {
   const initial = stored?.tokens;
   const [choice, setChoice] = useState<Choice>(() => (initial ? (presetOf(initial) ?? 'custom') : 'default'));
   const [tokens, setTokens] = useState<ThemeTokens>(() => initial ?? defaultTokens);
+  const [css, setCSS] = useState(() => stored?.css ?? '');
+  const [images, setImages] = useState<SheetImage[]>(() => (stored?.images ?? []).map((i) => ({ name: i.name, ref: i.ref })));
   const preview = useRef<HTMLDivElement>(null);
   useAppliedTheme(choice === 'default' ? undefined : tokens, preview);
+  const names = new Set(images.map((i) => i.name));
+  const sheetError = checkSheet(css, names);
+  useAppliedSheet(choice !== 'default' && !sheetError ? css : undefined, images, 'preview');
 
   const save = useMutation({
     mutationFn: async () => {
@@ -82,10 +98,19 @@ function ThemeForm({ stored }: { stored: ThemeView | null }) {
         await clearTheme();
         return null;
       }
-      return saveTheme(tokens);
+      const used = sheetImages(css);
+      return saveTheme(
+        tokens,
+        css.trim(),
+        images.filter((i) => used.has(i.name)),
+      );
     },
     onSuccess: (v) => {
       qc.setQueryData(themeKey, v);
+      if (v) {
+        setCSS(v.css);
+        setImages(v.images.map((i) => ({ name: i.name, ref: i.ref })));
+      }
     },
   });
 
@@ -239,6 +264,21 @@ function ThemeForm({ stored }: { stored: ThemeView | null }) {
         </div>
       </fieldset>
 
+      <AdvancedFields
+        disabled={!custom}
+        css={css}
+        images={images}
+        error={sheetError}
+        onCSS={(v) => {
+          save.reset();
+          setCSS(v);
+        }}
+        onImages={(v) => {
+          save.reset();
+          setImages(v);
+        }}
+      />
+
       {custom ? (
         <ul className="theme-checks" aria-label={t('check.legend')}>
           {results.map((r) => (
@@ -254,7 +294,7 @@ function ThemeForm({ stored }: { stored: ThemeView | null }) {
       ) : null}
 
       <section className="theme-preview" aria-label={t('preview.label')}>
-        <div ref={preview} className="theme-preview-canvas" data-testid="theme-preview">
+        <div ref={preview} className="theme-preview-canvas" data-testid="theme-preview" data-theme-preview="">
           <TierHeader tier={1} kind="start" />
           <article className="post">
             <header className="post-author">
@@ -273,13 +313,26 @@ function ThemeForm({ stored }: { stored: ThemeView | null }) {
               <EditedMark editedAt={new Date(0)} />
               <ReportAction target={{ kind: 'post', ref: asRef('preview') }} onReport={noop} />
             </footer>
+            <div className="engage-bar">
+              <button type="button" data-part="like" aria-pressed={false}>
+                {t('preview.like')}
+              </button>
+              <button type="button" data-part="save" aria-pressed={true}>
+                {t('preview.saved')}
+              </button>
+            </div>
           </article>
+          <p>
+            <button type="button" className="primary">
+              {t('preview.primary')}
+            </button>
+          </p>
         </div>
       </section>
 
       {err ? (
         <p role="alert" className="theme-error" data-testid="theme-error" data-code={err instanceof ApiError ? err.code : undefined}>
-          {t(themeErrorKey(err) as 'errors:unknown', { check: failed ?? 'other' })}
+          {t(themeErrorKey(err) as 'errors:unknown', { check: failed ?? 'other', line: err instanceof ApiError ? (cssLine(err) ?? 0) : 0 })}
         </p>
       ) : null}
       {save.isSuccess ? (
@@ -288,11 +341,165 @@ function ThemeForm({ stored }: { stored: ThemeView | null }) {
         </p>
       ) : null}
       <div>
-        <button type="submit" data-testid="theme-save" disabled={save.isPending}>
+        <button type="submit" data-testid="theme-save" disabled={save.isPending || (custom && sheetError !== undefined)}>
           {save.isPending ? t('saving') : t('save')}
         </button>
       </div>
     </form>
+  );
+}
+
+interface AdvancedProps {
+  disabled: boolean;
+  css: string;
+  images: SheetImage[];
+  error: SheetError | undefined;
+  onCSS: (css: string) => void;
+  onImages: (images: SheetImage[]) => void;
+}
+
+// AdvancedFields edits theme CSS and the theme's images (advanced mode).
+function AdvancedFields({ disabled, css, images, error, onCSS, onImages }: AdvancedProps) {
+  const { t } = useTranslation(['themes', 'errors']);
+  const id = useId();
+  const upload = useUpload();
+  const urls = useImageURLs(images);
+  const [name, setName] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+  const [imageError, setImageError] = useState<string | undefined>();
+  const fileInput = useRef<HTMLInputElement>(null);
+  // Raw CSS can change or hide anything: it is editable once the reader says
+  // they understand (a theme that already has CSS was acknowledged before).
+  const [ack, setAck] = useState(css !== '');
+
+  const add = async () => {
+    const bad = !imageName.test(name)
+      ? 'advanced.imageNameBad'
+      : images.some((i) => i.name === name)
+        ? 'advanced.imageNameTaken'
+        : images.length >= MAX_IMAGES
+          ? 'advanced.imagesFull'
+          : !file
+            ? 'advanced.imageFileMissing'
+            : undefined;
+    setImageError(bad);
+    if (bad || !file) return;
+    try {
+      const m = await upload.upload(file, '');
+      onImages([...images, { name, ref: m.ref }]);
+      setName('');
+      setFile(null);
+      if (fileInput.current) fileInput.current.value = '';
+    } catch (e) {
+      setImageError(errorKey(e));
+    }
+  };
+
+  return (
+    <details className="theme-advanced" data-testid="theme-advanced" open={css !== '' || undefined}>
+      <summary>{t('advanced.legend')}</summary>
+      <fieldset disabled={disabled}>
+        <p className="muted">{t('advanced.intro')}</p>
+        <p className="theme-warning" role="note" data-testid="theme-css-warning">
+          {t('advanced.warning')}
+        </p>
+        <label className="settings-choice">
+          <input
+            type="checkbox"
+            data-testid="theme-css-ack"
+            checked={ack}
+            onChange={(e) => {
+              setAck(e.target.checked);
+            }}
+          />
+          {t('advanced.ack')}
+        </label>
+        <div className="settings-field">
+          <label htmlFor={`${id}-css`}>{t('advanced.css')}</label>
+          <textarea
+            id={`${id}-css`}
+            className="theme-css"
+            data-testid="theme-css"
+            dir="ltr"
+            spellCheck={false}
+            autoCapitalize="off"
+            autoComplete="off"
+            rows={12}
+            disabled={!ack}
+            value={css}
+            aria-describedby={`${id}-css-status`}
+            aria-invalid={error !== undefined}
+            placeholder={t('advanced.placeholder')}
+            onChange={(e) => {
+              onCSS(e.target.value);
+            }}
+          />
+          <small id={`${id}-css-status`} role="status" data-testid="theme-css-status" data-ok={error === undefined}>
+            {error && error.line === 0 ? t('advanced.errors.whole') : null}
+            {error && error.line > 0 ? t('advanced.errors.theme_css', { line: error.line }) : null}
+          </small>
+        </div>
+        <p className="muted">{t('advanced.example')}</p>
+
+        <fieldset className="theme-images">
+          <legend>{t('advanced.images')}</legend>
+          {upload.disabled ? <p className="muted">{t('advanced.imagesOff')}</p> : null}
+          {images.length > 0 ? (
+            <ul className="theme-image-list">
+              {images.map((im) => (
+                <li key={im.name} data-testid="theme-image" data-name={im.name}>
+                  {urls.get(im.name) ? <img src={urls.get(im.name)} alt="" className="theme-image-thumb" /> : null}
+                  <code>{t('advanced.imageUsage', { name: im.name })}</code>
+                  <button
+                    type="button"
+                    data-testid="theme-image-remove"
+                    onClick={() => {
+                      onImages(images.filter((x) => x.name !== im.name));
+                    }}
+                  >
+                    {t('advanced.imageRemove', { name: im.name })}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {upload.disabled ? null : (
+            <div className="theme-image-add">
+              <label htmlFor={`${id}-img-name`}>{t('advanced.imageName')}</label>
+              <input
+                id={`${id}-img-name`}
+                data-testid="theme-image-name"
+                dir="ltr"
+                autoCapitalize="off"
+                value={name}
+                onChange={(e) => {
+                  setName(e.target.value.trim().toLowerCase());
+                }}
+              />
+              <label htmlFor={`${id}-img-file`}>{t('advanced.imageFile')}</label>
+              <input
+                id={`${id}-img-file`}
+                ref={fileInput}
+                type="file"
+                accept="image/png,image/jpeg,image/gif,image/webp"
+                data-testid="theme-image-file"
+                onChange={(e) => {
+                  setFile(e.target.files?.[0] ?? null);
+                }}
+              />
+              <button type="button" data-testid="theme-image-add" disabled={upload.pending} onClick={() => void add()}>
+                {upload.pending ? t('advanced.imageUploading') : t('advanced.imageAdd')}
+              </button>
+              {imageError ? (
+                <p role="alert" className="theme-error" data-testid="theme-image-error">
+                  {t(imageError as 'advanced.imageNameBad')}
+                </p>
+              ) : null}
+            </div>
+          )}
+        </fieldset>
+      </fieldset>
+    </details>
   );
 }
 

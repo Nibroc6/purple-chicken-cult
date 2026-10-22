@@ -81,6 +81,7 @@ type storedCred struct {
 	name          string
 	createdAt     time.Time
 	lastUsedAt    *time.Time
+	recoveredAt   *time.Time // enrolled through recovery
 }
 
 func (c storedCred) webauthn() webauthn.Credential {
@@ -102,7 +103,7 @@ func (s *Service) credentials(ctx context.Context, q store.Q, user core.UserID, 
 		order = "ORDER BY created_at, id FOR UPDATE"
 	}
 	sql := `SELECT id, public_key, alg, sign_count, aaguid, transports, backup_eligible, backup_state, name, created_at,
-		last_used_at FROM webauthn_credentials WHERE user_id = $1 ` + order
+		last_used_at, recovered_at FROM webauthn_credentials WHERE user_id = $1 ` + order
 	rows, err := q.Query(ctx, sql, int64(user))
 	if err != nil {
 		return nil, err
@@ -113,7 +114,7 @@ func (s *Service) credentials(ctx context.Context, q store.Q, user core.UserID, 
 		var c storedCred
 		var alg int32
 		if err := rows.Scan(&c.id, &c.publicKey, &alg, &c.signCount, &c.aaguid, &c.transports, &c.be, &c.bs, &c.name,
-			&c.createdAt, &c.lastUsedAt); err != nil {
+			&c.createdAt, &c.lastUsedAt, &c.recoveredAt); err != nil {
 			return nil, err
 		}
 		c.alg = int(alg)

@@ -102,16 +102,20 @@ describe('settings view-models', () => {
     const p = toUIPrefs({ format: 'compact', a11y: { text_scale: 'large', reduced_motion: true, bogus: 1 }, extra: 1 });
     expect(p).toEqual({
       format: 'compact',
+      nav: 'sidebar',
       density: 'comfortable',
       a11y: { contrast: 'normal', textScale: 'large', reducedMotion: true, dyslexiaFont: false },
     });
     expect(fromUIPrefs(p)).toEqual({
       format: 'compact',
+      nav: 'sidebar',
       density: 'comfortable',
       a11y: { contrast: 'normal', text_scale: 'large', reduced_motion: true, dyslexia_font: false },
     });
     expect(toUIPrefs({ format: 'explorer' }).format).toBe('explorer');
     expect(toUIPrefs({ format: 'grid' }).format).toBe('cards');
+    expect(toUIPrefs({ nav: 'header' }).nav).toBe('header');
+    expect(toUIPrefs({ nav: 'footer' }).nav).toBe('sidebar');
     expect(toUIPrefs(null).a11y.textScale).toBe('normal');
     expect(toA11y(p)).toEqual({ contrast: 'normal', textScale: 'large', reducedMotion: true, dyslexiaFont: false });
   });
@@ -150,6 +154,7 @@ describe('settings pages', () => {
       rank_preset: 'latest',
       ui_prefs: {
         format: 'compact',
+        nav: 'sidebar',
         density: 'comfortable',
         a11y: { contrast: 'normal', text_scale: 'xlarge', reduced_motion: false, dyslexia_font: false },
       },

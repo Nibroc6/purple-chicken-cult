@@ -179,7 +179,7 @@ func (e *env) moderator(handle string) *member {
 	m.cookie = ev.Token
 	resp, err := m.auth.Create(ev.Options)
 	e.must(err)
-	m.cookie, _, err = e.a.Auth.EnrollFinish(m.ctx(), resp, false, e.d.Cfg.TOSVersion, true)
+	m.cookie, _, err = e.a.Auth.EnrollFinish(m.ctx(), resp, e.d.Cfg.TOSVersion, true)
 	e.must(err)
 	id, ok := e.a.Users.ByHandle(e.ctx, handle)
 	if !ok {

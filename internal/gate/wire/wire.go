@@ -212,6 +212,7 @@ func Build(ctx context.Context, cfg *config.Config, db *store.DB, log *slog.Logg
 	d.RecordExporter = a.Records
 	d.PostAdmin = a.Posts
 	d.Enrollments = a.Auth
+	d.Recovery = a.Account
 	d.Accounts = a.Users
 	d.Handles = a.Users
 	d.Requests = a.Friends
@@ -221,6 +222,7 @@ func Build(ctx context.Context, cfg *config.Config, db *store.DB, log *slog.Logg
 	d.CosignPurposes = a.Cosign
 	d.Signup = a.Cosign
 	d.CSAM = a.Media
+	d.ThemeMedia = a.Media
 	d.InvitePenalties = a.Invites
 	d.Marks = a.Moderation
 

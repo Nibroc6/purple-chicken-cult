@@ -54,6 +54,7 @@ const (
 	KindFriendSecurity   = "friend_security"
 	KindInviteRedeemed   = "invite_redeemed"
 	KindRecoveryApproval = "recovery_approval" // P1
+	KindAccountRecovery  = "account_recovery"  // a recovery of the recipient's own account
 )
 
 // Live topics (ephemeral SSE events).
@@ -112,6 +113,7 @@ var rules = map[string]kindRule{
 	KindFriendSecurity:   {person: optional},
 	KindInviteeAction:    {person: optional, post: optional},
 	KindRecoveryApproval: {person: optional},
+	KindAccountRecovery:  {},
 }
 
 var codeRE = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
