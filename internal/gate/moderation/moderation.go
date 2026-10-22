@@ -67,6 +67,8 @@ const (
 	ActionDismiss     = "dismiss"
 	ActionQuarantine  = "quarantine_subtree"
 	ActionCSAMReport  = "csam_report"
+	// ActionRemoveMessage erases a reported direct message (one moderator).
+	ActionRemoveMessage = "remove_message"
 )
 
 // PurposeModAction is the co-sign purpose of the second moderator's
@@ -79,9 +81,12 @@ const (
 	KindPerson  = "person"
 	KindInviter = "inviter"
 	KindPreview = "preview"
+	// KindMessage reports a direct message (gate/dm): the report keeps a copy
+	// of its text, the only way a moderator ever sees a message.
+	KindMessage = "message"
 )
 
-var targetKinds = map[string]int16{KindPost: 0, KindPerson: 1, KindInviter: 2, KindPreview: 3}
+var targetKinds = map[string]int16{KindPost: 0, KindPerson: 1, KindInviter: 2, KindPreview: 3, KindMessage: 4}
 
 // reports.state and mod_actions.state values.
 const (

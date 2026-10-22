@@ -293,7 +293,7 @@ components:
           required: [kind, ref]
           additionalProperties: false
           properties:
-            kind: { type: string, enum: [post, person, inviter, preview] }
+            kind: { type: string, enum: [post, person, inviter, preview, message] }
             ref: { type: string, maxLength: 256 }
         reason:
           type: string
@@ -306,7 +306,7 @@ components:
       properties:
         action:
           type: string
-          description: remove_post, suspend_user, dismiss.
+          description: remove_post, remove_message, suspend_user, dismiss.
         reason:
           type: string
           description: spam, bot, harassment, csam, illegal, impersonation, misleading_preview, ban_evasion, other.

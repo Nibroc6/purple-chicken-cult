@@ -269,9 +269,9 @@ func (s *Service) Notify(ctx context.Context, tx store.Q, e core.Event) error {
 }
 
 // Live sends an ephemeral event to every open stream of to (topics: handshake,
-// stepup). Nothing is stored; a recipient without a stream misses it.
+// stepup, friend_upgrade, message). Nothing is stored; a recipient without a stream misses it.
 func (s *Service) Live(to core.UserID, topic string, data any) {
-	if to == 0 || (topic != TopicHandshake && topic != TopicStepUp && topic != TopicFriendUpgrade) {
+	if to == 0 || (topic != TopicHandshake && topic != TopicStepUp && topic != TopicFriendUpgrade && topic != TopicMessage) {
 		return
 	}
 	if data == nil {

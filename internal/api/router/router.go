@@ -20,6 +20,7 @@ import (
 	"github.com/Nibroc6/purple-chicken-cult/internal/api/friendsapi"
 	"github.com/Nibroc6/purple-chicken-cult/internal/api/invitesapi"
 	"github.com/Nibroc6/purple-chicken-cult/internal/api/mediaapi"
+	"github.com/Nibroc6/purple-chicken-cult/internal/api/messagesapi"
 	"github.com/Nibroc6/purple-chicken-cult/internal/api/modapi"
 	"github.com/Nibroc6/purple-chicken-cult/internal/api/notifyapi"
 	"github.com/Nibroc6/purple-chicken-cult/internal/api/postsapi"
@@ -44,6 +45,8 @@ var Modules = []func(chi.Router, *api.Deps){
 	testhooks.Register, // no-op unless Env == test && TestHooks
 	// Phase 1 (SCAFFOLD-1).
 	mediaapi.Register, pushapi.Register, signalsapi.Register, cosignapi.Register, themeapi.Register,
+	// Direct messages (contract request dm-1).
+	messagesapi.Register,
 }
 
 // New builds the HTTP handler with every module.

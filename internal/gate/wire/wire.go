@@ -19,6 +19,7 @@ import (
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/auth"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/cosign"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/devseed"
+	"github.com/Nibroc6/purple-chicken-cult/internal/gate/dm"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/engage"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/feed"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/friends"
@@ -80,6 +81,9 @@ type App struct {
 	Themes     *themes.Service
 	Behavior   *behavior.Service
 	Automation *automation.Service
+
+	// Direct messages (contract request dm-1).
+	DM *dm.Service
 
 	d     *core.Deps
 	hooks *Hooks
@@ -182,6 +186,7 @@ func Build(ctx context.Context, cfg *config.Config, db *store.DB, log *slog.Logg
 	a.Themes = themes.New(d)
 	a.Behavior = behavior.New(d)
 	a.Automation = automation.New(d)
+	a.DM = dm.New(d)
 	if o.ServerKey != nil {
 		a.Records.SetKey(o.ServerKey)
 	}
@@ -225,6 +230,8 @@ func Build(ctx context.Context, cfg *config.Config, db *store.DB, log *slog.Logg
 	d.ThemeMedia = a.Media
 	d.InvitePenalties = a.Invites
 	d.Marks = a.Moderation
+	d.Messages = a.DM
+	d.MessagePush = a.Notify
 
 	inits := []struct {
 		name string
@@ -237,7 +244,7 @@ func Build(ctx context.Context, cfg *config.Config, db *store.DB, log *slog.Logg
 		{"metrics", a.Metrics.Init}, {"account", a.Account.Init}, {"limits", a.Limits.Init},
 		{"moderation", a.Moderation.Init}, {"devseed", a.DevSeed.Init}, {"cosign", a.Cosign.Init},
 		{"media", a.Media.Init}, {"themes", a.Themes.Init}, {"behavior", a.Behavior.Init},
-		{"automation", a.Automation.Init},
+		{"automation", a.Automation.Init}, {"dm", a.DM.Init},
 	}
 	for _, in := range inits {
 		if err := in.fn(ctx); err != nil {

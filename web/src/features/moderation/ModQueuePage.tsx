@@ -291,6 +291,14 @@ function QueueItem({ it }: { it: ModItem }) {
         <blockquote className="moderation-post" data-user-content="" data-testid="queue-post">
           {it.post.body}
         </blockquote>
+      ) : it.message ? (
+        <div data-testid="queue-message">
+          <p className="muted">{it.message.removed ? t('queue.messageRemoved') : t('queue.message')}</p>
+          <blockquote className="moderation-post" data-user-content="">
+            {it.message.body}
+          </blockquote>
+          {it.message.shared_post ? <p className="muted">{t('queue.messageSharedPost')}</p> : null}
+        </div>
       ) : it.reason === 'csam' && !it.csam ? (
         <p className="muted">{t('queue.noContent')}</p>
       ) : null}

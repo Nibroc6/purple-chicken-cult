@@ -134,3 +134,23 @@ func (r Refs) ModItem(mod UserID, id uuid.UUID) gate.Ref {
 func (r Refs) OpenModItem(mod UserID, ref gate.Ref) (uuid.UUID, bool) {
 	return openUUID(r.C.Open(ModViewer(mod), refs.KindModItem, string(ref)))
 }
+
+// Conv returns viewer v's ref for direct-message conversation c.
+func (r Refs) Conv(v UserID, c uuid.UUID) gate.Ref {
+	return gate.Ref(r.C.Seal(uint64(v), refs.KindConv, c[:]))
+}
+
+// OpenConv opens a conversation ref minted for v.
+func (r Refs) OpenConv(v UserID, ref gate.Ref) (uuid.UUID, bool) {
+	return openUUID(r.C.Open(uint64(v), refs.KindConv, string(ref)))
+}
+
+// Message returns viewer v's ref for direct message m.
+func (r Refs) Message(v UserID, m uuid.UUID) gate.Ref {
+	return gate.Ref(r.C.Seal(uint64(v), refs.KindMessage, m[:]))
+}
+
+// OpenMessage opens a message ref minted for v.
+func (r Refs) OpenMessage(v UserID, ref gate.Ref) (uuid.UUID, bool) {
+	return openUUID(r.C.Open(uint64(v), refs.KindMessage, string(ref)))
+}

@@ -26,13 +26,16 @@ var signalCodes = []string{"cadence", "similarity"}
 
 // reportRow is the report behind a report item.
 type reportRow struct {
-	id      uuid.UUID
-	kind    int16
-	post    *uuid.UUID
-	user    *int64
-	reason  string
-	state   int16
-	sameTgt int
+	id       uuid.UUID
+	kind     int16
+	post     *uuid.UUID
+	user     *int64
+	reason   string
+	state    int16
+	sameTgt  int
+	message  *uuid.UUID // message reports
+	evidence string
+	at       time.Time
 }
 
 func (r reportRow) postID() core.PostID {
@@ -106,7 +109,9 @@ const selectItem = `SELECT q.id, q.source, q.priority, q.subject_user, q.subject
 		q.created_at, q.claimed_by, q.claimed_at, q.resolved_at IS NOT NULL,
 		r.id, r.target_kind, r.target_post, r.target_user, r.reason, r.state,
 		(SELECT count(*) FROM reports o WHERE r.id IS NOT NULL AND o.state = 0 AND o.target_kind = r.target_kind
-			AND o.target_post IS NOT DISTINCT FROM r.target_post AND o.target_user IS NOT DISTINCT FROM r.target_user)
+			AND o.target_post IS NOT DISTINCT FROM r.target_post AND o.target_user IS NOT DISTINCT FROM r.target_user
+			AND o.target_message IS NOT DISTINCT FROM r.target_message),
+		r.target_message, coalesce(r.evidence, ''), r.created_at
 	FROM mod_queue q LEFT JOIN reports r ON r.id = q.report_id `
 
 func scanItem(row pgx.Row) (item, error) {
@@ -122,9 +127,12 @@ func scanItem(row pgx.Row) (item, error) {
 		ruser            *int64
 		rreason          *string
 		same             int
+		rmsg             *uuid.UUID
+		revidence        string
+		rat              *time.Time
 	)
 	if err := row.Scan(&it.id, &src, &it.priority, &subject, &post, &media, &summary, &it.at, &claimed, &it.claimedAt,
-		&it.resolved, &rid, &rkind, &rpost, &ruser, &rreason, &rstate, &same); err != nil {
+		&it.resolved, &rid, &rkind, &rpost, &ruser, &rreason, &rstate, &same, &rmsg, &revidence, &rat); err != nil {
 		return it, err
 	}
 	it.source = uint8(src) //nolint:gosec // mod_queue.source is 0..4
@@ -144,7 +152,11 @@ func scanItem(row pgx.Row) (item, error) {
 		it.summary = map[string]int{}
 	}
 	if rid != nil && rkind != nil && rreason != nil && rstate != nil {
-		it.rep = &reportRow{id: *rid, kind: *rkind, post: rpost, user: ruser, reason: *rreason, state: *rstate, sameTgt: same}
+		it.rep = &reportRow{id: *rid, kind: *rkind, post: rpost, user: ruser, reason: *rreason, state: *rstate, sameTgt: same,
+			message: rmsg, evidence: revidence}
+		if rat != nil {
+			it.rep.at = *rat
+		}
 	}
 	return it, nil
 }
@@ -300,6 +312,15 @@ func (s *Service) itemView(ctx context.Context, v core.Viewer, it item, now time
 			return view, err
 		}
 		view.Post = pv
+	}
+	if it.rep != nil && it.rep.message != nil && it.source == core.ModSrcReport && it.reason() != string(core.ReasonCSAM) {
+		mv := &gate.ModMessageView{Body: it.rep.evidence, At: it.rep.at, Removed: true}
+		if s.d.Messages != nil {
+			if m, ok := s.d.Messages.MessageByID(ctx, *it.rep.message); ok {
+				mv.At, mv.Removed, mv.SharedPost = m.At, m.Deleted, m.SharedPost != uuid.Nil
+			}
+		}
+		view.Message = mv
 	}
 	if it.source == core.ModSrcCSAM && it.media != uuid.Nil && s.d.CSAM != nil {
 		if h, err := s.d.CSAM.Hold(ctx, it.media); err == nil {
@@ -497,7 +518,8 @@ func (s *Service) startable(ctx context.Context, tx store.Q, v core.Viewer, it i
 	return err
 }
 
-// Resolve acts on a queue item. action is remove_post | suspend_user | dismiss
+// Resolve acts on a queue item. action is remove_post | remove_message |
+// suspend_user | dismiss
 // and reason a moderation reason (closed enums: action_invalid,
 // reason_invalid). remove_post (items with a post) and dismiss take one
 // moderator and close the item (a report item: every open report on the same
@@ -513,7 +535,7 @@ func (s *Service) Resolve(ctx context.Context, ref gate.Ref, action, reason stri
 	if _, ok := s.d.Refs.OpenModItem(v.ID, ref); !ok {
 		return gate.ErrNotFound
 	}
-	if action != ActionRemovePost && action != ActionSuspendUser && action != ActionDismiss {
+	if action != ActionRemovePost && action != ActionSuspendUser && action != ActionDismiss && action != ActionRemoveMessage {
 		return gate.NewProblem(gate.StatusUnprocessable, "action_invalid", "action")
 	}
 	if !validReason(core.ModReasons, reason) {
@@ -556,6 +578,23 @@ func (s *Service) Resolve(ctx context.Context, ref gate.Ref, action, reason stri
 				return gate.NewProblem(gate.StatusConflict, "no_subject")
 			}
 			return s.insertAction(ctx, tx, v, it, action, reason, subject, actionPending, now, nil)
+		case action == ActionRemoveMessage:
+			// A message is private to its conversation: no blame-inbox entry
+			// (the inviter could never see it), only the log's count.
+			if it.rep == nil || it.rep.message == nil || s.d.Messages == nil {
+				return gate.NewProblem(gate.StatusUnprocessable, "action_invalid", "action")
+			}
+			sender, ok, err := s.d.Messages.RemoveMessage(ctx, tx, *it.rep.message)
+			if err != nil {
+				return err
+			}
+			if !ok {
+				return gate.NewProblem(gate.StatusConflict, "message_gone")
+			}
+			if err := s.insertAction(ctx, tx, v, it, action, reason, sender, actionDone, now, nil); err != nil {
+				return err
+			}
+			return s.closeItem(ctx, tx, v, it, reportActioned, ActionRemoveMessage, now)
 		default: // remove_post
 			if !hasPost {
 				return gate.NewProblem(gate.StatusUnprocessable, "action_invalid", "action")
@@ -630,10 +669,10 @@ func (s *Service) closeItem(ctx context.Context, tx store.Q, v core.Viewer, it i
 	_, err := tx.Exec(ctx, `WITH closed AS (
 			UPDATE reports SET state = $1, resolved_by = $2, resolved_at = $3
 			WHERE state = $4 AND (id = $5 OR (target_kind = $6 AND target_post IS NOT DISTINCT FROM $7
-				AND target_user IS NOT DISTINCT FROM $8))
+				AND target_user IS NOT DISTINCT FROM $8 AND target_message IS NOT DISTINCT FROM $10))
 			RETURNING id)
 		UPDATE mod_queue SET resolved_at = $3, resolution = $9
 		WHERE resolved_at IS NULL AND report_id IN (SELECT id FROM closed)`,
-		state, int64(v.ID), now, reportOpen, r.id, r.kind, r.post, r.user, resolution)
+		state, int64(v.ID), now, reportOpen, r.id, r.kind, r.post, r.user, resolution, r.message)
 	return err
 }

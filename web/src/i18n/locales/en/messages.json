@@ -1,0 +1,131 @@
+{
+  "title": "Messages",
+  "intro": "Private conversations with the Chickens you are connected to.",
+  "new": "New message",
+  "empty": "No conversations yet. Start one with an acquaintance or a friend.",
+  "more": "Show more",
+  "invitations": "Invitations",
+  "confirm": {
+    "yes": "Yes",
+    "no": "Cancel"
+  },
+  "conversations": "Conversations",
+  "badge": {
+    "label": "{count, plural, one {# unread message} other {# unread messages}}",
+    "count": "{count}",
+    "many": "99+"
+  },
+  "name": {
+    "untitled": "{count, plural, one {Group of # Chicken} other {Group of # Chickens}}"
+  },
+  "list": {
+    "muted": "Muted",
+    "you": "You: {text}",
+    "from": "@{handle}: {text}",
+    "post": "Shared a post",
+    "deleted": "Message deleted",
+    "nothing": "No messages yet"
+  },
+  "invite": {
+    "from": "@{handle} invited you to {name}",
+    "members": "{count, plural, one {# Chicken} other {# Chickens}}",
+    "join": "Join",
+    "decline": "Decline",
+    "explain": "You see who is in the group once you join. Declining tells no one."
+  },
+  "person": {
+    "action": "Message"
+  },
+  "start": {
+    "title": "New message",
+    "pick": "Choose who to write to",
+    "hint": "One Chicken starts a private conversation; several start a group. You can write to your acquaintances and friends.",
+    "search": "Filter your connections",
+    "none": "You are not connected to anyone yet.",
+    "noMatch": "No one matches.",
+    "groupTitle": "Group name (optional)",
+    "selected": "{count, plural, one {# chosen} other {# chosen}}",
+    "open": "Write",
+    "create": "Start group",
+    "sharing": "The post goes along as the first message.",
+    "more": "Show more connections"
+  },
+  "conv": {
+    "back": "All messages",
+    "older": "Show older messages",
+    "beginning": "This is the beginning of the conversation.",
+    "membersCount": "{count, plural, one {# member} other {# members}}",
+    "admin": "Admin",
+    "you": "You",
+    "deleted": "Message deleted",
+    "deleteAction": "Delete message",
+    "deleteConfirm": "Delete this message for everyone?",
+    "reportAction": "Report message",
+    "mute": "Mute",
+    "unmute": "Unmute",
+    "mutedHint": "Muted: no push notifications from this conversation.",
+    "leave": "Leave group",
+    "clear": "Delete conversation",
+    "leaveConfirm": "Leave this group? You will stop seeing its messages.",
+    "clearConfirm": "Delete this conversation for you? The other Chicken keeps their copy.",
+    "rename": "Rename",
+    "renameSave": "Save name",
+    "renameCancel": "Cancel",
+    "addPeople": "Add people",
+    "remove": "Remove @{handle}",
+    "removeConfirm": "Remove @{handle} from the group?",
+    "cantSend": "You can no longer send messages here: you are not connected to this Chicken any more.",
+    "options": "Conversation options"
+  },
+  "event": {
+    "created": "{who} started the group",
+    "createdMe": "You started the group",
+    "joined": "{who} joined",
+    "joinedMe": "You joined",
+    "left": "{who} left",
+    "leftMe": "You left",
+    "removed": "{who} was removed",
+    "removedMe": "You were removed",
+    "renamed": "{who} renamed the group",
+    "renamedMe": "You renamed the group",
+    "someone": "Someone"
+  },
+  "composer": {
+    "label": "Message",
+    "placeholder": "Write a message",
+    "send": "Send",
+    "hint": "Enter sends; Shift+Enter starts a new line.",
+    "counter": "{count, plural, one {# character left} other {# characters left}}"
+  },
+  "post": {
+    "unavailable": "This post isn't available to you.",
+    "open": "Open post"
+  },
+  "share": {
+    "title": "Share post",
+    "pick": "Send to",
+    "note": "Add a message (optional)",
+    "send": "Send",
+    "sending": "Sending…",
+    "done": "Done",
+    "sent": "{count, plural, one {Sent to # conversation.} other {Sent to # conversations.}}",
+    "none": "No conversations yet.",
+    "newConversation": "Start a new conversation",
+    "audience": "Only people who can already see this post will see it; everyone else gets a placeholder.",
+    "failed": "{count, plural, one {Could not send to # conversation.} other {Could not send to # conversations.}}"
+  },
+  "errors": {
+    "not_connected": "You can only write to Chickens you are connected to.",
+    "recipient_self": "You can't start a conversation with yourself.",
+    "not_joined": "Join the group first.",
+    "members_empty": "Choose at least one Chicken.",
+    "too_many_members": "A group holds up to 32 Chickens.",
+    "title_too_long": "The group name is too long.",
+    "probation": "New accounts can't start groups or invite people yet.",
+    "not_group": "Only groups can do that.",
+    "not_admin": "Only the group's admin can do that.",
+    "remove_self": "To leave, use Leave group.",
+    "body_empty": "Write something first.",
+    "body_too_long": "The message is too long."
+  }
+}

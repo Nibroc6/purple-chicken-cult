@@ -13,6 +13,7 @@ import { useNavigate } from 'react-router';
 import type { PostActions } from '../../formats/types';
 import type { LikesVM, PostVM, Ref } from '../../vm/types';
 import { clearPicks, composeURL, getPicks } from '../composer';
+import { useOpenShare } from '../messages';
 import { useOpenReport } from '../moderation/ReportModal';
 import { savesKey } from '../saves/api';
 import { queueSeen } from '../seen/tracker';
@@ -130,6 +131,7 @@ export function usePostActions(): PostActions {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const openReport = useOpenReport();
+  const openShare = useOpenShare();
   return useMemo(() => {
     const hideAs = (kind: HiddenKind, call: (ref: string) => Promise<void>) => (ref: Ref) => {
       setFailed(ref, undefined);
@@ -185,6 +187,7 @@ export function usePostActions(): PostActions {
         void navigate(`/p/${ref}`);
       },
       report: openReport,
+      share: openShare,
     };
-  }, [qc, navigate, openReport]);
+  }, [qc, navigate, openReport, openShare]);
 }

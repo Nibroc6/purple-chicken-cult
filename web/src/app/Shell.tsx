@@ -19,7 +19,11 @@ import { mainNav, moreNav, navAllows, tabNav, type MainNavEntry } from './mainNa
 import { usePageTitle } from './pageTitle';
 import { useSession } from './session';
 
-const navBadges = featureSlots.flatMap((s) => (s.navBadge ? [s.navBadge] : []));
+const navBadges = featureSlots.flatMap((s) => (s.navBadge ? [{ Badge: s.navBadge, to: s.navBadgeFor ?? '/notifications' }] : []));
+function badgesFor(e: MainNavEntry) {
+  if (!e.badges) return null;
+  return navBadges.filter((b) => b.to === e.to).map(({ Badge }, i) => <Badge key={i} />);
+}
 const globals = featureSlots.flatMap((s) => s.global ?? []);
 
 // The tab bar is only rendered on phones (the width below which the CSS turns
@@ -84,7 +88,7 @@ export function Shell() {
           <Icon name={e.icon} />
         </span>
         <span className="nav-label">{t(e.label)}</span>
-        {e.badges ? navBadges.map((Badge, i) => <Badge key={i} />) : null}
+        {badgesFor(e)}
       </NavLink>
     </li>
   );
@@ -176,7 +180,7 @@ export function Shell() {
                     <Icon name={e.icon} />
                   </span>
                   <span className="tabbar-label">{t(e.short ?? e.label)}</span>
-                  {e.badges ? navBadges.map((Badge, i) => <Badge key={i} />) : null}
+                  {badgesFor(e)}
                 </NavLink>
               </li>
             ))}
