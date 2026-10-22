@@ -68,9 +68,10 @@ async function register(invitee: Page, inviter: Page, handle: string): Promise<v
   await invitee.locator('input[name=tos]').check();
   await invitee.locator('input[name=age]').check();
   await invitee.getByTestId('join-submit').click();
-  // The signup ceremony shows the drafts the new passkey signs.
+  // The signup ceremony shows the drafts the new passkey signs, under Advanced.
   const ceremony = invitee.getByTestId('join-ceremony');
   await expect(ceremony.getByTestId('cosign-record')).toHaveCount(2);
+  await ceremony.locator('[data-testid=cosign-advanced] > summary').click();
   await expect(ceremony.locator('[data-kind=invite]')).toBeVisible();
   await expect(ceremony.locator('[data-kind=friendship]')).toBeVisible();
   await invitee.getByTestId('join-sign').click();
