@@ -262,10 +262,11 @@ func (s *Service) Create(ctx context.Context, tx store.Q, u core.NewUser) (core.
 
 var handleRE = regexp.MustCompile(`^[a-z0-9_]{3,20}$`)
 
-// Canon canonicalizes a handle: NFKC, lowercase, then ^[a-z0-9_]{3,20}$ and not reserved.
+// Canon canonicalizes a handle: NFKC, lowercase, then ^[a-z0-9_]{3,20}$ and not reserved
+// or a lookalike of a reserved handle.
 func Canon(h string) (string, bool) {
 	c := strings.ToLower(norm.NFKC.String(strings.TrimPrefix(strings.TrimSpace(h), "@")))
-	if !handleRE.MatchString(c) || Reserved[c] {
+	if !handleRE.MatchString(c) || reservedHandle(c) {
 		return "", false
 	}
 	return c, true
