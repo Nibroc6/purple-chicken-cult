@@ -29,7 +29,7 @@
   "open": {
     "button": "Show my code",
     "working": "Opening…",
-    "people": "Chickens you invited",
+    "people": "People you invited",
     "connectOnly": "Right now your code only works for people who already have an account: you become friends. New people can't join with it yet."
   },
   "hs": {
@@ -51,7 +51,7 @@
     "doneAcquaintances": "Done! You're now acquaintances. Meet again with sound to become friends."
   },
   "people": {
-    "title": "Chickens you invited",
+    "title": "People you invited",
     "empty": "You haven't invited anyone yet.",
     "joined": "Joined {date}",
     "probation": "On probation until {date}",

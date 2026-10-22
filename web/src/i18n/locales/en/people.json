@@ -4,7 +4,7 @@
     "label": "Chickens"
   },
   "person": {
-    "title": "Chicken",
+    "title": "Person",
     "relation": {
       "self": "This is you",
       "friend": "Acquaintance",
@@ -30,13 +30,13 @@
     "outgoingEmpty": "You have no open requests."
   },
   "suggestions": {
-    "title": "Chickens you may know",
+    "title": "People you may know",
     "empty": "No suggestions right now.",
     "mutual": "{count, plural, one {# mutual acquaintance} other {# mutual acquaintances}}"
   },
   "blocks": {
-    "title": "Blocked chickens",
-    "help": "Blocked chickens never see that you blocked them. Your posts and paths stop reaching them through you, and theirs stop reaching you.",
+    "title": "Blocked people",
+    "help": "Blocked people never see that you blocked them. Your posts and paths stop reaching them through you, and theirs stop reaching you.",
     "helpShort": "They're never told.",
     "empty": "You have not blocked anyone."
   },

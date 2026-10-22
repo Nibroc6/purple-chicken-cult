@@ -18,7 +18,7 @@
     },
     "connections": {
       "title": "Friends and acquaintances",
-      "p1": "Members here are called chickens, and the Chickens page lists the ones you're connected to. A friend is someone you were verified with in person. An acquaintance is someone you connected with another way: a request to someone you came across here, or a handshake that only heard the jingle.",
+      "p1": "A friend is someone you were verified with in person. An acquaintance is someone you connected with another way: a request to someone you came across here, or a handshake that only heard the jingle.",
       "p2": "Both kinds count as a direct connection for your feed. Friends matter more: they count toward ending probation, they can help you recover your account, and you can limit a post to friends only.",
       "p3": "To become friends, meet up and do the handshake: show your invite code, and they scan it while signed in. That also turns an acquaintance into a friend. Either of you can remove a connection at any time; the other person isn't told."
     },
