@@ -28,6 +28,9 @@
     "body": "This page does not exist, or you cannot see it."
   },
   "loading": "Loading…",
+  "modal": {
+    "close": "Close"
+  },
   "error": {
     "title": "Something went wrong",
     "retry": "Try again"

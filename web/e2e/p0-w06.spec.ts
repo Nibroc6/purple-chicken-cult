@@ -92,6 +92,39 @@ test('likes count only within two hops and name only friends who allow it; like 
   expect((await bobPost(page.request, 'A post your network liked')).likes.by_me).toBe(false);
 });
 
+test('the like summary opens the likes modal: deep link, Escape and back close it, a sheet on phones', async ({ page, request, baseURL }) => {
+  await setup(request, baseURL);
+  await loginAs(page, baseURL, 'alice');
+  const liked = await bobPost(page.request, 'A post your network liked');
+  await page.goto(`/p/${liked.ref}/likes`);
+  const open = page.getByTestId('engage-likes-open');
+  await open.click();
+  const modal = page.getByTestId('likes-modal');
+  await expect(modal).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`\\?likes=${liked.ref}$`));
+  await expect(modal.getByTestId('likes-modal-count')).toHaveAttribute('data-count', '3');
+  await expect(modal.getByTestId('likes-modal-liker')).toHaveCount(1);
+  // Escape closes it and focus goes back to the summary.
+  await page.keyboard.press('Escape');
+  await expect(modal).toHaveCount(0);
+  await expect(open).toBeFocused();
+  // The back button closes it too.
+  await open.click();
+  await expect(modal).toBeVisible();
+  await page.goBack();
+  await expect(modal).toHaveCount(0);
+  await expect(page).toHaveURL(new RegExp(`/p/${liked.ref}/likes$`));
+  // A deep link opens it over the page; on a phone it fills the screen.
+  await page.setViewportSize({ width: 390, height: 800 });
+  await page.goto(`/?likes=${liked.ref}`);
+  await expect(modal).toBeVisible();
+  const box = await modal.boundingBox();
+  expect(box?.width).toBe(390);
+  await modal.getByTestId('modal-close').click();
+  await expect(modal).toHaveCount(0);
+  await expect(page).toHaveURL(/\/$/);
+});
+
 test('a card seen for a second lands in recently seen; its context row does not', async ({ page, request, baseURL }) => {
   await setup(request, baseURL);
   await loginAs(page, baseURL, 'alice');

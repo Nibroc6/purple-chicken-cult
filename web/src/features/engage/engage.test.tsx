@@ -11,6 +11,7 @@ import { asRef, type LikesVM } from '../../vm/types';
 import { postJSON } from '../post/testdata';
 import { pendingSeen, resetSeenQueue } from '../seen/tracker';
 import { LikeSummary } from './EngageBar';
+import { LikesModal } from './LikesModal';
 import LikesPage from './LikesPage';
 import { resetEngageStore } from './store';
 import { applyLikes, usePostActions } from './usePostActions';
@@ -148,6 +149,88 @@ describe('like summary', () => {
     expect(text).toContain(tr('engage:likes.others', { count: 2 }));
     const links = screen.getAllByTestId('engage-liker');
     expect(links.map((l) => l.getAttribute('href'))).toEqual(['/people/u2', '/people/u3']);
+  });
+});
+
+describe('likes modal', () => {
+  function Where() {
+    const loc = useLocation();
+    return <p data-testid="where">{loc.pathname + loc.search}</p>;
+  }
+
+  function renderShell(path: string, l: LikesVM) {
+    const router = createMemoryRouter(
+      [
+        {
+          path: '/',
+          element: (
+            <>
+              <LikeSummary likes={l} post={asRef('p1')} />
+              <Where />
+              <LikesModal />
+            </>
+          ),
+        },
+        { path: '/people/:ref', element: <p>person page</p> },
+      ],
+      { initialEntries: [path] },
+    );
+    render(
+      <QueryClientProvider client={makeQueryClient()}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>,
+    );
+    return router;
+  }
+
+  it('opens from the summary, lists the named likers, and the back button closes it', async () => {
+    const summary = likes({ inNetwork: 4, byMe: true, others: 2, names: [{ ref: asRef('u2'), handle: 'bob' }] });
+    stubAPI((c) => {
+      if (c.method === 'GET' && c.path === '/posts/p1/likes') return json(200, { in_network: 4, names: [{ ref: 'u2', handle: 'bob' }], others: 2, by_me: true });
+      return undefined;
+    });
+    const router = renderShell('/', summary);
+    expect(screen.queryByTestId('likes-modal')).toBeNull();
+    fireEvent.click(screen.getByTestId('engage-likes-open'));
+    expect(screen.getByTestId('where').textContent).toBe('/?likes=p1');
+    const dialog = await screen.findByTestId('likes-modal');
+    expect(dialog.tagName).toBe('DIALOG');
+    expect(dialog.getAttribute('aria-labelledby')).toBeTruthy();
+    expect((await screen.findByTestId('likes-modal-count')).dataset.count).toBe('4');
+    expect(screen.getAllByTestId('likes-modal-liker').map((a) => a.getAttribute('href'))).toEqual(['/people/u2']);
+    expect(screen.getByTestId('likes-modal-list').textContent).toContain(tr('engage:modal.others', { count: 2 }));
+    expect(screen.getByTestId('likes-modal-like').getAttribute('aria-pressed')).toBe('true');
+    await act(async () => {
+      await router.navigate(-1);
+    });
+    expect(screen.queryByTestId('likes-modal')).toBeNull();
+    expect(screen.getByTestId('where').textContent).toBe('/');
+  });
+
+  it('opens from a link and closes in place with Escape or the close button', async () => {
+    stubAPI((c) => {
+      if (c.method === 'GET' && c.path === '/posts/p1/likes') return json(200, { in_network: 3, others: 3, by_me: false });
+      return undefined;
+    });
+    renderShell('/?likes=p1', likes({ inNetwork: 3, others: 3 }));
+    const dialog = await screen.findByTestId('likes-modal');
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+    await waitFor(() => {
+      expect(screen.queryByTestId('likes-modal')).toBeNull();
+    });
+    expect(screen.getByTestId('where').textContent).toBe('/');
+    fireEvent.click(screen.getByTestId('engage-likes-open'));
+    await screen.findByTestId('likes-modal');
+    fireEvent.click(screen.getByTestId('modal-close'));
+    await waitFor(() => {
+      expect(screen.queryByTestId('likes-modal')).toBeNull();
+    });
+  });
+
+  it('says so when the post is not there', async () => {
+    stubAPI(() => undefined);
+    renderShell('/?likes=nope', likes());
+    expect((await screen.findByTestId('likes-modal-error')).textContent).toBe(tr('engage:modal.missing'));
   });
 });
 
