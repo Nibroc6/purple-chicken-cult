@@ -19,6 +19,11 @@
       "compact": "Compact",
       "explorer": "Explorer"
     },
+    "nav": {
+      "legend": "Navigation",
+      "sidebar": "Sidebar",
+      "header": "Top bar"
+    },
     "density": {
       "legend": "Density",
       "comfortable": "Comfortable",

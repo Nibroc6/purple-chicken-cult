@@ -18,6 +18,8 @@
   --font-body: system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', sans-serif;
   --font-size: 16px;
   --content-width: 40rem;
+  --sidebar-width: 14rem;
+  --sidebar-width-collapsed: 4.5rem;
 }
 
 @media (prefers-color-scheme: dark) {

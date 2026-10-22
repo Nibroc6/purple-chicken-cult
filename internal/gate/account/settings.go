@@ -24,6 +24,7 @@ const (
 var (
 	Formats    = []string{"cards", "compact", "explorer"} // explorer: P1-W09 (steward: p1-w09-1)
 	Densities  = []string{"comfortable", "compact"}
+	NavLayouts = []string{"sidebar", "header"}
 	Contrasts  = []string{"normal", "high"}
 	TextScales = []string{"small", "normal", "large", "xlarge"}
 )
@@ -31,6 +32,7 @@ var (
 // UIPrefs is the ui_prefs JSON schema (unknown keys are rejected).
 type UIPrefs struct {
 	Format  *string    `json:"format,omitempty"`
+	Nav     *string    `json:"nav,omitempty"`
 	Density *string    `json:"density,omitempty"`
 	A11y    *A11yPrefs `json:"a11y,omitempty"`
 }
@@ -62,7 +64,7 @@ func ValidateUIPrefs(raw []byte) ([]byte, error) {
 	if err := dec.Decode(&p); err != nil || dec.More() {
 		return nil, bad
 	}
-	if !oneOf(p.Format, Formats) || !oneOf(p.Density, Densities) {
+	if !oneOf(p.Format, Formats) || !oneOf(p.Nav, NavLayouts) || !oneOf(p.Density, Densities) {
 		return nil, bad
 	}
 	if p.A11y != nil && (!oneOf(p.A11y.Contrast, Contrasts) || !oneOf(p.A11y.TextScale, TextScales)) {

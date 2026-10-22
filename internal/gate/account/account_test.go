@@ -121,6 +121,7 @@ func TestUpdateSettingsValidation(t *testing.T) {
 		{"unknown format", gate.SettingsPatch{UIPrefs: raw(`{"format":"grid"}`)}, "ui_prefs_invalid"},
 		{"unknown pref", gate.SettingsPatch{UIPrefs: raw(`{"theme":"dark"}`)}, "ui_prefs_invalid"},
 		{"bad density", gate.SettingsPatch{UIPrefs: raw(`{"density":"huge"}`)}, "ui_prefs_invalid"},
+		{"bad nav", gate.SettingsPatch{UIPrefs: raw(`{"nav":"footer"}`)}, "ui_prefs_invalid"},
 		{"bad a11y", gate.SettingsPatch{UIPrefs: raw(`{"a11y":{"text_scale":"giant"}}`)}, "ui_prefs_invalid"},
 		{"a11y type", gate.SettingsPatch{UIPrefs: raw(`{"a11y":{"reduced_motion":"yes"}}`)}, "ui_prefs_invalid"},
 		{"prefs not an object", gate.SettingsPatch{UIPrefs: raw(`["cards"]`)}, "ui_prefs_invalid"},
@@ -149,7 +150,7 @@ func TestUpdateSettingsValidation(t *testing.T) {
 		DisplayName: ptr("  Alice Ⅱ  "), UILocale: ptr("pt-br"), Languages: &[]string{"en", "fr-ca", "en"},
 		TranslateTo: ptr("fr-CA"), Autotranslate: ptr(true), RankPreset: ptr("latest"), NameInChains: ptr(true),
 		Suggestible: ptr(false), NamedInLikes: ptr(false), SlipperyDefault: ptr(true),
-		UIPrefs: raw(`{"format":"compact","density":"compact","a11y":{"contrast":"high","text_scale":"large","reduced_motion":true,"dyslexia_font":false}}`),
+		UIPrefs: raw(`{"format":"compact","nav":"header","density":"compact","a11y":{"contrast":"high","text_scale":"large","reduced_motion":true,"dyslexia_font":false}}`),
 	})
 	if err != nil {
 		t.Fatal(err)

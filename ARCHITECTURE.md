@@ -1157,12 +1157,39 @@ dyslexia-friendly fonts apply to **every** format.
 | Stage | What users control | Safety model |
 |---|---|---|
 | **A. Themes** (Phase 1) | Design tokens only: color, radius, spacing, density, and fonts from an allowlist | Validated server-side. Integrity elements must keep WCAG AA contrast and a minimum size, or the theme is rejected |
+| **A+. Advanced themes** (Phase 1) | Theme CSS (§15.3): your own raw CSS, plus the theme's own uploaded images (for example, image buttons) | Applied only to your own view, behind a warning. Never applied on locked routes such as sign-in, passkeys and settings |
 | **B. Layout config** (Phase 2) | A JSON document under a published schema: slot order, density, which optional parts to show, tree depth | Integrity elements are required slots. The schema simply can't express hiding them |
 | **C. Custom layouts** (Phase 2+) | Whole feed, card and tree layouts as declarative templates (§16.2) | Rendered by the first-party renderer. Integrity elements are required, and there are no scripts and no network access |
 
-**User-supplied CSS or JS never runs inside the first-party app.** CSS alone could hide
-blame information, spoof a chain or a "Verified in person" badge, overlay a fake
-passkey prompt, or leak data through selectors and `url()`.
+**Nobody else's CSS or JS ever runs in your app.** CSS could hide blame information,
+spoof a chain or a "Verified in person" badge, overlay a fake passkey prompt, or leak
+data through selectors and `url()`. The one exception is your own theme CSS (§15.3): it
+affects only you, and you opt into it knowingly.
+
+### 15.3 Advanced themes: theme CSS
+Advanced mode is your own raw CSS, applied only to your own view. It's an expert
+feature for people who write their own themes. It isn't a sandbox, and it doesn't
+pretend to be one.
+- **A warning first.** The editor stays locked until you acknowledge that theme CSS can
+  change or hide anything, including integrity elements (§15.5), and that you should
+  never paste CSS someone sent you. Pasted CSS is the realistic attack, so there's no
+  way to import or share theme CSS.
+- **Locked routes.** The sheet isn't applied on sign-in, enrollment, join, recovery,
+  co-signing, settings, moderation, report, blame or terms pages. A passkey prompt
+  always looks like the app, and the theme page always works to undo a broken theme.
+- **Accessibility wins.** The sheet is dropped under the high-contrast setting.
+- **Images.** `image(name)` names one of up to 8 of the theme's own uploads. They're
+  scanned and re-encoded like any other upload, and the client swaps in a short-lived
+  URL signed for their owner.
+- **The CSP still applies.** The sheet is a constructed stylesheet, so `style-src
+  'self'` stays strict. `img-src` and `font-src` still decide what it can load, which
+  keeps CSS-based exfiltration to first-party origins.
+- **What the server checks.** It enforces a size limit (32 KiB) and that every
+  `image()` names one of the theme's images. It stores the CSS as written.
+
+**HTML templates are §16.2's layouts.** Theme CSS restyles the app's own structure.
+Changing the structure (which parts appear where) is the job of layout config and custom
+layout templates.
 
 ### 15.4 Localization: every user-facing string is a UI string
 **Rule: no user-facing text is hard-coded, anywhere.** That covers buttons, tier headers,
@@ -1463,8 +1490,9 @@ without a per-post human action.
 - **Markdown subset:** headings render at body size.
 - **Link previews** are built server-side after posting and SSRF-guarded.
 - **UI formats:** Cards (default), Compact, and Explorer.
-- **Customization**, staged: themes, then layout config, then **custom layout templates**
-  built in-app (§16). Integrity elements can never be hidden.
+- **Customization**, staged: themes (with your own theme CSS and image buttons, §15.3),
+  then layout config, then **custom layout templates** built in-app (§16). Integrity
+  elements can never be hidden.
 - **No public API.** The internal API is CSRF-protected and unpublished.
 - **Anti-scraping (§17):**
   - device-bound sessions
