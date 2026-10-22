@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import type { FeatureSlots } from '../../app/slots';
 import { useMe } from '../../app/session';
 import { applyA11y } from '../../lib/a11y';
+import { applyNavLayout } from '../../lib/navLayout';
 import { formatDateTime } from '../../lib/time';
 import { cancelRecovery, fetchRecoveryPending } from './api';
 import { ErrorText, useAccountMe } from './shared';
@@ -69,7 +70,10 @@ export function PrefsApplier() {
   const me = useAccountMe();
   const raw = me.data?.settings.ui_prefs;
   useEffect(() => {
-    if (raw !== undefined) applyA11y(toA11y(toUIPrefs(raw)));
+    if (raw === undefined) return;
+    const prefs = toUIPrefs(raw);
+    applyA11y(toA11y(prefs));
+    applyNavLayout(prefs.nav);
   }, [raw]);
   return null;
 }
