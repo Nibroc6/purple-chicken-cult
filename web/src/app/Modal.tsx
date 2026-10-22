@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useId, useRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router';
+import { Icon } from '../lib/Icon';
 
 export interface ModalProps {
   title: ReactNode;
@@ -69,7 +70,7 @@ export function Modal({ title, onClose, children, testId }: ModalProps) {
               onClose();
             }}
           >
-            ×
+            <Icon name="close" />
           </button>
         </header>
         {children}

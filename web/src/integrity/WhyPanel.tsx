@@ -3,6 +3,7 @@
 // catalogs. Owner: P0-W10 → P1-W09.
 import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Icon } from '../lib/Icon';
 import { formatDateTime, formatRelative } from '../lib/time';
 import { ChainLine } from './Chain';
 import type { WhyVM } from './types';
@@ -51,7 +52,7 @@ export function WhyPanel({ id, loading, failed, why, onClose, onRetry }: WhyPane
       }}
     >
       <button type="button" className="why-close" data-testid="integrity-why-close" aria-label={t('why.close')} onClick={onClose}>
-        {t('why.closeGlyph')}
+        <Icon name="close" />
       </button>
       <h3>{t('why.title')}</h3>
       {loading ? (

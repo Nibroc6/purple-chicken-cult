@@ -7,6 +7,7 @@ import { installTrustedTypes } from './lib/trustedTypes';
 import { registerServiceWorker } from './sw/register';
 import './styles/tokens.css';
 import './styles/global.css';
+import './styles/controls.css';
 
 installTrustedTypes();
 

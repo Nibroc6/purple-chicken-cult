@@ -20,7 +20,6 @@
     "button": "Why am I seeing this?",
     "title": "Why you're seeing this",
     "close": "Close",
-    "closeGlyph": "×",
     "loading": "Loading…",
     "failed": "Couldn't load the explanation.",
     "retry": "Try again",

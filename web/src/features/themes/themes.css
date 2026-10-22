@@ -36,18 +36,17 @@
 
 .theme-checks {
   margin: 0;
-  padding-inline-start: var(--space-4);
+  padding: 0;
+  list-style: none;
+}
+.theme-checks li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
 }
 .theme-checks [data-ok='false'] {
   font-weight: 600;
 }
-.theme-checks [data-ok='false']::marker {
-  content: '✗ ';
-}
-.theme-checks [data-ok='true']::marker {
-  content: '✓ ';
-}
-
 .theme-preview-canvas {
   background: var(--color-bg);
   color: var(--color-text);
