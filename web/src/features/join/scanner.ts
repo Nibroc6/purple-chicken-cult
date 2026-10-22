@@ -7,9 +7,7 @@ import workerURL from './scan.worker.ts?worker&url';
 import { scriptURL } from '../../lib/trustedTypes';
 
 const EVERY_MS = 250;
-// Frames are scaled down to this before decoding; 960 leaves the denser,
-// level-Q handshake code (featherQR) about 2.5 px per module at arm's length.
-const MAX_SIDE = 960;
+const MAX_SIDE = 640;
 
 export interface Scanner {
   stop: () => void;

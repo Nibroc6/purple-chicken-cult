@@ -12,6 +12,7 @@
 // outcome passed, co-signs the drafted record with a passkey.
 // Owner: P1-W02.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import QRCode from 'qrcode';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { requestCosign } from '../cosign';
@@ -27,7 +28,6 @@ import {
   type OpenedVM,
 } from './api';
 import { audioInput, handshakeAudio, reportBody } from './audio';
-import { drawFeatherQR } from './featherQR';
 import {
   b64url,
   commit,
@@ -215,7 +215,7 @@ function QR({ payload, label, testid }: { payload?: string; label: string; testi
   const canvas = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     if (!payload || !canvas.current) return;
-    drawFeatherQR(canvas.current, payload);
+    QRCode.toCanvas(canvas.current, payload, { errorCorrectionLevel: 'M', margin: 2, width: 320 }).catch(() => undefined);
   }, [payload]);
   return <canvas ref={canvas} className="invites-qr" role="img" aria-label={label} data-testid={testid} />;
 }
