@@ -84,15 +84,10 @@
   },
   "advanced": {
     "legend": "Advanced: theme CSS and images",
-    "intro": "Theme CSS looks like CSS, but it can only style named parts of the app (cards, buttons, the page background…) with a fixed set of properties, and it can only use images you upload here. It never touches tier headers, chains, the report button or other labels, and it doesn't apply on sign-in, recovery, settings or moderation pages, so you can always come back here to undo it.",
+    "intro": "Write your own CSS to restyle anything in the app. image(name) uses an image you upload below, for example to turn the like button into a picture. Theme CSS only affects what you see, and it isn't applied on sign-in, recovery, settings or moderation pages, so you can always come back here to undo it.",
     "css": "Theme CSS",
-    "placeholder": "like '{' background-image: image(heart); label: hidden; min-inline-size: 40px; '}'",
-    "ok": "Theme CSS looks good.",
-    "reference": "What theme CSS can use",
-    "parts": "Parts you can style (one per selector, separated by commas):",
-    "states": "States you can add after a part, like button:hover:",
-    "props": "Properties you can set. Colors are hex like #6b2fd6. label: hidden replaces a button's text with its image (screen readers still read the text).",
-    "example": "Example: like:pressed '{' background-image: image(heart-full); label: hidden; '}'",
+    "placeholder": "[data-part=like] '{' background: image(heart) center / contain no-repeat; font-size: 0; min-inline-size: 40px; '}'",
+    "example": "Handy hooks: .shell (the page), .post (a card), .post-body, button, button.primary, [data-part=like], [data-part=save], .nav-list a, .brand.",
     "images": "Images",
     "imagesOff": "Image uploads are off on this server, so theme CSS can't use images right now.",
     "imageUsage": "image({name})",
@@ -106,9 +101,10 @@
     "imagesFull": "A theme can have up to 8 images.",
     "imageFileMissing": "Choose an image file first.",
     "errors": {
-      "theme_css": "Line {line, number}: this isn't something theme CSS allows.",
-      "theme_contrast": "Line {line, number}: text in this rule would be too hard to read on its background.",
-      "whole": "This theme CSS is too long or contains characters theme CSS doesn't allow."
-    }
+      "theme_css": "Line {line, number}: image() names an image this theme doesn't have.",
+      "whole": "This theme CSS is too long (32 KB at most)."
+    },
+    "warning": "Theme CSS can change or hide anything, including the labels that keep you safe: tier headers, chains, \"Why am I seeing this?\" and the report button. Only use CSS you wrote yourself or fully understand. Never paste CSS someone sent you.",
+    "ack": "I understand the risks"
   }
 }

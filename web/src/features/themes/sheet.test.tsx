@@ -1,8 +1,8 @@
-// Theme CSS: the client parser agrees with the server on every shared vector,
-// the stylesheet only ever uses first-party selectors that skip integrity
-// elements and locked dialogs, images become signed URLs (nothing else gets
-// into url()), locked routes are known, and the page checks theme CSS live,
-// saves it with only the images it uses, and explains a server rejection.
+// Theme CSS (raw, the reader's own): image(name) becomes a signed URL and
+// nothing else gets into url(), the preview nests the sheet under the preview
+// canvas, locked routes are known, and the page warns before editing, checks
+// image names live, saves only the images the CSS uses, and explains a server
+// rejection.
 import { QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
@@ -10,74 +10,34 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { makeQueryClient } from '../../app/App';
 import { i18n } from '../../i18n/setup';
 import ThemePage from './ThemePage';
-import { buildRules, checkSheet, formatSheet, isLockedRoute, parseSheet, type Rule } from './sheet';
-import vectors from './sheet.vectors.json';
+import { buildSheet, checkSheet, isLockedRoute, sheetImages } from './sheet';
 
 const tr = i18n.t.bind(i18n) as unknown as (k: string, o?: Record<string, unknown>) => string;
 
-interface Vector {
-  name: string;
-  css: string;
-  out?: string;
-  error?: string;
-  field?: string;
-}
-
-const images = new Set(vectors.images);
-
-function rulesOf(css: string): Rule[] {
-  const p = parseSheet(css, images);
-  if (!p.ok) throw new Error(`does not parse: ${css}`);
-  return p.rules;
-}
-
-describe('theme CSS vectors (shared with gate/themes)', () => {
-  for (const v of vectors.cases as Vector[]) {
-    it(v.name, () => {
-      const p = parseSheet(v.css, images);
-      const err = p.ok ? checkSheet(p.rules, vectors.colors) : p.error;
-      if (v.error) {
-        expect(err).toEqual({ code: v.error, line: Number(v.field?.replace('css.', '')) });
-        return;
-      }
-      expect(err).toBeUndefined();
-      if (!p.ok) return;
-      expect(formatSheet(p.rules)).toBe(v.out);
-      expect(formatSheet(rulesOf(v.out ?? ''))).toBe(v.out);
-    });
-  }
-});
-
-describe('buildRules', () => {
+describe('buildSheet', () => {
   const urls = new Map([
     ['heart', 'https://media.pcc.example/k1?sig=abc'],
-    ['logo', 'https://evil.example/") ; } * { display: none'],
+    ['bad', 'https://evil.example/") ; } * { display: none'],
   ]);
 
-  it('maps parts onto first-party selectors that skip integrity elements and dialogs', () => {
-    const [rule] = buildRules(rulesOf('like:pressed { background-image: image(heart); label: hidden }'), urls, 'app');
-    expect(rule).toBe(
-      '@media not (forced-colors: active) { .shell [data-part="like"]:not(.integrity, .integrity *, .stepup-backdrop *, .cosign-backdrop *, .auth-second *)[aria-pressed="true"] { ' +
-        'background-image: url("https://media.pcc.example/k1?sig=abc"); background-repeat: no-repeat; background-position: center; background-size: contain; font-size: 0; } }',
+  it('swaps image(name) for its signed URL, and only safe URLs', () => {
+    const css = '[data-part=like] { background: image( heart ) center; }\n.brand { background: image(bad) } .x { background: image(none-yet) }';
+    expect(buildSheet(css, urls, 'app')).toBe(
+      '[data-part=like] { background: url("https://media.pcc.example/k1?sig=abc") center; }\n.brand { background: none } .x { background: none }',
     );
   });
 
-  it('scopes the preview to the preview canvas, and the page part to the root', () => {
-    const out = buildRules(rulesOf('page { background-color: #ffffff }\ninput { border-width: 2px }'), urls, 'preview');
-    expect(out[0]).toContain('[data-theme-preview] { background-color: #ffffff; }');
-    expect(out[1]).toContain('[data-theme-preview] input:not(');
-    expect(out[1]).toContain('[data-theme-preview] textarea:not(');
-    expect(out[1]).toContain('[data-theme-preview] select:not(');
+  it('nests the preview under the preview canvas', () => {
+    expect(buildSheet('.post { color: red }', urls, 'preview')).toBe('[data-theme-preview] {\n.post { color: red }\n}');
   });
+});
 
-  it('puts only safe URLs in url(), and drops an image without one', () => {
-    const out = buildRules(rulesOf('brand { background-image: image(logo); label: hidden }\nsave { background-image: image(paper); border-width: 1px }'), urls, 'app');
-    expect(out).toHaveLength(2);
-    expect(out[0]).not.toContain('url(');
-    expect(out[0]).toContain('font-size: 0;');
-    expect(out[1]).not.toContain('url(');
-    expect(out[1]).toContain('border-width: 1px;');
-  });
+it('checks image names and size like the server', () => {
+  const images = new Set(['heart']);
+  expect(checkSheet('.post { display: none }', images)).toBeUndefined();
+  expect(checkSheet('a {}\r\nb { background: image(nope) }', images)).toEqual({ line: 2 });
+  expect(checkSheet(' '.repeat(32 * 1024 + 1), images)).toEqual({ line: 0 });
+  expect([...sheetImages('a { background: image(heart) } b { background: image(logo-2) }')]).toEqual(['heart', 'logo-2']);
 });
 
 it('knows the locked routes', () => {
@@ -101,7 +61,7 @@ interface Put {
   images?: { name: string; ref: string }[];
 }
 
-function stub(reject?: Response) {
+function stub(reject?: Response, css = '[data-part=like] { background: image(heart) }\n') {
   const puts: Put[] = [];
   vi.stubGlobal(
     'fetch',
@@ -112,7 +72,7 @@ function stub(reject?: Response) {
       }
       if (path === '/me/theme' && req.method === 'GET') {
         return json(200, {
-          theme: { tokens: { colors: paper }, css: 'like {\n  background-image: image(heart);\n  label: hidden;\n}\n', images: [{ name: 'heart', ref: 'h1', w: 32, h: 32 }, { name: 'old', ref: 'o1', w: 8, h: 8 }], updated_at: '2026-10-21T00:00:00Z' },
+          theme: { tokens: { colors: paper }, css, images: [{ name: 'heart', ref: 'h1', w: 32, h: 32 }, { name: 'old', ref: 'o1', w: 8, h: 8 }], updated_at: '2026-10-21T00:00:00Z' },
         });
       }
       if (path === '/media/h1/url' || path === '/media/o1/url') return json(200, { url: 'https://media.pcc.example/x', expires_at: '2099-01-01T00:00:00Z' });
@@ -143,26 +103,35 @@ describe('ThemePage advanced mode', () => {
     vi.unstubAllGlobals();
   });
 
-  it('checks theme CSS live and saves it with only the images it uses', async () => {
+  it('warns before editing, checks image names live, and saves only the images the CSS uses', async () => {
     const puts = stub();
     renderPage();
-    const box = await screen.findByTestId('theme-css');
-    expect((box as HTMLTextAreaElement).value).toBe('like {\n  background-image: image(heart);\n  label: hidden;\n}\n');
+    const box = await screen.findByTestId<HTMLTextAreaElement>('theme-css');
+    expect(box.value).toBe('[data-part=like] { background: image(heart) }\n');
+    expect(screen.getByTestId('theme-css-warning').textContent).toBe(tr('themes:advanced.warning'));
+    // A theme that already has CSS was acknowledged before.
+    expect(box.disabled).toBe(false);
     expect(screen.getAllByTestId('theme-image').map((e) => e.dataset.name)).toEqual(['heart', 'old']);
 
-    fireEvent.change(box, { target: { value: 'card {\n  display: none;\n}' } });
+    fireEvent.change(box, { target: { value: '.post { display: none }\n.brand { background: image(nope) }' } });
     expect(screen.getByTestId('theme-css-status').textContent).toContain(tr('themes:advanced.errors.theme_css', { line: 2 }));
     expect(screen.getByTestId<HTMLButtonElement>('theme-save').disabled).toBe(true);
 
-    fireEvent.change(box, { target: { value: 'card { color: #eeeeee }' } });
-    expect(screen.getByTestId('theme-css-status').textContent).toContain(tr('themes:advanced.errors.theme_contrast', { line: 1 }));
-
-    fireEvent.change(box, { target: { value: 'like { background-image: image(heart); label: hidden }' } });
-    expect(screen.getByTestId('theme-css-status').textContent).toContain(tr('themes:advanced.ok'));
+    fireEvent.change(box, { target: { value: '.post { display: none }\n[data-part=like] { background: image(heart) }' } });
+    expect(screen.getByTestId('theme-css-status').textContent).toBe('');
     fireEvent.click(screen.getByTestId('theme-save'));
     await screen.findByTestId('theme-saved');
-    expect(puts[0]?.css).toBe('like { background-image: image(heart); label: hidden }');
+    expect(puts[0]?.css).toBe('.post { display: none }\n[data-part=like] { background: image(heart) }');
     expect(puts[0]?.images).toEqual([{ name: 'heart', ref: 'h1' }]);
+  });
+
+  it('keeps the editor locked until the risks are acknowledged', async () => {
+    stub(undefined, '');
+    renderPage();
+    const box = await screen.findByTestId<HTMLTextAreaElement>('theme-css');
+    expect(box.disabled).toBe(true);
+    fireEvent.click(screen.getByTestId('theme-css-ack'));
+    expect(box.disabled).toBe(false);
   });
 
   it('explains a theme_css rejection by line', async () => {

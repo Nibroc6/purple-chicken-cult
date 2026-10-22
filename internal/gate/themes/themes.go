@@ -1,8 +1,7 @@
 // Package themes stores themes (ARCHITECTURE §15.2 A), validated server-side:
 // WCAG AA for integrity elements, a size floor, a font allowlist (tokens.go),
-// and optionally an advanced mode: theme CSS, a closed CSS-like dialect that
-// styles named parts of the app and can put the theme's own uploaded images on
-// them (sheet.go), never raw CSS. One theme per user in user_themes (its
+// and optionally an advanced mode: the owner's own raw theme CSS, which can
+// use the theme's uploaded images through image(name) (sheet.go). One theme per user in user_themes (its
 // images in theme_images); no theme means the app's default tokens. The theme
 // is the reader's own: nobody else ever sees it.
 //
@@ -137,7 +136,7 @@ func (s *Service) images(ctx context.Context, q store.Q, u core.UserID) (map[str
 // An image ref is either a fresh upload of the viewer's (attached to the
 // theme) or one of the theme's current images; current images the new theme
 // leaves out are released, and so are images its CSS does not use. Problems:
-// theme_contrast, theme_css, theme_font, theme_invalid; gate.ErrNotFound for
+// theme_contrast (tokens), theme_css, theme_font, theme_invalid; gate.ErrNotFound for
 // an image ref that resolves to neither; gate.Disabled("media") for images
 // while media is off.
 func (s *Service) Set(ctx context.Context, in Theme) (*View, error) {
@@ -147,10 +146,6 @@ func (s *Service) Set(ctx context.Context, in Theme) (*View, error) {
 	}
 	norm, err := Validate(in.Tokens)
 	if err != nil {
-		return nil, err
-	}
-	var t Tokens
-	if err := json.Unmarshal(norm, &t); err != nil {
 		return nil, err
 	}
 	if len(in.Images) > MaxImages {
@@ -163,15 +158,11 @@ func (s *Service) Set(ctx context.Context, in Theme) (*View, error) {
 		}
 		given[im.Name] = true
 	}
-	rules, err := ParseSheet(in.CSS, given)
+	css, err := NormalizeSheet(in.CSS, given)
 	if err != nil {
 		return nil, err
 	}
-	if err := CheckSheet(rules, t.Colors); err != nil {
-		return nil, err
-	}
-	css := FormatSheet(rules)
-	used := SheetImages(rules)
+	used := SheetImages(css)
 	if len(used) > 0 && (s.d.ThemeMedia == nil || s.d.Media == nil) {
 		return nil, gate.Disabled("media")
 	}

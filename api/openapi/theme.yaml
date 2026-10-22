@@ -9,14 +9,12 @@
 # links do (theme_contrast, field = the failing color). Tokens are not CSS;
 # the client maps the values onto its own custom properties.
 #
-# Advanced mode (contract request p1-w09-3): `css` is theme CSS, a closed
-# CSS-like dialect (gate/themes sheet.go), never raw CSS. A rule styles named
-# parts of the app (page, card, button, like, ...) with allowlisted properties
-# and bounded values; image(name) puts one of the theme's own uploads (`images`,
-# refs from POST /media) on a part. No part reaches an integrity element. The
-# server stores and returns the normalized source; theme_css (field
-# css.<line>) names the first line it refuses, theme_contrast (field
-# css.<line>) a rule whose text would fall below WCAG AA.
+# Advanced mode (contract request p1-w09-3): `css` is the caller's own raw
+# CSS (up to 32 KiB), applied only to their own view and never on locked
+# routes (sign-in, recovery, settings, moderation, report). image(name) names
+# one of the theme's own uploads (`images`, refs from POST /media); the client
+# swaps in its signed URL. theme_css (field css.<line>) is an image() name the
+# theme does not have, a NUL, or (css.0) a sheet too long or not UTF-8.
 openapi: 3.0.3
 info:
   title: pcc internal API (theme)
@@ -50,7 +48,7 @@ paths:
         "400": { $ref: '_common.yaml#/components/responses/Problem' }
         "404": { $ref: '_common.yaml#/components/responses/NotFound' }
         "422":
-          description: theme_contrast (field = the color that failed, or css.<line>), theme_css (field css.<line>), theme_font (not on the allowlist) or theme_invalid (schema, range, size floor or images)
+          description: theme_contrast (field = the color that failed), theme_css (field css.<line>), theme_font (not on the allowlist) or theme_invalid (schema, range, size floor or images)
           content:
             application/json:
               schema: { $ref: '_common.yaml#/components/schemas/Error' }
@@ -82,7 +80,7 @@ components:
       required: [tokens]
       properties:
         tokens: { $ref: '#/components/schemas/ThemeTokens' }
-        css: { type: string, maxLength: 16384, description: 'Theme CSS (advanced mode); empty or absent for none' }
+        css: { type: string, maxLength: 32768, description: 'Raw theme CSS (advanced mode); empty or absent for none' }
         images:
           type: array
           maxItems: 8
@@ -117,7 +115,7 @@ components:
       required: [tokens, css, images, updated_at]
       properties:
         tokens: { $ref: '#/components/schemas/ThemeTokens' }
-        css: { type: string, description: 'Normalized theme CSS; empty for none' }
+        css: { type: string, description: 'Theme CSS, line endings normalized; empty for none' }
         images:
           type: array
           items: { $ref: '#/components/schemas/ThemeImage' }

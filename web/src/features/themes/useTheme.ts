@@ -7,7 +7,7 @@ import { useEffect, useRef, useState, type RefObject } from 'react';
 import { useMe } from '../../app/session';
 import { signedURL } from '../media/urls';
 import { fetchTheme, themeKey } from './api';
-import { buildRules, documentSheet, parseSheet, type Scope, type SheetTarget } from './sheet';
+import { buildSheet, checkSheet, documentSheet, type Scope, type SheetTarget } from './sheet';
 import { applyTheme, overridesOf, type ThemeTokens } from './theme';
 
 const watched = ['data-contrast', 'data-text-scale', 'data-dyslexia-font'];
@@ -79,10 +79,10 @@ export function useImageURLs(images: readonly SheetImage[]): ReadonlyMap<string,
   return state.key === key ? state.urls : none;
 }
 
-// useAppliedSheet keeps a theme's CSS applied in scope ('app': the whole app
-// outside integrity elements and locked surfaces; 'preview': the theme page's
-// preview) and drops it under high contrast, on unmount, or when css is
-// undefined. A sheet that does not parse applies nothing.
+// useAppliedSheet keeps a theme's CSS applied in scope ('app': the whole app;
+// 'preview': the theme page's preview) and drops it under high contrast, on
+// unmount, or when css is undefined. A sheet that fails checkSheet applies
+// nothing.
 export function useAppliedSheet(css: string | undefined, images: readonly SheetImage[], scope: Scope): void {
   const urls = useImageURLs(css ? images : []);
   const target = useRef<SheetTarget | null>(null);
@@ -91,17 +91,16 @@ export function useAppliedSheet(css: string | undefined, images: readonly SheetI
     const t = target.current;
     const root = document.documentElement;
     const names = new Set(images.map((i) => i.name));
-    const parsed = css ? parseSheet(css, names) : undefined;
+    const ok = css !== undefined && checkSheet(css, names) === undefined;
     const apply = () => {
-      if (!parsed?.ok || root.dataset.contrast === 'high') t.replace([]);
-      else t.replace(buildRules(parsed.rules, urls, scope));
+      t.replace(ok && root.dataset.contrast !== 'high' ? buildSheet(css, urls, scope) : '');
     };
     apply();
     const obs = new MutationObserver(apply);
     obs.observe(root, { attributes: true, attributeFilter: ['data-contrast'] });
     return () => {
       obs.disconnect();
-      t.replace([]);
+      t.replace('');
     };
   }, [css, images, urls, scope]);
   useEffect(

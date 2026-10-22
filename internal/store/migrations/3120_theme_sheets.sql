@@ -1,6 +1,6 @@
 -- P1-W09 follow-up: advanced themes (contract request p1-w09-3). css is the
--- theme's normalized theme CSS (gate/themes sheet.go: a closed dialect, never
--- raw CSS); theme_images are the theme's own uploads, which image(name) names.
+-- owner's own theme CSS (gate/themes sheet.go; applied only to their view);
+-- theme_images are the theme's own uploads, which image(name) names.
 ALTER TABLE user_themes ADD COLUMN css text NOT NULL DEFAULT '';
 CREATE TABLE theme_images (
   user_id          bigint      NOT NULL REFERENCES users(id) ON DELETE CASCADE,

@@ -81,14 +81,6 @@
 [data-testid='theme-css-status'][data-ok='false'] {
   font-weight: 600;
 }
-.theme-css-names {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
 .theme-image-list {
   margin: 0;
   padding: 0;
@@ -111,4 +103,9 @@
   flex-direction: column;
   align-items: flex-start;
   gap: var(--space-1);
+}
+.theme-warning {
+  font-weight: 600;
+  border-inline-start: 4px solid var(--color-accent);
+  padding-inline-start: var(--space-2);
 }

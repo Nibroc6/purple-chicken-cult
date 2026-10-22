@@ -14,11 +14,6 @@
   font-family: var(--font-body);
   font-weight: 500;
   border: 1px solid transparent;
-  /* Theme CSS never matches an integrity element, but these inherit: reset
-     them so a rule on a card cannot reach in (features/themes/sheet.ts). */
-  font-style: normal;
-  letter-spacing: normal;
-  text-transform: none;
 }
 /* The edited mark stays in the DOM for unedited posts, hidden. */
 .integrity[hidden] {

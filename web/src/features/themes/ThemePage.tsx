@@ -4,9 +4,9 @@
 // with the contrast checks the server applies, and save. The default follows
 // the app's light and dark palettes; a theme is one palette. The server
 // validates every theme and rejects one whose integrity elements fall below
-// WCAG AA (theme_contrast). Advanced mode adds theme CSS (sheet.ts: a closed
-// CSS-like dialect over named parts, never raw CSS) and the theme's own images
-// for image(name), checked live here and again by the server. Owner: P1-W09.
+// WCAG AA (theme_contrast). Advanced mode adds the reader's own raw CSS
+// (sheet.ts), behind a warning that it can change or hide anything, and the
+// theme's own images for image(name). Owner: P1-W09.
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useId, useRef, useState, type SyntheticEvent } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -16,7 +16,7 @@ import { AudienceBadge, Chain, EditedMark, InviterLabel, ReportAction, TierHeade
 import { asRef } from '../../vm/types';
 import { useUpload } from '../media';
 import { clearTheme, saveTheme, themeKey, type ThemeView } from './api';
-import { MAX_IMAGES, checkSheet, imageName, parseSheet, partNames, propNames, sheetImages, stateNames, type SheetError } from './sheet';
+import { MAX_IMAGES, checkSheet, imageName, sheetImages, type SheetError } from './sheet';
 import {
   FONT_SIZE,
   RADIUS,
@@ -45,7 +45,7 @@ const fieldCheck: Record<string, string> = {
 // themeErrorKey is themes:errors.<code> for the codes this page explains.
 // i18n-dynamic: themes:errors.
 export function themeErrorKey(err: unknown): string {
-  if (err instanceof ApiError && cssLine(err) !== undefined) return `themes:advanced.errors.${err.code}`;
+  if (err instanceof ApiError && cssLine(err) !== undefined) return 'themes:advanced.errors.theme_css';
   if (err instanceof ApiError && themeCodes.has(err.code)) return `themes:errors.${err.code}`;
   return errorKey(err);
 }
@@ -53,12 +53,7 @@ export function themeErrorKey(err: unknown): string {
 // cssLine is the theme CSS line a rejection names (field css.<line>).
 function cssLine(err: ApiError): number | undefined {
   const m = /^css\.(\d+)$/.exec(err.field ?? '');
-  return m && (err.code === 'theme_css' || err.code === 'theme_contrast') ? Number(m[1]) : undefined;
-}
-
-// i18n-dynamic: themes:advanced.errors.
-function sheetErrorKey(e: SheetError): string {
-  return e.line === 0 ? 'advanced.errors.whole' : `advanced.errors.${e.code}`;
+  return m && err.code === 'theme_css' ? Number(m[1]) : undefined;
 }
 
 type Choice = 'default' | 'custom' | (string & {});
@@ -93,9 +88,8 @@ function ThemeForm({ stored }: { stored: ThemeView | null }) {
   const preview = useRef<HTMLDivElement>(null);
   useAppliedTheme(choice === 'default' ? undefined : tokens, preview);
   const names = new Set(images.map((i) => i.name));
-  const parsed = parseSheet(css, names);
-  const sheetError = parsed.ok ? checkSheet(parsed.rules, tokens.colors) : parsed.error;
-  useAppliedSheet(choice !== 'default' && parsed.ok && !sheetError ? css : undefined, images, 'preview');
+  const sheetError = checkSheet(css, names);
+  useAppliedSheet(choice !== 'default' && !sheetError ? css : undefined, images, 'preview');
 
   const save = useMutation({
     mutationFn: async () => {
@@ -103,7 +97,7 @@ function ThemeForm({ stored }: { stored: ThemeView | null }) {
         await clearTheme();
         return null;
       }
-      const used = parsed.ok ? sheetImages(parsed.rules) : new Set<string>();
+      const used = sheetImages(css);
       return saveTheme(
         tokens,
         css.trim(),
@@ -373,6 +367,9 @@ function AdvancedFields({ disabled, css, images, error, onCSS, onImages }: Advan
   const [file, setFile] = useState<File | null>(null);
   const [imageError, setImageError] = useState<string | undefined>();
   const fileInput = useRef<HTMLInputElement>(null);
+  // Raw CSS can change or hide anything: it is editable once the reader says
+  // they understand (a theme that already has CSS was acknowledged before).
+  const [ack, setAck] = useState(css !== '');
 
   const add = async () => {
     const bad = !imageName.test(name)
@@ -402,6 +399,20 @@ function AdvancedFields({ disabled, css, images, error, onCSS, onImages }: Advan
       <summary>{t('advanced.legend')}</summary>
       <fieldset disabled={disabled}>
         <p className="muted">{t('advanced.intro')}</p>
+        <p className="theme-warning" role="note" data-testid="theme-css-warning">
+          {t('advanced.warning')}
+        </p>
+        <label className="settings-choice">
+          <input
+            type="checkbox"
+            data-testid="theme-css-ack"
+            checked={ack}
+            onChange={(e) => {
+              setAck(e.target.checked);
+            }}
+          />
+          {t('advanced.ack')}
+        </label>
         <div className="settings-field">
           <label htmlFor={`${id}-css`}>{t('advanced.css')}</label>
           <textarea
@@ -413,6 +424,7 @@ function AdvancedFields({ disabled, css, images, error, onCSS, onImages }: Advan
             autoCapitalize="off"
             autoComplete="off"
             rows={12}
+            disabled={!ack}
             value={css}
             aria-describedby={`${id}-css-status`}
             aria-invalid={error !== undefined}
@@ -422,38 +434,11 @@ function AdvancedFields({ disabled, css, images, error, onCSS, onImages }: Advan
             }}
           />
           <small id={`${id}-css-status`} role="status" data-testid="theme-css-status" data-ok={error === undefined}>
-            {error ? t(sheetErrorKey(error) as 'advanced.errors.whole', { line: error.line }) : null}
-            {!error && css.trim().length > 0 ? t('advanced.ok') : null}
+            {error && error.line === 0 ? t('advanced.errors.whole') : null}
+            {error && error.line > 0 ? t('advanced.errors.theme_css', { line: error.line }) : null}
           </small>
         </div>
-        <details className="theme-css-reference">
-          <summary>{t('advanced.reference')}</summary>
-          <p>{t('advanced.parts')}</p>
-          <ul className="theme-css-names">
-            {partNames.map((n) => (
-              <li key={n}>
-                <code>{n}</code>
-              </li>
-            ))}
-          </ul>
-          <p>{t('advanced.states')}</p>
-          <ul className="theme-css-names">
-            {stateNames.map((n) => (
-              <li key={n}>
-                <code>{n}</code>
-              </li>
-            ))}
-          </ul>
-          <p>{t('advanced.props')}</p>
-          <ul className="theme-css-names">
-            {propNames.map((n) => (
-              <li key={n}>
-                <code>{n}</code>
-              </li>
-            ))}
-          </ul>
-          <p>{t('advanced.example')}</p>
-        </details>
+        <p className="muted">{t('advanced.example')}</p>
 
         <fieldset className="theme-images">
           <legend>{t('advanced.images')}</legend>

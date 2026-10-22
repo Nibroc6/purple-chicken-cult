@@ -76,7 +76,7 @@ func TestThemeImages(t *testing.T) {
 	ts := e.a.Themes
 	ctx := e.as("alice")
 	heart, logo, unused := e.upload("alice", 1), e.upload("alice", 2), e.upload("alice", 3)
-	css := "like { background-image: image(heart); label: hidden }\nbrand { background-image: image(logo); label: hidden }"
+	css := "[data-part=like] { background-image: image(heart) }\n.brand { background-image: image(logo) }"
 	v, err := ts.Set(ctx, themes.Theme{Tokens: json.RawMessage(good), CSS: css, Images: []themes.ImageIn{
 		{Name: "heart", Ref: heart}, {Name: "logo", Ref: logo}, {Name: "spare", Ref: unused},
 	}})
@@ -91,7 +91,7 @@ func TestThemeImages(t *testing.T) {
 	}
 
 	// Saving again with the current refs keeps them; dropping logo releases it.
-	v, err = ts.Set(ctx, themes.Theme{Tokens: json.RawMessage(good), CSS: "like { background-image: image(heart); label: hidden }",
+	v, err = ts.Set(ctx, themes.Theme{Tokens: json.RawMessage(good), CSS: "[data-part=like] { background-image: image(heart) }",
 		Images: []themes.ImageIn{{Name: "heart", Ref: v.Images[0].Ref}, {Name: "logo", Ref: v.Images[1].Ref}}})
 	if err != nil {
 		t.Fatal(err)
@@ -102,12 +102,12 @@ func TestThemeImages(t *testing.T) {
 
 	// Another user's upload, or a ref minted for someone else, is the uniform not-found.
 	bobs := e.upload("bob", 4)
-	if _, err := ts.Set(ctx, themes.Theme{Tokens: json.RawMessage(good), CSS: "like { background-image: image(x); label: hidden }",
+	if _, err := ts.Set(ctx, themes.Theme{Tokens: json.RawMessage(good), CSS: "[data-part=like] { background-image: image(x) }",
 		Images: []themes.ImageIn{{Name: "x", Ref: bobs}}}); !errors.Is(err, gate.ErrNotFound) {
 		t.Fatalf("bob's upload: %v", err)
 	}
 	// A ref minted for alice does not open for bob.
-	if _, err := ts.Set(e.as("bob"), themes.Theme{Tokens: json.RawMessage(good), CSS: "like { background-image: image(x); label: hidden }",
+	if _, err := ts.Set(e.as("bob"), themes.Theme{Tokens: json.RawMessage(good), CSS: "[data-part=like] { background-image: image(x) }",
 		Images: []themes.ImageIn{{Name: "x", Ref: v.Images[0].Ref}}}); !errors.Is(err, gate.ErrNotFound) {
 		t.Fatalf("alice's ref as bob: %v", err)
 	}
@@ -140,15 +140,15 @@ func TestThemeImagesNeedMedia(t *testing.T) {
 	w := wiretest.World(t, a)
 	w.User("alice")
 	ctx := core.WithViewer(context.Background(), core.Viewer{ID: w.ID("alice"), Kind: core.SessUser, AuthAt: a.Deps().Clock.Now()})
-	_, err := a.Themes.Set(ctx, themes.Theme{Tokens: json.RawMessage(good), CSS: "like { background-image: image(x); label: hidden }",
+	_, err := a.Themes.Set(ctx, themes.Theme{Tokens: json.RawMessage(good), CSS: "[data-part=like] { background-image: image(x) }",
 		Images: []themes.ImageIn{{Name: "x", Ref: "nope"}}})
 	var d *gate.DisabledError
 	if !errors.As(err, &d) {
 		t.Fatalf("err = %v, want feature_disabled", err)
 	}
 	// Theme CSS without images needs no media.
-	v, err := a.Themes.Set(ctx, themes.Theme{Tokens: json.RawMessage(good), CSS: "card { border-radius: 0 }"})
-	if err != nil || v.CSS != "card {\n  border-radius: 0;\n}\n" || len(v.Images) != 0 {
+	v, err := a.Themes.Set(ctx, themes.Theme{Tokens: json.RawMessage(good), CSS: ".post { border-radius: 0 }"})
+	if err != nil || v.CSS != ".post { border-radius: 0 }" || len(v.Images) != 0 {
 		t.Fatalf("v = %+v, err = %v", v, err)
 	}
 }
