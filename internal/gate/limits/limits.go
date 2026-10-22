@@ -230,7 +230,7 @@ func (s *Service) ChargeRequest(ctx context.Context, c gate.Class) error {
 		return nil
 	case gate.ClassAnon:
 		return s.ChargeAnon(clientPrefix(ctx), c.Name)
-	case gate.ClassRead, gate.ClassWrite:
+	case gate.ClassRead, gate.ClassWrite, gate.ClassStep:
 		v, ok := core.ViewerFrom(ctx)
 		if !ok || v.Kind != core.SessUser || v.ID == 0 {
 			return s.ChargeAnon(clientPrefix(ctx), UnauthBucket)
@@ -238,7 +238,7 @@ func (s *Service) ChargeRequest(ctx context.Context, c gate.Class) error {
 		if c.Kind == gate.ClassRead {
 			return s.ChargeRead(ctx, v, core.ReadClass(c.Name))
 		}
-		return s.ChargeWrite(ctx, v, core.WriteKind(c.Name), 1)
+		return s.chargeWrite(ctx, v, core.WriteKind(c.Name), 1, c.Kind == gate.ClassWrite)
 	}
 	return nil
 }
@@ -284,6 +284,12 @@ func (s *Service) ChargeRead(ctx context.Context, v core.Viewer, c core.ReadClas
 // ChargeWrite charges n writes of kind k: the minimum spacing since the
 // previous write of k, then every hourly and daily cap of k.
 func (s *Service) ChargeWrite(ctx context.Context, v core.Viewer, k core.WriteKind, n int) error {
+	return s.chargeWrite(ctx, v, k, n, true)
+}
+
+// chargeWrite is ChargeWrite; spaced false skips the minimum spacing and leaves
+// its clock alone (gate.ClassStep).
+func (s *Service) chargeWrite(ctx context.Context, v core.Viewer, k core.WriteKind, n int, spaced bool) error {
 	if n < 1 {
 		n = 1
 	}
@@ -295,6 +301,9 @@ func (s *Service) ChargeWrite(ctx context.Context, v core.Viewer, k core.WriteKi
 	}
 	probation := s.policy.ProbationFriendRequests
 	spacing := s.policy.Spacing
+	if !spaced {
+		spacing = 0
+	}
 	if spacing > 0 {
 		if last, ok := s.last[spacingKey{v.ID, string(k)}]; ok && now.Sub(last) < spacing {
 			s.mu.Unlock()

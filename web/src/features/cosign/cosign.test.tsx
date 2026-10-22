@@ -129,6 +129,18 @@ describe('CosignDialog', () => {
     await expect(result).resolves.toBeNull();
   });
 
+  it('fills in the wait of a rate-limited intent', async () => {
+    stubBegin(() => json(429, { error: 'rate_limited', retry_after_s: 2 }));
+    render(<CosignDialog />);
+    act(() => {
+      void requestCosign({ purpose: 'passkey_add' });
+    });
+    const text = (await screen.findByRole('alert')).textContent;
+    expect(text).toBe(i18n.t('errors:rate_limited', { seconds: 2 }));
+    expect(text).toContain('2 seconds');
+    fireEvent.click(screen.getByTestId('cosign-cancel'));
+  });
+
   it('keeps the record after a cancelled passkey prompt so the person can retry', async () => {
     stubBegin(() => json(200, { intent: 'intent-ref', record, options }));
     wa.startAuthentication.mockRejectedValueOnce(Object.assign(new Error('x'), { name: 'NotAllowedError' }));

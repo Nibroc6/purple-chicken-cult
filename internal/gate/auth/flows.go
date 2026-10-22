@@ -411,7 +411,7 @@ func purposeName(p uint8) string {
 // EnrollBegin redeems the enrollment token from the URL fragment (POSTed by the
 // SPA, never in a URL) and binds it to an enrollment session: the caller's own
 // session when it is already bound to this token, otherwise a NEW enrollment
-// session (the token must not be bound to another live session). It returns the
+// session that replaces any other the token was bound to. It returns the
 // registration options and, for recovery, the existing passkeys.
 func (s *Service) EnrollBegin(ctx context.Context, token string) (EnrollView, error) {
 	if !wellFormed(token) {
@@ -477,21 +477,22 @@ func (s *Service) bindEnrollment(ctx context.Context, tx pgx.Tx, t tokenRow, vie
 	if ok && si.kind == core.SessEnrollment && t.bound != nil && bytes.Equal(t.bound, si.idHash[:]) {
 		return si.idHash, nil
 	}
+	// Holding the token is the authority, so a begin from another session takes
+	// the binding over and ends the session it was bound to: a passkey prompt
+	// that failed in one browser (or on another host name) must not lock the
+	// link until that session expires. The token is only used by EnrollFinish.
 	if t.bound != nil {
-		var live bool
-		if err := tx.QueryRow(ctx, "SELECT EXISTS (SELECT 1 FROM sessions WHERE id_hash = $1 AND expires_at > $2)",
-			t.bound, s.d.Clock.Now()).Scan(&live); err != nil {
+		evs, err := endSessions(ctx, tx, sqlEndSession, t.bound)
+		if err != nil {
 			return [32]byte{}, err
 		}
-		if live {
-			return [32]byte{}, gate.ErrNotFound
-		}
+		*ended = evs
 	}
 	evs, err := endCaller(ctx, tx)
 	if err != nil {
 		return [32]byte{}, err
 	}
-	*ended = evs
+	*ended = append(*ended, evs...)
 	tok, err := s.issue(ctx, tx, core.SessEnrollment, t.user, time.Time{}, nil, nil)
 	if err != nil {
 		return [32]byte{}, err

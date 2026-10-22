@@ -199,6 +199,35 @@ func TestMinimumSpacing(t *testing.T) {
 	}
 }
 
+// A step of a write already begun (a ceremony finish, a co-sign intent) is
+// charged to the kind's caps but neither waits out nor restarts the spacing:
+// adding a passkey sends /auth/passkeys/finish and /cosign back to back.
+func TestStepSkipsSpacing(t *testing.T) {
+	e := newEnv(t)
+	p := e.l.Policy()
+	p.Spacing = 2 * time.Second
+	e.l.SetPolicy(p)
+	ctx := e.as("alice")
+	write := gate.Class{Kind: gate.ClassWrite, Name: string(limits.WriteAccount)}
+	step := gate.Class{Kind: gate.ClassStep, Name: string(limits.WriteAccount)}
+	if err := e.l.ChargeRequest(ctx, write); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 2; i++ {
+		if err := e.l.ChargeRequest(ctx, step); err != nil {
+			t.Fatalf("step %d: %v", i, err)
+		}
+	}
+	if n := e.count("alice", "w:account", limits.Day); n != 3 {
+		t.Fatalf("count %d", n)
+	}
+	// The spacing clock still runs from the write, not the steps.
+	e.advance(500 * time.Millisecond)
+	if got := retryOf(t, e.l.ChargeRequest(ctx, write)); got != 1500*time.Millisecond {
+		t.Fatalf("spacing retry %v", got)
+	}
+}
+
 func TestProbationFriendRequests(t *testing.T) {
 	e := newEnv(t)
 	carol := e.w.User("carol", func(m *core.UserMeta) {

@@ -42,6 +42,20 @@ export function errorParams(err: unknown): Record<string, number> {
   return {};
 }
 
+// ErrorMsg is a failure to show: the catalog key and its ICU arguments (a
+// rate_limited message needs {seconds}, or it shows its raw template).
+export interface ErrorMsg {
+  key: string;
+  params: Record<string, number>;
+}
+
+// authError is authErrorKey with the arguments, or undefined when nothing
+// should be shown.
+export function authError(err: unknown): ErrorMsg | undefined {
+  const key = authErrorKey(err);
+  return key ? { key, params: errorParams(err) } : undefined;
+}
+
 // readFragmentToken takes the enrollment token from the URL fragment and
 // removes it from the address bar and history (it is a one-time secret that
 // must never reach a server log, a referrer or a screenshot of the URL bar).

@@ -37,6 +37,10 @@ func Read(name string) Class { return Class{Kind: gate.ClassRead, Name: name} }
 // invite_handshake, save, media).
 func Write(name string) Class { return Class{Kind: gate.ClassWrite, Name: name} }
 
+// Step returns the class of a later step of a write of kind name (see
+// gate.ClassStep): the caps of name apply, the minimum spacing does not.
+func Step(name string) Class { return Class{Kind: gate.ClassStep, Name: name} }
+
 // Anon returns an unauthenticated-surface class (login, join, enroll, csp_report),
 // charged per client network prefix.
 func Anon(name string) Class { return Class{Kind: gate.ClassAnon, Name: name} }

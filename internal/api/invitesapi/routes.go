@@ -31,7 +31,11 @@ const JoinSigHeader = "X-PCC-Join-Sig"
 var (
 	rGraph = apix.Read("graph_read")
 	wI     = apix.Write("invite_handshake")
-	aJoin  = apix.Anon("join")
+	// The client sends the ephemeral key, the sound reports and the
+	// co-signature on its own as the handshake goes on, right after opening it
+	// or each other: steps, without the minimum spacing.
+	sI    = apix.Step("invite_handshake")
+	aJoin = apix.Anon("join")
 )
 
 // InviteesOut is GET /api/invites/invitees.
@@ -116,7 +120,7 @@ func Register(r chi.Router, d *api.Deps) {
 		}
 		return apix.JSON(w, http.StatusCreated, hv)
 	})
-	apix.Route(r, http.MethodPost, "/invites/handshakes/{hs}/epub", wI, func(w http.ResponseWriter, r *http.Request) error {
+	apix.Route(r, http.MethodPost, "/invites/handshakes/{hs}/epub", sI, func(w http.ResponseWriter, r *http.Request) error {
 		in, err := apix.Decode[EpubIn](r, 0)
 		if err != nil {
 			return err
@@ -159,7 +163,7 @@ func Register(r chi.Router, d *api.Deps) {
 		}
 		return apix.NoContent(w)
 	})
-	apix.Route(r, http.MethodPost, "/invites/handshakes/{hs}/report", wI, func(w http.ResponseWriter, r *http.Request) error {
+	apix.Route(r, http.MethodPost, "/invites/handshakes/{hs}/report", sI, func(w http.ResponseWriter, r *http.Request) error {
 		in, err := apix.Decode[invites.ReportIn](r, 0)
 		if err != nil {
 			return err
@@ -170,7 +174,7 @@ func Register(r chi.Router, d *api.Deps) {
 		}
 		return apix.JSON(w, http.StatusOK, out)
 	})
-	apix.Route(r, http.MethodPost, "/invites/handshakes/{hs}/cosign", wI, func(w http.ResponseWriter, r *http.Request) error {
+	apix.Route(r, http.MethodPost, "/invites/handshakes/{hs}/cosign", sI, func(w http.ResponseWriter, r *http.Request) error {
 		in, err := apix.Decode[invites.CosignIn](r, WebAuthnMax)
 		if err != nil {
 			return err

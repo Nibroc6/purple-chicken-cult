@@ -108,7 +108,7 @@ func Register(r chi.Router, d *api.Deps) {
 	})
 
 	// Step-up (D27): an assertion over the viewer's own credentials.
-	apix.Route(r, http.MethodPost, "/auth/stepup/begin", apix.Write("account"), func(w http.ResponseWriter, r *http.Request) error {
+	apix.Route(r, http.MethodPost, "/auth/stepup/begin", apix.Step("account"), func(w http.ResponseWriter, r *http.Request) error {
 		if _, err := apix.Decode[struct{}](r, 0); err != nil {
 			return err
 		}
@@ -118,7 +118,7 @@ func Register(r chi.Router, d *api.Deps) {
 		}
 		return apix.JSON(w, http.StatusOK, optionsOut{Options: opts})
 	})
-	apix.Route(r, http.MethodPost, "/auth/stepup/finish", apix.Write("account"), func(w http.ResponseWriter, r *http.Request) error {
+	apix.Route(r, http.MethodPost, "/auth/stepup/finish", apix.Step("account"), func(w http.ResponseWriter, r *http.Request) error {
 		in, err := apix.Decode[credentialIn](r, WebAuthnMax)
 		if err != nil {
 			return err
@@ -147,7 +147,7 @@ func Register(r chi.Router, d *api.Deps) {
 		}
 		return apix.JSON(w, http.StatusOK, optionsOut{Options: opts})
 	})
-	apix.Route(r, http.MethodPost, "/auth/passkeys/finish", apix.Write("account"), func(w http.ResponseWriter, r *http.Request) error {
+	apix.Route(r, http.MethodPost, "/auth/passkeys/finish", apix.Step("account"), func(w http.ResponseWriter, r *http.Request) error {
 		in, err := apix.Decode[passkeyIn](r, WebAuthnMax)
 		if err != nil {
 			return err

@@ -18,7 +18,9 @@ import (
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate"
 )
 
-var wAccount = apix.Write("account")
+// A co-sign intent carries on a change the person already started (often right
+// after that change's own request), so it is a step: no minimum spacing.
+var sAccount = apix.Step("account")
 
 // maxBody bounds POST /api/cosign.
 const maxBody = 2 << 10
@@ -38,7 +40,7 @@ type IntentOut struct {
 
 // Register registers the module routes on the /api router.
 func Register(r chi.Router, d *api.Deps) {
-	apix.Route(r, http.MethodPost, "/cosign", wAccount, func(w http.ResponseWriter, r *http.Request) error {
+	apix.Route(r, http.MethodPost, "/cosign", sAccount, func(w http.ResponseWriter, r *http.Request) error {
 		in, err := apix.Decode[BeginIn](r, maxBody)
 		if err != nil {
 			return err

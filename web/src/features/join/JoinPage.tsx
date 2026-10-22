@@ -528,6 +528,12 @@ function Register({ dev, start, onJoined }: { dev: ClaimDevice; start: JoinStart
           />
           {t('form.tos', { version: start.tosVersion })}
         </label>
+        {/* A new tab, so the half-filled form and the handshake stay put. */}
+        <p className="join-terms-link">
+          <a href="/terms" target="_blank" rel="noopener" data-testid="join-terms">
+            {t('form.readTerms')}
+          </a>
+        </p>
         <label className="join-choice">
           <input
             type="checkbox"
