@@ -78,10 +78,21 @@ export async function getAssertion(options: unknown, autofill = false): Promise<
   }
 }
 
-// createPasskey answers creation options with a new passkey.
-export async function createPasskey(options: unknown): Promise<Record<string, unknown>> {
+// onPhone steers a creation to another device over the hybrid transport: the
+// browser shows a QR code the phone's camera scans, and the phone keeps the
+// passkey. Hints are a UI preference only (the server checks no attachment);
+// the cross-platform attachment does the same for browsers without hints.
+function onPhone(pk: Record<string, unknown>): Record<string, unknown> {
+  const sel = typeof pk.authenticatorSelection === 'object' && pk.authenticatorSelection !== null ? pk.authenticatorSelection : {};
+  return { ...pk, hints: ['hybrid'], authenticatorSelection: { ...sel, authenticatorAttachment: 'cross-platform' } };
+}
+
+// createPasskey answers creation options with a new passkey, made on a phone
+// through a QR code when phone is set.
+export async function createPasskey(options: unknown, phone = false): Promise<Record<string, unknown>> {
   if (!passkeysSupported()) throw new PasskeyError('unsupported');
-  const optionsJSON = publicKey(options) as unknown as PublicKeyCredentialCreationOptionsJSON;
+  const pk = publicKey(options);
+  const optionsJSON = (phone ? onPhone(pk) : pk) as unknown as PublicKeyCredentialCreationOptionsJSON;
   try {
     const res = await startRegistration({ optionsJSON });
     return res as unknown as Record<string, unknown>;

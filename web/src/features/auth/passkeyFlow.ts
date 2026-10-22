@@ -21,13 +21,14 @@ export class CancelledError extends Error {
 }
 
 // addPasskey runs the whole add flow; summary is the translated line the
-// co-sign dialog shows above the record. It resolves once the passkey is stored.
-export async function addPasskey(name: string, summary: string): Promise<void> {
+// co-sign dialog shows above the record; onPhone makes the passkey on a phone
+// through a QR code. It resolves once the passkey is stored.
+export async function addPasskey(name: string, summary: string, onPhone = false): Promise<void> {
   // The registration is retried after a step-up as a whole, never finish
   // alone: a session holds one ceremony, which the step-up replaces.
   const state = await withStepUp(async () => {
     const options = await addPasskeyBegin();
-    const credential = await createPasskey(options);
+    const credential = await createPasskey(options, onPhone);
     return addPasskeyFinish(credential, name);
   });
   if (state === 'added') return;

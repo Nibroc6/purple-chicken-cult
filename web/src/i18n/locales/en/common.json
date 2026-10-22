@@ -9,7 +9,10 @@
     "compose": "New post",
     "invite": "Invite",
     "friends": "Friends",
+    "saves": "Saved",
+    "seen": "Seen",
     "notifications": "Notifications",
+    "moderation": "Moderation",
     "settings": "Settings"
   },
   "placeholder": {
