@@ -417,6 +417,15 @@ describe('connected tree', () => {
     expect(screen.queryByTestId('explorer-minimap')).toBeNull();
   });
 
+  it('starts with the focused post folded on phones', () => {
+    setDesktop(false);
+    show();
+    expect(screen.getByTestId('tree-focus').dataset.open).toBe('false');
+    expect(screen.getByTestId('tree-focus-toggle').getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(screen.getByTestId('tree-focus-toggle'));
+    expect(screen.getByTestId('tree-focus').dataset.open).toBe('true');
+  });
+
   it('has no minimap on mobile', () => {
     setDesktop(false);
     show();
