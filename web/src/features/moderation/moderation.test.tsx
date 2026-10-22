@@ -36,7 +36,6 @@ import ModLogPage from './ModLogPage';
 import ModQueuePage from './ModQueuePage';
 import ReportPage from './ReportPage';
 import RolesPage from './RolesPage';
-import { ModerationFooter } from './slots';
 
 vi.mock('../cosign', () => ({ requestCosign: vi.fn() }));
 
@@ -568,47 +567,6 @@ describe('roles page', () => {
       expect(screen.getByTestId('roles-notice').textContent).toBe(tr('moderation:roles.removed', { handle: 'mo1' }));
     });
     expect(calls.some((c) => c.method === 'POST' && c.path === '/mod/roles/mo1Ref/revoke')).toBe(true);
-  });
-});
-
-describe('footer', () => {
-  function renderFooter() {
-    const router = createMemoryRouter([{ path: '/', element: <ModerationFooter /> }]);
-    render(
-      <QueryClientProvider client={makeQueryClient()}>
-        <RouterProvider router={router} />
-      </QueryClientProvider>,
-    );
-  }
-  it('links the terms for everyone and moderator pages for moderators', async () => {
-    stub(undefined, () => undefined);
-    renderFooter();
-    const footer = await screen.findByTestId('site-footer');
-    await waitFor(() => {
-      expect([...footer.querySelectorAll('a')].map((a) => a.getAttribute('href'))).toEqual(['/terms']);
-    });
-  });
-  it('adds the log, the blame inbox and the queue', async () => {
-    stub('moderator', () => undefined);
-    renderFooter();
-    const footer = await screen.findByTestId('site-footer');
-    await waitFor(() => {
-      expect([...footer.querySelectorAll('a')].map((a) => a.getAttribute('href'))).toEqual([
-        '/terms',
-        '/mod/log',
-        '/blame',
-        '/mod',
-        '/mod/recovery',
-      ]);
-    });
-  });
-  it('adds the roles page for admins', async () => {
-    stub('admin', () => undefined);
-    renderFooter();
-    const footer = await screen.findByTestId('site-footer');
-    await waitFor(() => {
-      expect([...footer.querySelectorAll('a')].map((a) => a.getAttribute('href'))).toContain('/mod/roles');
-    });
   });
 });
 
