@@ -1,6 +1,6 @@
 // play() on a fake AudioContext: it renders the sound into one buffer at the
 // context's rate, resumes a suspended context, resolves when playback ends,
-// and rejects bad bits. Owner: P1-W13.
+// rejects bad bits, and reports a context the browser won't start. Owner: P1-W13.
 import { describe, expect, it, vi } from 'vitest';
 import { createHandshakeAudio } from './createHandshakeAudio';
 import { decodePcm } from './decoder';
@@ -68,5 +68,24 @@ describe('play', () => {
         { quiet: false },
       ),
     ).rejects.toThrow('bad_bits');
+  });
+
+  it('rejects with audio_blocked when the context never starts', async () => {
+    vi.useFakeTimers();
+    try {
+      const { ctx, played } = fakeContext(48000);
+      // Safari outside a user gesture: resume() stays pending.
+      ctx.resume = vi.fn(() => new Promise<void>(() => undefined));
+      const p = createHandshakeAudio(ctx as unknown as AudioContext).play(
+        { ultra: new Uint8Array(4), jingle: new Uint8Array(3) },
+        { quiet: false },
+      );
+      const done = expect(p).rejects.toThrow('audio_blocked');
+      await vi.advanceTimersByTimeAsync(2500);
+      await done;
+      expect(played).toHaveLength(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -815,6 +815,9 @@ full, with its integrity elements and actions, under the map. The rows are:
 7. **Interaction.** Drag (or the arrow keys) pans; the wheel, a pinch or + / − zooms;
    "show everything" fits the whole tree and "back to this post" returns to the focal
    post. Every card is a keyboard button. On desktop, zooming out shows a minimap.
+8. **Layout.** The canvas fills the screen beside the navigation. The controls and the
+   focused post, in full, float on it; the focus card folds away, and on phones it is a
+   bottom sheet.
 
 #### 10.1.5 Short posts, systematically
 Long posts are discouraged with friction only. Nothing ranks them lower, because a

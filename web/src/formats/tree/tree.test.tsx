@@ -257,6 +257,23 @@ describe('connected tree', () => {
     expect(a.openTree).toHaveBeenCalledTimes(2);
   });
 
+  it('floats the controls and the focused post over the canvas; the focus card folds away', () => {
+    show();
+    expect(document.querySelector('.explorer-toolbar')?.classList.contains('tree-overlay')).toBe(true);
+    const focus = screen.getByTestId('tree-focus');
+    expect(focus.classList.contains('tree-overlay')).toBe(true);
+    expect(focus.getAttribute('aria-labelledby')).toBeTruthy();
+    const toggle = screen.getByTestId('tree-focus-toggle');
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(toggle.textContent).toBe(tr('tree:focus.hide'));
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(focus.dataset.open).toBe('false');
+    expect(toggle.textContent).toBe(tr('tree:focus.show'));
+    fireEvent.click(toggle);
+    expect(focus.dataset.open).toBe('true');
+  });
+
   it('a drag is not a click', () => {
     const a = show();
     const svg = screen.getByTestId('explorer-svg');
