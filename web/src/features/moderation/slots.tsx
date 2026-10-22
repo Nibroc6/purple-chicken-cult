@@ -1,10 +1,11 @@
 // Shell slots of the moderation feature. Owner: P0-W12 → P1-W06. A footer on
 // every page links the terms (everyone), the moderation log and the blame inbox
-// (signed in) and the moderator pages (moderators).
+// (signed in) and the moderator pages (moderators); the report modal.
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import type { FeatureSlots } from '../../app/slots';
 import { useSession } from '../../app/session';
+import { ReportModal } from './ReportModal';
 import './moderation.css';
 
 export function ModerationFooter() {
@@ -46,4 +47,4 @@ export function ModerationFooter() {
   );
 }
 
-export const slots: FeatureSlots = { global: [ModerationFooter] };
+export const slots: FeatureSlots = { global: [ModerationFooter, ReportModal] };

@@ -16,6 +16,22 @@ export interface Page<T> {
 export const targetKinds = ['post', 'person', 'inviter', 'preview'] as const;
 export type TargetKind = (typeof targetKinds)[number];
 
+// reportParam is the search parameter of the report modal: ?report=<kind>:<ref>.
+export const reportParam = 'report';
+
+export function reportValue(kind: TargetKind, ref: string): string {
+  return `${kind}:${ref}`;
+}
+
+// parseReport reads ?report=<kind>:<ref> (undefined when it is not one).
+export function parseReport(v: string | null): { kind: TargetKind; ref: string } | undefined {
+  const i = v?.indexOf(':') ?? -1;
+  if (!v || i < 0) return undefined;
+  const kind = v.slice(0, i);
+  const ref = v.slice(i + 1);
+  return isTargetKind(kind) && isRef(ref) ? { kind, ref } : undefined;
+}
+
 // The closed reason codes (server CHECKs; plan §3.2). Members report with
 // reportReasons; moderators resolve with modReasons (adds ban_evasion).
 export const reportReasons = [

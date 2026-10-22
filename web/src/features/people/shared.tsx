@@ -2,12 +2,13 @@
 import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useNavigate } from 'react-router';
+import { Link } from 'react-router';
 import { Chain, InviterLabel, ReportAction, type ReportTarget } from '../../integrity';
 import type { PersonVM } from '../../vm/types';
 import { requestCosign } from '../cosign';
+import { useOpenReport } from '../moderation/ReportModal';
 import { runAction, sessionCosigns, type Cosig, type PersonAction } from './api';
-import { confirmActions, cosignPurpose, errorParams, peopleErrorKey, primaryActions, reportPath, secondaryActions } from './vm';
+import { confirmActions, cosignPurpose, errorParams, peopleErrorKey, primaryActions, secondaryActions } from './vm';
 import './people.css';
 
 // peopleKey prefixes every query of this feature (any action refreshes them all).
@@ -24,11 +25,11 @@ export function ErrorText({ err }: { err: unknown }) {
   );
 }
 
-// useReport opens the report flow for a person or (through the invitee) their inviter.
+// useReport opens the report modal for a person or (through the invitee) their inviter.
 export function useReport(): (target: ReportTarget) => void {
-  const navigate = useNavigate();
+  const open = useOpenReport();
   return (target) => {
-    void navigate(reportPath(target.kind === 'inviter' ? 'inviter' : 'person', target.ref));
+    open({ kind: target.kind === 'inviter' ? 'inviter' : 'person', ref: target.ref });
   };
 }
 

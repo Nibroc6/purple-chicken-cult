@@ -123,10 +123,13 @@ test('report, moderator removal, the inviter blamed; a held recovery cancelled; 
   await page.goto(`/p/${compost.ref}`);
   const card = page.locator('[data-testid="tree-row"][data-gen="0"]');
   await card.getByTestId('integrity-report').first().click();
-  await expect(page).toHaveURL(/\/report\?/);
-  await page.locator('input[type=radio][value=spam]').check();
-  await page.getByTestId('report-submit').click();
-  await expect(page.getByTestId('report-sent')).toBeVisible();
+  // The report opens as a modal over the reply tree.
+  const reportModal = page.getByTestId('report-modal');
+  await expect(reportModal).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`/p/${compost.ref}\\?report=post%3A${compost.ref}$`));
+  await reportModal.locator('input[type=radio][value=spam]').check();
+  await reportModal.getByTestId('report-submit').click();
+  await expect(reportModal.getByTestId('report-sent')).toBeVisible();
 
   // mona: the queue item names carol and her inviter, and gives her account reference.
   await signInPage(page, origin, 'mona');
