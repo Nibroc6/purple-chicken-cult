@@ -1,8 +1,9 @@
 // usePostActions is the PostActions every format receives (plan §6.3): like
 // (optimistic, then the server's summary), save (optimistic, rolled back on
 // failure; private, so nothing but saved_by_me changes), both coalesced per
-// post (toggles.ts: quick on/off clicks send at most what changed), hide and show less (the post leaves
-// the layouts at once through useHidden), seen (queued for the batched POST),
+// post (toggles.ts: clicks during a request send at most what changed), hide
+// and show less (the post leaves the layouts at once through useHidden) and
+// their undo, seen (queued for the batched POST),
 // navigation for reply and the family tree, and the report modal. Every cached
 // view-model of the post is patched in place, whichever feature cached it.
 // Owner: P0-W06 → P1-W08.
@@ -11,11 +12,12 @@ import { useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import type { PostActions } from '../../formats/types';
 import type { LikesVM, PostVM, Ref } from '../../vm/types';
+import { clearPicks, composeURL, getPicks } from '../composer';
 import { useOpenReport } from '../moderation/ReportModal';
 import { savesKey } from '../saves/api';
 import { queueSeen } from '../seen/tracker';
-import { hidePost, likesKey, setLike, setSave, showLess } from './api';
-import { setFailed, setHidden, type HiddenKind } from './store';
+import { hiddenKey, hidePost, likesKey, setLike, setSave, showLess, unhidePost } from './api';
+import { hiddenKind, setFailed, setHidden, type HiddenKind } from './store';
 import { makeToggler, type Toggler } from './toggles';
 import { optimistic, patchLikes, patchSaved } from './vm';
 
@@ -132,10 +134,13 @@ export function usePostActions(): PostActions {
     const hideAs = (kind: HiddenKind, call: (ref: string) => Promise<void>) => (ref: Ref) => {
       setFailed(ref, undefined);
       setHidden(ref, kind);
-      call(ref).catch((err: unknown) => {
-        setHidden(ref, undefined);
-        setFailed(ref, err);
-      });
+      call(ref).then(
+        () => qc.invalidateQueries({ queryKey: hiddenKey }),
+        (err: unknown) => {
+          setHidden(ref, undefined);
+          setFailed(ref, err);
+        },
+      );
     };
     return {
       like: (ref: Ref, on: boolean) => {
@@ -155,11 +160,26 @@ export function usePostActions(): PostActions {
       },
       hide: hideAs('hide', hidePost),
       showLess: hideAs('show_less', showLess),
+      unhide: (ref: Ref) => {
+        const kind = hiddenKind(ref);
+        setFailed(ref, undefined);
+        setHidden(ref, undefined);
+        unhidePost(ref).then(
+          () => qc.invalidateQueries({ queryKey: hiddenKey }),
+          (err: unknown) => {
+            setHidden(ref, kind);
+            setFailed(ref, err);
+          },
+        );
+      },
       markSeen: (ref: Ref) => {
         queueSeen(ref);
       },
       reply: (ref: Ref) => {
-        void navigate(`/compose?${new URLSearchParams({ parent: ref, kind: 'ref' }).toString()}`);
+        // A reply takes the posts already picked for it along.
+        const url = composeURL([...getPicks().map((p) => p.ref), ref]);
+        clearPicks();
+        void navigate(url);
       },
       openTree: (ref: Ref) => {
         void navigate(`/p/${ref}`);

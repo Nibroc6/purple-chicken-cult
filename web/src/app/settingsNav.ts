@@ -9,6 +9,7 @@ export interface SettingsNavEntry {
     | 'settingsNav.privacy'
     | 'settingsNav.passkeys'
     | 'settingsNav.blocks'
+    | 'settingsNav.hidden'
     | 'settingsNav.export'
     | 'settingsNav.delete'
     | 'settingsNav.recovery'
@@ -26,6 +27,7 @@ export const settingsNav: SettingsNavEntry[] = [
   { path: '/settings/privacy', label: 'settingsNav.privacy', phase: 0 },
   { path: '/settings/passkeys', label: 'settingsNav.passkeys', phase: 0 },
   { path: '/settings/blocks', label: 'settingsNav.blocks', phase: 0 },
+  { path: '/settings/hidden', label: 'settingsNav.hidden', phase: 0 },
   { path: '/settings/export', label: 'settingsNav.export', phase: 0 },
   { path: '/settings/delete', label: 'settingsNav.delete', phase: 0 },
   { path: '/settings/recovery', label: 'settingsNav.recovery', phase: 1 },

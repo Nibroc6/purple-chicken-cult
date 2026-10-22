@@ -4,7 +4,7 @@
 // There is no public API, no bearer token and no CORS (§16.1).
 import createClient, { type Middleware } from 'openapi-fetch';
 import type { paths } from './schema.gen';
-import { ApiError } from './errors';
+import { ApiError, NetworkError } from './errors';
 
 let csrf: string | undefined;
 
@@ -63,13 +63,21 @@ const middleware: Middleware = {
 // reach the screen; longer ones are shown with their {seconds}.
 export const QUIET_WAIT_S = 2;
 
+// send is fetch resolved per call (tests stub fetch); a request that never got
+// an answer is a NetworkError, so only it reads as "offline".
+function send(req: Request): Promise<Response> {
+  return globalThis.fetch(req).catch((err: unknown) => {
+    throw new NetworkError(err);
+  });
+}
+
 // sendPaced sends req, and once more after a short rate-limit wait. The body
 // is read once into a buffer (not a cloned stream) so both sends carry it as
 // a plain body.
 async function sendPaced(req: Request): Promise<Response> {
   const sent = req.body ? await req.arrayBuffer() : undefined;
   const make = () => (sent === undefined ? req : new Request(req, { body: sent }));
-  const res = await globalThis.fetch(make()); // resolved per call (tests stub fetch)
+  const res = await send(make());
   if (res.status !== 429) return res;
   const body = (await res
     .clone()
@@ -78,7 +86,7 @@ async function sendPaced(req: Request): Promise<Response> {
   const wait = body.retry_after_s;
   if (typeof wait !== 'number' || wait > QUIET_WAIT_S) return res;
   await new Promise((r) => setTimeout(r, wait * 1000 + 100));
-  return globalThis.fetch(make());
+  return send(make());
 }
 
 export const api = createClient<paths>({

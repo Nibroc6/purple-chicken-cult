@@ -115,9 +115,29 @@ func (s *Service) Person(ctx context.Context, who gate.Ref) (gate.PersonView, er
 	return s.d.Views.Person(ctx, sr, u)
 }
 
-// PersonPosts returns a person's posts the caller can see, newest first.
-// Phase 0 lists the feed window; older posts stay reachable through threads.
-func (s *Service) PersonPosts(ctx context.Context, who gate.Ref, cursor string) (gate.Page[gate.PostView], error) {
+// Person post orders (PersonPosts).
+const (
+	OrderNewest = "newest"
+	OrderOldest = "oldest"
+)
+
+// personScan is how many of the author's posts one database read fetches
+// while PersonPosts fills a page.
+const personScan = 100
+
+// PersonPosts returns the person's posts the caller can see, from their whole
+// history, newest first or (order OrderOldest) oldest first. Every post passes
+// the same checks as in the feed: Visibility.CheckPost (deleted, author active,
+// distance, audience with the probation narrowing; blocks and hide-via act
+// through the caller's search) and the caller's hides. Mutes do not apply: the
+// caller came to this person's page.
+//
+// No count is returned and a page is cut only after a visible post: Next is
+// set exactly when another visible post follows, and the cursor names the last
+// post served (a ref, MACed to the caller, the person and the order), so the
+// pages reveal nothing about posts the caller cannot see. A cursor carries its
+// order; order is read only on the first page.
+func (s *Service) PersonPosts(ctx context.Context, who gate.Ref, cursor, order string) (gate.Page[gate.PostView], error) {
 	v, err := core.RequireUser(ctx)
 	if err != nil {
 		return gate.Page[gate.PostView]{}, err
@@ -126,32 +146,97 @@ func (s *Service) PersonPosts(ctx context.Context, who gate.Ref, cursor string) 
 	if err != nil {
 		return gate.Page[gate.PostView]{}, err
 	}
-	list := "posts:" + string(who)
-	off, err := s.offset(v.ID, list, cursor)
-	if err != nil {
-		return gate.Page[gate.PostView]{}, err
-	}
-	ids := s.d.Posts.Recent(u)
-	metas := s.d.Posts.MetaMany(ctx, ids)
-	ps := make([]core.PostMeta, 0, len(ids))
-	for _, id := range ids {
-		if m, ok := metas[id]; ok && !m.Deleted {
-			ps = append(ps, m)
+	oldest := order == OrderOldest
+	var after *core.PostMeta
+	if cursor != "" {
+		var m core.PostMeta
+		if m, oldest, err = s.openPostsCursor(ctx, v.ID, u, cursor); err != nil {
+			return gate.Page[gate.PostView]{}, err
 		}
+		after = &m
+	} else if order != "" && order != OrderNewest && order != OrderOldest {
+		return gate.Page[gate.PostView]{}, gate.NewProblem(gate.StatusUnprocessable, "order_invalid", "order")
 	}
-	checked := s.d.Vis.CheckPosts(ctx, sr, ps)
+	hidden := s.d.Engage.HiddenSet(ctx, v.ID)
+	var checked []core.Checked
+	for len(checked) <= PostsPageSize {
+		batch, err := s.d.Posts.ByAuthor(ctx, u, after, oldest, personScan)
+		if err != nil {
+			return gate.Page[gate.PostView]{}, err
+		}
+		ps := make([]core.PostMeta, 0, len(batch))
+		for _, m := range batch {
+			if _, h := hidden[m.ID]; !h && m.Author == u && !m.Deleted {
+				ps = append(ps, m)
+			}
+		}
+		checked = append(checked, s.d.Vis.CheckPosts(ctx, sr, ps)...)
+		if len(batch) < personScan {
+			break
+		}
+		after = &batch[len(batch)-1]
+	}
 	page := gate.Page[gate.PostView]{Items: []gate.PostView{}}
-	if off >= len(checked) {
+	if len(checked) == 0 {
 		return page, nil
 	}
-	end := min(off+PostsPageSize, len(checked))
-	if page.Items, err = s.d.Views.Posts(ctx, sr, checked[off:end], core.ViewOpts{WithBody: true, WithContext: true}); err != nil {
+	more := len(checked) > PostsPageSize
+	checked = checked[:min(len(checked), PostsPageSize)]
+	if page.Items, err = s.d.Views.Posts(ctx, sr, checked, core.ViewOpts{WithBody: true, WithContext: true}); err != nil {
 		return gate.Page[gate.PostView]{}, err
 	}
-	if end < len(checked) {
-		page.Next = s.cursor(v.ID, list, end)
+	if more {
+		page.Next = s.postsCursor(v.ID, u, oldest, checked[len(checked)-1].Meta().ID)
 	}
 	return page, nil
+}
+
+// postsMAC binds a person-posts cursor to the caller, the person and the order.
+func (s *Service) postsMAC(v, u core.UserID, oldest bool, ref string) []byte {
+	m := hmac.New(sha256.New, s.d.Keys.Cursor)
+	var b [9]byte
+	binary.BigEndian.PutUint32(b[:4], uint32(v))
+	binary.BigEndian.PutUint32(b[4:8], uint32(u))
+	if oldest {
+		b[8] = 1
+	}
+	m.Write([]byte("pcc/person-posts-cursor/v1\x00"))
+	m.Write(b[:])
+	m.Write([]byte(ref))
+	return m.Sum(nil)[:16]
+}
+
+// postsCursor is order (1 byte) ‖ MAC (16) ‖ the caller's ref of the last post served.
+func (s *Service) postsCursor(v, u core.UserID, oldest bool, last core.PostID) string {
+	ref := string(s.d.Refs.Post(v, last))
+	b := []byte{0}
+	if oldest {
+		b[0] = 1
+	}
+	b = append(b, s.postsMAC(v, u, oldest, ref)...)
+	return base64.RawURLEncoding.EncodeToString(append(b, ref...))
+}
+
+// openPostsCursor returns the post a cursor resumes after and its order; a
+// cursor that does not verify for this caller and person is gate.ErrNotFound.
+func (s *Service) openPostsCursor(ctx context.Context, v, u core.UserID, c string) (core.PostMeta, bool, error) {
+	b, err := base64.RawURLEncoding.DecodeString(c)
+	if err != nil || len(b) < 18 || b[0] > 1 {
+		return core.PostMeta{}, false, gate.ErrNotFound
+	}
+	oldest, ref := b[0] == 1, string(b[17:])
+	if !hmac.Equal(b[1:17], s.postsMAC(v, u, oldest, ref)) {
+		return core.PostMeta{}, false, gate.ErrNotFound
+	}
+	id, ok := s.d.Refs.OpenPost(v, gate.Ref(ref))
+	if !ok {
+		return core.PostMeta{}, false, gate.ErrNotFound
+	}
+	m, ok := s.d.Posts.Meta(ctx, id)
+	if !ok || m.Author != u {
+		return core.PostMeta{}, false, gate.ErrNotFound
+	}
+	return m, oldest, nil
 }
 
 // Suggestions returns people at distance 2 who share at least SuggestMinMutual

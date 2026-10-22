@@ -12,6 +12,7 @@ import { postJSON } from '../post/testdata';
 import { pendingSeen, resetSeenQueue } from '../seen/tracker';
 import { LikeSummary } from './EngageBar';
 import { LikesModal } from './LikesModal';
+import HiddenPage from './HiddenPage';
 import LikesPage from './LikesPage';
 import { resetEngageStore } from './store';
 import { applyLikes, usePostActions } from './usePostActions';
@@ -299,7 +300,7 @@ describe('likes page and post actions', () => {
     fireEvent.click(await screen.findByTestId('engage-show-less'));
     const done = await screen.findByTestId('engage-hidden');
     expect(done.dataset.kind).toBe('show_less');
-    expect(done.textContent).toBe(tr('engage:showLess.done', { handle: 'alice' }));
+    expect(done.querySelector('[role="status"]')?.textContent).toBe(tr('engage:showLess.done', { handle: 'alice' }));
     expect(calls.some((c) => c.method === 'POST' && c.path === '/posts/p1/show-less')).toBe(true);
 
     renderAt('/p/p2/likes');
@@ -307,6 +308,47 @@ describe('likes page and post actions', () => {
     fireEvent.click(hides[hides.length - 1] as HTMLElement);
     expect(await screen.findByTestId('engage-error')).toBeTruthy();
     expect(screen.queryAllByTestId('engage-hidden')).toHaveLength(1); // only p1 stays hidden
+  });
+
+  it('undoes a hide from the notice', async () => {
+    const calls = stubAPI((c) => {
+      if (c.method === 'GET' && c.path === '/posts/p1') return json(200, postJSON({ mine: false }));
+      if (c.path === '/posts/p1/hide') return json(204, null);
+      return undefined;
+    });
+    renderAt('/p/p1/likes');
+    fireEvent.click(await screen.findByTestId('engage-hide'));
+    fireEvent.click(await screen.findByTestId('engage-unhide'));
+    expect(await screen.findByTestId('engage-hide')).toBeTruthy();
+    expect(screen.queryByTestId('engage-hidden')).toBeNull();
+    await waitFor(() => {
+      expect(calls.some((c) => c.method === 'DELETE' && c.path === '/posts/p1/hide')).toBe(true);
+    });
+  });
+
+  it('lists hidden posts and show-less choices, each with an undo', async () => {
+    const calls = stubAPI((c) => {
+      if (c.method === 'GET' && c.path === '/show-less')
+        return json(200, { items: [{ ref: 'u9', handle: 'carol', display_name: 'Carol', count: 2 }] });
+      if (c.method === 'GET' && c.path === '/hidden') return json(200, { items: [postJSON({ mine: false })] });
+      if (c.method === 'DELETE') return json(204, null);
+      return undefined;
+    });
+    const router = createMemoryRouter([{ path: '/settings/hidden', element: <HiddenPage /> }], {
+      initialEntries: ['/settings/hidden'],
+    });
+    render(
+      <QueryClientProvider client={makeQueryClient()}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>,
+    );
+    const person = await screen.findByTestId('hidden-less-item');
+    expect(person.textContent).toContain(tr('engage:hidden.less.count', { count: 2 }));
+    fireEvent.click(screen.getByTestId('hidden-less-reset'));
+    expect(await screen.findByText(tr('engage:hidden.less.done'))).toBeTruthy();
+    fireEvent.click(await screen.findByTestId('hidden-unhide'));
+    expect(await screen.findByText(tr('engage:hidden.posts.done'))).toBeTruthy();
+    expect(calls.filter((c) => c.method === 'DELETE').map((c) => c.path)).toEqual(['/show-less/u9', '/posts/p1/hide']);
   });
 
   it('saves privately and optimistically, rolling back on failure', async () => {

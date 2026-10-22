@@ -22,7 +22,27 @@
   },
   "hide": {
     "action": "Hide",
-    "done": "Hidden. This post won't appear in your feed again."
+    "done": "Hidden. This post won't appear in your feed again.",
+    "undo": "Undo"
+  },
+  "hidden": {
+    "title": "Hidden posts",
+    "intro": "Posts you hid or asked to see less of. Undo something here and it comes back the next time your feed loads.",
+    "less": {
+      "title": "People you see less of",
+      "help": "Each Show less moves their posts further down your feed, up to three steps. Show normally puts them back.",
+      "count": "{count, plural, one {Lowered once} other {Lowered # times}}",
+      "reset": "Show normally",
+      "done": "Back to normal.",
+      "empty": "You're not seeing less of anyone."
+    },
+    "posts": {
+      "title": "Posts you hid",
+      "unhide": "Unhide",
+      "done": "Unhidden.",
+      "empty": "You haven't hidden any posts.",
+      "more": "Show more"
+    }
   },
   "showLess": {
     "action": "Show less from @{handle}",

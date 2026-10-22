@@ -24,6 +24,19 @@ const (
 	(SELECT c.parent_id FROM post_parents c WHERE c.child_id = p.id AND c.kind = 1 LIMIT 1),
 	(SELECT c.child_id FROM post_parents c WHERE c.parent_id = p.id AND c.kind = 1 LIMIT 1)
 	FROM posts p WHERE p.deleted_at IS NULL AND p.created_at >= $1`
+	// metaByAuthor*SQL: one author's live posts after a position (posts_author_time).
+	metaByAuthorSQL = `SELECT p.id, p.author_id, p.created_at, p.audience, p.audience_forced, p.ref_policy, p.version,
+	p.edited_at, p.lang, p.deleted_at IS NOT NULL,
+	EXISTS (SELECT 1 FROM post_parents r WHERE r.child_id = p.id AND r.kind = 0),
+	(SELECT c.parent_id FROM post_parents c WHERE c.child_id = p.id AND c.kind = 1 LIMIT 1),
+	(SELECT c.child_id FROM post_parents c WHERE c.parent_id = p.id AND c.kind = 1 LIMIT 1)
+	FROM posts p WHERE p.author_id = $1 AND p.deleted_at IS NULL`
+	byAuthorNewestSQL = metaByAuthorSQL + `
+	AND ($2::timestamptz IS NULL OR p.created_at < $2 OR (p.created_at = $2 AND p.id > $3::uuid))
+	ORDER BY p.created_at DESC, p.id ASC LIMIT $4`
+	byAuthorOldestSQL = metaByAuthorSQL + `
+	AND ($2::timestamptz IS NULL OR p.created_at > $2 OR (p.created_at = $2 AND p.id < $3::uuid))
+	ORDER BY p.created_at ASC, p.id DESC LIMIT $4`
 	childrenSQL = `SELECT child_id, parent_id, kind, child_author, parent_author, detached, shadow, created_at
 	FROM post_parents WHERE parent_id = $1 ORDER BY created_at DESC, child_id`
 	parentsSQL = `SELECT child_id, parent_id, kind, child_author, parent_author, detached, shadow, created_at
@@ -38,8 +51,8 @@ const (
 	WHERE p.deleted_at IS NULL AND p.created_at >= $1`
 )
 
-func loadMetas(ctx context.Context, q store.Q, sql string, arg any) ([]core.PostMeta, error) {
-	rows, err := q.Query(ctx, sql, arg)
+func loadMetas(ctx context.Context, q store.Q, sql string, args ...any) ([]core.PostMeta, error) {
+	rows, err := q.Query(ctx, sql, args...)
 	if err != nil {
 		return nil, err
 	}

@@ -5,5 +5,9 @@ import { lazy } from 'react';
 import type { RouteObject } from 'react-router';
 
 const LikesPage = lazy(() => import('./LikesPage'));
+const HiddenPage = lazy(() => import('./HiddenPage'));
 
-export const routes: RouteObject[] = [{ path: '/p/:ref/likes', element: <LikesPage /> }];
+export const routes: RouteObject[] = [
+  { path: '/p/:ref/likes', element: <LikesPage /> },
+  { path: '/settings/hidden', element: <HiddenPage /> },
+];

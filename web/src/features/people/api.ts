@@ -2,8 +2,9 @@
 import { api, unwrap } from '../../api/client';
 import { ApiError } from '../../api/errors';
 import type { components } from '../../api/schema.gen';
-import type { Ref } from '../../vm/types';
+import type { PostVM, Ref } from '../../vm/types';
 import { toOpenedVM, type OpenedVM } from '../invites';
+import { toPostVM } from '../post/vm';
 import { toPersonVM, type PeopleVM } from './vm';
 
 type Suggestion = components['schemas']['FriendsSuggestion'];
@@ -41,6 +42,25 @@ export async function fetchRequests(): Promise<RequestsVM> {
 
 export async function fetchPerson(ref: Ref): Promise<PeopleVM> {
   return toPersonVM(unwrap(await api.GET('/people/{ref}', at(ref))));
+}
+
+// PostOrder is the order of a person's post history.
+export type PostOrder = 'newest' | 'oldest';
+
+export interface PersonPostsPage {
+  items: PostVM[];
+  next?: string;
+}
+
+// fetchPersonPosts pages through a person's posts the caller can see. The
+// server filters every post exactly like the feed; a cursor keeps its order.
+export async function fetchPersonPosts(ref: Ref, order: PostOrder, cursor?: string): Promise<PersonPostsPage> {
+  const page = unwrap(
+    await api.GET('/people/{ref}/posts', {
+      params: { path: { ref }, query: cursor ? { cursor } : { order } },
+    }),
+  );
+  return { items: page.items.map(toPostVM), ...(page.next ? { next: page.next } : {}) };
 }
 
 export async function fetchBlocks(): Promise<PeopleVM[]> {

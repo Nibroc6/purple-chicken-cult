@@ -341,7 +341,7 @@ func TestHideVia(t *testing.T) {
 	if !ph.HiddenVia || ph.Relation != "friend" || ph.Chain.Dist != 1 {
 		t.Fatalf("the hidden friend stays a friend at distance 1: %+v", ph)
 	}
-	posts, err := e.f.PersonPosts(e.as(v), e.ref(v, h), "")
+	posts, err := e.f.PersonPosts(e.as(v), e.ref(v, h), "", "")
 	e.must(err)
 	if len(posts.Items) != 1 {
 		t.Fatal("the hidden friend's own posts stay")

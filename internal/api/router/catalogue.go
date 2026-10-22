@@ -23,6 +23,7 @@ var (
 	wF   = apix.Write("friend_request")
 	wR   = apix.Write("report")
 	wS   = apix.Write("social")
+	sS   = apix.Step("social")
 	wA   = apix.Write("account")
 	wSt  = apix.Write("settings")
 	sA   = apix.Step("account")
@@ -117,6 +118,10 @@ var Catalogue = []Entry{
 	e("engageapi", 0, "GET", "/seen/recent", rF),
 	e("engageapi", 0, "POST", "/posts/{ref}/hide", wS),
 	e("engageapi", 0, "POST", "/posts/{ref}/show-less", wS),
+	e("engageapi", 1, "DELETE", "/posts/{ref}/hide", sS),
+	e("engageapi", 1, "GET", "/hidden", rF),
+	e("engageapi", 1, "GET", "/show-less", rF),
+	e("engageapi", 1, "DELETE", "/show-less/{ref}", sS),
 	e("engageapi", 1, "PUT", "/posts/{ref}/save", wV),
 	e("engageapi", 1, "DELETE", "/posts/{ref}/save", wV),
 	e("engageapi", 1, "GET", "/saves", rF),
