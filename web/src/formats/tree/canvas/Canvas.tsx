@@ -145,11 +145,16 @@ function Node({ n, clip, onPick }: { n: CanvasNode; clip: string; onPick: (n: Ca
         <text className="explorer-node-handle" x={48} y={38}>
           {t('canvas.node', { handle: n.handle })}
         </text>
-        {lines(n.excerpt).map((l, i) => (
-          <text key={i} className="explorer-node-text" x={12} y={66 + i * 18} data-user-content="">
-            {l}
+        {n.excerpt ? (
+          <text className="explorer-node-text" y={66} data-user-content="">
+            {/* A space ends each wrapped line so the text still reads as one. */}
+            {lines(n.excerpt).map((l, i, all) => (
+              <tspan key={i} x={12} dy={i === 0 ? 0 : 18}>
+                {i < all.length - 1 ? `${l} ` : l}
+              </tspan>
+            ))}
           </text>
-        ))}
+        ) : null}
       </g>
       {n.replies > 0 ? (
         <text className="explorer-node-replies" x={NODE_W - 10} y={22} textAnchor="end" aria-hidden="true">
