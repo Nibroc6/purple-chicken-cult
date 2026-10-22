@@ -116,3 +116,27 @@ func TestRejections(t *testing.T) {
 		t.Fatalf("a rejected theme was stored: %+v", o.Theme)
 	}
 }
+
+func TestThemeCSS(t *testing.T) {
+	h := harness(t)
+	h.Login("alice")
+	body := map[string]any{"tokens": map[string]any{"colors": colors("#3a2a10")}, "css": ".post { display: none }\r\n"}
+	var o struct {
+		Theme struct {
+			CSS    string `json:"css"`
+			Images []any  `json:"images"`
+		} `json:"theme"`
+	}
+	if err := json.Unmarshal(do(t, h, http.MethodPut, "/api/me/theme", body, http.StatusOK), &o); err != nil {
+		t.Fatal(err)
+	}
+	if o.Theme.CSS != ".post { display: none }\n" || o.Theme.Images == nil {
+		t.Fatalf("theme = %+v", o.Theme)
+	}
+	// image() must name one of the theme's images.
+	body["css"] = "a {}\n.brand { background: image(logo) }"
+	raw := do(t, h, http.MethodPut, "/api/me/theme", body, http.StatusUnprocessableEntity)
+	if !strings.Contains(string(raw), `"theme_css"`) || !strings.Contains(string(raw), `"css.2"`) {
+		t.Errorf("unknown image: %s", raw)
+	}
+}

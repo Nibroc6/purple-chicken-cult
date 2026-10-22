@@ -1,6 +1,7 @@
 // The like summary and the like / save / hide / show-less controls of one post. Pure
 // over the view-model and PostActions (no API import), so any layout can use
-// it. Once hidden in this session the post collapses to a notice.
+// it. Once hidden in this session the post collapses to a notice. data-part
+// names each control for theme CSS (features/themes/sheet.ts).
 // Owner: P0-W06 → P1-W08.
 import { Fragment, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -76,6 +77,7 @@ export function EngageBar({ post, actions }: { post: PostVM; actions: PostAction
         <button
           type="button"
           data-testid="engage-like"
+          data-part="like"
           aria-pressed={post.likes.byMe}
           onClick={() => {
             actions.like(post.ref, !post.likes.byMe);
@@ -87,6 +89,7 @@ export function EngageBar({ post, actions }: { post: PostVM; actions: PostAction
           <button
             type="button"
             data-testid="engage-save"
+            data-part="save"
             aria-pressed={post.savedByMe}
             title={t('save.private')}
             onClick={() => {
@@ -101,6 +104,7 @@ export function EngageBar({ post, actions }: { post: PostVM; actions: PostAction
             <button
               type="button"
               data-testid="engage-hide"
+              data-part="hide"
               onClick={() => {
                 actions.hide(post.ref);
               }}
@@ -110,6 +114,7 @@ export function EngageBar({ post, actions }: { post: PostVM; actions: PostAction
             <button
               type="button"
               data-testid="engage-show-less"
+              data-part="show-less"
               onClick={() => {
                 actions.showLess(post.ref);
               }}

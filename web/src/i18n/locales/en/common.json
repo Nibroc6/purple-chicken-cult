@@ -5,15 +5,20 @@
   },
   "nav": {
     "label": "Main",
+    "skip": "Skip to content",
     "feed": "Feed",
     "compose": "New post",
     "invite": "Invite",
-    "friends": "Friends",
+    "people": "People",
     "saves": "Saved",
     "seen": "Seen",
     "notifications": "Notifications",
     "moderation": "Moderation",
-    "settings": "Settings"
+    "settings": "Settings",
+    "menu": "Menu",
+    "close": "Close menu",
+    "collapse": "Collapse sidebar",
+    "expand": "Expand sidebar"
   },
   "placeholder": {
     "body": "This page is not built yet."
