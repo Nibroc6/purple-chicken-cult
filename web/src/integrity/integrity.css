@@ -118,9 +118,11 @@ button.integrity[aria-disabled='true'] {
 }
 .chain-node {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-1);
-  white-space: nowrap;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
 }
 .chain-node[data-kind='you'],
 .chain-node[data-kind='author'] {
@@ -145,7 +147,6 @@ button.integrity[aria-disabled='true'] {
 .chain-steps {
   font-size: max(0.75rem, 11px);
   font-weight: 400;
-  white-space: nowrap;
   padding-inline-start: var(--space-2);
   border-inline-start: 1px solid var(--color-integrity-text);
 }
