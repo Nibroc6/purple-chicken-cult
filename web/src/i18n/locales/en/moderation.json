@@ -129,11 +129,15 @@
     "historyEmpty": "No changes recorded yet.",
     "change": "{action, select, grant_moderator {@{by} made @{handle} a moderator} revoke_moderator {@{by} removed @{handle} as moderator} grant_admin {@{handle} became an admin} other {@{by} changed the role of @{handle}}}"
   },
-  "footer": {
-    "log": "Moderation log",
-    "queue": "Moderation queue",
+  "nav": {
+    "label": "Moderator pages",
+    "queue": "Queue",
+    "log": "Log",
     "recovery": "Account recovery",
-    "roles": "Moderators and admins"
+    "roles": "Moderators"
+  },
+  "footer": {
+    "log": "Moderation log"
   },
   "errors": {
     "kind_invalid": "This cannot be reported.",

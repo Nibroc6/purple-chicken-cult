@@ -14,6 +14,7 @@ import { addPasskey, removeKey } from './passkeyFlow';
 import { authError, toPasskeyVM, type PasskeyVM } from './vm';
 import './auth.css';
 import { InfoTip } from '../../lib/InfoTip';
+import { SettingsSubNav } from '../../app/SettingsSubNav';
 
 export const passkeysKey = ['auth', 'passkeys'] as const;
 
@@ -213,9 +214,7 @@ export default function PasskeysPage() {
   return (
     <section className="page auth-page">
       <h1>{t('passkeys.title')}</h1>
-      <p>
-        <Link to="/settings">{t('common:nav.settings')}</Link>
-      </p>
+      <SettingsSubNav />
       <p>
         {t('passkeys.intro')}
         <InfoTip>{t('passkeys.introTip')}</InfoTip>
