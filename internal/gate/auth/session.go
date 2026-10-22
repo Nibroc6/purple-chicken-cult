@@ -29,6 +29,9 @@ const (
 	GuestTTL       = 30 * time.Minute
 	EnrollmentTTL  = 30 * time.Minute
 	EnrollTokenTTL = 24 * time.Hour
+	// RecoveryLockFor: a passkey enrolled through recovery may not remove the
+	// account's older passkeys for this long (Problem recovery_lock).
+	RecoveryLockFor = 7 * 24 * time.Hour
 	// ShortTTL is the lifetime of a user session that is not device-bound
 	// (§17.2(2), P1): it ends ShortTTL after the last passkey verification and
 	// only a new verification (step-up, login) extends it.

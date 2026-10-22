@@ -132,7 +132,7 @@ func (e *env) enroll(handle string, knobs ...func(*authtest.Authenticator)) *cli
 	c.cookie = ev.Token
 	resp, err := c.auth.Create(ev.Options)
 	e.must(err)
-	sess, _, err := e.a.Auth.EnrollFinish(c.ctx(), resp, false, e.d.Cfg.TOSVersion, true)
+	sess, _, err := e.a.Auth.EnrollFinish(c.ctx(), resp, e.d.Cfg.TOSVersion, true)
 	e.must(err)
 	c.cookie = sess
 	id, ok := e.a.Users.ByHandle(e.ctx, handle)

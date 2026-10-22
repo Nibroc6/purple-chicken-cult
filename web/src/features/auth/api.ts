@@ -98,7 +98,6 @@ export async function enrollBegin(token: string): Promise<EnrollStart> {
 
 export interface EnrollFinish {
   credential: Credential;
-  removeOld?: boolean;
   tosVersion?: number;
   ageAttested?: boolean;
 }
@@ -109,7 +108,6 @@ export async function enrollFinish(f: EnrollFinish): Promise<SessionView> {
       await api.POST('/enroll/finish', {
         body: {
           credential: f.credential,
-          remove_old: f.removeOld ?? false,
           tos_version: f.tosVersion ?? 0,
           age_attested: f.ageAttested ?? false,
         },

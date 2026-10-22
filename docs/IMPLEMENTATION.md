@@ -812,7 +812,7 @@ CREATE TABLE account_stubs (                                   -- moderators onl
 CREATE TABLE recovery_requests (
   id               uuid        PRIMARY KEY,
   user_id          bigint      NOT NULL REFERENCES users(id),
-  kind             smallint    NOT NULL,                      -- 0 manual (two moderators, P0), 1 guardians (two friend+, P1)
+  kind             smallint    NOT NULL,                      -- 0 manual (two moderators, P0), 1 guardians (friend+, guardians_needed of them, P1)
   state            smallint    NOT NULL DEFAULT 0,            -- 0 open, 1 approved (holding), 2 released, 3 cancelled, 4 expired
   created_at       timestamptz NOT NULL DEFAULT now(),
   release_at       timestamptz,                               -- approval + 24 h hold (P0 manual AND P1 guardians; security #14)
@@ -1959,7 +1959,7 @@ func (s *Service) RemovePasskey(ctx context.Context, id gate.Ref) error         
 func (s *Service) EnrollBegin(ctx context.Context, token string) (EnrollView, error)    // token from the URL FRAGMENT (POSTed by the SPA);
                                                                                         // binds the token to this session; EnrollView{Options; Purpose;
                                                                                         // ExistingPasskeys []PasskeyView /* recovery: shown with a "remove old" option */}
-func (s *Service) EnrollFinish(ctx context.Context, body []byte, removeOld bool, tosVersion int, ageAttested bool) (sessToken string, err error)
+func (s *Service) EnrollFinish(ctx context.Context, body []byte, tosVersion int, ageAttested bool) (sessToken string, err error) // recovery keeps the old passkeys
 //   marks the token used atomically; recovery: revokes all sessions, optionally removes old passkeys, notifies friends;
 //   genesis: records ToS + age attestation (Problems tos_required, age_required)
 func (s *Service) SeedGenesis(ctx context.Context, handle, name string) (enrollURL string, err error) // CLI; URL uses "#<token>"
@@ -2541,7 +2541,7 @@ automatically, listed here for review). `P1` marks Phase 1 additions.
 | POST `/api/auth/passkeys/finish` | Wa | `{credential, name}` | 204 · `step_up_required` |
 | DELETE `/api/auth/passkeys/{id}` ⏱ | Wa | — | 204 · `last_passkey` · `step_up_required` |
 | POST `/api/enroll/begin` | anon | `{token}` (from the `#fragment`) | `{options, purpose, existing_passkeys?}` (token invalid ⇒ 404) |
-| POST `/api/enroll/finish` | anon | `{credential, remove_old?, tos_version?, age_attested?}` | `SessionView` + cookie |
+| POST `/api/enroll/finish` | anon | `{credential, tos_version?, age_attested?}` (`remove_old` is ignored) | `SessionView` + cookie |
 | P1 POST `/api/auth/dbsc/register` | anon | DBSC JWT (header `Sec-Session-Response`) | 200 + session config JSON per DBSC spec |
 | P1 POST `/api/auth/dbsc/refresh` | anon | DBSC JWT | 200 + new short-lived bound cookie |
 

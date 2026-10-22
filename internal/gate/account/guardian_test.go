@@ -80,7 +80,7 @@ func (e *env) enroll(handle string) *member {
 	m.cookie = ev.Token
 	resp, err := m.auth.Create(ev.Options)
 	e.must(err)
-	m.cookie, _, err = e.a.Auth.EnrollFinish(m.ctx(), resp, false, e.d.Cfg.TOSVersion, true)
+	m.cookie, _, err = e.a.Auth.EnrollFinish(m.ctx(), resp, e.d.Cfg.TOSVersion, true)
 	e.must(err)
 	id, ok := e.a.Users.ByHandle(e.ctx, handle)
 	if !ok {
@@ -509,5 +509,158 @@ func TestCosignedManualApproval(t *testing.T) {
 	if n := e.count(`SELECT count(*) FROM signed_records WHERE kind = $1 AND jsonb_array_length(assertions) = 1
 		AND convert_from(body, 'UTF8')::jsonb->>'method' = 'moderators'`, int16(core.RecRecoveryApproval)); n != 1 {
 		t.Fatalf("%d co-signed manual RecoveryApproval records", n)
+	}
+}
+
+func TestGuardiansNeeded(t *testing.T) {
+	for n, want := range map[int]int{0: 2, 1: 2, 2: 2, 4: 2, 5: 3, 8: 3, 9: 4, 16: 4, 17: 5, 32: 5, 1000: 5} {
+		if got := account.GuardiansNeeded(n); got != want {
+			t.Errorf("GuardiansNeeded(%d) = %d, want %d", n, got, want)
+		}
+	}
+}
+
+// ownerTold counts the account_recovery notifications of user with reason.
+func (e *env) ownerTold(user core.UserID, reason string) int {
+	n := 0
+	for _, ev := range e.rec.For(user) {
+		if ev.Kind == "account_recovery" && ev.Data["reason"] == reason {
+			n++
+		}
+	}
+	return n
+}
+
+// Acceptance: the account itself is told when a recovery of it is vouched for
+// and again when it starts holding.
+func TestGuardianRecoveryTellsOwner(t *testing.T) {
+	e := newEnv(t)
+	r := e.vouched()
+	if n := e.ownerTold(r.alice.id, "recovery_started"); n != 1 {
+		t.Fatalf("%d recovery_started notifications to alice", n)
+	}
+	e.status(r.ticket) // already vouched: told once
+	if n := e.ownerTold(r.alice.id, "recovery_started"); n != 1 {
+		t.Fatalf("%d recovery_started notifications after a second look", n)
+	}
+	e.approve(r)
+	if n := e.ownerTold(r.alice.id, "recovery_pending"); n != 1 {
+		t.Fatalf("%d recovery_pending notifications to alice", n)
+	}
+	for _, m := range []*member{r.gina, r.gus} {
+		if e.ownerTold(m.id, "recovery_started")+e.ownerTold(m.id, "recovery_pending") != 0 {
+			t.Errorf("guardian %d got the owner's notification", m.id)
+		}
+	}
+}
+
+// Acceptance: an account with more friend+ friends needs more guardians
+// (5–8 friends: 3), each approving once, before the hold starts.
+func TestGuardianRecoveryScalesWithFriends(t *testing.T) {
+	e := newEnv(t)
+	alice, gina, gus, gwen := e.enroll("alice"), e.enroll("gina"), e.enroll("gus"), e.enroll("gwen")
+	hs := e.handshakes()
+	for _, m := range []*member{gina, gus, gwen, e.enroll("gail"), e.enroll("glen")} {
+		e.link(alice.id, m.id, core.LevelFriendPlus)
+	}
+	_, err := e.a.Account.RecoveryStart(gina.ctx(), e.d.Refs.User(gina.id, alice.id))
+	e.must(err)
+	c, err := e.a.Account.RecoveryClaim(e.guest(7), []byte(`"ok"`))
+	e.must(err)
+	hs.outcome[hs.last] = core.OutcomeVerified
+	if st := e.status(c.Ticket); st.State != account.StatusApproving || st.Approvals != 1 || st.Needed != 3 {
+		t.Fatalf("status %+v, want approving 1 of 3", st)
+	}
+
+	// gus approves: 2 of 3, still open, and gus cannot approve twice.
+	list, err := e.a.Account.RecoveryRequests(gus.ctx())
+	e.must(err)
+	if len(list.Items) != 1 || list.Items[0].Approvals != 1 || list.Items[0].Needed != 3 {
+		t.Fatalf("gus's requests %+v", list)
+	}
+	id := list.Items[0].ID
+	e.must(e.a.Account.RecoveryGuardianApprove(gus.ctx(), id, e.sign(gus, account.PurposeRecoveryApprove, id)))
+	if st := e.status(c.Ticket); st.State != account.StatusApproving || st.Approvals != 2 || st.Needed != 3 {
+		t.Fatalf("status %+v, want approving 2 of 3", st)
+	}
+	if at, _ := e.a.Account.RecoveryPending(alice.ctx()); at != nil {
+		t.Fatal("holding before enough guardians approved")
+	}
+	if l, _ := e.a.Account.RecoveryRequests(gus.ctx()); len(l.Items) != 0 {
+		t.Fatalf("still listed for gus after his approval: %+v", l)
+	}
+	wantProblem(t, e.a.Account.RecoveryGuardianApprove(gus.ctx(), id, nil), "second_guardian_required")
+
+	// gwen's approval is the third: the hold starts.
+	list, err = e.a.Account.RecoveryRequests(gwen.ctx())
+	e.must(err)
+	if len(list.Items) != 1 || list.Items[0].Approvals != 2 {
+		t.Fatalf("gwen's requests %+v", list)
+	}
+	id = list.Items[0].ID
+	e.must(e.a.Account.RecoveryGuardianApprove(gwen.ctx(), id, e.sign(gwen, account.PurposeRecoveryApprove, id)))
+	if st := e.status(c.Ticket); st.State != account.StatusHolding {
+		t.Fatalf("status %+v, want holding", st)
+	}
+	if n := e.count(`SELECT count(*) FROM recovery_approvals WHERE role = 1`); n != 3 {
+		t.Fatalf("%d guardian approvals", n)
+	}
+}
+
+// login signs in from a fresh browser with authenticator m.auth.
+func (e *env) login(m *member) (*member, error) {
+	e.t.Helper()
+	b := &member{e: e, auth: m.auth, id: m.id}
+	bv, err := e.a.Auth.LoginBegin(b.ctx())
+	e.must(err)
+	b.cookie = bv.Token
+	resp, err := m.auth.Get(bv.Options)
+	e.must(err)
+	b.cookie, _, err = e.a.Auth.LoginFinish(b.ctx(), resp)
+	return b, err
+}
+
+// Acceptance: signing in with a passkey the account had before the recovery
+// cancels it (the passkey veto), during the hold and after the release until
+// the link is used; the recovering device sees cancelled.
+func TestPasskeyLoginCancelsRecovery(t *testing.T) {
+	e := newEnv(t)
+	r := e.vouched()
+	e.approve(r)
+	if _, err := e.login(r.alice); err != nil {
+		t.Fatal(err)
+	}
+	if st := e.status(r.ticket); st.State != account.StatusCancelled {
+		t.Fatalf("status after the owner's login %+v", st)
+	}
+
+	// Released, link not used yet: still cancelled by a login.
+	e2 := newEnv(t)
+	r2 := e2.vouched()
+	e2.approve(r2)
+	e2.advance(account.HoldFor + time.Second)
+	if st := e2.status(r2.ticket); st.State != account.StatusReleased {
+		t.Fatalf("status %+v", st)
+	}
+	if _, err := e2.login(r2.alice); err != nil {
+		t.Fatal(err)
+	}
+	if st := e2.status(r2.ticket); st.State != account.StatusCancelled || st.EnrollURL != "" {
+		t.Fatalf("status after the owner's login %+v", st)
+	}
+}
+
+// A passkey added after the recovery opened does not cancel it.
+func TestNewerPasskeyLoginKeepsRecovery(t *testing.T) {
+	e := newEnv(t)
+	r := e.vouched()
+	e.approve(r)
+	e.advance(time.Second)
+	e.exec("UPDATE webauthn_credentials SET created_at = $2 WHERE user_id = $1", int64(r.alice.id), e.now())
+	if _, err := e.login(r.alice); err != nil {
+		t.Fatal(err)
+	}
+	if st := e.status(r.ticket); st.State != account.StatusHolding {
+		t.Fatalf("status %+v, want holding", st)
 	}
 }

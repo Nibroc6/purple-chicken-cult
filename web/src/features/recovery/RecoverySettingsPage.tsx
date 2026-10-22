@@ -91,7 +91,12 @@ function Approval({ r }: { r: GuardianRequestVM }) {
   const name = r.displayName ? `${r.displayName} (@${r.handle})` : `@${r.handle}`;
   return (
     <li className="recovery-item" data-testid="recovery-request" data-handle={r.handle}>
-      <p>{t('approve.item', { name, at: formatDateTime(r.expiresAt, i18n.language) })}</p>
+      <p>{t('approve.item', {
+          name,
+          at: formatDateTime(r.expiresAt, i18n.language),
+          approvals: r.approvals,
+          needed: r.needed,
+        })}</p>
       <p className="muted">{t('approve.warning')}</p>
       <button
         type="button"

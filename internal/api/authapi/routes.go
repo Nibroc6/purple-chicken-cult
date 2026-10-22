@@ -47,10 +47,11 @@ type enrollBeginIn struct {
 }
 
 type enrollFinishIn struct {
-	Credential  json.RawMessage `json:"credential"`
-	RemoveOld   bool            `json:"remove_old"`
-	TOSVersion  int             `json:"tos_version"`
-	AgeAttested bool            `json:"age_attested"`
+	Credential json.RawMessage `json:"credential"`
+	// RemoveOld is accepted and ignored: recovery keeps the old passkeys.
+	RemoveOld   bool `json:"remove_old"`
+	TOSVersion  int  `json:"tos_version"`
+	AgeAttested bool `json:"age_attested"`
 }
 
 type optionsOut struct {
@@ -218,7 +219,7 @@ func Register(r chi.Router, d *api.Deps) {
 		if err != nil {
 			return err
 		}
-		tok, sv, err := d.Auth.EnrollFinish(r.Context(), in.Credential, in.RemoveOld, in.TOSVersion, in.AgeAttested)
+		tok, sv, err := d.Auth.EnrollFinish(r.Context(), in.Credential, in.TOSVersion, in.AgeAttested)
 		if err != nil {
 			return err
 		}

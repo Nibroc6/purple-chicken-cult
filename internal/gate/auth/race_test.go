@@ -178,7 +178,7 @@ func TestRecoveryEndsSessionOfRacingLogin(t *testing.T) {
 	rctx := r.ctx()
 	e.onceAt("after-use", func() {
 		go func() {
-			tk, _, err := e.a.Auth.EnrollFinish(rctx, resp, true, 0, false)
+			tk, _, err := e.a.Auth.EnrollFinish(rctx, resp, 0, false)
 			done <- result{tk, err}
 		}()
 		e.waitLockWaiter()

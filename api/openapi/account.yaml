@@ -293,8 +293,9 @@ paths:
       parameters:
         - { name: id, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
       description: >-
-        P1. The second guardian's approval: starts the 24 h hold. Anyone who is not a guardian of
-        the account gets the uniform 404.
+        P1. A further guardian's approval; the one that reaches the request's `needed` starts
+        the 24 h hold. A guardian who already approved (or vouched) gets 409
+        second_guardian_required. Anyone who is not a guardian of the account gets the uniform 404.
       requestBody:
         required: false
         description: >-
@@ -350,9 +351,13 @@ components:
         assertion: { type: object, additionalProperties: true }
     AccountGuardianRequest:
       type: object
-      required: [id, account, expires_at]
+      required: [id, account, expires_at, approvals, needed]
       properties:
         id: { $ref: '_common.yaml#/components/schemas/Ref' }
+        approvals: { type: integer, description: 'Approvals so far, the guardian who vouched included.' }
+        needed:
+          type: integer
+          description: 'Guardians the recovery needs: max(2, ceil(log2 friend+ count)), at most 5.'
         account:
           type: object
           required: [handle, display_name]
@@ -367,6 +372,8 @@ components:
         state: { type: string, enum: [claimed, approving, holding, released, cancelled, expired] }
         release_at: { type: string, format: date-time }
         enroll_url: { type: string }
+        approvals: { type: integer, description: 'While approving: approvals so far, the guardian who vouched included.' }
+        needed: { type: integer, description: 'While approving: guardians the recovery needs.' }
     AccountRecoveryPending:
       type: object
       properties:

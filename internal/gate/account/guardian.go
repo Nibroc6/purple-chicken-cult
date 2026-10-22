@@ -17,8 +17,9 @@ import (
 	"github.com/Nibroc6/purple-chicken-cult/internal/store"
 )
 
-// Guardian recovery (§10.3 Phase 1, D10): recovery confirmed by two distinct
-// friend+ friends of the account, without moderators.
+// Guardian recovery (§10.3 Phase 1, D10): recovery confirmed by distinct
+// friend+ friends of the account, without moderators. How many is fixed when
+// it opens (GuardiansNeeded: 2, growing with log2 of the friend+ count).
 //
 //  1. Guardian A, in person with the recovering person, opens it for that
 //     friend (POST /api/recovery/sessions): a recovery handshake
@@ -33,12 +34,15 @@ import (
 //     through /api/join/* as for an invitee.
 //  3. Once the handshake's outcome passed (Accepted or Verified) the request is
 //     vouched: the account's other friend+ friends are told
-//     (recovery_approval) and see it in GET /api/recovery/requests.
-//  4. A second guardian B (≠ A, ≠ the account, friend+ of the account)
-//     approves with a passkey assertion over the RecoveryApproval record
-//     (POST /api/recovery/requests/{id}/approve). The 24 h hold starts: every
-//     live session of the account shows the banner with Cancel (GET
-//     /api/me/recovery) and the account's friends get friend_security.
+//     (recovery_approval) and see it in GET /api/recovery/requests, and the
+//     account itself is told (account_recovery).
+//  4. Further guardians (≠ A, ≠ the account, friend+ of the account, each
+//     once) approve with a passkey assertion over the RecoveryApproval record
+//     (POST /api/recovery/requests/{id}/approve). When A and they reach the
+//     request's guardians_needed the 24 h hold starts: every live session of
+//     the account shows the banner with Cancel (GET /api/me/recovery), the
+//     account is told again and its friends get friend_security. Signing in
+//     with an older passkey cancels it (PasskeyLogin).
 //  5. After the hold (recovery.release, shared with manual recovery, or the
 //     device's next status call) every session of the account ends and the
 //     device's status answers a one-time enrollment URL (/enroll#token,
@@ -60,11 +64,29 @@ const (
 	StatusExpired   = "expired"
 )
 
-// RecoveryStatus is GET /api/recovery/status.
+// RecoveryStatus is GET /api/recovery/status. Approvals (the guardian who
+// vouched included) and Needed are set while approving.
 type RecoveryStatus struct {
 	State     string     `json:"state"`
 	ReleaseAt *time.Time `json:"release_at,omitempty"`
 	EnrollURL string     `json:"enroll_url,omitempty"`
+	Approvals int        `json:"approvals,omitempty"`
+	Needed    int        `json:"needed,omitempty"`
+}
+
+// MaxGuardiansNeeded caps GuardiansNeeded.
+const MaxGuardiansNeeded = 5
+
+// GuardiansNeeded is how many guardians (the one who vouched in person
+// included) a guardian recovery of an account with n friend+ friends needs:
+// max(2, ceil(log2 n)), at most MaxGuardiansNeeded. 1–4 friends need 2, 5–8
+// need 3, 9–16 need 4, 17 and more need 5.
+func GuardiansNeeded(n int) int {
+	k := 0
+	for (1 << k) < n {
+		k++
+	}
+	return min(max(2, k), MaxGuardiansNeeded)
 }
 
 // Claimed is the answer of POST /api/recovery/claim: the device's ticket.
@@ -78,11 +100,14 @@ type PersonLabel struct {
 	DisplayName string `json:"display_name"`
 }
 
-// GuardianRequest is one recovery waiting for the viewer's approval.
+// GuardianRequest is one recovery waiting for the viewer's approval:
+// Approvals so far (the guardian who vouched included) of Needed.
 type GuardianRequest struct {
 	ID        gate.Ref    `json:"id"`
 	Account   PersonLabel `json:"account"`
 	ExpiresAt time.Time   `json:"expires_at"`
+	Approvals int         `json:"approvals"`
+	Needed    int         `json:"needed"`
 }
 
 // GuardianRequests is GET /api/recovery/requests.
@@ -159,8 +184,14 @@ func (s *Service) RecoveryStart(ctx context.Context, friend gate.Ref) (gate.Hand
 			return err
 		}
 		rid = s.d.IDs.New()
-		if _, err := tx.Exec(ctx, `INSERT INTO recovery_requests (id, user_id, kind, state, created_at)
-			VALUES ($1, $2, $3, $4, $5)`, rid, int64(account), kindGuardian, stateOpen, now); err != nil {
+		n := 0
+		for _, f := range s.d.Graph.Friends(account) {
+			if f.Level == core.LevelFriendPlus {
+				n++
+			}
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO recovery_requests (id, user_id, kind, state, created_at, guardians_needed)
+			VALUES ($1, $2, $3, $4, $5, $6)`, rid, int64(account), kindGuardian, stateOpen, now, GuardiansNeeded(n)); err != nil {
 			if store.IsUniqueViolation(err) {
 				return gate.NewProblem(gate.StatusConflict, "recovery_exists")
 			}
@@ -252,7 +283,7 @@ func (s *Service) vouch(ctx context.Context, tx store.Q, r *recoveryRow, now tim
 			return false, err
 		}
 	}
-	return true, nil
+	return true, s.notifyOwner(ctx, tx, r.user, ownerStarted)
 }
 
 // RecoveryStatus is the recovering device's view of its request, found by
@@ -312,7 +343,7 @@ func (s *Service) RecoveryStatus(ctx context.Context, ticket string) (RecoverySt
 			}
 			out.State = StatusClaimed
 			if ok {
-				out.State = StatusApproving
+				out.State, out.Approvals, out.Needed = StatusApproving, r.approvals, r.needed
 			}
 		case stateHolding:
 			out.State, out.ReleaseAt = StatusHolding, utc(r.releaseAt)
@@ -402,7 +433,7 @@ func (s *Service) RecoveryRequests(ctx context.Context) (GuardianRequests, error
 		err := s.d.DB.Tx(ctx, func(tx pgx.Tx) error {
 			ok = false
 			r, err := loadAny(ctx, tx, id, true)
-			if err != nil || r.state != stateOpen || r.first == v.ID || !s.isGuardian(ctx, v.ID, r.user) {
+			if err != nil || r.state != stateOpen || r.approved(v.ID) || !s.isGuardian(ctx, v.ID, r.user) {
 				return err
 			}
 			vouched, err := s.vouch(ctx, tx, &r, now)
@@ -414,7 +445,8 @@ func (s *Service) RecoveryRequests(ctx context.Context) (GuardianRequests, error
 				return err
 			}
 			item = GuardianRequest{ID: s.d.Refs.Handshake(v.ID, id), Account: PersonLabel{Handle: m.Handle,
-				DisplayName: m.DisplayName}, ExpiresAt: r.createdAt.Add(OpenFor).UTC()}
+				DisplayName: m.DisplayName}, ExpiresAt: r.createdAt.Add(OpenFor).UTC(), Approvals: r.approvals,
+				Needed: r.needed}
 			ok = true
 			return nil
 		})
@@ -431,9 +463,9 @@ func (s *Service) RecoveryRequests(ctx context.Context) (GuardianRequests, error
 	return out, nil
 }
 
-// canApproveGuardian checks that v may give the second approval of open
-// guardian request r: a guardian of the account other than the one who
-// vouched, the request vouched and not expired.
+// canApproveGuardian checks that v may give a further approval of open
+// guardian request r: a guardian of the account who has not approved it yet
+// (the one who vouched included), the request vouched and not expired.
 func (s *Service) canApproveGuardian(ctx context.Context, v core.Viewer, r recoveryRow) error {
 	if r.state != stateOpen || !s.isGuardian(ctx, v.ID, r.user) || r.vouchedAt == nil {
 		return gate.ErrNotFound
@@ -441,17 +473,19 @@ func (s *Service) canApproveGuardian(ctx context.Context, v core.Viewer, r recov
 	if !s.d.Clock.Now().Before(r.createdAt.Add(OpenFor)) {
 		return gate.NewProblem(gate.StatusConflict, "recovery_expired")
 	}
-	if r.first == v.ID {
+	if r.approved(v.ID) {
 		return gate.NewProblem(gate.StatusConflict, "second_guardian_required")
 	}
 	return nil
 }
 
-// RecoveryGuardianApprove is guardian B's approval of guardian request id
-// (a ref from RecoveryRequests), co-signed with B's passkey. It starts the
-// 24 h hold, writes the RecoveryApproval record and tells the account's
-// friends. Problems second_guardian_required, recovery_expired; anyone who is
-// not a guardian of the account gets the uniform not-found.
+// RecoveryGuardianApprove is a further guardian's approval of guardian
+// request id (a ref from RecoveryRequests), co-signed with their passkey. It
+// writes the RecoveryApproval record; the approval that reaches the request's
+// guardians_needed starts the 24 h hold and tells the account and its
+// friends. Problems second_guardian_required (the viewer already approved, or
+// vouched), recovery_expired; anyone who is not a guardian of the account
+// gets the uniform not-found.
 func (s *Service) RecoveryGuardianApprove(ctx context.Context, id gate.Ref, c *Cosig) error {
 	v, err := core.RequireUser(ctx)
 	if err != nil {
@@ -500,6 +534,9 @@ func (s *Service) RecoveryGuardianApprove(ctx context.Context, id gate.Ref, c *C
 			VALUES ($1, $2, $3, $4, $5, $6)`, rid, int64(v.ID), roleGuardian, now, v.AuthAt, asr); err != nil {
 			return err
 		}
+		if r.approvals+1 < r.needed {
+			return nil
+		}
 		if _, err := tx.Exec(ctx, "UPDATE recovery_requests SET state = $2, release_at = $3 WHERE id = $1",
 			rid, stateHolding, now.Add(HoldFor)); err != nil {
 			return err
@@ -508,8 +545,20 @@ func (s *Service) RecoveryGuardianApprove(ctx context.Context, id gate.Ref, c *C
 	})
 }
 
-// notifyPending tells the account's friends that a recovery of it is holding.
+// notifyOwner tells the account itself about a recovery of it (reason
+// ownerStarted or ownerPending): its in-app list and Web Push on its signed-in
+// devices, so an owner who did not ask for it can cancel.
+func (s *Service) notifyOwner(ctx context.Context, tx store.Q, user core.UserID, reason string) error {
+	return s.d.Notify.Notify(ctx, tx, core.Event{To: user, Kind: notifyAccountRecovery,
+		Data: map[string]any{"reason": reason}})
+}
+
+// notifyPending tells the account and its friends that a recovery of it is
+// holding.
 func (s *Service) notifyPending(ctx context.Context, tx store.Q, user core.UserID) error {
+	if err := s.notifyOwner(ctx, tx, user, ownerPending); err != nil {
+		return err
+	}
 	for _, f := range s.d.Graph.Friends(user) {
 		if err := s.d.Notify.Notify(ctx, tx, core.Event{To: f.To, Kind: notifyFriendSecurity, SubjectUser: user,
 			Data: map[string]any{"reason": "recovery_pending"}}); err != nil {
