@@ -70,7 +70,8 @@ describe('saves page', () => {
     fireEvent.click(screen.getByTestId('saves-more'));
     expect((await screen.findByText('third')).closest('[data-testid="saves-item"]')?.getAttribute('data-ref')).toBe('s3');
     expect(screen.queryByTestId('saves-more')).toBeNull();
-    expect(calls.map((c) => c.path)).toEqual(['/saves', '/saves?cursor=c1']);
+    // (The cards also read the session and account for the reader's format.)
+    expect(calls.map((c) => c.path).filter((p) => p.startsWith('/saves'))).toEqual(['/saves', '/saves?cursor=c1']);
     expect(screen.getAllByTestId('engage-save').every((b) => b.getAttribute('aria-pressed') === 'true')).toBe(true);
   });
 

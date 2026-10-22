@@ -13,8 +13,8 @@ import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router';
 import { Loading } from '../../app/Loading';
-import { formats } from '../../formats/registry';
-import type { FormatId, FormatModule, TreeActions } from '../../formats/types';
+import type { TreeActions } from '../../formats/types';
+import { useFormat } from '../../formats/useFormat';
 import { WhyLoaderContext, type WhyLoader } from '../../integrity/types';
 import type { Ref, TreeRowVM, TreeVM } from '../../vm/types';
 import { usePostActions } from '../engage';
@@ -24,18 +24,6 @@ import { toUIPrefs } from '../settings/vm';
 import { fetchMore, fetchRow, openTree } from './api';
 import { addEarlier, appendMore, bottomRow, isExpired, laterFrom, putRow, topRow, treeErrorKey, treeKey } from './vm';
 import './tree.css';
-
-// useFormat loads the reader's layout format chunk.
-function useFormat(id: FormatId, enabled: boolean): FormatModule | undefined {
-  const q = useQuery({
-    queryKey: ['format', id],
-    enabled,
-    queryFn: async () => (await formats[id]()).default,
-    staleTime: Infinity,
-    structuralSharing: false,
-  });
-  return q.data;
-}
 
 export default function TreePage() {
   const { t } = useTranslation(['tree', 'errors']);

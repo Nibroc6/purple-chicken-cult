@@ -6,9 +6,8 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { Loading } from '../../app/Loading';
 import { errorKey } from '../../api/errors';
-import { EngageBar } from '../engage/EngageBar';
 import { usePostActions } from '../engage/usePostActions';
-import { PostPreview } from '../post/shared';
+import { PostCard } from '../post/PostCard';
 import { fetchRecent, recentKey } from './api';
 import './seen.css';
 import { InfoTip } from '../../lib/InfoTip';
@@ -43,11 +42,7 @@ export default function SeenPage() {
       <ol className="seen-list" data-testid="seen-list">
         {posts.map((p) => (
           <li key={p.ref} className="seen-item" data-testid="seen-item" data-ref={p.ref}>
-            <PostPreview post={p} />
-            <EngageBar post={p} actions={actions} />
-            <p className="post-links">
-              <Link to={`/p/${p.ref}`}>{t('page.open')}</Link>
-            </p>
+            <PostCard post={p} actions={actions} />
           </li>
         ))}
       </ol>

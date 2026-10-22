@@ -4,12 +4,10 @@
 // saved again. Owner: P1-W08.
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router';
 import { Loading } from '../../app/Loading';
 import { errorKey } from '../../api/errors';
-import { EngageBar } from '../engage/EngageBar';
 import { usePostActions } from '../engage/usePostActions';
-import { PostPreview } from '../post/shared';
+import { PostCard } from '../post/PostCard';
 import { fetchSaves, savesKey } from './api';
 import './saves.css';
 
@@ -39,11 +37,7 @@ export default function SavesPage() {
       <ol className="saves-list" data-testid="saves-list">
         {posts.map((p) => (
           <li key={p.ref} className="saves-item" data-testid="saves-item" data-ref={p.ref}>
-            <PostPreview post={p} />
-            <EngageBar post={p} actions={actions} />
-            <p className="post-links">
-              <Link to={`/p/${p.ref}`}>{t('page.open')}</Link>
-            </p>
+            <PostCard post={p} actions={actions} />
           </li>
         ))}
       </ol>

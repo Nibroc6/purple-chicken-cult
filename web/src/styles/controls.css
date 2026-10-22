@@ -105,14 +105,15 @@
 :where(.icon-button .icon) {
   font-size: 1.25em;
 }
-:where(.icon-button:hover:not(:disabled)) {
-  color: var(--color-accent);
-  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
-}
 :where(.icon-button[aria-pressed='true']) {
   background: transparent;
   border-color: transparent;
   color: var(--color-accent);
+}
+/* The round highlight shows only on hover, keyboard focus and press (touch). */
+:where(.icon-button:not(:disabled)):where(:hover, :focus-visible, :active) {
+  color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
 }
 :where(.icon-button:disabled) {
   opacity: 0.5;

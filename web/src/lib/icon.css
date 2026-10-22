@@ -7,9 +7,14 @@
   inline-size: 1em;
   block-size: 1em;
   vertical-align: -0.125em;
-  /* Clip to the box: at font-size 0 (a theme hiding a control's text) the
-     icon must vanish, not draw at its natural size. */
-  overflow: hidden;
+  /* Not overflow: hidden, which in Chrome cuts the drawing short of its box
+     and shaves Font Awesome paths that touch the viewBox (the foot of a
+     circle, the side of a heart). The clip path sits an eighth of an em
+     outside the box instead, and at font-size 0 (a theme hiding a control's
+     text) it still hides the icon, which a zero-size SVG would otherwise
+     draw at its natural size. */
+  overflow: visible;
+  clip-path: inset(-0.125em);
 }
 .icon[data-directional='true']:dir(rtl) {
   scale: -1 1;

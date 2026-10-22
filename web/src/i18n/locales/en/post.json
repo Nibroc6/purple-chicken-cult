@@ -21,7 +21,8 @@
     "d1": "Acquaintances only",
     "d2": "Within 2 steps",
     "d3": "Within 3 steps",
-    "friend_plus": "Friends only (people you met in person)"
+    "friend_plus": "Friends only (people you met in person)",
+    "default": "{label} (default)"
   },
   "policy": {
     "anyone": "Anyone who can see it",

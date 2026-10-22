@@ -20,7 +20,7 @@ import { MediaImage, MediaPicker } from '../media';
 import { createPost, createThread, fetchPost, postKey, type DraftIn, type ParentIn } from '../post/api';
 import { defaultLang, detectLang } from '../post/lang';
 import { AudienceSelect, AutoLang, Counter, ErrorText, PolicySelect, PostPreview } from '../post/shared';
-import { codePoints, HARD_LIMIT, hasAudienceLimit, MAX_MEDIA, MAX_PARENTS, MAX_PARTS, SOFT_LIMIT } from '../post/vm';
+import { codePoints, defaultAudience, HARD_LIMIT, hasAudienceLimit, MAX_MEDIA, MAX_PARENTS, MAX_PARTS, SOFT_LIMIT } from '../post/vm';
 import { REF, refFromLink } from './picks';
 import { joinParts, splitThread } from './split';
 import './composer.css';
@@ -79,7 +79,7 @@ function Composer({
   const [body, setBody] = useState('');
   const [parts, setParts] = useState<string[] | null>(null);
   const [chosenLang, setLang] = useState<string | null>(null);
-  const [audience, setAudience] = useState<Audience>('connected');
+  const [audience, setAudience] = useState<Audience>(defaultAudience);
   const [policy, setPolicy] = useState<RefPolicy>(me.settings.slippery_default ? 'nobody' : 'anyone');
   const [noPreview, setNoPreview] = useState(false);
   const [media, setMedia] = useState<MediaVM[]>([]);

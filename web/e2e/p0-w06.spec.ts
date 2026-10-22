@@ -137,7 +137,7 @@ test('a card seen for a second lands in recently seen; its context row does not'
   await page.goto(`/p/${reply.ref}/likes`);
   const card = page.getByTestId('engage-card');
   await expect(card).toHaveAttribute('data-seen-ref', reply.ref);
-  await expect(card.getByTestId('post-context')).toBeVisible();
+  await expect(card.getByTestId('feed-context').first()).toBeVisible();
   await expect(page.locator('[data-seen-ref]')).toHaveCount(1);
   // ≥ 1 s visible, then the 5 s batch (or the flush on hide) sends it.
   await expect
@@ -153,6 +153,7 @@ test('a card seen for a second lands in recently seen; its context row does not'
   // Leaving a page flushes what is pending right away (keepalive on hide).
   const other = await bobPost(page.request, 'Another post by bob');
   await page.goto(`/p/${other.ref}/likes`);
+  await expect(page.locator(`[data-seen-ref="${other.ref}"]`)).toBeVisible();
   await page.waitForTimeout(1_500);
   await page.goto('about:blank');
   await expect

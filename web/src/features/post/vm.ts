@@ -114,7 +114,10 @@ export function counterState(n: number): CounterState {
   return 'hidden';
 }
 
-export const audiences: readonly Audience[] = ['connected', 'd1', 'd2', 'd3', 'friend_plus'];
+// From the narrowest audience to the widest, as the composer lists them.
+export const audiences: readonly Audience[] = ['friend_plus', 'd1', 'd2', 'd3', 'connected'];
+// The audience a new post starts with.
+export const defaultAudience: Audience = 'connected';
 export const refPolicies: readonly RefPolicy[] = ['anyone', 'two_hops', 'friends', 'nobody'];
 
 // hasAudienceLimit: replying to such a post hides the context from some of

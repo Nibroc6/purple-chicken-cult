@@ -17,6 +17,7 @@ import {
   PersonLink,
   PostLinks,
   PostTime,
+  openCardProps,
   PreviewList,
   shouldFold,
   useSeenTarget,
@@ -46,6 +47,7 @@ export function PostLayout({ post, actions, variant, part }: CardProps) {
       data-tier={post.tier}
       data-part={part}
       {...seen}
+      {...(variant === 'feed' ? openCardProps(post.ref, actions.openTree) : {})}
     >
       <header className="post-author">
         <PersonLink person={post.author.ref} className="post-who">
@@ -55,7 +57,7 @@ export function PostLayout({ post, actions, variant, part }: CardProps) {
         <InviterLabel inviter={post.author.inviter} invitee={post.author.ref} onReport={actions.report} />
         <Chain chain={post.author.chain} author={post.author} />
         <span className="post-head-end">
-          <PostTime at={post.createdAt} />
+          <PostTime at={post.createdAt} post={post.ref} />
           {post.thread ? (
             <span className="post-thread muted" data-testid="feed-thread-pos">
               {t('thread.position', { index: post.thread.index, total: post.thread.total })}
