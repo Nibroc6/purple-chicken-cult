@@ -387,6 +387,8 @@ type ModItem struct {
 	Claimed bool          `json:"claimed"`           // claimed by any moderator (claim not expired)
 	Pending *ModPending   `json:"pending,omitempty"` // the two-person action awaiting a second moderator
 	CSAM    *CSAMHoldView `json:"csam,omitempty"`    // csam items: the hold's metadata, never the content
+	// Steward addition (contract request dm-1): a reported direct message.
+	Message *ModMessageView `json:"message,omitempty"`
 }
 
 // ModPending is a two-person moderator action awaiting its second moderator.

@@ -32,6 +32,9 @@ var (
 	wU   = apix.Write("friend_upgrade")
 	wV   = apix.Write("save")
 	wM   = apix.Write("media")
+	rMsg = apix.Read("messages")
+	wDM  = apix.Write("message")
+	wG   = apix.Write("message_group")
 )
 
 func e(mod string, phase int, method, pattern string, c apix.Class) Entry {
@@ -136,6 +139,24 @@ var Catalogue = []Entry{
 	e("treeapi", 0, "GET", "/tree/{ref}", rT),
 	e("treeapi", 0, "GET", "/tree/s/{snapshot}/row", rT),
 	e("treeapi", 0, "GET", "/tree/s/{snapshot}/more", rT),
+
+	// messagesapi (direct messages; contract request dm-1)
+	e("messagesapi", 1, "GET", "/messages", rMsg),
+	e("messagesapi", 1, "GET", "/messages/unread", rMsg),
+	e("messagesapi", 1, "POST", "/messages/direct", wS),
+	e("messagesapi", 1, "POST", "/messages/groups", wG),
+	e("messagesapi", 1, "GET", "/messages/{ref}", rMsg),
+	e("messagesapi", 1, "PATCH", "/messages/{ref}", wG),
+	e("messagesapi", 1, "DELETE", "/messages/{ref}", wS),
+	e("messagesapi", 1, "POST", "/messages/{ref}/join", wS),
+	e("messagesapi", 1, "POST", "/messages/{ref}/members", wG),
+	e("messagesapi", 1, "DELETE", "/messages/{ref}/members/{id}", wS),
+	e("messagesapi", 1, "PUT", "/messages/{ref}/mute", wS),
+	e("messagesapi", 1, "DELETE", "/messages/{ref}/mute", wS),
+	e("messagesapi", 1, "GET", "/messages/{ref}/messages", rMsg),
+	e("messagesapi", 1, "POST", "/messages/{ref}/messages", wDM),
+	e("messagesapi", 1, "DELETE", "/messages/{ref}/messages/{id}", wS),
+	e("messagesapi", 1, "POST", "/messages/{ref}/read", free),
 
 	// notifyapi (P0-W10 → P1-W05)
 	e("notifyapi", 0, "GET", "/notifications", rG),

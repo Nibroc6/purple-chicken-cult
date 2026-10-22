@@ -11,6 +11,7 @@ import { NotFound } from '../../app/NotFound';
 import { ApiError } from '../../api/errors';
 import { asRef } from '../../vm/types';
 import { HandshakeHost, type OpenedVM } from '../invites';
+import { MessageButton } from '../messages';
 import { fetchPerson, openUpgrade } from './api';
 import { PersonPosts } from './PersonPosts';
 import { ErrorText, PeopleNav, PersonActions, PersonCard, ReportPerson, peopleKey } from './shared';
@@ -44,6 +45,9 @@ export default function PersonPage() {
               }
             >
               <PersonActions person={q.data} secondary>
+                {!q.data.blocked && (q.data.relation === 'friend' || q.data.relation === 'friend_plus') ? (
+                  <MessageButton person={q.data.ref} />
+                ) : null}
                 {q.data.relation !== 'self' ? <ReportPerson person={q.data} /> : null}
               </PersonActions>
             </PersonCard>

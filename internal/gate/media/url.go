@@ -127,12 +127,12 @@ type Blob struct {
 }
 
 // Serve verifies a signed media URL (key and its query) like the Cloudflare
-// Worker does, then opens the variant: dev/test only (prod serves media from
-// the CDN). An unsigned, tampered, other-viewer or expired URL is ErrForbidden
-// before anything is looked up; a valid signature for deleted or unknown media
-// is gate.ErrNotFound.
+// Worker does, then opens the variant: only when this process serves media
+// (cfg.ServesMedia; prod with an s3 store serves it from the CDN). An unsigned,
+// tampered, other-viewer or expired URL is ErrForbidden before anything is
+// looked up; a valid signature for deleted or unknown media is gate.ErrNotFound.
 func (s *Service) Serve(ctx context.Context, key string, q url.Values) (*Blob, error) {
-	if s.d.Cfg == nil || !s.d.Cfg.DevLike() {
+	if s.d.Cfg == nil || !s.d.Cfg.ServesMedia() {
 		return nil, gate.ErrNotFound
 	}
 	dr, err := s.live()

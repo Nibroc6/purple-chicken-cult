@@ -84,7 +84,17 @@ openssl kdf -keylen 32 -kdfopt digest:SHA256 -kdfopt hexkey:$PCC_MASTER_KEY \
   -kdfopt info:pcc/media-url/v1 HKDF | tr -d : | tr A-F a-f
 ```
 
-Rotating `PCC_MASTER_KEY` rotates K: update the secret in the same change. Check the Worker
+Rotating `PCC_MASTER_KEY` rotates K: update the secret in the same change.
+
+### Single host without R2 (fs store)
+
+With `PCC_BLOB_DRIVER=fs` and `PCC_ALLOW_FS_BLOB=1` in prod (and media otherwise on), no
+Worker can read the store, so the Go server registers `GET /m/{key}` itself with the same
+signature checks and headers (`Cross-Origin-Resource-Policy: same-site`). Point
+`PCC_MEDIA_BASE_URL` at a sibling host of the app (e.g. `https://pcc-media.example/m` for
+`https://pcc.example`) and have the reverse proxy send only `/m/*` on that host to the app,
+and refuse `/m/*` on the app host. The evidence store can be a separate fs directory, but
+it then has no retention lock: move it to R2 before a public launch. Check the Worker
 with `node --test deploy/cloudflare/media-worker.test.mjs` (vectors shared with the Go
 signer). In dev and test the Go server serves `/m/<key>` with the same checks; prod
 registers no `/m/` route.

@@ -154,6 +154,17 @@ export function EngageBar({ post, actions }: { post: PostVM; actions: PostAction
             }}
           />
         ) : null}
+        {actions.share ? (
+          <IconButton
+            icon="share"
+            label={t('share.action')}
+            data-testid="engage-share"
+            data-part="share"
+            onClick={() => {
+              actions.share?.(post.ref);
+            }}
+          />
+        ) : null}
         {post.mine ? null : (
           <>
             <IconButton

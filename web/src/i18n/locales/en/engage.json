@@ -15,6 +15,9 @@
     "explain": "Only likes from people within 2 steps of you count here. Only your own acquaintances are named, and only if they allow it.",
     "explainShort": "Only your network counts."
   },
+  "share": {
+    "action": "Share in a message"
+  },
   "save": {
     "action": "Save",
     "undo": "Unsave",

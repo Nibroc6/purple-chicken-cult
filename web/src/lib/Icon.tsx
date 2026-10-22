@@ -21,6 +21,7 @@ import {
   faCircleInfo,
   faCircleMinus,
   faCircleQuestion,
+  faComments,
   faCrown,
   faDiamond,
   faEye,
@@ -33,6 +34,7 @@ import {
   faLink,
   faLinkSlash,
   faListUl,
+  faPaperPlane,
   faMinus,
   faPen,
   faPenToSquare,
@@ -60,6 +62,7 @@ const icons = {
   saves: faBookmark,
   seen: faEye,
   notifications: faBell,
+  messages: faComments,
   moderation: faFlag,
   settings: faGear,
   about: faCircleQuestion,
@@ -96,6 +99,9 @@ const icons = {
   'hide-via': faLinkSlash,
   'show-via': faLink,
   block: faBan,
+  // Shares a post into a conversation (features/messages).
+  share: faPaperPlane,
+  send: faPaperPlane,
   // Integrity elements (integrity/).
   tier: faDiamond,
   'tier-done': faCircleCheck,
