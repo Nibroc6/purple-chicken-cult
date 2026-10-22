@@ -8,6 +8,7 @@
 // tree_snapshot_expired) reopens the tree. Every other failure is the uniform
 // "not available". Leaving the page drops the tree, so returning opens a new
 // snapshot. Owner: P0-W08 → P1-W09.
+import { errorText } from '../../api/errors';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -125,7 +126,7 @@ export default function TreePage() {
       {q.isPending || (q.data && !format) ? <Loading /> : null}
       {q.error ? (
         <div className="tree-error" role="alert" data-testid="tree-error">
-          <p>{t(treeErrorKey(q.error) as 'errors:unknown')}</p>
+          <p>{errorText(t, q.error, treeErrorKey)}</p>
           {isExpired(q.error) ? null : (
             <button type="button" onClick={reopen}>
               {t('page.retry')}
@@ -135,7 +136,7 @@ export default function TreePage() {
       ) : null}
       {actionError ? (
         <p className="tree-error" role="alert" data-testid="tree-action-error">
-          {t(treeErrorKey(actionError) as 'errors:unknown')}
+          {errorText(t, actionError, treeErrorKey)}
         </p>
       ) : null}
       {q.data && format ? (

@@ -5,7 +5,7 @@
 import { useMutation } from '@tanstack/react-query';
 import { useId, useState, type SyntheticEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ApiError } from '../../api/errors';
+import { errorText } from '../../api/errors';
 import { useMe } from '../../app/session';
 import { requestCosign } from '../cosign';
 import { sessionCosigns } from '../settings/api';
@@ -16,10 +16,9 @@ import { InfoTip } from '../../lib/InfoTip';
 function ErrorLine({ err }: { err: unknown }) {
   const { t } = useTranslation(['modrecovery', 'errors']);
   if (!err) return null;
-  const params = err instanceof ApiError && err.retryAfterS !== undefined ? { seconds: err.retryAfterS } : {};
   return (
     <p className="settings-error" role="alert">
-      {t(recoveryErrorKey(err) as 'errors:unknown', params)}
+      {errorText(t, err, recoveryErrorKey)}
     </p>
   );
 }

@@ -6,7 +6,7 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { Loading } from '../../app/Loading';
-import { errorKey } from '../../api/errors';
+import { errorText } from '../../api/errors';
 import { EngageBar } from '../engage/EngageBar';
 import { usePostActions } from '../engage/usePostActions';
 import { PostPreview } from '../post/shared';
@@ -32,7 +32,7 @@ export default function SavesPage() {
       {q.isPending ? <Loading /> : null}
       {q.error ? (
         <p className="saves-error" role="alert">
-          {t(errorKey(q.error) as 'errors:unknown')}
+          {errorText(t, q.error)}
         </p>
       ) : null}
       {q.isSuccess && posts.length === 0 ? <p data-testid="saves-empty">{t('page.empty')}</p> : null}

@@ -7,7 +7,7 @@
 import { Fragment, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useInRouterContext } from 'react-router';
-import { errorKey } from '../../api/errors';
+import { errorText } from '../../api/errors';
 import { useModalParam } from '../../app/Modal';
 import { IconButton } from '../../lib/IconButton';
 import type { PostActions } from '../../formats/types';
@@ -161,7 +161,7 @@ export function EngageBar({ post, actions }: { post: PostVM; actions: PostAction
       </div>
       {failed ? (
         <p className="engage-error" role="alert" data-testid="engage-error">
-          {t(errorKey(failed) as 'errors:unknown')}
+          {errorText(t, failed)}
         </p>
       ) : null}
     </div>

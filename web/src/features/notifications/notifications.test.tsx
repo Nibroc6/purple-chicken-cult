@@ -329,6 +329,6 @@ describe('NotificationsPage', () => {
   it('shows the error from the catalogs', async () => {
     stubAPI(() => json(429, { error: 'rate_limited', retry_after_s: 3 }));
     renderPage();
-    expect((await screen.findByRole('alert')).textContent).toBe(tr('errors:rate_limited'));
+    expect((await screen.findByRole('alert')).textContent).toBe(tr('errors:rate_limited', { seconds: 3 }));
   });
 });

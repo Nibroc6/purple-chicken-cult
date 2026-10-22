@@ -1,6 +1,7 @@
 // usePostActions is the PostActions every format receives (plan §6.3): like
 // (optimistic, then the server's summary), save (optimistic, rolled back on
-// failure; private, so nothing but saved_by_me changes), hide and show less (the post leaves
+// failure; private, so nothing but saved_by_me changes), both coalesced per
+// post (toggles.ts: quick on/off clicks send at most what changed), hide and show less (the post leaves
 // the layouts at once through useHidden), seen (queued for the batched POST),
 // navigation for reply and the family tree, and the report modal. Every cached
 // view-model of the post is patched in place, whichever feature cached it.
@@ -15,6 +16,7 @@ import { savesKey } from '../saves/api';
 import { queueSeen } from '../seen/tracker';
 import { hidePost, likesKey, setLike, setSave, showLess } from './api';
 import { setFailed, setHidden, type HiddenKind } from './store';
+import { makeToggler, type Toggler } from './toggles';
 import { optimistic, patchLikes, patchSaved } from './vm';
 
 // currentLikes finds the post's like summary in any cached query.
@@ -70,6 +72,58 @@ export function applySaved(qc: QueryClient, ref: string, saved: boolean): void {
     });
 }
 
+// togglers holds the like and save togglers of each query client, so every
+// control of one post shares its pending state.
+// A failed like goes back to the summary from before the first pending click.
+interface Togglers {
+  like: Toggler;
+  save: Toggler;
+  likeBase: Map<string, LikesVM>;
+}
+
+const togglers = new WeakMap<QueryClient, Togglers>();
+
+function togglersFor(qc: QueryClient): Togglers {
+  let t = togglers.get(qc);
+  if (!t) {
+    const likeBase = new Map<string, LikesVM>();
+    t = {
+      likeBase,
+      like: makeToggler({
+        // Each answer is the new base a later failure goes back to.
+        send: (ref, on) =>
+          setLike(ref, on).then((likes) => {
+            likeBase.set(ref, likes);
+            return likes;
+          }),
+        landed: (ref, _on, likes) => {
+          applyLikes(qc, ref, likes);
+        },
+        failed: (ref, _confirmed, err) => {
+          const base = likeBase.get(ref);
+          if (base) applyLikes(qc, ref, base);
+          setFailed(ref, err);
+        },
+        settled: (ref) => {
+          likeBase.delete(ref);
+        },
+      }),
+      save: makeToggler({
+        send: setSave,
+        // The open saves page keeps an unsaved post (to save it again); the
+        // list is read afresh the next time it opens.
+        landed: () => void qc.invalidateQueries({ queryKey: savesKey, refetchType: 'inactive' }),
+        failed: (ref, confirmed, err) => {
+          applySaved(qc, ref, confirmed);
+          setFailed(ref, err);
+        },
+      }),
+    };
+    togglers.set(qc, t);
+  }
+  return t;
+}
+
 export function usePostActions(): PostActions {
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -87,29 +141,17 @@ export function usePostActions(): PostActions {
       like: (ref: Ref, on: boolean) => {
         setFailed(ref, undefined);
         const before = currentLikes(qc, ref);
-        if (before) applyLikes(qc, ref, optimistic(before, on));
-        setLike(ref, on).then(
-          (likes) => {
-            applyLikes(qc, ref, likes);
-          },
-          (err: unknown) => {
-            if (before) applyLikes(qc, ref, before);
-            setFailed(ref, err);
-          },
-        );
+        const tg = togglersFor(qc);
+        if (before) {
+          if (!tg.likeBase.has(ref)) tg.likeBase.set(ref, before);
+          applyLikes(qc, ref, optimistic(before, on));
+        }
+        tg.like.set(ref, on, tg.likeBase.get(ref)?.byMe ?? !on);
       },
       save: (ref: Ref, on: boolean) => {
         setFailed(ref, undefined);
         applySaved(qc, ref, on);
-        setSave(ref, on).then(
-          // The open saves page keeps an unsaved post (to save it again); the
-          // list is read afresh the next time it opens.
-          () => qc.invalidateQueries({ queryKey: savesKey, refetchType: 'inactive' }),
-          (err: unknown) => {
-            applySaved(qc, ref, !on);
-            setFailed(ref, err);
-          },
-        );
+        togglersFor(qc).save.set(ref, on, !on);
       },
       hide: hideAs('hide', hidePost),
       showLess: hideAs('show_less', showLess),

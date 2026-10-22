@@ -10,7 +10,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useId, useRef, useState, type SyntheticEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ApiError, errorKey } from '../../api/errors';
+import { ApiError, errorKey, errorMsg, type ErrorMsg, errorParams, errorText } from '../../api/errors';
 import { Loading } from '../../app/Loading';
 import { AudienceBadge, Chain, EditedMark, InviterLabel, ReportAction, TierHeader } from '../../integrity';
 import { asRef } from '../../vm/types';
@@ -331,7 +331,7 @@ function ThemeForm({ stored }: { stored: ThemeView | null }) {
 
       {err ? (
         <p role="alert" className="theme-error" data-testid="theme-error" data-code={err instanceof ApiError ? err.code : undefined}>
-          {t(themeErrorKey(err) as 'errors:unknown', { check: failed ?? 'other', line: err instanceof ApiError ? (cssLine(err) ?? 0) : 0 })}
+          {t(themeErrorKey(err) as 'errors:unknown', { ...errorParams(err), check: failed ?? 'other', line: err instanceof ApiError ? (cssLine(err) ?? 0) : 0 })}
         </p>
       ) : null}
       {save.isSuccess ? (
@@ -365,7 +365,7 @@ function AdvancedFields({ disabled, css, images, error, onCSS, onImages }: Advan
   const urls = useImageURLs(images);
   const [name, setName] = useState('');
   const [file, setFile] = useState<File | null>(null);
-  const [imageError, setImageError] = useState<string | undefined>();
+  const [imageError, setImageError] = useState<ErrorMsg | undefined>();
   const fileInput = useRef<HTMLInputElement>(null);
   // Raw CSS can change or hide anything: it is editable once the reader says
   // they understand (a theme that already has CSS was acknowledged before).
@@ -381,7 +381,7 @@ function AdvancedFields({ disabled, css, images, error, onCSS, onImages }: Advan
           : !file
             ? 'advanced.imageFileMissing'
             : undefined;
-    setImageError(bad);
+    setImageError(bad ? { key: bad, params: {} } : undefined);
     if (bad || !file) return;
     try {
       const m = await upload.upload(file, '');
@@ -390,7 +390,7 @@ function AdvancedFields({ disabled, css, images, error, onCSS, onImages }: Advan
       setFile(null);
       if (fileInput.current) fileInput.current.value = '';
     } catch (e) {
-      setImageError(errorKey(e));
+      setImageError(errorMsg(e));
     }
   };
 
@@ -491,7 +491,7 @@ function AdvancedFields({ disabled, css, images, error, onCSS, onImages }: Advan
               </button>
               {imageError ? (
                 <p role="alert" className="theme-error" data-testid="theme-image-error">
-                  {t(imageError as 'advanced.imageNameBad')}
+                  {errorText(t, imageError)}
                 </p>
               ) : null}
             </div>

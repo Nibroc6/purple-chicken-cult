@@ -1,7 +1,8 @@
 // Shared pieces of the invites pages. Owner: P0-W04 → P1-W02.
+import { errorText } from '../../api/errors';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { errorParams, invitesErrorKey } from './vm';
+import { invitesErrorKey } from './vm';
 import './invites.css';
 
 // invitesKey prefixes every query of this feature.
@@ -27,7 +28,7 @@ export function ErrorText({ err }: { err: unknown }) {
   if (!err) return null;
   return (
     <p className="invites-error" role="alert">
-      {t(invitesErrorKey(err) as 'errors:unknown', errorParams(err))}
+      {errorText(t, err, invitesErrorKey)}
     </p>
   );
 }

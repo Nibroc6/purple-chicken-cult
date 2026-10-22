@@ -10,7 +10,7 @@ import { useInfiniteQuery, useQuery, useQueryClient, type InfiniteData } from '@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { onFeedSessionExpired } from '../../api/client';
-import { errorKey } from '../../api/errors';
+import { errorText } from '../../api/errors';
 import { Loading } from '../../app/Loading';
 import { sessionKey, useMe } from '../../app/session';
 import { formats } from '../../formats/registry';
@@ -165,7 +165,7 @@ export default function FeedPage() {
       {q.isPending || !format ? <Loading /> : null}
       {q.error ? (
         <div className="feed-error" role="alert" data-testid="feed-error">
-          <p>{t(errorKey(q.error) as 'errors:unknown')}</p>
+          <p>{errorText(t, q.error)}</p>
           <button type="button" onClick={restart}>
             {t('page.retry')}
           </button>

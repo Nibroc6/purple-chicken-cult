@@ -7,7 +7,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
-import { ApiError, errorKey } from '../../api/errors';
+import { ApiError, errorKey, errorText } from '../../api/errors';
 import { Loading } from '../../app/Loading';
 import { fetchKey, fetchState, removeSubscription, saveSubscription, type DeviceSubscription } from './api';
 import { getDevicePush, PushUnavailable } from './device';
@@ -31,7 +31,7 @@ function ErrorLine({ err }: { err: unknown }) {
   if (!err) return null;
   return (
     <p className="push-error" role="alert" data-testid="push-error">
-      {t(pushErrorKey(err) as 'errors:unknown')}
+      {errorText(t, err, pushErrorKey)}
     </p>
   );
 }

@@ -7,7 +7,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
-import { errorKey } from '../../api/errors';
+import { errorText } from '../../api/errors';
 import { Loading } from '../../app/Loading';
 import { useMe } from '../../app/session';
 import { formatDateTime, formatRelative } from '../../lib/time';
@@ -51,7 +51,7 @@ function Roles() {
       {q.isPending ? <Loading /> : null}
       {q.error ? (
         <p className="moderation-error" role="alert">
-          {t(errorKey(q.error) as 'errors:unknown')}
+          {errorText(t, q.error)}
         </p>
       ) : null}
       {q.data ? (
@@ -151,7 +151,7 @@ function Member({ m, onDone }: { m: StaffMember; onDone: (notice: string) => voi
       ) : null}
       {revoke.error ? (
         <p className="moderation-error" role="alert" data-testid="roles-error">
-          {t(moderationErrorKey(revoke.error) as 'errors:unknown')}
+          {errorText(t, revoke.error, moderationErrorKey)}
         </p>
       ) : null}
     </li>
@@ -205,7 +205,7 @@ function AddModerator({ onDone }: { onDone: (notice: string) => void }) {
       </div>
       {grant.error ? (
         <p className="moderation-error" role="alert" data-testid="roles-add-error">
-          {t(moderationErrorKey(grant.error) as 'errors:unknown')}
+          {errorText(t, grant.error, moderationErrorKey)}
         </p>
       ) : null}
     </form>

@@ -6,6 +6,7 @@
 // on a passkey is all it takes, nothing is blocked or reported to anyone —
 // and afterwards reloads what the page was showing.
 // Owner: P0-W01 → P1-W07.
+import { errorText } from '../../api/errors';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -97,7 +98,7 @@ export function StepUpModal() {
         {signals ? <p className="muted">{t('signals:stepup.privacy')}</p> : null}
         {err ? (
           <p className="stepup-error" role="alert">
-            {t(err.key as 'errors:unknown', err.params)}
+            {errorText(t, err)}
           </p>
         ) : null}
         <div className="stepup-actions">
