@@ -8,9 +8,8 @@ import { Loading } from '../../app/Loading';
 import { NotFound } from '../../app/NotFound';
 import { ApiError, errorText } from '../../api/errors';
 import { fetchPost, postKey } from '../post/api';
-import { PostPreview } from '../post/shared';
+import { PostCard } from '../post/PostCard';
 import { useSeenTracker } from '../seen/useSeenTracker';
-import { EngageBar } from './EngageBar';
 import { usePostActions } from './usePostActions';
 import './engage.css';
 import { InfoTip } from '../../lib/InfoTip';
@@ -34,15 +33,14 @@ export default function LikesPage() {
       {q.data ? (
         <>
           <div data-seen-ref={q.data.ref} ref={track} data-testid="engage-card">
-            <PostPreview post={q.data} />
+            <PostCard post={q.data} actions={actions} />
           </div>
-          <EngageBar post={q.data} actions={actions} />
           <p className="muted">
             {t('likes.explainShort')}
             <InfoTip>{t('likes.explain')}</InfoTip>
           </p>
           <p className="post-links">
-            <Link to={`/p/${q.data.ref}`}>{t('page.open')}</Link> <Link to="/seen">{t('page.seen')}</Link>
+            <Link to="/seen">{t('page.seen')}</Link>
           </p>
         </>
       ) : null}

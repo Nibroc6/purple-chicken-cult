@@ -14,8 +14,7 @@ import { onFeedSessionExpired } from '../../api/client';
 import { errorText } from '../../api/errors';
 import { Loading } from '../../app/Loading';
 import { sessionKey, useMe } from '../../app/session';
-import { formats } from '../../formats/registry';
-import type { FormatId, FormatModule } from '../../formats/types';
+import { useFormat } from '../../formats/useFormat';
 import { WhyLoaderContext, type WhyLoader } from '../../integrity/types';
 import type { FeedItemVM, FeedPageVM, Preset } from '../../vm/types';
 import { usePostActions } from '../engage';
@@ -32,18 +31,6 @@ import { PULL_TRIGGER, usePullToRefresh } from '../../lib/pullToRefresh';
 export const NEW_ABOVE_MS = 60_000;
 
 type Pages = InfiniteData<FeedPageVM, string | undefined>;
-
-// useFormat loads the reader's layout format chunk.
-function useFormat(id: FormatId, enabled: boolean): FormatModule | undefined {
-  const q = useQuery({
-    queryKey: ['format', id],
-    enabled,
-    queryFn: async () => (await formats[id]()).default,
-    staleTime: Infinity,
-    structuralSharing: false,
-  });
-  return q.data;
-}
 
 // i18n-dynamic: feed:preset.
 function PresetSwitch({ value, onChange }: { value: Preset; onChange: (p: Preset) => void }) {

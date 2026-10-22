@@ -440,8 +440,9 @@ describe('likes page and post actions', () => {
     await screen.findByTestId('engage-card');
     const marked = container.querySelectorAll('[data-seen-ref]');
     expect([...marked].map((e) => e.getAttribute('data-seen-ref'))).toEqual(['p1']);
-    expect(screen.getByTestId('post-context').closest('[data-seen-ref]')?.getAttribute('data-seen-ref')).toBe('p1');
-    expect(screen.getByTestId('post-context').hasAttribute('data-seen-ref')).toBe(false);
+    // The card (the feed's layout) carries the context row inside the tracked box.
+    expect(screen.getByTestId('feed-context').closest('[data-seen-ref]')?.getAttribute('data-seen-ref')).toBe('p1');
+    expect(screen.getByTestId('feed-context').hasAttribute('data-seen-ref')).toBe(false);
   });
 
   it('is not found for refs the server does not know', async () => {

@@ -5,12 +5,10 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router';
 import { Loading } from '../../app/Loading';
 import { ApiError } from '../../api/errors';
-import { EngageBar } from '../engage/EngageBar';
 import { usePostActions } from '../engage/usePostActions';
-import { PostPreview } from '../post/shared';
+import { PostCard } from '../post/PostCard';
 import { fetchPersonPosts, type PostOrder } from './api';
 import { ErrorText, peopleKey } from './shared';
 import type { PeopleVM } from './vm';
@@ -65,11 +63,7 @@ export function PersonPosts({ person }: { person: PeopleVM }) {
       <ol className="people-posts-list" data-testid="person-posts-list">
         {posts.map((p) => (
           <li key={p.ref} className="people-posts-item" data-testid="person-post" data-ref={p.ref}>
-            <PostPreview post={p} />
-            <EngageBar post={p} actions={actions} />
-            <p className="post-links">
-              <Link to={`/p/${p.ref}`}>{t('posts.open')}</Link>
-            </p>
+            <PostCard post={p} actions={actions} />
           </li>
         ))}
       </ol>

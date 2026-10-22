@@ -124,6 +124,12 @@
   border-color: transparent;
   color: var(--color-accent);
 }
+/* The round highlight shows only on hover (above, pointers that hover),
+   keyboard focus and press (touch). */
+:where(.icon-button:not(:disabled)):where(:focus-visible, :active) {
+  color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+}
 :where(.icon-button:disabled) {
   opacity: 0.5;
   cursor: default;

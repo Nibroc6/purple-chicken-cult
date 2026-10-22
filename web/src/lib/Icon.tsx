@@ -12,6 +12,7 @@ import {
   faAnglesLeft,
   faAnglesRight,
   faArrowRotateRight,
+  faBan,
   faBars,
   faBell,
   faBookmark as faBookmarkSolid,
@@ -30,6 +31,8 @@ import {
   faGear,
   faHeart as faHeartSolid,
   faHouse,
+  faLink,
+  faLinkSlash,
   faListUl,
   faPaperPlane,
   faMinus,
@@ -43,6 +46,8 @@ import {
   faUserGroup,
   faUserPlus,
   faUsers,
+  faVolumeHigh,
+  faVolumeXmark,
   faXmark,
   type IconDefinition,
 } from '@fortawesome/free-solid-svg-icons';
@@ -88,6 +93,12 @@ const icons = {
   // Adds the post to a reply to several posts (features/composer).
   'reply-pick': faReplyAll,
   replies: faComment,
+  // Person actions (features/people).
+  mute: faVolumeXmark,
+  unmute: faVolumeHigh,
+  'hide-via': faLinkSlash,
+  'show-via': faLink,
+  block: faBan,
   // Shares a post into a conversation (features/messages).
   share: faPaperPlane,
   send: faPaperPlane,

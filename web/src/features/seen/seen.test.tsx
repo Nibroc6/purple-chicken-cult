@@ -260,7 +260,8 @@ describe('recently seen page', () => {
     expect(screen.getAllByTestId('seen-item')).toHaveLength(3);
     expect(screen.queryByTestId('seen-more')).toBeNull();
     expect(container.querySelectorAll('[data-seen-ref]')).toHaveLength(0);
-    expect(calls.map((c) => c.path)).toEqual(['/seen/recent', '/seen/recent?cursor=c1']);
+    // (The cards also read the session and account for the reader's format.)
+    expect(calls.map((c) => c.path).filter((p) => p.startsWith('/seen'))).toEqual(['/seen/recent', '/seen/recent?cursor=c1']);
   });
 
   it('says when nothing was seen', async () => {

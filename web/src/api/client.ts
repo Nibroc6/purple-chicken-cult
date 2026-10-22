@@ -73,8 +73,10 @@ function send(req: Request): Promise<Response> {
 
 // sendPaced sends req, and once more after a short rate-limit wait. The body
 // is read once into a buffer (not a cloned stream) so both sends carry it as
-// a plain body.
+// a plain body. A keepalive request (the seen flush as the page goes away) is
+// sent at once: awaiting the body first would start it after the page is gone.
 async function sendPaced(req: Request): Promise<Response> {
+  if (req.keepalive) return send(req);
   const sent = req.body ? await req.arrayBuffer() : undefined;
   const make = () => (sent === undefined ? req : new Request(req, { body: sent }));
   const res = await send(make());

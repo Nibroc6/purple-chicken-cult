@@ -9,7 +9,7 @@ import { Markdown } from '../../markdown';
 import { MediaImage } from '../media';
 import type { Audience, PostVM, RefPolicy } from '../../vm/types';
 import { langName, langOptions, UND } from './lang';
-import { audiences, codePoints, counterState, HARD_LIMIT, postErrorKey, refPolicies, SOFT_LIMIT } from './vm';
+import { audiences, codePoints, counterState, defaultAudience, HARD_LIMIT, postErrorKey, refPolicies, SOFT_LIMIT } from './vm';
 import './post.css';
 
 // ErrorText renders a posts API error from the post or errors catalogs.
@@ -127,7 +127,9 @@ export function AudienceSelect({ value, onChange, id }: { value: Audience; onCha
       >
         {audiences.map((a) => (
           <option key={a} value={a}>
-            {t(`audience.${a}` as 'audience.connected')}
+            {a === defaultAudience
+              ? t('audience.default', { label: t(`audience.${a}` as 'audience.connected') })
+              : t(`audience.${a}` as 'audience.connected')}
           </option>
         ))}
       </select>
