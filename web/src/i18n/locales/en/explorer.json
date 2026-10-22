@@ -5,8 +5,6 @@
     "tools": "Map controls",
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out",
-    "zoomInShort": "+",
-    "zoomOutShort": "−",
     "fit": "Show everything",
     "zoom": "{percent, number}%",
     "node": "@{handle}",

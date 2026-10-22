@@ -349,10 +349,6 @@ a {
   margin: 0;
 }
 
-.why::before {
-  content: 'ⓘ';
-}
-
 /* The shared modal (app/Modal.tsx): a centred card, a full-screen sheet on phones. */
 .modal {
   padding: 0;
@@ -390,7 +386,7 @@ a {
 .modal-close {
   min-inline-size: 2.75rem;
   min-block-size: 2.75rem;
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   line-height: 1;
   background: none;
   border: 0;

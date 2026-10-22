@@ -32,6 +32,7 @@ import {
 import { useAppliedSheet, useAppliedTheme, useImageURLs, useStoredTheme, type SheetImage } from './useTheme';
 import './themes.css';
 import { InfoTip } from '../../lib/InfoTip';
+import { Icon } from '../../lib/Icon';
 
 const themeCodes = new Set(['theme_contrast', 'theme_css', 'theme_font', 'theme_invalid', 'rate_limited']);
 
@@ -283,6 +284,7 @@ function ThemeForm({ stored }: { stored: ThemeView | null }) {
         <ul className="theme-checks" aria-label={t('check.legend')}>
           {results.map((r) => (
             <li key={r.id} data-testid="theme-check" data-check={r.id} data-ok={r.ok} data-failed={failed === r.id}>
+              <Icon name={r.ok ? 'ok' : 'fail'} />
               {t(r.ok ? 'check.ok' : 'check.low', {
                 what: t(`check.${r.id}` as 'check.text'),
                 ratio: Math.floor(r.ratio * 10) / 10,

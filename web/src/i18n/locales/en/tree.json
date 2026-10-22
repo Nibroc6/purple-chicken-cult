@@ -17,8 +17,6 @@
     "nav": "Move along this row",
     "prev": "Previous post in this row",
     "next": "Next post in this row",
-    "prevShort": "‹",
-    "nextShort": "›",
     "position": "{index, number} of {total, number}",
     "more": "+{count, number} more",
     "moreLabel": "{count, plural, one {# more post in this row} other {# more posts in this row}}",

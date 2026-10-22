@@ -8,6 +8,7 @@
 // all its integrity elements. Owner: P1-W09.
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Icon } from '../../../lib/Icon';
 import type { TreeRowVM } from '../../../vm/types';
 import { NODE_H, NODE_W, ROW_H, type Bounds, type CanvasLayout, type CanvasNode } from './layout';
 import { Minimap } from './Minimap';
@@ -261,7 +262,7 @@ export function Canvas({
         <button type="button" data-testid="explorer-zoom-out" aria-label={t('canvas.zoomOut')} disabled={view.k <= MIN_ZOOM} onClick={() => {
             zoomBy(1 / STEP);
           }}>
-          {t('canvas.zoomOutShort')}
+          <Icon name="zoom-out" />
         </button>
         <span className="explorer-zoom muted" data-testid="explorer-zoom">
           {t('canvas.zoom', { percent: Math.round(view.k * 100) })}
@@ -269,7 +270,7 @@ export function Canvas({
         <button type="button" data-testid="explorer-zoom-in" aria-label={t('canvas.zoomIn')} disabled={view.k >= MAX_ZOOM} onClick={() => {
             zoomBy(STEP);
           }}>
-          {t('canvas.zoomInShort')}
+          <Icon name="zoom-in" />
         </button>
         <button type="button" data-testid="explorer-fit" onClick={showAll}>
           {t('canvas.fit')}

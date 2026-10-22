@@ -1,10 +1,11 @@
-// A toggletip: a small ⓘ button that shows a short explanation next to terse UI
+// A toggletip: a small info-icon button that shows a short explanation next to terse UI
 // copy. It opens on click, tap, Enter or Space (and on mouse hover), closes on a
 // second press, Escape, a press elsewhere or focus leaving it. The bubble is a
 // live region, so screen readers announce the text when it opens. Pass `label`
 // when one page has several, so each button has its own accessible name.
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Icon } from './Icon';
 import './infotip.css';
 
 const edge = 8; // px kept between the bubble and the viewport edge
@@ -83,7 +84,9 @@ export function InfoTip({ children, label, testId }: { children: ReactNode; labe
             setPinned(true);
           }
         }}
-      />
+      >
+        <Icon name="info" />
+      </button>
       <span ref={bubble} id={id} role="status" className="infotip-bubble">
         {open ? children : null}
       </span>

@@ -11,6 +11,7 @@
 // Owner: P0-W08 → P1-W09.
 import { useEffect, useId, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Icon } from '../../lib/Icon';
 import type { Ref, TreeRowVM, TreeVM } from '../../vm/types';
 import type { TreeActions } from '../types';
 import { PostLayout } from './PostLayout';
@@ -134,7 +135,7 @@ function Row({ row, focal, actions }: { row: TreeRowVM; focal: Ref; actions: Tre
                 go(idx - 1);
               }}
             >
-              {t('row.prevShort')}
+              <Icon name="prev" />
             </button>
             <span className="muted tree-row-pos">{t('row.position', { index: idx + 1, total: shown.length })}</span>
             <button
@@ -146,7 +147,7 @@ function Row({ row, focal, actions }: { row: TreeRowVM; focal: Ref; actions: Tre
                 go(idx + 1);
               }}
             >
-              {t('row.nextShort')}
+              <Icon name="next" />
             </button>
           </div>
         ) : null}

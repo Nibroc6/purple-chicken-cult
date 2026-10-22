@@ -20,9 +20,6 @@
   line-height: 1;
   cursor: pointer;
 }
-.infotip-button::before {
-  content: 'ⓘ';
-}
 .infotip-button:hover,
 .infotip-button[aria-expanded='true'] {
   color: var(--color-accent);
