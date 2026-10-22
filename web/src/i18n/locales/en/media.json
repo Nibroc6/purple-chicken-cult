@@ -5,8 +5,7 @@
     "altPlaceholder": "What is in it, for people who cannot see it",
     "remove": "Remove",
     "upload": "{count, plural, one {Upload the picture} other {Upload # pictures}}",
-    "uploading": "Uploading…",
-    "note": "Pictures are checked before they are stored. Location and camera details are removed."
+    "uploading": "Uploading…"
   },
   "image": {
     "noAlt": "Picture",
