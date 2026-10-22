@@ -8,6 +8,9 @@ export type BlameItem = components['schemas']['BlameItem'];
 export type LogItem = components['schemas']['LogItem'];
 export type ModPending = components['schemas']['ModPending'];
 export type CSAMHold = components['schemas']['CSAMHoldView'];
+export type Staff = components['schemas']['ModStaff'];
+export type StaffMember = components['schemas']['ModStaffMember'];
+export type RoleChange = components['schemas']['ModRoleChange'];
 export interface Page<T> {
   items: T[];
   next?: string;
@@ -149,6 +152,24 @@ export function canQuarantine(it: ModItem): boolean {
   return n !== undefined && k !== undefined && k > 0 && n >= k;
 }
 
+// fetchStaff lists the moderators and admins and the latest role changes
+// (admins only; everyone else gets the uniform 404).
+export async function fetchStaff(): Promise<Staff> {
+  return unwrap(await api.GET('/mod/roles'));
+}
+
+// grantModerator makes the member with handle a moderator (fresh step-up).
+export async function grantModerator(handle: string): Promise<void> {
+  const res = await api.POST('/mod/roles', { body: { handle } });
+  if (!res.response.ok) throw new ApiError(res.response.status, res.error);
+}
+
+// revokeModerator makes the moderator ref a member again (fresh step-up).
+export async function revokeModerator(ref: string): Promise<void> {
+  const res = await api.POST('/mod/roles/{ref}/revoke', { params: { path: { ref } } });
+  if (!res.response.ok) throw new ApiError(res.response.status, res.error);
+}
+
 // The moderation Problem codes localized in the moderation namespace.
 // i18n-dynamic: moderation:errors.
 const codes = new Set([
@@ -167,6 +188,10 @@ const codes = new Set([
   'quarantine_threshold',
   'quarantine_active',
   'csam_already_reported',
+  'handle_unknown',
+  'already_staff',
+  'admin_role',
+  'not_moderator',
 ]);
 
 export function moderationErrorKey(err: unknown): string {

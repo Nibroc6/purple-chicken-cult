@@ -1,6 +1,6 @@
 // Shell slots of the moderation feature. Owner: P0-W12 → P1-W06. A footer on
 // every page links the terms (everyone), the moderation log and the blame inbox
-// (signed in) and the moderator pages (moderators).
+// (signed in), the moderator pages (moderators) and the roles page (admins).
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import type { FeatureSlots } from '../../app/slots';
@@ -39,6 +39,11 @@ export function ModerationFooter() {
                 <Link to="/mod/recovery">{t('footer.recovery')}</Link>
               </li>
             </>
+          ) : null}
+          {me?.role === 'admin' ? (
+            <li>
+              <Link to="/mod/roles">{t('footer.roles')}</Link>
+            </li>
           ) : null}
         </ul>
       </nav>
