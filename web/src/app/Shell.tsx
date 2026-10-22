@@ -22,6 +22,8 @@ export function Shell() {
   const { t } = useTranslation('common');
   const session = useSession();
   const signedIn = session.data?.authenticated === true;
+  const role = session.data?.me?.role;
+  const moderator = role === 'moderator' || role === 'admin';
   const navId = useId();
   const [collapsed, setCollapsed] = useState(loadCollapsed);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -105,17 +107,19 @@ export function Shell() {
         {signedIn ? (
           <nav id={navId} ref={navRef} className="sidebar-nav" aria-label={t('nav.label')}>
             <ul className="nav-list">
-              {mainNav.map((e) => (
-                <li key={e.to}>
-                  <NavLink to={e.to} end={e.to === '/'} title={collapsed ? t(e.label) : undefined}>
-                    <span className="nav-icon" aria-hidden="true">
-                      {e.icon}
-                    </span>
-                    <span className="nav-label">{t(e.label)}</span>
-                    {e.badges ? navBadges.map((Badge, i) => <Badge key={i} />) : null}
-                  </NavLink>
-                </li>
-              ))}
+              {mainNav
+                .filter((e) => moderator || !e.moderator)
+                .map((e) => (
+                  <li key={e.to}>
+                    <NavLink to={e.to} end={e.to === '/'} title={collapsed ? t(e.label) : undefined}>
+                      <span className="nav-icon" aria-hidden="true">
+                        {e.icon}
+                      </span>
+                      <span className="nav-label">{t(e.label)}</span>
+                      {e.badges ? navBadges.map((Badge, i) => <Badge key={i} />) : null}
+                    </NavLink>
+                  </li>
+                ))}
             </ul>
           </nav>
         ) : null}

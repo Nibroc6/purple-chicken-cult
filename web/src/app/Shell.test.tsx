@@ -42,7 +42,7 @@ describe('shell navigation', () => {
     const nav = await screen.findByRole('navigation', {
       name: i18n.t('common:nav.label'),
     });
-    for (const e of mainNav) {
+    for (const e of mainNav.filter((n) => !n.moderator)) {
       expect(nav.querySelector(`a[href="${e.to}"]`)?.textContent).toContain(i18n.t(`common:${e.label}`));
     }
   });
