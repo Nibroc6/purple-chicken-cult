@@ -6,13 +6,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router';
 import { ApiError, errorKey } from '../../api/errors';
 import { Loading } from '../../app/Loading';
 import { fetchKey, fetchState, removeSubscription, saveSubscription, type DeviceSubscription } from './api';
 import { getDevicePush, PushUnavailable } from './device';
 import './push.css';
 import { InfoTip } from '../../lib/InfoTip';
+import { SettingsSubNav } from '../../app/SettingsSubNav';
 
 const pushCodes = new Set(['push_endpoint_invalid', 'push_keys_invalid', 'feature_disabled', 'rate_limited']);
 
@@ -202,9 +202,7 @@ export default function PushSettingsPage() {
   return (
     <section className="page push-page" data-testid="push-page">
       <h1>{t('push:page.title')}</h1>
-      <p>
-        <Link to="/settings">{t('settings:index.title')}</Link>
-      </p>
+      <SettingsSubNav />
       <p>
         {t('push:page.intro')}
         <InfoTip>{t('push:page.introTip')}</InfoTip>

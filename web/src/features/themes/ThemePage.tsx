@@ -34,6 +34,7 @@ import './themes.css';
 import { InfoTip } from '../../lib/InfoTip';
 import { Icon } from '../../lib/Icon';
 import { IconButton } from '../../lib/IconButton';
+import { SettingsSubNav } from '../../app/SettingsSubNav';
 
 const themeCodes = new Set(['theme_contrast', 'theme_css', 'theme_font', 'theme_invalid', 'rate_limited']);
 
@@ -514,6 +515,7 @@ export default function ThemePage() {
   return (
     <section className="page theme-page" data-testid="theme-page">
       <h1>{t('page.title')}</h1>
+      <SettingsSubNav />
       <p className="muted">
         {t('page.intro')}
         <InfoTip>{t('page.introTip')}</InfoTip>

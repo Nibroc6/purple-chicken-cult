@@ -46,6 +46,7 @@ a {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: start;
+  align-content: start;
   min-block-size: 100vh;
   min-block-size: 100dvh;
 }
@@ -289,11 +290,8 @@ a {
 
 /* Narrow screens: a top bar and an off-canvas drawer. */
 @media (max-width: 47.99rem) {
-  /* One column; the rows hug their content, so a short page starts right
-     under the top bar instead of the spare height pushing it down. */
   .shell {
     grid-template-columns: minmax(0, 1fr);
-    align-content: start;
   }
   .shell .sidebar,
   :root[data-nav='header'] .shell .sidebar {

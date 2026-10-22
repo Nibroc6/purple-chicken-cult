@@ -1,7 +1,11 @@
 {
   "handle": "@{handle}",
   "nav": {
-    "label": "Chickens"
+    "label": "Chickens",
+    "friends": "Acquaintances",
+    "requests": "Requests",
+    "suggestions": "Suggestions",
+    "blocks": "Blocked"
   },
   "person": {
     "title": "Person",
@@ -17,7 +21,6 @@
     "hiddenVia": "You hide the paths through @{handle}: you stay acquainted and still see their posts."
   },
   "friends": {
-    "title": "Acquaintances",
     "empty": "No acquaintances yet.",
     "emptyTip": "Connections start in person, with an invite, or with a request to someone you've come across here.",
     "more": "Show more"
