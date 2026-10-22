@@ -42,6 +42,19 @@ type PersonView struct {
 	Blocked     bool         `json:"blocked,omitempty"` // only ever true on the BLOCKER's own view
 	Muted       bool         `json:"muted,omitempty"`
 	HiddenVia   bool         `json:"hidden_via,omitempty"` // P1
+	// InvitedRemoved is the "invited a removed account" mark (§8, 90 days):
+	// set only for viewers who had the removed account in their horizon when
+	// it was removed (contract request p1-w06-1).
+	InvitedRemoved bool `json:"invited_removed,omitempty"`
+}
+
+// ShowLessView is an author the viewer asked to see less of: Count steps
+// (rank uses at most three).
+type ShowLessView struct {
+	Ref         Ref    `json:"ref"`
+	Handle      string `json:"handle"`
+	DisplayName string `json:"display_name"`
+	Count       int    `json:"count"`
 }
 
 // AuthorView is a compact person for cards.
@@ -243,12 +256,24 @@ type BudgetView struct {
 	Probation   *ProbationView `json:"probation,omitempty"`
 	PausedUntil *time.Time     `json:"paused_until,omitempty"`
 	Revoked     bool           `json:"revoked,omitempty"`
+	// Attempts is the build-up limit on opening handshakes (shown next to the
+	// budget, so a refused attempt is never a surprise).
+	Attempts *AllowanceView `json:"attempts,omitempty"`
+}
+
+// AllowanceView is what is left of a build-up limit: available of cap now,
+// and when the next one builds up (absent while full).
+type AllowanceView struct {
+	Available int        `json:"available"`
+	Cap       int        `json:"cap"`
+	NextAt    *time.Time `json:"next_at,omitempty"`
 }
 
 // ProbationView shows what is left of the caller's probation.
 type ProbationView struct {
 	Until              time.Time `json:"until"`
 	NeedOutsideFriends int       `json:"need_outside_friends"`
+	FriendPlus         bool      `json:"friend_plus,omitempty"` // P1 rule: the outside friends must be friend+ (steward: p1-w02-1)
 }
 
 // HandshakeView opens an in-person handshake (invites P0; friend+ upgrade and recovery P1).
@@ -257,6 +282,9 @@ type HandshakeView struct {
 	Mode       string `json:"mode"` // "qr" | "qr_audio" | "dual_qr"
 	FrameTTLms int    `json:"frame_ttl_ms"`
 	FrameKey   string `json:"frame_key,omitempty"` // P1: base64url key for client-rendered 250 ms frames
+	// Invite (invite codes): a guest can sign up with this code now. Without
+	// it the code only connects a signed-in friend.
+	Invite bool `json:"invite,omitempty"`
 }
 
 // HandshakeStatus is the state of a handshake for either side.
@@ -324,7 +352,8 @@ type VerifyReport struct {
 // VerifyFailure is one failing export line.
 type VerifyFailure struct {
 	Line int    `json:"line"`
-	Code string `json:"code"` // bad_sig, kind_mismatch, not_canonical, unknown_key, key_window, commit_mismatch, bad_assertion
+	Code string `json:"code"` // bad_sig, kind_mismatch, not_canonical, unknown_key, key_window, commit_mismatch, bad_assertion,
+	// P1 (contract request p1-w01-1): bad_cosig, missing_assertion, broken_chain
 }
 
 // PushSubKeys holds a push subscription's keys.
@@ -354,6 +383,31 @@ type ModItem struct {
 	At               time.Time      `json:"at"`
 	ClaimedByMe      bool           `json:"claimed_by_me"`
 	AwaitingSecond   bool           `json:"awaiting_second"`
+	// Steward additions (contract request p1-w06-1).
+	Claimed bool          `json:"claimed"`           // claimed by any moderator (claim not expired)
+	Pending *ModPending   `json:"pending,omitempty"` // the two-person action awaiting a second moderator
+	CSAM    *CSAMHoldView `json:"csam,omitempty"`    // csam items: the hold's metadata, never the content
+}
+
+// ModPending is a two-person moderator action awaiting its second moderator.
+type ModPending struct {
+	Action    string    `json:"action"` // suspend_user | dismiss | quarantine_subtree | csam_report
+	Reason    string    `json:"reason"`
+	Mine      bool      `json:"mine"` // started by the viewing moderator (who cannot confirm it)
+	At        time.Time `json:"at"`
+	ReportRef string    `json:"report_ref,omitempty"` // csam_report: the CyberTipline report id
+}
+
+// CSAMHoldView is what moderators see of a CSAM hold: the scanner's match
+// metadata and the preservation state (security #7). No content, no media URL.
+type CSAMHoldView struct {
+	MatchInfo   map[string]string `json:"match_info"`
+	SourceURL   string            `json:"source_url,omitempty"` // preview images: the URL that served it (shown as text)
+	HeldAt      time.Time         `json:"held_at"`
+	RetainUntil time.Time         `json:"retain_until"`
+	ReportedAt  *time.Time        `json:"reported_at,omitempty"`
+	ReportRef   string            `json:"report_ref,omitempty"`
+	AccountHeld bool              `json:"account_held"`
 }
 
 // BlameItem is an inviter's blame-inbox entry (§10.4).
@@ -374,6 +428,31 @@ type LogItem struct {
 	Reason  string      `json:"reason"`
 	Count   int         `json:"count"`
 	Subject *LogSubject `json:"subject,omitempty"`
+}
+
+// StaffMember is one active moderator or admin on the admin roles page.
+type StaffMember struct {
+	Ref         Ref        `json:"ref"`
+	Handle      string     `json:"handle"`
+	DisplayName string     `json:"display_name,omitempty"`
+	Role        string     `json:"role"`            // moderator | admin
+	Since       *time.Time `json:"since,omitempty"` // the logged grant, if any
+	Me          bool       `json:"me,omitempty"`
+}
+
+// RoleChange is one logged role change: who changed whose role, and when.
+type RoleChange struct {
+	Action   string    `json:"action"` // grant_moderator | revoke_moderator | grant_admin
+	Handle   string    `json:"handle"`
+	ByHandle string    `json:"by_handle"`
+	At       time.Time `json:"at"`
+}
+
+// Staff is the admin roles page: the current moderators and admins and the
+// latest role changes, newest first.
+type Staff struct {
+	Members []StaffMember `json:"members"`
+	Changes []RoleChange  `json:"changes"`
 }
 
 // LogSubject names a log subject: a pseudonym, or a ref+handle for viewers who

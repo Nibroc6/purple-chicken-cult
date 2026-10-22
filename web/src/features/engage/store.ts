@@ -34,6 +34,11 @@ export function setFailed(ref: string, err: unknown): void {
   emit();
 }
 
+// hiddenKind is how the post was hidden in this session (outside React).
+export function hiddenKind(ref: string): HiddenKind | undefined {
+  return hidden.get(ref);
+}
+
 // useHidden is how the post was hidden in this session, if it was.
 export function useHidden(ref: string): HiddenKind | undefined {
   useSyncExternalStore(subscribe, () => version);

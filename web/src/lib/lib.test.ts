@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { ApiError, errorKey } from '../api/errors';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { ApiError, errorKey, NetworkError } from '../api/errors';
 import { i18n, pickLocale } from '../i18n/setup';
 import { formatRelative } from './time';
 import { allowedScriptURL } from './trustedTypes';
@@ -22,7 +22,7 @@ describe('i18n', () => {
   it('formats ICU plurals and selects', () => {
     expect(i18n.t('errors:rate_limited', { seconds: 1 })).toContain('1 second');
     expect(i18n.t('errors:rate_limited', { seconds: 5 })).toContain('5 seconds');
-    expect(i18n.t('integrity:tier.start', { tier: 1 })).toBe('Friends');
+    expect(i18n.t('integrity:tier.start', { tier: 1 })).toBe('Acquaintances');
     expect(i18n.t('integrity:tier.start', { tier: 4 })).toBe('4 steps away');
   });
   it('picks a supported locale', () => {
@@ -39,6 +39,23 @@ describe('api errors', () => {
     expect(errorKey(e)).toBe('errors:not_found');
     expect(new ApiError(500, { error: 'Some Prose Here' }).code).toBe('unknown');
     expect(new ApiError(401, { error: 'step_up_required' }).isStepUp).toBe(true);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('says offline only for a request that never got an answer, or an offline browser', () => {
+    expect(errorKey(new NetworkError(new TypeError('Failed to fetch')))).toBe('errors:network');
+    // A bug in a page is not a network problem.
+    expect(errorKey(new TypeError("Cannot read properties of undefined (reading 'x')"))).toBe('errors:unknown');
+    // Code gone after a redeploy: the app was updated.
+    expect(errorKey(new TypeError('Failed to fetch dynamically imported module: https://pcc.example/assets/x.js'))).toBe(
+      'errors:updated',
+    );
+    expect(errorKey(new TypeError('Importing a module script failed.'))).toBe('errors:updated');
+    vi.stubGlobal('navigator', { onLine: false });
+    expect(errorKey(new Error('anything'))).toBe('errors:network');
   });
 });
 

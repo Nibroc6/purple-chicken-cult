@@ -812,7 +812,7 @@ CREATE TABLE account_stubs (                                   -- moderators onl
 CREATE TABLE recovery_requests (
   id               uuid        PRIMARY KEY,
   user_id          bigint      NOT NULL REFERENCES users(id),
-  kind             smallint    NOT NULL,                      -- 0 manual (two moderators, P0), 1 guardians (two friend+, P1)
+  kind             smallint    NOT NULL,                      -- 0 manual (two moderators, P0), 1 guardians (friend+, guardians_needed of them, P1)
   state            smallint    NOT NULL DEFAULT 0,            -- 0 open, 1 approved (holding), 2 released, 3 cancelled, 4 expired
   created_at       timestamptz NOT NULL DEFAULT now(),
   release_at       timestamptz,                               -- approval + 24 h hold (P0 manual AND P1 guardians; security #14)
@@ -1050,6 +1050,11 @@ CREATE TABLE removed_account_marks (                           -- "invited a rem
 ALTER TABLE invite_budgets ADD COLUMN diversity real NOT NULL DEFAULT 1.0; -- §8 diversity decay multiplier
 ```
 
+`2008_mod_queue_media.sql` (steward, contract request p1-w04-1)
+```sql
+ALTER TABLE mod_queue ADD COLUMN subject_media uuid REFERENCES media(id); -- CSAM items: the held media
+```
+
 ### 3.4 Table ownership (buildability C5)
 
 Exactly one WP **writes** each table (or each named column group). Other packages read
@@ -1066,7 +1071,7 @@ depends on a column added by another WP's own migration range until INT has merg
 | `signing_keys`, `signed_records`, `record_parties` | W11 → P1-W01 | `gate/records` | `core.Signer` |
 | `edges`, `edge_events` | W03 → P1-W03 (W04 and W11 call `core.Edges`) | `gate/graph` (`Load`) | `core.Graph`, `core.Edges` |
 | `friend_requests`, `blocks`, `mutes`, `hide_via` | W03 → P1-W03 | `gate/graph` (`blocks`, `hide_via` on `Load`) | `core.Graph.Exclusions`, `core.Mutes` (implemented by W03; used by feed and tree) |
-| `invites`, `invite_budgets`, `handshake_sessions` | W04 → P1-W02 | `gate/users` (`invites` for inviter labels) | `core.Invites` |
+| `invites`, `invite_budgets`, `handshake_sessions` | W04 → P1-W02 | `gate/users` (`invites` for inviter labels) | `core.Invites`, `core.InvitePenalties` (P1-W06 quarantine, p1-w06-1) |
 | `posts`, `post_versions`, `post_parents`, `mentions` | W05 → P1-W12 | `gate/postindex` | `core.PostIndex` |
 | `link_previews`, `link_fetch_cache` | W09 → P1-W11 | `gate/views` (`link_previews`, read-only) | — |
 | `engagements`, `seen`, `hides`, `show_less` | W06 → P1-W08 | — | `core.Engagement`, `core.Prefer` |
@@ -1078,12 +1083,12 @@ depends on a column added by another WP's own migration range until INT has merg
 | `jobs` | `store/jobq` (scaffold) | — | `jobq.Queue` |
 | `cosign_intents` | P1-W01 | — | `core.Cosign` |
 | `media`, `media_variants`, `csam_holds` | P1-W04 | `gate/views` (variants, read-only) | `core.Media` |
-| `post_media` | P1-W12 | — | `core.Media.Views` |
+| `post_media` | P1-W12 | `gate/media` (read-only: signed-URL access checks, deletion fan-out; p1-w04-1) | `core.Media.Views` |
 | `push_subscriptions` | P1-W05 | — | — |
 | `user_themes` | P1-W09 | — | — |
 | `automation_signals` | P1-W07 (kinds webdriver, cdp, no_input, sustained_rate, no_seen_reads, bfs_tree_walk, chain_speed) and P1-W06 (kinds cadence, similarity, invite_cluster) | — | — |
 | `stepups` | P1-W07 | — | `core.StepUp` |
-| `mod_queue`, `quarantines`, `removed_account_marks` | P1-W06 | — | `core.ModQueue` |
+| `mod_queue`, `quarantines`, `removed_account_marks` | P1-W06 | — | `core.ModQueue`, `core.RemovedMarks` (p1-w06-1) |
 
 Deletion fan-out never crosses tables directly: `AccountDeleted`, `PostDeleted` and
 `SessionEnded` Bus events let each owner clean up its own rows (e.g. W09 drops
@@ -1144,6 +1149,7 @@ type Config struct {
     AllowFSBlob    bool          // P1: PCC_ALLOW_FS_BLOB=1 — prod fs blobs; honored only with a real scanner, logged at WARN every start
     EvidenceBlob   BlobConfig    // P1: PCC_EVIDENCE_* — separate store for CSAM preservation (1-year retention policy)
     Scanner        ScannerConfig // P1: PCC_SCANNER=photodna|dev|none (any other value ⇒ Load() fails), PCC_PHOTODNA_KEY, PCC_PHOTODNA_URL
+    CDN            CDNConfig     // P1 (p1-w04-1): PCC_CDN_PURGE=cloudflare|none (other ⇒ Load() fails), PCC_CDN_ZONE_ID, PCC_CDN_API_TOKEN — purge on media delete
     Push           PushConfig    // P1: PCC_VAPID_PUBLIC, PCC_VAPID_PRIVATE, PCC_VAPID_SUBJECT
     DBSC           bool          // P1: PCC_DBSC=1
     MinAge         int           // PCC_MIN_AGE, default 16 (age attestation at join/enroll)
@@ -1312,7 +1318,7 @@ func Scan(body string) Result
 - **`platform/blob`** (P1-W04): `type Store interface{ Put(ctx, key string, r io.Reader, size int64, mime string) error; Get(ctx, key) (io.ReadCloser, int64, string, error); Delete(ctx, key) error; URL(key string) string }`; drivers `fs.New(dir)` and `s3.New(cfg)` (minio-go, R2-compatible; the bucket is private and `r2.dev` access is off — documented in `deploy/runbooks/media.md`). `New(cfg BlobConfig, env Env) (Store, error)` — `prod` + `fs` requires `PCC_ALLOW_FS_BLOB=1` **and** a real scanner, and logs a WARN on every start.
 - **`platform/scan`** (P1-W04): `type Scanner interface{ Name() string; Scan(ctx, img []byte, mime string) (Verdict, error) }`, `Verdict{Match bool; Info map[string]string}`. Drivers: `dev` (matches SHA-256 against `testdata/scan/blocklist.txt`; **constructible only when `cfg.DevLike()`**), `photodna` (HTTP client to the PhotoDNA Cloud Matching API, key from config), `none` (constructed only to report "disabled"). There is **no `cloudflare` driver**: Cloudflare's CSAM tool scans at the CDN after storage and cannot satisfy §6.1 "before storage". `New(cfg, env) (Scanner, error)`; whenever `cfg.MediaEnabled()` is false, uploads return 409 `{"error":"feature_disabled","feature":"media"}` and preview images are skipped. **A scanner error or timeout at upload time rejects the upload (fail closed); nothing is written to any store.**
 - **`platform/imageproc`** (P1-W04): `Decode(b []byte) (image.Image, Format, error)` (jpeg/png/webp/gif first frame; runs `image.DecodeConfig` first and refuses > 40 MP or any side > 12,000 px **before** allocating — decompression bombs), `Resize(img, maxEdge int) image.Image`, `EncodeWebP(img, q int) ([]byte, error)`, `EncodeAVIF(...)` (behind a flag; WebP is the shipped default). Re-encoding strips all metadata.
-- **`platform/webpush`** (P1-W05): `type Sender interface{ Send(ctx, sub Subscription, payload []byte, ttl time.Duration) (gone bool, err error) }`; `vapid` driver (webpush-go), `log` driver (dev; records to an in-memory ring readable by tests). `New(cfg) (Sender, error)` returns `ErrDisabled` when VAPID is missing in prod.
+- **`platform/webpush`** (P1-W05): `type Sender interface{ Send(ctx, sub Subscription, payload []byte, ttl time.Duration) (gone bool, err error) }`; `vapid` driver (webpush-go), `log` driver (dev; records to an in-memory ring readable by tests). `New(cfg) (Sender, error)` returns `ErrDisabled` when VAPID is missing in prod. (p1-w05-1) Endpoints are https on port 443 with no userinfo; the sender's client never uses a proxy, follows no redirect and dials only public addresses (the `safefetch` deny list, checked on every dial); loopback endpoints on any port are accepted only under `PCC_ENV=test` with test hooks (local fake push endpoints in tests). Records are padded to the fixed 4096-byte size, so the push service learns nothing from a payload's length. The e2e server (`web/e2e/fixtures/server.ts`) runs with a fresh VAPID key pair per run.
 - **`platform/i18n`** (P1-W05): server catalogs `catalogs/<locale>/server.json` (embedded), `Format(locale, key string, args map[string]any) (string, error)` via `kaptinlin/messageformat-go`, fallback `en`; pseudo-locale `en-XA` generated in tests. Plus `i18n_test.go` "no prose" check: AST scan of `internal/...` forbidding string literals containing a space and a letter in calls to `webpush`/`Notify` payload builders.
 - **`platform/dbsc`** (P1-W07): Device Bound Session Credentials protocol helpers: `RegistrationHeader(challenge) string` (`Sec-Session-Registration`), `ParseRegistrationJWT(b []byte, challenge []byte) (PublicJWK, error)`, `VerifyRefreshJWT(jwk, b, challenge, aud string) error` (checks `aud` equals the refresh URL, `jti` = the single-use challenge). ES256 **and** RS256 (many Windows TPMs are RSA-only).
 
@@ -1759,7 +1765,7 @@ type Views interface {
 }
 
 // ---- records (impl: gate/records) ----
-type RecordKind uint8 // RecInvite=1, RecFriendship=2, RecRevocation=3, RecPost=4, RecTombstone=5, RecBlock=6, RecReport=7, RecPasskeyChange=8, RecModAction=9
+type RecordKind uint8 // RecInvite=1, RecFriendship=2, RecRevocation=3, RecPost=4, RecTombstone=5, RecBlock=6, RecReport=7, RecPasskeyChange=8, RecModAction=9, RecAccountDelete=10, RecRecoveryApproval=11 (p1-w10-1)
 type Signer interface {
     // P0: server key. P1: author's custodial key + server countersign; assertions attached when given.
     // body must follow the sigs value grammar; Sign injects "kind" and "schema_version".
@@ -1953,7 +1959,7 @@ func (s *Service) RemovePasskey(ctx context.Context, id gate.Ref) error         
 func (s *Service) EnrollBegin(ctx context.Context, token string) (EnrollView, error)    // token from the URL FRAGMENT (POSTed by the SPA);
                                                                                         // binds the token to this session; EnrollView{Options; Purpose;
                                                                                         // ExistingPasskeys []PasskeyView /* recovery: shown with a "remove old" option */}
-func (s *Service) EnrollFinish(ctx context.Context, body []byte, removeOld bool, tosVersion int, ageAttested bool) (sessToken string, err error)
+func (s *Service) EnrollFinish(ctx context.Context, body []byte, tosVersion int, ageAttested bool) (sessToken string, err error) // recovery keeps the old passkeys
 //   marks the token used atomically; recovery: revokes all sessions, optionally removes old passkeys, notifies friends;
 //   genesis: records ToS + age attestation (Problems tos_required, age_required)
 func (s *Service) SeedGenesis(ctx context.Context, handle, name string) (enrollURL string, err error) // CLI; URL uses "#<token>"
@@ -2326,7 +2332,7 @@ Defaults (configurable): reads/day — `feed_page` 400, `tree_view` 400, `post_r
 `graph_read` 200, P1 `media_full` 60; writes — `post` 30/day & 10/h, `like` 100/h,
 `friend_request` 20/day (5 probation), `report` 20/day, `social` (block/mute/detach/hide/
 show-less/notify-mute/ref-policy) 200/day, `account` (passkeys/settings/export/delete) 50/day,
-`invite_handshake` 10/day; min spacing 2 s between writes of one kind. `reference` (2 per
+`invite_handshake` a build-up limit (`Policy.Refills`, table `rate_buckets`): 20 attempts, one back every 72 min, shown as `BudgetView.attempts` on the invite page; min spacing 2 s between writes of one kind (not for a step class `s` — a request the client sends on its own to carry on a write already begun: ceremony finishes, step-up, `/cosign`, and every handshake request after the opening — which counts toward the caps only; `invite_handshake` steps are not charged at all, so its cap counts handshakes opened). `reference` (2 per
 parent per 24 h) is enforced in posts after ref resolution — it is a Problem about the
 caller's own repeated action on a post it can already see. Anonymous: 30/min per /24 (v4) or
 /56 (v6) for login/join/enroll/csp-report. **Every charge happens in `apix.Route` before the
@@ -2445,7 +2451,10 @@ refuses unless `cfg.DevLike()`.
   or whose request schema contains a ref field (computed from the route catalogue +
   OpenAPI at startup; listed by `router_test`). Padding rounds the total handler time **up to
   the next multiple** of the route's bucket (150 ms default; 600 ms for deep-tier feed/tree
-  work), for success, Problem and 404 alike, inside the same middleware. KS test plus a
+  work), for success, Problem and 404 alike, inside the same middleware. (p1-w07-1: the
+  set is derived by `apix/pad.For`; the deep grid is `600 ms, then 600·k + 150 ms`, so the
+  graph's own 600 ms deep-tier release plus ordinary handler work lands on the next point
+  instead of a whole extra bucket.) KS test plus a
   server-side histogram assertion (found vs not-found land in the same bucket) in INT-1.
 - Pagination: `?cursor=`; responses `{items, next}`.
 
@@ -2532,7 +2541,7 @@ automatically, listed here for review). `P1` marks Phase 1 additions.
 | POST `/api/auth/passkeys/finish` | Wa | `{credential, name}` | 204 · `step_up_required` |
 | DELETE `/api/auth/passkeys/{id}` ⏱ | Wa | — | 204 · `last_passkey` · `step_up_required` |
 | POST `/api/enroll/begin` | anon | `{token}` (from the `#fragment`) | `{options, purpose, existing_passkeys?}` (token invalid ⇒ 404) |
-| POST `/api/enroll/finish` | anon | `{credential, remove_old?, tos_version?, age_attested?}` | `SessionView` + cookie |
+| POST `/api/enroll/finish` | anon | `{credential, tos_version?, age_attested?}` (`remove_old` is ignored) | `SessionView` + cookie |
 | P1 POST `/api/auth/dbsc/register` | anon | DBSC JWT (header `Sec-Session-Response`) | 200 + session config JSON per DBSC spec |
 | P1 POST `/api/auth/dbsc/refresh` | anon | DBSC JWT | 200 + new short-lived bound cookie |
 
@@ -2556,6 +2565,8 @@ automatically, listed here for review). `P1` marks Phase 1 additions.
 | P1 POST `/api/join/audio/start` | anon | `{kmac, sig}` (invitee: about to play; signed over (hs, challenge)) | `{play_at, challenge}` |
 | P1 POST `/api/invites/handshakes/{hs}/report` ⏱ | Wi | `{ultra_bits?, jingle_bits?, kmac_commit, t_ultra_ms?, t_jingle_ms?, offset_ms?}` | `{outcome:"verified"\|"accepted"\|"retry", hint?:"volume_up"\|"try_jingle"}` |
 | P1 POST `/api/join/dual/frame` | anon | `{payload, sig}` (accessibility dual-QR) | `{outcome}` |
+| P1 POST `/api/join/register/cosign` | anon | `{assertion}` (signup ceremony over the Invite + Friendship drafts, p1-w02-1) | 201 `SessionView` + rotated cookie · `awaiting_inviter` |
+| P1 POST `/api/invites/handshakes/{hs}/cosign` ⏱ | Wi | `{intent, assertion}` (inviter: Invite; upgrade: either friend, p1-w02-1) | 204 |
 
 **friendsapi** (P0-W03 → P1-W03)
 | Method & path | Class | Request → Response |
@@ -2625,6 +2636,7 @@ automatically, listed here for review). `P1` marks Phase 1 additions.
 | P1 GET `/api/push/key` | — | → `{enabled, key?}` |
 | P1 POST `/api/push/subscriptions` | Wa | `PushSub` → 204 · `feature_disabled` |
 | P1 DELETE `/api/push/subscriptions` | Wa | `{endpoint}` → 204 |
+| P1 GET `/api/push/subscriptions?endpoint=` | — | → `{subscribed, hide_content}` for this account (p1-w05-1: the settings page shows the server's state of the device's subscription, which logout or a reassignment may have removed) |
 
 **accountapi** (P0-W11 → P1-W10)
 | Method & path | Class | Request → Response |
@@ -3508,7 +3520,11 @@ drivers and **fail closed** in production config (plan §4.2 config, D20).
      `Media` (`Attach(ctx, tx, owner, refs) ([]uuid.UUID, error)`,
      `Views(ctx, s Search, ids []uuid.UUID) ([]gate.MediaView, error)`,
      `Ingest(ctx, img []byte, sourcePost PostID, sourceURL string) (uuid.UUID, error)`),
-     `ModQueue` (`Enqueue(ctx, tx store.Q, item ModQueueItem) error`),
+     `ModQueue` (`Enqueue(ctx, tx store.Q, item ModQueueItem) error`; p1-w04-1 adds
+     `ModQueueItem.Media`), `CSAMHolds` (p1-w04-1, impl gate/media: `Hold`, `Report`,
+     `ReleaseAccount`), `InvitePenalties` (p1-w06-1, impl gate/invites: `Penalize`, the
+     quarantine pause/revoke), `RemovedMarks` (p1-w06-1, impl gate/moderation: `Marked`,
+     read by gate/views for `PersonView.invited_removed`),
      `StepUp` (`Require(ctx, user UserID, session [32]byte, reason string) error`),
      `Prefer.KidsN` gens=2 semantics, `Graph.SetHideVia`, `Exclusions.HiddenVia`, `Audience`
      friend+, Bus events `SessionStepUp`, `EdgeUpgraded`, `HideViaChanged`; `core.Deps` gains

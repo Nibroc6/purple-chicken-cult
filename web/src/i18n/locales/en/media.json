@@ -1,1 +1,28 @@
-{}
+{
+  "picker": {
+    "choose": "{max, plural, one {Choose a picture} other {Choose up to # pictures}}",
+    "alt": "Describe the picture",
+    "altPlaceholder": "What is in it, for people who cannot see it",
+    "remove": "Remove",
+    "upload": "{count, plural, one {Upload the picture} other {Upload # pictures}}",
+    "uploading": "Uploading…"
+  },
+  "image": {
+    "noAlt": "Picture",
+    "unavailable": "This picture is not available."
+  },
+  "errors": {
+    "media_too_large": "This picture is too large (at most 15 MB and 40 megapixels).",
+    "media_type": "Use a JPEG, PNG, WebP or GIF picture.",
+    "media_rejected": "This picture can't be uploaded.",
+    "alt_too_long": "The description is too long (at most 1,000 characters).",
+    "rate_limited": "You have uploaded many pictures today. Try again later.",
+    "other": "The upload did not work. Try again."
+  },
+  "check": {
+    "title": "Picture check",
+    "body": "Upload a picture to see how it will be stored and shown: a small preview, a display size, and the original on request.",
+    "disabled": "Pictures are turned off on this server.",
+    "original": "Show the original"
+  }
+}

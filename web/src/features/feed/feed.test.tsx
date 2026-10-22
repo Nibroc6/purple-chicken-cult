@@ -232,6 +232,25 @@ describe('feed page', () => {
     expect(calls.find((c) => c.path === '/feed/expand')?.query).toEqual({ token: 'tok' });
   });
 
+  it('offers Top and starts with a saved Top', async () => {
+    const calls = stubAPI((c) => {
+      if (c.path === '/session') return json(200, { authenticated: true, kind: 'user', csrf: 'c', me: { ...me, settings: { ...me.settings, rank_preset: 'top' } } });
+      if (c.path === '/me') return json(200, { ...me, settings: { ...me.settings, rank_preset: 'top', ui_prefs: {} } });
+      if (c.path === '/feed') return json(200, { session: 's1', preset: 'top', items: [{ type: 'post', post: post('a', 1) }] });
+      if (c.path === '/feed/new') return json(200, { count: 0, tier: 0 });
+      return undefined;
+    });
+    renderFeed();
+    await screen.findByText('post a');
+    await waitFor(() => {
+      expect(screen.getByTestId('feed-preset-top').getAttribute('aria-pressed')).toBe('true');
+    });
+    expect(screen.getByTestId('feed-preset-top').textContent).toBe(tr('feed:preset.top'));
+    fireEvent.click(within(screen.getByTestId('feed-preset-hint')).getByRole('button', { name: tr('feed:preset.hintLabel') }));
+    expect(screen.getByText(tr('feed:preset.hint', { preset: 'top' }))).toBeTruthy();
+    expect(feedCalls(calls)).toEqual([{}]);
+  });
+
   it('switches to Latest: a new session in that order, saved as the default', async () => {
     const calls = feedAPI((c) => (c.method === 'PATCH' && c.path === '/me/settings' ? json(200, me.settings) : undefined));
     renderFeed();

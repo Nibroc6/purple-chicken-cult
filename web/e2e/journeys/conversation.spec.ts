@@ -50,23 +50,25 @@ test('thread, a reply to two parents, the tree, likes in the network, seen and p
   expect(created.status).toBe(201);
   expect((JSON.parse(created.body) as PostJSON).context?.map((c) => c.author_handle).sort()).toEqual(['alice', 'bob']);
 
-  // alice's notification opens the tree of her post with carol's reply below
-  // ("also replies to @bob"); refocusing on the reply shows both parents above.
+  // alice's notification opens the tree of her post with carol's reply below;
+  // bringing the reply into focus shows both its parents above it, the second
+  // joined by an "also" line.
   await page.goto('/notifications');
   const note = page.locator('[data-testid="notification"][data-kind="post_referenced"]');
   await expect(note).toHaveCount(1);
   await note.getByTestId('notification-post').click();
-  await expect(page.locator('[data-testid="tree-row"][data-gen="0"]')).toContainText('Alice asks: who wants to plant a garden?');
-  const item = page.locator('[data-testid="tree-row"][data-gen="1"]').getByTestId('tree-item').filter({ hasText: 'Carol answers both of you' });
-  await expect(item.getByTestId('tree-also')).toContainText(at('bob'));
-  await item.getByTestId('feed-tree').click();
-  const parents = page.locator('[data-testid="tree-row"][data-gen="-1"]');
-  await expect(parents.getByTestId('tree-item')).toHaveCount(2);
-  await expect(parents).toContainText('Alice asks: who wants to plant a garden?');
-  await expect(parents).toContainText('soil soil');
-  const focal = page.locator('[data-testid="tree-row"][data-gen="0"]');
-  await expect(focal).toContainText('Carol answers both of you');
-  await expect(focal.getByTestId('integrity-chain')).toContainText(at('bob'));
+  const focus = page.getByTestId('tree-focus');
+  await expect(focus).toContainText('Alice asks: who wants to plant a garden?');
+  const replyNode = page.getByTestId('explorer-node').filter({ hasText: 'Carol answers both of you' });
+  await expect(replyNode).toHaveAttribute('data-gen', '1');
+  await replyNode.dispatchEvent('click');
+  await expect(focus).toContainText('Carol answers both of you');
+  const parents = page.locator('[data-testid="explorer-node"][data-gen="-1"]');
+  await expect(parents).toHaveCount(2);
+  await expect(parents.filter({ hasText: 'Alice asks: who wants to plant a garden?' })).toHaveCount(1);
+  await expect(parents.filter({ hasText: 'soil soil' })).toHaveCount(1);
+  await expect(page.locator('.explorer-edge[data-kind="also"]')).toHaveCount(1);
+  await expect(focus.getByTestId('integrity-chain')).toContainText(at('bob'));
 
   // alice likes it; for bob (one step from alice) the like counts and names her,
   // for fran (two steps from alice) it counts without a name she can't see.
@@ -121,12 +123,15 @@ test('report, moderator removal, the inviter blamed; a held recovery cancelled; 
   const alice = await signInPage(page, origin, 'alice');
   const compost = await alice.feedPost('Carol knows about compost');
   await page.goto(`/p/${compost.ref}`);
-  const card = page.locator('[data-testid="tree-row"][data-gen="0"]');
+  const card = page.getByTestId('tree-focus');
   await card.getByTestId('integrity-report').first().click();
-  await expect(page).toHaveURL(/\/report\?/);
-  await page.locator('input[type=radio][value=spam]').check();
-  await page.getByTestId('report-submit').click();
-  await expect(page.getByTestId('report-sent')).toBeVisible();
+  // The report opens as a modal over the reply tree.
+  const reportModal = page.getByTestId('report-modal');
+  await expect(reportModal).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`/p/${compost.ref}\\?report=post%3A${compost.ref}$`));
+  await reportModal.locator('input[type=radio][value=spam]').check();
+  await reportModal.getByTestId('report-submit').click();
+  await expect(reportModal.getByTestId('report-sent')).toBeVisible();
 
   // mona: the queue item names carol and her inviter, and gives her account reference.
   await signInPage(page, origin, 'mona');

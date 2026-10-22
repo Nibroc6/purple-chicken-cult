@@ -1,27 +1,29 @@
 {
   "handle": "@{handle}",
   "nav": {
-    "label": "People"
+    "label": "Chickens"
   },
   "person": {
     "title": "Person",
     "relation": {
       "self": "This is you",
-      "friend": "Friend",
-      "friend_plus": "Friend+ (met in person)",
-      "connected": "Connected through your friends",
-      "outgoing": "Friend request sent",
-      "incoming": "Wants to be your friend",
+      "friend": "Acquaintance",
+      "friend_plus": "Friend (met in person)",
+      "connected": "Connected through your acquaintances",
+      "outgoing": "Acquaintance request sent",
+      "incoming": "Wants to be your acquaintance",
       "blocked": "Blocked"
-    }
+    },
+    "hiddenVia": "You hide the paths through @{handle}: you stay acquainted and still see their posts."
   },
   "friends": {
-    "title": "Friends",
-    "empty": "No friends yet. Friendships start in person, with an invite, or with a request to someone you are connected to.",
+    "title": "Acquaintances",
+    "empty": "No acquaintances yet.",
+    "emptyTip": "Connections start in person, with an invite, or with a request to someone you've come across here.",
     "more": "Show more"
   },
   "requests": {
-    "title": "Friend requests",
+    "title": "Acquaintance requests",
     "incoming": "Asking you",
     "outgoing": "You asked",
     "incomingEmpty": "No one is asking right now.",
@@ -30,32 +32,60 @@
   "suggestions": {
     "title": "People you may know",
     "empty": "No suggestions right now.",
-    "mutual": "{count, plural, one {# mutual friend} other {# mutual friends}}"
+    "mutual": "{count, plural, one {# mutual acquaintance} other {# mutual acquaintances}}"
   },
   "blocks": {
     "title": "Blocked people",
-    "help": "Blocked people never see that you blocked them. Your posts and paths no longer reach them through you, and theirs no longer reach you.",
+    "help": "Blocked people never see that you blocked them. Your posts and paths stop reaching them through you, and theirs stop reaching you.",
+    "helpShort": "They're never told.",
     "empty": "You have not blocked anyone."
   },
   "action": {
-    "request": "Add friend",
+    "request": "Add acquaintance",
     "withdraw": "Cancel request",
     "accept": "Accept",
     "decline": "Decline",
-    "unfriend": "Unfriend",
+    "unfriend": "Remove",
     "block": "Block",
     "unblock": "Unblock",
     "mute": "Mute",
-    "unmute": "Unmute"
+    "unmute": "Unmute",
+    "hide_via": "Hide paths through them",
+    "show_via": "Show paths through them again"
   },
   "confirm": {
-    "unfriend": "Unfriend @{handle}? Who invited whom stays visible.",
-    "block": "Block @{handle}? This also unfriends them. They are not told.",
-    "cancel": "Cancel"
+    "unfriend": "Remove @{handle} from your acquaintances? Who invited whom stays visible.",
+    "block": "Block @{handle}? This also removes them from your acquaintances. They are not told.",
+    "cancel": "Cancel",
+    "hide_via": "Hide the paths through @{handle}? You stay acquainted and still see their posts; people you reach only through them drop out of your feed. They are not told."
   },
   "errors": {
-    "already_friends": "You are already friends.",
-    "friend_cap": "You have reached 1,000 friends and open requests. Cancel a request or unfriend someone first.",
+    "already_friends": "You are already acquainted.",
+    "friend_cap": "You have reached 1,000 acquaintances and open requests. Cancel a request or remove someone first.",
     "self_not_allowed": "You cannot do that to yourself."
+  },
+  "upgrade": {
+    "title": "Become friends in person",
+    "offer": "Met @{handle} in person? Show them your code and let them hear the handshake sound to become friends.",
+    "open": "Become friends",
+    "quiet": "Quiet: only the near-silent tone, no jingle",
+    "hint": "Ask @{handle} to open Join on their phone, signed in, choose “Scan their code” and scan this code."
+  },
+  "cosign": {
+    "request": "Acquaintance request to @{handle}",
+    "accept": "Accept @{handle} as an acquaintance",
+    "unfriend": "Remove @{handle} from your acquaintances",
+    "block": "Block @{handle}"
+  },
+  "posts": {
+    "title": "Posts",
+    "orderLabel": "Order",
+    "order": {
+      "newest": "Newest first",
+      "oldest": "Oldest first"
+    },
+    "empty": "Nothing from @{handle} here yet.",
+    "open": "Open",
+    "more": "Show more"
   }
 }

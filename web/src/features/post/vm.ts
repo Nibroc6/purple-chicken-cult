@@ -4,7 +4,7 @@
 import { ApiError, errorKey } from '../../api/errors';
 import type { components } from '../../api/schema.gen';
 import { parse } from '../../markdown';
-import type { Audience, AuthorVM, ChainVM, HopVM, PostVM, RefPolicy } from '../../vm/types';
+import type { Audience, AuthorVM, ChainVM, HopVM, MediaVM, PostVM, RefPolicy } from '../../vm/types';
 import { asRef } from '../../vm/types';
 
 type S = components['schemas'];
@@ -46,6 +46,10 @@ export function toAuthorVM(a: S['AuthorView']): AuthorVM {
   };
 }
 
+export function toMediaVM(m: S['MediaView']): MediaVM {
+  return { ref: asRef(m.ref), w: m.w, h: m.h, ...(m.alt ? { alt: m.alt } : {}) };
+}
+
 export function toPostVM(p: S['PostView']): PostVM {
   const long = codePoints(p.body) > FOLD_CHARS || p.body.split('\n').length > FOLD_LINES;
   return {
@@ -75,6 +79,7 @@ export function toPostVM(p: S['PostView']): PostVM {
       lookalike: v.lookalike,
       ...(v.title ? { title: v.title } : {}),
       ...(v.description ? { description: v.description } : {}),
+      ...(v.image ? { image: toMediaVM(v.image) } : {}),
     })),
     likes: {
       inNetwork: p.likes.in_network,
@@ -84,7 +89,7 @@ export function toPostVM(p: S['PostView']): PostVM {
     },
     savedByMe: p.saved_by_me ?? false,
     replyCount: p.reply_count,
-    media: (p.media ?? []).map((m) => ({ ref: asRef(m.ref), w: m.w, h: m.h, ...(m.alt ? { alt: m.alt } : {}) })),
+    media: (p.media ?? []).map(toMediaVM),
     fold: long ? 'card' : 'none',
   };
 }
@@ -96,6 +101,7 @@ export const SOFT_LIMIT = 500;
 export const HARD_LIMIT = 20_000;
 export const MAX_PARTS = 25;
 export const MAX_PARENTS = 3;
+export const MAX_MEDIA = 4;
 
 // CounterState: hidden below 280, shown up to 500, amber above the soft limit,
 // over above the hard cap (publishing is refused).
@@ -108,7 +114,7 @@ export function counterState(n: number): CounterState {
   return 'hidden';
 }
 
-export const audiences: readonly Audience[] = ['connected', 'd1', 'd2', 'd3'];
+export const audiences: readonly Audience[] = ['connected', 'd1', 'd2', 'd3', 'friend_plus'];
 export const refPolicies: readonly RefPolicy[] = ['anyone', 'two_hops', 'friends', 'nobody'];
 
 // hasAudienceLimit: replying to such a post hides the context from some of
@@ -134,6 +140,7 @@ const postCodes = new Set([
   'ref_cap',
   'too_many_parts',
   'cont_not_detachable',
+  'too_many_media',
 ]);
 
 // postErrorKey returns the catalog key for a posts API error.

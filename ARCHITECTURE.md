@@ -29,6 +29,12 @@ parts are hard, and be precise about **what each mechanism actually guarantees**
 
 > Changes from v1–v3 and v4 are summarized in §20.
 
+> **Vocabulary.** The app calls a plain connection an **acquaintance** and an in-person
+> verified one (friend+) a **friend**. This document, the code and the signed records
+> keep the original level names: `friend` is an acquaintance, `friend+` is a friend, and
+> "friends" in the graph sense (1st degree, friend cap, friend requests) means
+> acquaintances of either level. Only user-facing text uses the new words.
+
 ---
 
 ## 1. Big picture
@@ -177,6 +183,8 @@ Report      { reporter, target, reason, at }
 - **An invite creates two records:** the permanent `Invite` and a `Friendship`. From
   Phase 1 that friendship starts as friend+, since an in-person handshake is exactly
   what friend+ means.
+- **The same code connects existing accounts** (§7 "One code, two uses"): a signed-in
+  scan creates only a co-signed `Friendship`, no `Invite`.
 - **Unfriending revokes the `Friendship`, never the `Invite`.** Unfriending is like
   blocking, except the person isn't removed from your indirect paths.
 - **Everyone who can see a user sees that user's inviter label** ("invited by @bob"),
@@ -570,6 +578,17 @@ retry prompt.
 | **Accepted** | QR plus jingle | Invite valid. The friendship starts as plain friend, and a later verified handshake upgrades it |
 | **Retry** | Anything less | No token. The app shows the volume prompt or the quiet-mode suggestion |
 
+- **One code, two uses.** The inviter's screen shows a single code. A guest session that
+  scans it signs up (an invite: needs the inviter's budget, checked when the guest
+  claims). A **signed-in** account that scans it turns the handshake into a *connect*:
+  - strangers: Verified makes friend+, Accepted makes friend; both sides co-sign the
+    `Friendship` with a passkey, and no invite is spent (so it works on probation too);
+  - plain friends: it becomes a friend+ upgrade (Verified only);
+  - friend+ already: `already_friends`; a block either way, an inactive account or a
+    full friend list: the uniform not-found.
+
+  This is the in-person route of §10.5, and how new accounts earn the friend+ edges
+  outside their subtree that end probation (§8).
 - **Stored results.** The `Invite` and `Friendship` records keep which channels passed
   and the timings, bucketed, in the `handshake` field. That's all.
 - **How the score is used:**
@@ -596,6 +615,8 @@ many phones could build 2ⁿ accounts in n days at "1 invite per 24h". So:
 ### Invite budget
 - **Probation:** no invites for 30 days. Probation lasts until the account also has ≥3
   friend+ edges to people **outside its own invite subtree**, whichever comes later.
+  Those edges come from in-person connects (§7): the invite code still opens on
+  probation, it just can't sign anyone up.
   - *Phase 0:* 7 days, plus ≥3 ordinary edges outside the subtree.
 - **After probation:** a token bucket of +1 invite per day, capped at 3. Genesis users get
   a cap of 5.
@@ -684,6 +705,9 @@ post's "family tree".
   An edit changes the body and media only. It keeps the same `id` and bumps `version`,
   so children keep pointing at it and readers see the latest version marked "edited".
   A reference creates a new post; an edit does not.
+- **Replying to several posts.** Any post's "add to a reply" collects up to 3 posts in a
+  tray that opens the composer with all of them; the composer also takes a pasted link to
+  another post, and any parent can be taken out before publishing.
 - **You can only reference what you can see.** Parents arrive as per-viewer refs (§13),
   and the gate accepts one only if the author can currently see that post. A bad ref
   gets the uniform not-found response, so referencing can't be used to probe for posts.
@@ -753,8 +777,11 @@ to friends or 2 hops, reveals that its author falls inside that limit.
   post won't see what it replies to."
 
 #### 10.1.4 The family-tree view
-Tapping a post opens it as the **focal post**. Each generation is one horizontal **row**,
-and rows stack vertically:
+Tapping a post opens it as the **focal post**. Each generation is one **row** of the
+tree, and the rows are drawn on one connected, pannable canvas (the same in every
+format), like a genealogy chart: every post is a card, family-tree lines join each post
+to its parents and replies, and the focal post is highlighted in the middle and shown in
+full, with its integrity elements and actions, under the map. The rows are:
 
 ```
   ── Earlier ──            ↑ load earlier (parents of the centered parent)
@@ -769,28 +796,33 @@ and rows stack vertically:
 1. **Same ranking as the feed.** Within a row, posts sort by distance tier first, then
    `t_eff` under the reader's preset (§5). Ties use the reader's own edge attributes,
    then ID.
-2. **Low-priority posts move out of the way.** The rank-1 post sits in the center
-   column, so the vertical scroll path runs through the best post of each generation.
-   Lower ranks go to the side, smaller and faded: on the right only on mobile,
-   alternating sides on desktop. After 5, a "+N more" chip opens a ranked list, where N
-   counts visible posts only.
-3. **Swiping a row** re-centers it. The rows below reload as the new center's children,
-   and the rows above stay put. A row is ranked as a snapshot, like a feed tier, so it
-   never reshuffles under your thumb.
-4. **Each post appears once.** Extra visible parents show as chips ("also replies to @b")
-   that refocus the view when tapped. If a post would appear a second time, as in a
-   diamond, the second spot shows "↑ shown above".
-5. **Small section headers** sit on every row: "Earlier", "Replying to", "This post",
-   "Replies", "Replies to replies", "3 generations down", and so on. Inside a row, a
-   hairline divider marks each change of distance tier.
+2. **Low-priority posts move out of the way.** The rank-1 post sits on the center line,
+   so the line down the middle runs through the best post of each generation. Lower
+   ranks alternate right and left of it. A "+N more" card at the end of a row loads the
+   rest, where N counts visible posts only.
+3. **Selecting a post brings it into focus**: the tree reopens around it (a new
+   snapshot), the old tree staying on screen until the new one arrives so the cards
+   slide into place. A row is ranked as a snapshot, like a feed tier, so it never
+   reshuffles while you look at it.
+4. **Each post appears once.** The focal post's extra visible parents join it with a
+   dashed "also" line. A reply to several posts on the map sits one row below the lowest
+   of them, with a line to each (the extra ones dashed); lines that cross rows run in the
+   lanes between cards. If a post would still appear a second time, its second spot is a
+   dashed line to the card it already has.
+5. **No section headers.** The lines show how posts relate; siblings hang from one shared
+   line under their parent.
 6. **Loading.** The view opens with the focal post plus 2 rows above and 2 below. More
    rows load near the edges.
    - Each row reads only link IDs from `post_parents`, then filters through the gate.
      Every visible candidate in the row is ranked, and bodies are loaded for the top ~10.
    - Authors deeper than the reader's current search layer come back in the fixed
      latency bucket (§4.1).
-7. **Interaction.** On mobile, scroll vertically and swipe each row horizontally, with
-   no free pan or zoom. On desktop, zooming out shows a minimap (Phase 1).
+7. **Interaction.** Drag (or the arrow keys) pans; the wheel, a pinch or + / − zooms;
+   "show everything" fits the whole tree and "back to this post" returns to the focal
+   post. Every card is a keyboard button. On desktop, zooming out shows a minimap.
+8. **Layout.** The canvas fills the screen beside the navigation. The controls and the
+   focused post, in full, float on it; the focus card folds away, and on phones it is a
+   bottom sheet.
 
 #### 10.1.5 Short posts, systematically
 Long posts are discouraged with friction only. Nothing ranks them lower, because a
@@ -892,7 +924,17 @@ Rendering rules:
 ### 10.3 Account recovery
 - **Phase 0:** multiple passkeys (encouraged at signup), plus a manual process that needs
   two moderators. Email is optional.
-- **Phase 1:** recovery confirmed by **2 friend+ contacts**.
+- **Phase 1:** recovery confirmed by **friend+ guardians**: one vouches in person, the
+  others approve with a passkey. The number needed grows with the account's friend+
+  count: `max(2, ceil(log2 n))`, at most 5 (1–4 friends: 2, 5–8: 3, 9–16: 4, 17+: 5),
+  fixed when the recovery opens. Then a 24 h hold.
+- **The owner can always veto.** The account itself is told (in-app and Web Push) when a
+  recovery is vouched for and again when it starts holding. Cancel works from any signed-in
+  session, and **signing in with any passkey the account already had cancels the
+  recovery**, until the new passkey is enrolled.
+- **Recovery never removes the old passkeys.** A passkey enrolled through recovery cannot
+  remove the account's older passkeys for 7 days, while the old ones can remove it. Someone
+  who took an account over this way cannot lock its owner out.
 - **Phase 3:** device keys with N-of-M friend+ guardians.
 - **Notifications:** friends are told about every recovery or passkey change.
 
@@ -909,7 +951,8 @@ Rendering rules:
 ### 10.5 Discovery (horizon-safe)
 - No global search, no public profiles, and no handle lookup.
 - **Ways to connect:**
-  1. **In person** (the primary route).
+  1. **In person** (the primary route): scan someone's invite code while signed in
+     (§7 "One code, two uses").
   2. **People you may know:** 2nd-degree candidates with ≥2 mutual friends, through
      edges at least 7 days old. Only a count of mutual friends is shown, and anyone can
      opt out of being suggested.
@@ -1140,11 +1183,11 @@ So at that scale:
 - **Preferences** live server-side in `users.ui_prefs`, so they follow you across devices.
   Each format is a lazily loaded chunk.
 
-| Format | Feed | Family tree |
+| Format | Feed | Reply tree |
 |---|---|---|
-| **Cards (default)** | Clean Instagram-style cards (§10.1.7) | The rows layout (§10.1.4) |
-| **Compact** | Dense text rows: author, chain, first lines | An indented outline you can collapse |
-| **Explorer** (Phase 1) | Cards with a small tree thumbnail | A pan-and-zoom node canvas, plus an outline mirror for keyboard and screen-reader users |
+| **Cards (default)** | Clean Instagram-style cards (§10.1.7) | The connected tree (§10.1.4) |
+| **Compact** | Dense text rows: author, chain, first lines | The connected tree (§10.1.4) |
+| **Explorer** (Phase 1) | Cards with a small tree thumbnail | The connected tree (§10.1.4) |
 
 **Accessibility settings are not a format.** High contrast, text size, reduced motion and
 dyslexia-friendly fonts apply to **every** format.
@@ -1154,12 +1197,40 @@ dyslexia-friendly fonts apply to **every** format.
 | Stage | What users control | Safety model |
 |---|---|---|
 | **A. Themes** (Phase 1) | Design tokens only: color, radius, spacing, density, and fonts from an allowlist | Validated server-side. Integrity elements must keep WCAG AA contrast and a minimum size, or the theme is rejected |
+| **A+. Advanced themes** (Phase 1) | Theme CSS (§15.3): your own raw CSS, plus the theme's own uploaded images (for example, image buttons) | Applied only to your own view, behind a warning. Never applied on locked routes such as sign-in, passkeys and settings |
 | **B. Layout config** (Phase 2) | A JSON document under a published schema: slot order, density, which optional parts to show, tree depth | Integrity elements are required slots. The schema simply can't express hiding them |
 | **C. Custom layouts** (Phase 2+) | Whole feed, card and tree layouts as declarative templates (§16.2) | Rendered by the first-party renderer. Integrity elements are required, and there are no scripts and no network access |
 
-**User-supplied CSS or JS never runs inside the first-party app.** CSS alone could hide
-blame information, spoof a chain or a "Verified in person" badge, overlay a fake
-passkey prompt, or leak data through selectors and `url()`.
+**Nobody else's CSS or JS ever runs in your app.** CSS could hide blame information,
+spoof a chain or a "Verified in person" badge, overlay a fake passkey prompt, or leak
+data through selectors and `url()`. The one exception is your own theme CSS (§15.3): it
+affects only you, and you opt into it knowingly.
+
+### 15.3 Advanced themes: theme CSS
+Advanced mode is your own raw CSS, applied only to your own view. It's an expert
+feature for people who write their own themes. It isn't a sandbox, and it doesn't
+pretend to be one.
+- **A warning first.** The editor stays locked until you acknowledge that theme CSS can
+  change or hide anything, including integrity elements (§15.5), and that you should
+  never paste CSS someone sent you. Pasted CSS is the realistic attack, so there's no
+  way to import or share theme CSS.
+- **Locked routes.** The sheet isn't applied on sign-in, enrollment, join, recovery,
+  co-signing, settings, moderation, report, blame or terms pages, nor while the report
+  form is open as a modal. A passkey prompt
+  always looks like the app, and the theme page always works to undo a broken theme.
+- **Accessibility wins.** The sheet is dropped under the high-contrast setting.
+- **Images.** `image(name)` names one of up to 8 of the theme's own uploads. They're
+  scanned and re-encoded like any other upload, and the client swaps in a short-lived
+  URL signed for their owner.
+- **The CSP still applies.** The sheet is a constructed stylesheet, so `style-src
+  'self'` stays strict. `img-src` and `font-src` still decide what it can load, which
+  keeps CSS-based exfiltration to first-party origins.
+- **What the server checks.** It enforces a size limit (32 KiB) and that every
+  `image()` names one of the theme's images. It stores the CSS as written.
+
+**HTML templates are §16.2's layouts.** Theme CSS restyles the app's own structure.
+Changing the structure (which parts appear where) is the job of layout config and custom
+layout templates.
 
 ### 15.4 Localization: every user-facing string is a UI string
 **Rule: no user-facing text is hard-coded, anywhere.** That covers buttons, tier headers,
@@ -1460,8 +1531,9 @@ without a per-post human action.
 - **Markdown subset:** headings render at body size.
 - **Link previews** are built server-side after posting and SSRF-guarded.
 - **UI formats:** Cards (default), Compact, and Explorer.
-- **Customization**, staged: themes, then layout config, then **custom layout templates**
-  built in-app (§16). Integrity elements can never be hidden.
+- **Customization**, staged: themes (with your own theme CSS and image buttons, §15.3),
+  then layout config, then **custom layout templates** built in-app (§16). Integrity
+  elements can never be hidden.
 - **No public API.** The internal API is CSRF-protected and unpublished.
 - **Anti-scraping (§17):**
   - device-bound sessions

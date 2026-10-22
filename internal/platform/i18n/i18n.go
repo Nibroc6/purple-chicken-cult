@@ -3,7 +3,16 @@
 // catalogs/<locale>/server.json, in the recipient's ui_locale with fallback "en".
 // API responses never carry prose: they carry codes the client localizes.
 //
-// Owner: P1-W05 (the scaffold ships a working loader).
+// The pseudo-locale en-XA (accents, ~40% expansion, [ … ] brackets; ICU
+// arguments, plurals and selects untouched, exactly as web/scripts/
+// pseudo-locale.mjs does for the web catalogs) is generated from en at load
+// time in dev and test (ForConfig), never shipped as a file.
+//
+// The "no prose" rule (plan §1.1 A9) is extended here: i18n_test.go scans every
+// push payload builder (calls into this package and into platform/webpush) and
+// these two packages for prose-like literals.
+//
+// Owner: P1-W05.
 package i18n
 
 import (
@@ -18,6 +27,8 @@ import (
 	"sync"
 
 	"github.com/kaptinlin/messageformat-go/mf1"
+
+	"github.com/Nibroc6/purple-chicken-cult/internal/platform/config"
 )
 
 //go:embed catalogs
@@ -75,6 +86,43 @@ func Default() (*Catalog, error) {
 	return defaultCat, defaultErr
 }
 
+// PseudoLocale is the generated pseudo-locale.
+const PseudoLocale = "en-XA"
+
+// ForConfig returns the embedded catalogs, plus the generated pseudo-locale
+// en-XA in dev and test.
+func ForConfig(cfg *config.Config) (*Catalog, error) {
+	c, err := Default()
+	if err != nil || cfg == nil || !cfg.DevLike() {
+		return c, err
+	}
+	return c.WithPseudo()
+}
+
+// WithPseudo returns a copy of c that also holds en-XA generated from en.
+func (c *Catalog) WithPseudo() (*Catalog, error) {
+	out := &Catalog{msgs: map[string]map[string]string{}, compiled: map[string]*mf1.CompiledMessage{}}
+	for l, m := range c.msgs {
+		out.msgs[l] = m
+	}
+	xa := make(map[string]string, len(c.msgs[Fallback]))
+	for k, src := range c.msgs[Fallback] {
+		p, err := Pseudo(src)
+		if err != nil {
+			return nil, fmt.Errorf("i18n: pseudo %s: %w", k, err)
+		}
+		xa[k] = p
+	}
+	out.msgs[PseudoLocale] = xa
+	return out, nil
+}
+
+// Has reports whether key exists in the fallback catalog.
+func (c *Catalog) Has(key string) bool {
+	_, ok := c.msgs[Fallback][key]
+	return ok
+}
+
 // Locales lists the loaded locales.
 func (c *Catalog) Locales() []string {
 	out := make([]string, 0, len(c.msgs))
@@ -95,20 +143,34 @@ func (c *Catalog) Keys() []string {
 	return out
 }
 
-func candidates(locale string) []string {
+// candidates is the lookup order for locale: the tag, its base language, en.
+// Tags compare case-insensitively (BCP 47), so "en-xa" finds en-XA.
+func (c *Catalog) candidates(locale string) []string {
 	out := []string{}
 	if locale != "" {
-		out = append(out, locale)
+		out = append(out, c.canon(locale))
 		if base, _, ok := strings.Cut(locale, "-"); ok {
-			out = append(out, base)
+			out = append(out, c.canon(base))
 		}
 	}
 	return append(out, Fallback)
 }
 
+func (c *Catalog) canon(tag string) string {
+	if _, ok := c.msgs[tag]; ok {
+		return tag
+	}
+	for l := range c.msgs {
+		if strings.EqualFold(l, tag) {
+			return l
+		}
+	}
+	return tag
+}
+
 // Format renders key in locale (falling back to the base language, then "en").
 func (c *Catalog) Format(locale, key string, args map[string]any) (string, error) {
-	for _, l := range candidates(locale) {
+	for _, l := range c.candidates(locale) {
 		src, ok := c.msgs[l][key]
 		if !ok {
 			continue
@@ -130,7 +192,7 @@ func (c *Catalog) compile(locale, key, src string) (*mf1.CompiledMessage, error)
 		return m, nil
 	}
 	f, err := mf1.New(locale, nil)
-	if err != nil {
+	if locale == PseudoLocale || err != nil {
 		if f, err = mf1.New(Fallback, nil); err != nil {
 			return nil, err
 		}

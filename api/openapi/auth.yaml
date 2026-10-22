@@ -12,9 +12,19 @@ paths:
   /session:
     get:
       operationId: getSession
+      description: >-
+        The caller's session (works unauthenticated). With device-bound sessions on
+        (PCC_DBSC=1), an unbound user session's answer carries a
+        Sec-Session-Registration header offering the binding (P1). step_up is true
+        while an automation-signal step-up is pending: every other request then
+        answers step_up_required until the passkey step-up.
       responses:
         "200":
-          description: The caller's session (works unauthenticated).
+          description: The caller's session.
+          headers:
+            Sec-Session-Registration:
+              description: DBSC registration offer (algorithms, path, single-use challenge).
+              schema: { type: string }
           content:
             application/json:
               schema: { $ref: '_common.yaml#/components/schemas/SessionView' }
@@ -140,6 +150,13 @@ paths:
   /auth/passkeys/finish:
     post:
       operationId: addPasskeyFinish
+      description: >-
+        Finishes adding a passkey. With {credential, name} (fresh step-up needed) the
+        registration is verified; a session created by a passkey then gets 202
+        {cosign: "passkey_add"}: the new credential waits five minutes for the
+        co-signature of its PasskeyChange record by an EXISTING passkey (POST
+        /api/cosign {purpose: passkey_add}), sent here as {intent, assertion}. Any
+        other session stores it at once (204).
       requestBody:
         required: true
         content:
@@ -147,11 +164,22 @@ paths:
             schema:
               type: object
               additionalProperties: false
-              required: [credential]
               properties:
                 credential: { type: object, additionalProperties: true }
                 name: { type: string, maxLength: 200 }
+                intent: { $ref: '_common.yaml#/components/schemas/Ref' }
+                assertion: { type: object, additionalProperties: true }
       responses:
+        "202":
+          description: Verified; sign the PasskeyChange record with an existing passkey.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [cosign]
+                properties:
+                  cosign: { type: string, enum: [passkey_add] }
         "204": { description: The passkey was added; friends are notified. }
         "400":
           description: passkey_rejected (or bad_request).
@@ -174,12 +202,35 @@ paths:
           in: path
           required: true
           schema: { $ref: '_common.yaml#/components/schemas/Ref' }
+      description: >-
+        Removes a passkey (never the last). A session created by a passkey sends the
+        co-signature of the PasskeyChange record (POST /api/cosign {purpose:
+        passkey_remove, target: id}) as {intent, assertion}; without it the removal
+        is the uniform 404. Other sessions need a fresh step-up and no body.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [intent, assertion]
+              properties:
+                intent: { $ref: '_common.yaml#/components/schemas/Ref' }
+                assertion: { type: object, additionalProperties: true }
       responses:
         "204": { description: Removed; every session it authenticated ended. }
+        "400":
+          description: passkey_rejected (or bad_request).
+          content:
+            application/json:
+              schema: { $ref: '_common.yaml#/components/schemas/Error' }
         "401": { $ref: '#/components/responses/AuthStepUp' }
         "404": { $ref: '_common.yaml#/components/responses/NotFound' }
         "409":
-          description: last_passkey.
+          description: >-
+            last_passkey, or recovery_lock (the session's passkey was enrolled through recovery
+            less than 7 days ago and the target is older).
           content:
             application/json:
               schema: { $ref: '_common.yaml#/components/schemas/Error' }
@@ -236,7 +287,7 @@ paths:
               required: [credential]
               properties:
                 credential: { type: object, additionalProperties: true }
-                remove_old: { type: boolean }
+                remove_old: { type: boolean, deprecated: true, description: Ignored. Recovery keeps the old passkeys. }
                 tos_version: { type: integer }
                 age_attested: { type: boolean }
       responses:
@@ -253,8 +304,76 @@ paths:
             application/json:
               schema: { $ref: '_common.yaml#/components/schemas/Error' }
         "429": { $ref: '#/components/responses/AuthRateLimited' }
+  /auth/dbsc/register:
+    post:
+      operationId: dbscRegister
+      description: >-
+        Device Bound Session Credentials registration (P1), sent by the browser: the
+        Sec-Session-Response header holds a JWT (ES256 or RS256, aud = this URL, jti =
+        the offered challenge) signed by the device key it carries. The session becomes
+        bound for good: from now on every request needs the 10-minute bound cookie
+        (__Host-pcc-b), and the long-lived cookie alone is accepted only at
+        /auth/dbsc/refresh. Any failure is the uniform 404 and burns the offer.
+      parameters:
+        - { name: Sec-Session-Response, in: header, required: false, schema: { type: string } }
+      responses:
+        "200":
+          description: The DBSC session configuration; Set-Cookie carries the bound cookie.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthDBSCConfig' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/AuthRateLimited' }
+  /auth/dbsc/refresh:
+    post:
+      operationId: dbscRefresh
+      description: >-
+        Renews the bound cookie of a bound session (the one request its long-lived
+        cookie alone may make). Without Sec-Session-Response: 401 with a single-use
+        Sec-Session-Challenge. With a JWT over that challenge (aud = this URL) signed
+        by the registered key: a new bound cookie. A replayed or foreign proof is the
+        uniform 404.
+      parameters:
+        - { name: Sec-Session-Response, in: header, required: false, schema: { type: string } }
+      responses:
+        "200":
+          description: The DBSC session configuration; Set-Cookie carries the new bound cookie.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthDBSCConfig' }
+        "401":
+          description: dbsc_challenge; sign the Sec-Session-Challenge and retry.
+          headers:
+            Sec-Session-Challenge:
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '_common.yaml#/components/schemas/Error' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/AuthRateLimited' }
 components:
   schemas:
+    AuthDBSCConfig:
+      type: object
+      required: [session_identifier, refresh_url, scope, credentials]
+      properties:
+        session_identifier: { type: string }
+        refresh_url: { type: string }
+        scope:
+          type: object
+          properties:
+            origin: { type: string }
+            include_site: { type: boolean }
+            defer_requests: { type: boolean }
+        credentials:
+          type: array
+          items:
+            type: object
+            required: [type, name, attributes]
+            properties:
+              type: { type: string, enum: [cookie] }
+              name: { type: string }
+              attributes: { type: string }
     AuthOptions:
       type: object
       additionalProperties: false

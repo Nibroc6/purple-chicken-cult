@@ -12,15 +12,26 @@
 // two writes of one kind and the anonymous counters live in memory only (no IPs
 // at rest). limits.purge drops windows older than two days.
 //
+// v2 (P1-W07): the P1 classes have budgets of their own — media_full (60 a
+// day, the full-resolution budget of §17.3), save, media and the anonymous
+// dbsc bucket of the device-bound-session endpoints — and every class a route
+// declares must have one (apix/pad's TestEveryRouteClassHasABudget). Padded
+// routes hold their 429 like every other outcome (apix/pad), so a budget's
+// exhaustion is not faster than a charge that passes; charging stays before
+// the handler and before any ref is resolved.
+//
 // Owner: P0-W12 → P1-W07.
 package limits
 
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/netip"
 	"sync"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/internal/core"
@@ -49,6 +60,10 @@ const (
 	WriteAccount   core.WriteKind = "account"
 	WriteSave      core.WriteKind = "save"  // P1
 	WriteMedia     core.WriteKind = "media" // P1
+	// WriteUpgrade opens a friend upgrade with an acquaintance: no new account
+	// and no new connection, so it spends no code attempt (WriteInvite); its
+	// own cap bounds the scanner offers it sends.
+	WriteUpgrade core.WriteKind = "friend_upgrade"
 )
 
 // Window lengths.
@@ -79,16 +94,31 @@ type Cap struct {
 	Max    int
 }
 
+// Refill is a build-up limit: a bucket of Cap that gains one charge back every
+// Every (so Cap per Cap×Every at a steady pace), instead of a counter that
+// resets at a window boundary. Its state is what the person sees on screen.
+type Refill struct {
+	Cap   int
+	Every time.Duration
+}
+
 // Policy holds every limit. Names are the class names of plan §5.1; a name
 // missing from Reads or Writes falls back to DefaultRead / DefaultWrite.
 type Policy struct {
 	Reads  map[string]int   // per UTC day
 	Writes map[string][]Cap // hourly and/or daily
+	// Refills are the build-up write limits; a kind here has no Writes caps.
+	Refills map[string]Refill
 	// ProbationFriendRequests replaces the daily friend_request cap while the
 	// caller is on probation (§8).
 	ProbationFriendRequests int
 	// Spacing is the minimum time between two writes of one kind (§17.4).
 	Spacing time.Duration
+	// FreeSteps lists the write kinds whose steps (gate.ClassStep) are not
+	// charged at all: their cap counts the actions people start, and the
+	// server already bounds the steps of each one (an invite handshake takes
+	// one key, a few sound reports, one confirm and one co-signature).
+	FreeSteps map[string]bool
 	// Anon caps each anonymous bucket per client prefix (/24 or /56) per AnonWindow.
 	Anon map[string]int
 	// DefaultRead, DefaultWrite and DefaultAnon apply to names outside the maps.
@@ -111,12 +141,16 @@ func DefaultPolicy() Policy {
 			string(WriteReport):    {{Day, 20}},
 			string(WriteSocial):    {{Day, 200}},
 			string(WriteAccount):   {{Day, 50}},
-			string(WriteInvite):    {{Day, 10}},
 			string(WriteSave):      {{Day, 200}},
 			string(WriteMedia):     {{Day, 50}},
+			string(WriteUpgrade):   {{Hour, 10}, {Day, 30}},
 		},
+		// 20 handshakes, one more every 72 min: a full day's worth at once,
+		// shown on the invite page (trial feedback).
+		Refills:                 map[string]Refill{string(WriteInvite): {Cap: 20, Every: Day / 20}},
 		ProbationFriendRequests: 5,
 		Spacing:                 2 * time.Second,
+		FreeSteps:               map[string]bool{string(WriteInvite): true},
 		// 30/min per prefix for login, enroll and CSP reports. The join flow polls
 		// /join/status every 1.5 s while the invitee waits for the SAS, so join
 		// gets room for that plus the claim and the two registration calls.
@@ -222,15 +256,23 @@ func (s *Service) ChargeRequest(ctx context.Context, c gate.Class) error {
 		return nil
 	case gate.ClassAnon:
 		return s.ChargeAnon(clientPrefix(ctx), c.Name)
-	case gate.ClassRead, gate.ClassWrite:
+	case gate.ClassRead, gate.ClassWrite, gate.ClassStep:
 		v, ok := core.ViewerFrom(ctx)
 		if !ok || v.Kind != core.SessUser || v.ID == 0 {
 			return s.ChargeAnon(clientPrefix(ctx), UnauthBucket)
 		}
+		if c.Kind == gate.ClassStep {
+			s.mu.Lock()
+			free := s.policy.FreeSteps[c.Name]
+			s.mu.Unlock()
+			if free {
+				return nil
+			}
+		}
 		if c.Kind == gate.ClassRead {
 			return s.ChargeRead(ctx, v, core.ReadClass(c.Name))
 		}
-		return s.ChargeWrite(ctx, v, core.WriteKind(c.Name), 1)
+		return s.chargeWrite(ctx, v, core.WriteKind(c.Name), 1, c.Kind == gate.ClassWrite)
 	}
 	return nil
 }
@@ -276,6 +318,12 @@ func (s *Service) ChargeRead(ctx context.Context, v core.Viewer, c core.ReadClas
 // ChargeWrite charges n writes of kind k: the minimum spacing since the
 // previous write of k, then every hourly and daily cap of k.
 func (s *Service) ChargeWrite(ctx context.Context, v core.Viewer, k core.WriteKind, n int) error {
+	return s.chargeWrite(ctx, v, k, n, true)
+}
+
+// chargeWrite is ChargeWrite; spaced false skips the minimum spacing and leaves
+// its clock alone (gate.ClassStep).
+func (s *Service) chargeWrite(ctx context.Context, v core.Viewer, k core.WriteKind, n int, spaced bool) error {
 	if n < 1 {
 		n = 1
 	}
@@ -287,13 +335,28 @@ func (s *Service) ChargeWrite(ctx context.Context, v core.Viewer, k core.WriteKi
 	}
 	probation := s.policy.ProbationFriendRequests
 	spacing := s.policy.Spacing
+	if !spaced {
+		spacing = 0
+	}
 	if spacing > 0 {
 		if last, ok := s.last[spacingKey{v.ID, string(k)}]; ok && now.Sub(last) < spacing {
 			s.mu.Unlock()
 			return gate.RateLimited(last.Add(spacing).Sub(now))
 		}
 	}
+	refill, isRefill := s.policy.Refills[string(k)]
 	s.mu.Unlock()
+	if isRefill {
+		if err := s.take(ctx, v.ID, k, n, refill, now); err != nil {
+			return err
+		}
+		if spacing > 0 {
+			s.mu.Lock()
+			s.last[spacingKey{v.ID, string(k)}] = now
+			s.mu.Unlock()
+		}
+		return nil
+	}
 	cs := make([]charge, 0, len(caps))
 	for _, c := range caps {
 		max := c.Max
@@ -311,6 +374,67 @@ func (s *Service) ChargeWrite(ctx context.Context, v core.Viewer, k core.WriteKi
 		s.mu.Unlock()
 	}
 	return nil
+}
+
+// RefillBucket is the rate_buckets bucket of a build-up write kind.
+func RefillBucket(k core.WriteKind) string { return "b:" + string(k) }
+
+// take charges n to the build-up bucket of k (GCRA on rate_buckets.tat): the
+// charge moves tat on by n×Every from max(tat, now) and is refused, changing
+// nothing, if tat would end up more than Cap×Every ahead of now.
+func (s *Service) take(ctx context.Context, u core.UserID, k core.WriteKind, n int, r Refill, now time.Time) error {
+	step := time.Duration(n) * r.Every
+	limit := time.Duration(r.Cap) * r.Every
+	tag, err := s.d.DB.Q().Exec(ctx, `INSERT INTO rate_buckets AS b (user_id, bucket, tat) VALUES ($1, $2, $3::timestamptz + $4::interval)
+		ON CONFLICT (user_id, bucket) DO UPDATE SET tat = GREATEST(b.tat, $3) + $4::interval
+		WHERE GREATEST(b.tat, $3) + $4::interval <= $3::timestamptz + $5::interval`,
+		int64(u), RefillBucket(k), now, step, limit)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 1 {
+		return nil
+	}
+	var tat time.Time
+	if err := s.d.DB.Q().QueryRow(ctx, "SELECT tat FROM rate_buckets WHERE user_id = $1 AND bucket = $2",
+		int64(u), RefillBucket(k)).Scan(&tat); err != nil {
+		return err
+	}
+	return gate.RateLimited(tat.Add(step).Sub(now.Add(limit)))
+}
+
+// WriteAllowance reports what is left of the build-up limit of k for v
+// (core.Limiter): ok false when k has none.
+func (s *Service) WriteAllowance(ctx context.Context, v core.Viewer, k core.WriteKind) (core.Allowance, bool, error) {
+	s.mu.Lock()
+	r, ok := s.policy.Refills[string(k)]
+	s.mu.Unlock()
+	if !ok {
+		return core.Allowance{}, false, nil
+	}
+	now := s.d.Clock.Now()
+	var tat time.Time
+	err := s.d.DB.Q().QueryRow(ctx, "SELECT tat FROM rate_buckets WHERE user_id = $1 AND bucket = $2",
+		int64(v.ID), RefillBucket(k)).Scan(&tat)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return core.Allowance{}, false, err
+	}
+	return allowance(r, tat, now), true, nil
+}
+
+// allowance is the bucket state at now for tat: every whole Every between now
+// and tat is a charge still in use.
+func allowance(r Refill, tat, now time.Time) core.Allowance {
+	a := core.Allowance{Available: r.Cap, Cap: r.Cap}
+	ahead := tat.Sub(now)
+	if ahead <= 0 {
+		return a
+	}
+	used := int((ahead + r.Every - 1) / r.Every) // whole charges still in use
+	a.Available = max(r.Cap-used, 0)
+	next := tat.Add(-time.Duration(used-1) * r.Every)
+	a.NextAt = &next
+	return a
 }
 
 func (s *Service) onProbation(ctx context.Context, u core.UserID, now time.Time) bool {
@@ -442,6 +566,10 @@ func (s *Service) pruneLocked(now time.Time) {
 func (s *Service) Purge(ctx context.Context) error {
 	now := s.d.Clock.Now()
 	if _, err := s.d.DB.Q().Exec(ctx, "DELETE FROM rate_counters WHERE window_start < $1", now.Add(-Keep)); err != nil {
+		return err
+	}
+	// A build-up bucket whose tat passed is full: the row says nothing more.
+	if _, err := s.d.DB.Q().Exec(ctx, "DELETE FROM rate_buckets WHERE tat < $1", now); err != nil {
 		return err
 	}
 	s.mu.Lock()

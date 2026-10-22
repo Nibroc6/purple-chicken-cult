@@ -2,23 +2,25 @@
 import { api, unwrap } from '../../api/client';
 import { ApiError } from '../../api/errors';
 import type { components } from '../../api/schema.gen';
-import type { PersonVM, Ref } from '../../vm/types';
-import { toPersonVM } from './vm';
+import type { PostVM, Ref } from '../../vm/types';
+import { toOpenedVM, type OpenedVM } from '../invites';
+import { toPostVM } from '../post/vm';
+import { toPersonVM, type PeopleVM } from './vm';
 
 type Suggestion = components['schemas']['FriendsSuggestion'];
 
 export interface FriendsPage {
-  items: PersonVM[];
+  items: PeopleVM[];
   next?: string;
 }
 
 export interface RequestsVM {
-  incoming: PersonVM[];
-  outgoing: PersonVM[];
+  incoming: PeopleVM[];
+  outgoing: PeopleVM[];
 }
 
 export interface SuggestionVM {
-  person: PersonVM;
+  person: PeopleVM;
   mutual: number;
 }
 
@@ -38,11 +40,30 @@ export async function fetchRequests(): Promise<RequestsVM> {
   return { incoming: r.incoming.map(toPersonVM), outgoing: r.outgoing.map(toPersonVM) };
 }
 
-export async function fetchPerson(ref: Ref): Promise<PersonVM> {
+export async function fetchPerson(ref: Ref): Promise<PeopleVM> {
   return toPersonVM(unwrap(await api.GET('/people/{ref}', at(ref))));
 }
 
-export async function fetchBlocks(): Promise<PersonVM[]> {
+// PostOrder is the order of a person's post history.
+export type PostOrder = 'newest' | 'oldest';
+
+export interface PersonPostsPage {
+  items: PostVM[];
+  next?: string;
+}
+
+// fetchPersonPosts pages through a person's posts the caller can see. The
+// server filters every post exactly like the feed; a cursor keeps its order.
+export async function fetchPersonPosts(ref: Ref, order: PostOrder, cursor?: string): Promise<PersonPostsPage> {
+  const page = unwrap(
+    await api.GET('/people/{ref}/posts', {
+      params: { path: { ref }, query: cursor ? { cursor } : { order } },
+    }),
+  );
+  return { items: page.items.map(toPostVM), ...(page.next ? { next: page.next } : {}) };
+}
+
+export async function fetchBlocks(): Promise<PeopleVM[]> {
   return unwrap(await api.GET('/blocks')).items.map(toPersonVM);
 }
 
@@ -63,28 +84,38 @@ export type PersonAction =
   | 'block'
   | 'unblock'
   | 'mute'
-  | 'unmute';
+  | 'unmute'
+  | 'hide_via'
+  | 'show_via';
 
-export async function runAction(action: PersonAction, ref: Ref): Promise<void> {
+// Cosig is the co-signature of a graph-changing action (P1): the intent and
+// the passkey assertion from the co-sign dialog.
+export interface Cosig {
+  intent: string;
+  assertion: Record<string, unknown>;
+}
+
+export async function runAction(action: PersonAction, ref: Ref, cosig?: Cosig): Promise<void> {
   const p = at(ref);
+  const signed = cosig ? { ...p, body: cosig } : p;
   switch (action) {
     case 'request':
-      ok(await api.POST('/people/{ref}/request', p));
+      ok(await api.POST('/people/{ref}/request', signed));
       return;
     case 'withdraw':
       ok(await api.DELETE('/people/{ref}/request', p));
       return;
     case 'accept':
-      ok(await api.POST('/friends/requests/{ref}/accept', p));
+      ok(await api.POST('/friends/requests/{ref}/accept', signed));
       return;
     case 'decline':
       ok(await api.POST('/friends/requests/{ref}/decline', p));
       return;
     case 'unfriend':
-      ok(await api.DELETE('/friends/{ref}', p));
+      ok(await api.DELETE('/friends/{ref}', signed));
       return;
     case 'block':
-      ok(await api.PUT('/people/{ref}/block', p));
+      ok(await api.PUT('/people/{ref}/block', signed));
       return;
     case 'unblock':
       ok(await api.DELETE('/people/{ref}/block', p));
@@ -95,5 +126,28 @@ export async function runAction(action: PersonAction, ref: Ref): Promise<void> {
     case 'unmute':
       ok(await api.DELETE('/people/{ref}/mute', p));
       return;
+    case 'hide_via':
+      ok(await api.PUT('/people/{ref}/hide-via', p));
+      return;
+    case 'show_via':
+      ok(await api.DELETE('/people/{ref}/hide-via', p));
+      return;
+  }
+}
+
+// openUpgrade opens a friend+ upgrade handshake with a plain friend (quiet:
+// the jingle off, the near-silent tone only).
+export async function openUpgrade(ref: Ref, quiet = false): Promise<OpenedVM> {
+  return toOpenedVM(unwrap(await api.POST('/friends/{ref}/upgrade', { ...at(ref), body: { quiet } })));
+}
+
+// sessionCosigns reports whether this session signed in with a passkey: its
+// graph changes are then co-signed (a session without one — test hooks only —
+// is not asked).
+export async function sessionCosigns(): Promise<boolean> {
+  try {
+    return unwrap(await api.GET('/auth/passkeys')).items.some((p) => p.current);
+  } catch {
+    return false;
   }
 }

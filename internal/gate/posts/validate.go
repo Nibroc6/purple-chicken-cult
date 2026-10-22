@@ -62,9 +62,12 @@ func cleanLang(lang string) (string, error) {
 	return s, nil
 }
 
-// parseAudience parses an API audience; friend_plus is Phase 1 (P1-W12).
+// parseAudience parses an API audience (friend_plus: the author's friend+
+// friends only, Phase 1).
 func parseAudience(a string) (core.Audience, error) {
 	switch a {
+	case "friend_plus":
+		return core.AudFriendPlus, nil
 	case "", "connected":
 		return core.AudConnected, nil
 	case "d1":

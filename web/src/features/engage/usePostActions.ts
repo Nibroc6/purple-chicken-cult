@@ -1,19 +1,22 @@
 // usePostActions is the PostActions every format receives (plan §6.3): like
-// (optimistic, then the server's summary), hide and show less (the post leaves
-// the layouts at once through useHidden), seen (queued for the batched POST),
-// and navigation for reply, the family tree and reports. Every cached
+// (optimistic, then the server's summary), save (optimistic, rolled back on
+// failure; private, so nothing but saved_by_me changes), hide and show less (the post leaves
+// the layouts at once through useHidden) and their undo, seen (queued for the batched POST),
+// navigation for reply and the family tree, and the report modal. Every cached
 // view-model of the post is patched in place, whichever feature cached it.
 // Owner: P0-W06 → P1-W08.
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import type { PostActions } from '../../formats/types';
-import type { ReportTarget } from '../../integrity/types';
 import type { LikesVM, PostVM, Ref } from '../../vm/types';
+import { clearPicks, composeURL, getPicks } from '../composer';
+import { useOpenReport } from '../moderation/ReportModal';
+import { savesKey } from '../saves/api';
 import { queueSeen } from '../seen/tracker';
-import { hidePost, likesKey, setLike, showLess } from './api';
-import { setFailed, setHidden, type HiddenKind } from './store';
-import { optimistic, patchLikes } from './vm';
+import { hiddenKey, hidePost, likesKey, setLike, setSave, showLess, unhidePost } from './api';
+import { hiddenKind, setFailed, setHidden, type HiddenKind } from './store';
+import { optimistic, patchLikes, patchSaved } from './vm';
 
 // currentLikes finds the post's like summary in any cached query.
 function currentLikes(qc: QueryClient, ref: string): LikesVM | undefined {
@@ -58,17 +61,31 @@ export function applyLikes(qc: QueryClient, ref: string, likes: LikesVM): void {
     });
 }
 
+// applySaved writes saved_by_me into every cached view-model of the post.
+export function applySaved(qc: QueryClient, ref: string, saved: boolean): void {
+  qc.getQueryCache()
+    .getAll()
+    .forEach((q) => {
+      const next = patchSaved(q.state.data, ref, saved);
+      if (next !== q.state.data) qc.setQueryData(q.queryKey, next);
+    });
+}
+
 export function usePostActions(): PostActions {
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const openReport = useOpenReport();
   return useMemo(() => {
     const hideAs = (kind: HiddenKind, call: (ref: string) => Promise<void>) => (ref: Ref) => {
       setFailed(ref, undefined);
       setHidden(ref, kind);
-      call(ref).catch((err: unknown) => {
-        setHidden(ref, undefined);
-        setFailed(ref, err);
-      });
+      call(ref).then(
+        () => qc.invalidateQueries({ queryKey: hiddenKey }),
+        (err: unknown) => {
+          setHidden(ref, undefined);
+          setFailed(ref, err);
+        },
+      );
     };
     return {
       like: (ref: Ref, on: boolean) => {
@@ -85,20 +102,46 @@ export function usePostActions(): PostActions {
           },
         );
       },
+      save: (ref: Ref, on: boolean) => {
+        setFailed(ref, undefined);
+        applySaved(qc, ref, on);
+        setSave(ref, on).then(
+          // The open saves page keeps an unsaved post (to save it again); the
+          // list is read afresh the next time it opens.
+          () => qc.invalidateQueries({ queryKey: savesKey, refetchType: 'inactive' }),
+          (err: unknown) => {
+            applySaved(qc, ref, !on);
+            setFailed(ref, err);
+          },
+        );
+      },
       hide: hideAs('hide', hidePost),
       showLess: hideAs('show_less', showLess),
+      unhide: (ref: Ref) => {
+        const kind = hiddenKind(ref);
+        setFailed(ref, undefined);
+        setHidden(ref, undefined);
+        unhidePost(ref).then(
+          () => qc.invalidateQueries({ queryKey: hiddenKey }),
+          (err: unknown) => {
+            setHidden(ref, kind);
+            setFailed(ref, err);
+          },
+        );
+      },
       markSeen: (ref: Ref) => {
         queueSeen(ref);
       },
       reply: (ref: Ref) => {
-        void navigate(`/compose?${new URLSearchParams({ parent: ref, kind: 'ref' }).toString()}`);
+        // A reply takes the posts already picked for it along.
+        const url = composeURL([...getPicks().map((p) => p.ref), ref]);
+        clearPicks();
+        void navigate(url);
       },
       openTree: (ref: Ref) => {
         void navigate(`/p/${ref}`);
       },
-      report: (target: ReportTarget) => {
-        void navigate(`/report?${new URLSearchParams({ kind: target.kind, ref: target.ref }).toString()}`);
-      },
+      report: openReport,
     };
-  }, [qc, navigate]);
+  }, [qc, navigate, openReport]);
 }

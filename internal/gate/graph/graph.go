@@ -16,7 +16,8 @@
 // Search is a layered BFS from the reader that skips the reader's OWN blocked
 // users entirely and treats the reader's hide-via users as transit-forbidden
 // (reachable, never routed through) — D7. The first hop of every node at
-// distance ≥ 2 follows the D22 rule (fidelity #10); see search.go.
+// distance ≥ 2 follows the D22 rule (fidelity #10); see search.go. With
+// PCC_LAZY_BFS=1 the search is lazy and cached per reader (lazy.go, P1).
 //
 // Owner: P0-W02 → P1-W03.
 package graph
@@ -97,6 +98,13 @@ type Graph struct {
 	order []int32
 
 	epoch atomic.Uint64
+
+	// The lazy search (lazy.go): per-reader cache and deep-tier release.
+	cmu          sync.Mutex
+	cache        map[core.UserID]*cacheEntry
+	lazyOverride atomic.Int32 // 1 on, -1 off, 0 = PCC_LAZY_BFS
+	deepBucket   time.Duration
+	sleep        func(time.Duration)
 }
 
 var _ core.Graph = (*Graph)(nil)
@@ -106,6 +114,7 @@ func New(d *core.Deps) *Graph {
 	return &Graph{
 		d: d, idx: map[core.UserID]int32{},
 		blocks: map[core.UserID]*roaring.Bitmap{}, hideVia: map[core.UserID]*roaring.Bitmap{},
+		cache: map[core.UserID]*cacheEntry{}, deepBucket: DeepBucket, sleep: time.Sleep,
 	}
 }
 
@@ -140,7 +149,7 @@ func (g *Graph) forget(u core.UserID) {
 			}
 		}
 	}
-	g.epoch.Add(1)
+	g.bump()
 }
 
 // Epoch returns the global removal epoch.
@@ -263,7 +272,9 @@ func (g *Graph) AddEdge(a, b core.UserID, lvl core.EdgeLevel, since time.Time) {
 	rb, _, _ := g.rows[ib].with(ia, lvl, since)
 	g.rows[ia], g.rows[ib] = ra, rb
 	if existed && lvl < old {
-		g.epoch.Add(1)
+		g.bump()
+	} else {
+		g.drop(a, b) // the readers' own edges changed: their next search sees it
 	}
 }
 
@@ -281,7 +292,7 @@ func (g *Graph) RemoveEdge(a, b core.UserID) {
 			g.rows[ib] = r
 		}
 	}
-	g.epoch.Add(1)
+	g.bump()
 }
 
 // setRel sets or clears a→b in m, replacing (never mutating) the bitmap so
@@ -317,7 +328,9 @@ func (g *Graph) SetBlock(blocker, blocked core.UserID, on bool) {
 	defer g.mu.Unlock()
 	setRel(g.blocks, blocker, blocked, on)
 	if on {
-		g.epoch.Add(1)
+		g.bump()
+	} else {
+		g.drop(blocker)
 	}
 }
 
@@ -327,7 +340,9 @@ func (g *Graph) SetHideVia(user, via core.UserID, on bool) {
 	defer g.mu.Unlock()
 	setRel(g.hideVia, user, via, on)
 	if on {
-		g.epoch.Add(1)
+		g.bump()
+	} else {
+		g.drop(user)
 	}
 }
 
@@ -482,7 +497,7 @@ func (g *Graph) replace(edges []loadedEdge, blocks, hide map[core.UserID]*roarin
 	}
 	g.imu.RUnlock()
 	g.rows, g.blocks, g.hideVia = rows, blocks, hide
-	g.epoch.Add(1)
+	g.bump()
 }
 
 // Adjacency returns a snapshot of the whole graph (reference oracles, tests).

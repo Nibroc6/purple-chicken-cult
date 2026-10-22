@@ -2,6 +2,7 @@
 import { api, unwrap } from '../../api/client';
 import { ApiError } from '../../api/errors';
 import type { components } from '../../api/schema.gen';
+import type { CosignResult } from '../cosign';
 
 export type SettingsView = components['schemas']['SettingsView'];
 export type SettingsPatch = components['schemas']['SettingsPatch'];
@@ -17,13 +18,27 @@ export async function exportAccount(): Promise<Blob> {
   return res.data as unknown as Blob;
 }
 
-export async function deleteAccount(confirmHandle: string): Promise<void> {
-  const res = await api.POST('/me/delete', { body: { confirm_handle: confirmHandle } });
+// deleteAccount deletes the account; a passkey session sends the co-signature
+// of the AccountDelete record (P1).
+export async function deleteAccount(confirmHandle: string, cosig?: CosignResult): Promise<void> {
+  const res = await api.POST('/me/delete', {
+    body: { confirm_handle: confirmHandle, ...(cosig ? { intent: cosig.intent, assertion: cosig.assertion } : {}) },
+  });
   if (!res.response.ok) throw new ApiError(res.response.status, res.error);
 }
 
-// fetchRecoveryPending returns when a pending manual recovery of the caller's
-// own account releases, or null.
+// sessionCosigns reports whether this session signed in with a passkey, so
+// its account changes must be co-signed (P1).
+export async function sessionCosigns(): Promise<boolean> {
+  try {
+    return unwrap(await api.GET('/auth/passkeys')).items.some((p) => p.current);
+  } catch {
+    return false;
+  }
+}
+
+// fetchRecoveryPending returns when a pending recovery (manual or by
+// guardians) of the caller's own account releases, or null.
 export async function fetchRecoveryPending(): Promise<Date | null> {
   const r = unwrap(await api.GET('/me/recovery'));
   return r.pending_until ? new Date(r.pending_until) : null;

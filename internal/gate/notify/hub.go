@@ -307,22 +307,34 @@ func (s *Service) Flush(ctx context.Context) error {
 	rows, err := s.d.DB.Q().Query(ctx, `UPDATE notifications SET delivered_at = $1::timestamptz
 		WHERE read_at IS NULL AND group_key IS NOT NULL AND updated_at > delivered_at
 			AND delivered_at <= $1::timestamptz - $2 * interval '1 second'
-		RETURNING user_id`, now, int64(BatchPingEvery/time.Second))
+		RETURNING id, user_id`, now, int64(BatchPingEvery/time.Second))
 	if err != nil {
 		return err
 	}
 	users := map[core.UserID]bool{}
+	type pinged struct {
+		id int64
+		u  core.UserID
+	}
+	var groups []pinged
 	for rows.Next() {
-		var u int64
-		if err := rows.Scan(&u); err != nil {
+		var id, u int64
+		if err := rows.Scan(&id, &u); err != nil {
 			rows.Close()
 			return err
 		}
 		users[core.UserID(u)] = true
+		groups = append(groups, pinged{id, core.UserID(u)})
 	}
 	rows.Close()
 	if err := rows.Err(); err != nil {
 		return err
+	}
+	// The hourly ping of a batched group is also its push (with the new count).
+	for _, g := range groups {
+		if err := s.queuePush(ctx, nil, g.u, g.id); err != nil {
+			return err
+		}
 	}
 	for u := range users {
 		s.hub.pushUnread(ctx, u)

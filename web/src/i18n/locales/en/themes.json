@@ -1,5 +1,111 @@
 {
   "page": {
-    "title": "Theme"
+    "title": "Theme",
+    "intro": "Choose the app's colors, shapes and font.",
+    "introTip": "Labels like tier headers, chains and the report button always stay readable, so a theme that would make them hard to read can't be saved."
+  },
+  "preset": {
+    "legend": "Theme",
+    "default": "App default (follows your device's light or dark mode)",
+    "violet": "Violet",
+    "night": "Night",
+    "paper": "Paper",
+    "forest": "Forest",
+    "ocean": "Ocean",
+    "clear": "Clear (high legibility)",
+    "custom": "Custom"
+  },
+  "colors": {
+    "legend": "Colors"
+  },
+  "color": {
+    "bg": "Page background",
+    "surface": "Card background",
+    "text": "Text",
+    "muted": "Secondary text",
+    "accent": "Links and highlights",
+    "border": "Borders",
+    "integrity_bg": "Label background",
+    "integrity_text": "Label text"
+  },
+  "shape": {
+    "legend": "Shape and spacing",
+    "radius": "Corner roundness: {px, number} px",
+    "density": "Spacing"
+  },
+  "density": {
+    "compact": "Tight",
+    "comfortable": "Comfortable",
+    "spacious": "Roomy"
+  },
+  "type": {
+    "legend": "Text",
+    "font": "Font",
+    "size": "Text size: {px, number} px",
+    "sizeHelp": "The accessibility text size in Display settings takes priority over this."
+  },
+  "font": {
+    "system": "System",
+    "serif": "Serif",
+    "humanist": "Humanist",
+    "rounded": "Rounded",
+    "mono": "Monospace",
+    "hyperlegible": "Hyperlegible"
+  },
+  "check": {
+    "legend": "Readability checks",
+    "ok": "{what}: {ratio, number}:1 (needs {min, number}:1)",
+    "low": "{what}: only {ratio, number}:1, needs {min, number}:1",
+    "integrity": "Labels (tier headers, chains, report)",
+    "integrityOutline": "Label buttons against the page",
+    "text": "Text",
+    "muted": "Secondary text",
+    "links": "Links"
+  },
+  "preview": {
+    "label": "Preview",
+    "inviter": "sam",
+    "hop": "robin",
+    "author": "alex",
+    "body": "This is how a post reads with this theme.",
+    "muted": "Secondary text, like times and counts.",
+    "link": "A link",
+    "like": "Like",
+    "saved": "Saved",
+    "primary": "Main button"
+  },
+  "save": "Save theme",
+  "saving": "Saving…",
+  "saved": "Theme saved.",
+  "errors": {
+    "theme_contrast": "{check, select, integrity {Labels like tier headers and the report button would be too hard to read. Pick label colors with more contrast.} text {Text would be too hard to read on these backgrounds.} muted {Secondary text would be too hard to read on these backgrounds.} links {Links would be too hard to read on these backgrounds.} other {Some text would be too hard to read with these colors.}}",
+    "theme_font": "That font isn't available.",
+    "theme_invalid": "This theme has a value that isn't allowed.",
+    "rate_limited": "You've changed your theme a lot today. Try again later."
+  },
+  "advanced": {
+    "legend": "Advanced: theme CSS and images",
+    "intro": "Write your own CSS to restyle anything in the app. image(name) uses an image you upload below, for example to turn the like button into a picture. Theme CSS only affects what you see, and it isn't applied on sign-in, recovery, settings or moderation pages, so you can always come back here to undo it.",
+    "css": "Theme CSS",
+    "placeholder": "[data-part=like] '{' background: image(heart) center / 60% no-repeat; '}' [data-part=like] .icon '{' visibility: hidden; '}'",
+    "example": "Handy hooks: .shell (the page), .post (a card), .post-body, button, button.primary, .icon-button, [data-part=like], [data-part=save], [data-part=hide], [data-part=show-less], [data-part=reply], [data-part=tree], .icon[data-icon=feed] (any icon by name), .nav-list a, .brand.",
+    "images": "Images",
+    "imagesOff": "Image uploads are off on this server, so theme CSS can't use images right now.",
+    "imageUsage": "image({name})",
+    "imageName": "Image name (lowercase letters, digits and dashes)",
+    "imageFile": "Image file",
+    "imageAdd": "Add image",
+    "imageUploading": "Uploading…",
+    "imageRemove": "Remove {name}",
+    "imageNameBad": "Use a name that starts with a letter and has only lowercase letters, digits and dashes.",
+    "imageNameTaken": "This theme already has an image with that name.",
+    "imagesFull": "A theme can have up to 8 images.",
+    "imageFileMissing": "Choose an image file first.",
+    "errors": {
+      "theme_css": "Line {line, number}: image() names an image this theme doesn't have.",
+      "whole": "This theme CSS is too long (32 KB at most)."
+    },
+    "warning": "Theme CSS can change or hide anything, including the labels that keep you safe: tier headers, chains, \"Why am I seeing this?\" and the report button. Only use CSS you wrote yourself or fully understand. Never paste CSS someone sent you.",
+    "ack": "I understand the risks"
   }
 }

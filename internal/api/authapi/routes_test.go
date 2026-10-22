@@ -17,9 +17,14 @@ import (
 	"github.com/getkin/kin-openapi/routers"
 	"github.com/getkin/kin-openapi/routers/legacy"
 
+	"github.com/go-chi/chi/v5"
+
+	"github.com/Nibroc6/purple-chicken-cult/internal/api"
 	"github.com/Nibroc6/purple-chicken-cult/internal/api/apitest"
 	"github.com/Nibroc6/purple-chicken-cult/internal/api/authapi"
+	"github.com/Nibroc6/purple-chicken-cult/internal/api/cosignapi"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/auth/authtest"
+	"github.com/Nibroc6/purple-chicken-cult/internal/platform/dbsc"
 	"github.com/Nibroc6/purple-chicken-cult/internal/platform/httpx"
 )
 
@@ -33,7 +38,11 @@ type suite struct {
 
 func newSuite(t *testing.T) *suite {
 	t.Helper()
-	h := apitest.Service(t, "auth", authapi.Register)
+	// cosignapi rides along: passkey changes of passkey sessions are co-signed (P1).
+	h := apitest.Service(t, "auth", func(r chi.Router, d *api.Deps) {
+		authapi.Register(r, d)
+		cosignapi.Register(r, d)
+	})
 	doc := apitest.LoadSpec(t, "auth")
 	doc.Servers = openapi3.Servers{{URL: "/"}}
 	r, err := legacy.NewRouter(doc)
@@ -55,6 +64,8 @@ type browser struct {
 	s      *suite
 	cookie string
 	csrf   string
+	authn  *authtest.Authenticator // the passkey that created the session
+	bound  string                  // the DBSC bound cookie (P1)
 }
 
 func (s *suite) browser() *browser { return &browser{s: s} }
@@ -67,6 +78,9 @@ func (b *browser) do(method, path string, body any, hdr map[string]string) *http
 	h := map[string]string{"Cookie": "", "X-PCC-CSRF": ""}
 	if b.cookie != "" {
 		h["Cookie"] = httpx.CookieName(false) + "=" + b.cookie
+		if b.bound != "" {
+			h["Cookie"] += "; " + dbsc.BoundCookieName(false) + "=" + b.bound
+		}
 	}
 	if b.csrf != "" {
 		h["X-PCC-CSRF"] = b.csrf
@@ -76,6 +90,13 @@ func (b *browser) do(method, path string, body any, hdr map[string]string) *http
 	}
 	rec := b.s.h.Raw(method, path, body, h)
 	for _, c := range rec.Result().Cookies() {
+		if c.Name == dbsc.BoundCookieName(false) {
+			b.bound = c.Value
+			if c.MaxAge < 0 {
+				b.bound = ""
+			}
+			continue
+		}
 		if c.Name != httpx.CookieName(false) {
 			continue
 		}
@@ -91,7 +112,7 @@ func (b *browser) do(method, path string, body any, hdr map[string]string) *http
 
 func (s *suite) validate(method, path string, body any, hdr map[string]string, rec *httptest.ResponseRecorder) {
 	s.t.Helper()
-	if !strings.HasPrefix(path, "/api/") || rec.Code == http.StatusNotFound {
+	if !strings.HasPrefix(path, "/api/") || strings.HasPrefix(path, "/api/cosign") || rec.Code == http.StatusNotFound {
 		return
 	}
 	var raw []byte
@@ -209,7 +230,7 @@ func (s *suite) enroll(handle string, a *authtest.Authenticator) *browser {
 	if !sv.Authenticated || sv.Me == nil || sv.Me.Handle != handle {
 		s.t.Fatalf("enroll finish %s", rec.Body)
 	}
-	b.csrf = sv.CSRF
+	b.csrf, b.authn = sv.CSRF, a
 	return b
 }
 
@@ -227,7 +248,7 @@ func (s *suite) login(a *authtest.Authenticator) (*browser, *httptest.ResponseRe
 	}
 	rec = b.do(http.MethodPost, "/api/auth/login/finish", map[string]any{"credential": json.RawMessage(cred)}, nil)
 	if rec.Code == http.StatusOK {
-		b.csrf = decode[sessionOut](s.t, rec).CSRF
+		b.csrf, b.authn = decode[sessionOut](s.t, rec).CSRF, a
 	}
 	return b, rec
 }
@@ -260,7 +281,48 @@ func (b *browser) addPasskey(a *authtest.Authenticator, name string) *httptest.R
 	if err != nil {
 		b.s.t.Fatal(err)
 	}
-	return b.do(http.MethodPost, "/api/auth/passkeys/finish", map[string]any{"credential": json.RawMessage(cred), "name": name}, nil)
+	rec = b.do(http.MethodPost, "/api/auth/passkeys/finish", map[string]any{"credential": json.RawMessage(cred), "name": name}, nil)
+	if rec.Code != http.StatusAccepted {
+		return rec
+	}
+	// A passkey session co-signs the PasskeyChange with its existing passkey.
+	var res struct {
+		Cosign string `json:"cosign"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &res); err != nil || res.Cosign != "passkey_add" {
+		b.s.t.Fatalf("finish %d %s", rec.Code, rec.Body)
+	}
+	return b.do(http.MethodPost, "/api/auth/passkeys/finish", b.cosign("passkey_add", ""), nil)
+}
+
+// cosign opens an intent for purpose (POST /api/cosign) and signs it with the
+// session's passkey: the {intent, assertion} body of the change.
+func (b *browser) cosign(purpose, target string) map[string]any {
+	b.s.t.Helper()
+	body := map[string]any{"purpose": purpose}
+	if target != "" {
+		body["target"] = target
+	}
+	rec := b.do(http.MethodPost, "/api/cosign", body, nil)
+	want(b.s.t, rec, http.StatusOK, "")
+	var in struct {
+		Intent  string          `json:"intent"`
+		Options json.RawMessage `json:"options"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &in); err != nil {
+		b.s.t.Fatal(err)
+	}
+	assertion, err := b.authn.Get(in.Options)
+	if err != nil {
+		b.s.t.Fatal(err)
+	}
+	return map[string]any{"intent": in.Intent, "assertion": json.RawMessage(assertion)}
+}
+
+// remove removes passkey id, co-signed.
+func (b *browser) remove(id string) *httptest.ResponseRecorder {
+	b.s.t.Helper()
+	return b.do(http.MethodDelete, "/api/auth/passkeys/"+id, b.cosign("passkey_remove", id), nil)
 }
 
 func (b *browser) passkeys() passkeysOut {
@@ -458,7 +520,9 @@ func TestStepUpPasskeysAndRemoval(t *testing.T) {
 
 	// A real step-up, then the last passkey cannot be removed.
 	want(t, b.stepUp(a), http.StatusNoContent, "")
-	want(t, b.do(http.MethodDelete, "/api/auth/passkeys/"+list.Items[0].ID, nil, nil), http.StatusConflict, "last_passkey")
+	// A passkey session must co-sign the removal (uniform 404 without).
+	wantUniform404(t, b.do(http.MethodDelete, "/api/auth/passkeys/"+list.Items[0].ID, nil, nil), "uncosigned removal")
+	want(t, b.remove(list.Items[0].ID), http.StatusConflict, "last_passkey")
 
 	// Add a second passkey and sign in with it elsewhere.
 	a2 := authtest.New(s.h.Origin)
@@ -472,7 +536,7 @@ func TestStepUpPasskeysAndRemoval(t *testing.T) {
 		t.Fatalf("passkeys from c %+v", list)
 	}
 	// Removing the first passkey kills every session it authenticated (b, d).
-	want(t, c.do(http.MethodDelete, "/api/auth/passkeys/"+list.Items[0].ID, nil, nil), http.StatusNoContent, "")
+	want(t, c.remove(list.Items[0].ID), http.StatusNoContent, "")
 	for name, x := range map[string]*browser{"enrolled": b, "login": d} {
 		if sv := x.session(); sv.Authenticated {
 			t.Fatalf("%s session survived the removal of its credential", name)

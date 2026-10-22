@@ -1,23 +1,25 @@
 // View-models and pure helpers of the settings feature. Owner: P0-W11 → P1-W10.
 import { ApiError, errorKey } from '../../api/errors';
 import type { A11yPrefs } from '../../lib/a11y';
+import { navLayouts, type NavLayout } from '../../lib/navLayout';
 import type { SettingsView } from './api';
 
-export type FormatChoice = 'cards' | 'compact';
+export type FormatChoice = 'cards' | 'compact' | 'explorer';
 export type Density = 'comfortable' | 'compact';
 export type Contrast = 'normal' | 'high';
 export type TextScale = 'small' | 'normal' | 'large' | 'xlarge';
-export type PresetChoice = 'latest' | 'balanced';
+export type PresetChoice = 'latest' | 'balanced' | 'top';
 
-export const formats: readonly FormatChoice[] = ['cards', 'compact'];
+export const formats: readonly FormatChoice[] = ['cards', 'compact', 'explorer'];
 export const densities: readonly Density[] = ['comfortable', 'compact'];
 export const contrasts: readonly Contrast[] = ['normal', 'high'];
 export const textScales: readonly TextScale[] = ['small', 'normal', 'large', 'xlarge'];
-export const presets: readonly PresetChoice[] = ['latest', 'balanced'];
+export const presets: readonly PresetChoice[] = ['latest', 'balanced', 'top'];
 
 // UIPrefs mirrors the server's ui_prefs schema (gate/account.UIPrefs).
 export interface UIPrefs {
   format: FormatChoice;
+  nav: NavLayout;
   density: Density;
   a11y: { contrast: Contrast; textScale: TextScale; reducedMotion: boolean; dyslexiaFont: boolean };
 }
@@ -36,6 +38,7 @@ export function toUIPrefs(raw: unknown): UIPrefs {
   const a = obj(p.a11y);
   return {
     format: pick(p.format, formats, 'cards'),
+    nav: pick(p.nav, navLayouts, 'sidebar'),
     density: pick(p.density, densities, 'comfortable'),
     a11y: {
       contrast: pick(a.contrast, contrasts, 'normal'),
@@ -50,6 +53,7 @@ export function toUIPrefs(raw: unknown): UIPrefs {
 export function fromUIPrefs(p: UIPrefs): Record<string, unknown> {
   return {
     format: p.format,
+    nav: p.nav,
     density: p.density,
     a11y: {
       contrast: p.a11y.contrast,
@@ -93,7 +97,7 @@ export function translateOptions(languages: readonly string[]): string[] {
 }
 
 export function presetChoice(s: SettingsView): PresetChoice {
-  return s.rank_preset === 'latest' ? 'latest' : 'balanced';
+  return s.rank_preset === 'latest' || s.rank_preset === 'top' ? s.rank_preset : 'balanced';
 }
 
 // The account Problem codes localized in the account namespace.

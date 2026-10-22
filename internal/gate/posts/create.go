@@ -24,7 +24,8 @@ func (s *Service) Create(ctx context.Context, d Draft) (gate.PostView, error) {
 
 // CreateThread creates a continuation thread in one write: parts[0] carries the
 // parents, part i+1 continues part i (cont). At most MaxThreadParts parts; every
-// part shares parts[0]'s audience, ref policy and no_preview.
+// part shares parts[0]'s audience, ref policy and no_preview; each part may
+// carry its own media.
 func (s *Service) CreateThread(ctx context.Context, parts []Draft) ([]gate.PostView, error) {
 	return s.create(ctx, parts)
 }
@@ -41,6 +42,7 @@ type newPart struct {
 	body     string
 	links    []core.LinkMeta
 	mentions []mentionTarget
+	media    []uuid.UUID // attached in the post's transaction, in order
 }
 
 type mentionTarget struct {
@@ -61,7 +63,8 @@ func (s *Service) create(ctx context.Context, drafts []Draft) ([]gate.PostView, 
 	if err != nil {
 		return nil, err
 	}
-	// 1. Resolve every parent ref (uniform not-found on any failure).
+	// 1. Resolve every parent ref and open every media ref (uniform not-found
+	// on any failure; whether the media is attachable is decided by Attach).
 	resolved := make([][]core.PostMeta, len(drafts))
 	for i, d := range drafts {
 		for _, p := range d.Parents {
@@ -71,11 +74,19 @@ func (s *Service) create(ctx context.Context, drafts []Draft) ([]gate.PostView, 
 			}
 			resolved[i] = append(resolved[i], m)
 		}
+		for _, r := range d.Media {
+			if _, ok := s.d.Refs.OpenMedia(v.ID, r); !ok {
+				return nil, gate.ErrNotFound
+			}
+		}
 	}
 	// 2. Problems about the caller's own input.
 	for _, d := range drafts {
-		if len(d.Media) > 0 {
-			return nil, gate.Disabled("media") // P1-W12
+		if len(d.Media) > MaxMedia {
+			return nil, gate.NewProblem(gate.StatusUnprocessable, "too_many_media", "media")
+		}
+		if len(d.Media) > 0 && s.d.Media == nil {
+			return nil, gate.Disabled("media")
 		}
 	}
 	if len(drafts) == 0 {
@@ -162,6 +173,13 @@ func (s *Service) create(ctx context.Context, drafts []Draft) ([]gate.PostView, 
 					ParentAuthor: v.ID, CreatedAt: created}}
 			}
 			parts[i] = newPart{meta: m, body: bodies[i], links: links, mentions: s.mentionTargets(ctx, sr, v.ID, bodies[i])}
+			if len(drafts[i].Media) > 0 {
+				ids, err := s.d.Media.Attach(ctx, tx, v.ID, drafts[i].Media)
+				if err != nil {
+					return err
+				}
+				parts[i].media = ids
+			}
 		}
 		for i := range parts {
 			if err := s.insertPart(ctx, tx, me.ExtID, &parts[i], st); err != nil {
@@ -304,7 +322,7 @@ func (s *Service) insertPart(ctx context.Context, tx pgx.Tx, ext uuid.UUID, p *n
 	for _, l := range p.links {
 		parents = append(parents, parentRec{ID: l.Parent, Kind: l.Kind.String()})
 	}
-	hash, err := s.signPost(ctx, tx, ext, m, salt, p.body, parents, st.noPreview)
+	hash, err := s.signPost(ctx, tx, ext, m, salt, p.body, parents, p.media, st.noPreview)
 	if err != nil {
 		return err
 	}
@@ -330,6 +348,12 @@ func (s *Service) insertPart(ctx context.Context, tx pgx.Tx, ext uuid.UUID, p *n
 			if store.IsUniqueViolation(err) && l.Kind == core.LinkCont {
 				return gate.NewProblem(gate.StatusConflict, "cont_taken", "parents")
 			}
+			return err
+		}
+	}
+	for i, id := range p.media {
+		if _, err := tx.Exec(ctx, "INSERT INTO post_media (post_id, ord, media_id) VALUES ($1, $2, $3)",
+			m.ID, int16(i), id); err != nil { //nolint:gosec // ≤ MaxMedia
 			return err
 		}
 	}
@@ -359,11 +383,16 @@ func (s *Service) enqueuePreview(ctx context.Context, tx pgx.Tx, m core.PostMeta
 		time.Time{}, m.ID.String())
 }
 
-// signPost signs the Post record of version m.Version.
+// signPost signs the Post record of version m.Version (media: the attached
+// media ids, in order).
 func (s *Service) signPost(ctx context.Context, tx pgx.Tx, ext uuid.UUID, m core.PostMeta, salt []byte, body string,
-	parents []parentRec, noPreview bool) ([]byte, error) {
+	parents []parentRec, media []uuid.UUID, noPreview bool) ([]byte, error) {
+	ms := make([]string, len(media))
+	for i, id := range media {
+		ms[i] = id.String()
+	}
 	rec := postRecord{ID: m.ID, Version: m.Version, Author: ext, BodyCommit: bodyCommit(salt, body), Lang: m.Lang,
-		Media: []string{}, Parents: parents, CreatedAt: sigs.T(m.CreatedAt)}
+		Media: ms, Parents: parents, CreatedAt: sigs.T(m.CreatedAt)}
 	if m.Audience != core.AudConnected {
 		a := m.Audience.String()
 		rec.Audience = &a

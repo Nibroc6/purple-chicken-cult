@@ -27,6 +27,7 @@ import (
 //	  "friends": [{"a": "alice", "b": "bob", "level": "friend_plus"}],
 //	  "blocks":  [["bob", "carol"]],                      // [blocker, blocked]
 //	  "mutes":   [["alice", "carol"]],                    // [user, muted author]
+//	  "hide_via": [["alice", "bob"]],                     // [user, via]: alice never routes through bob (P1)
 //	  "posts":   [{"label": "p1", "author": "alice", "body": "hi", "age": "2h", "audience": "d2"},
 //	              {"label": "p2", "author": "bob", "body": "re", "parents": [{"post": "p1"}]}],
 //	  "likes":   [{"user": "bob", "post": "p1"}]
@@ -36,6 +37,7 @@ type Fixture struct {
 	Friends []FixtureEdge `json:"friends"`
 	Blocks  [][2]string   `json:"blocks"`
 	Mutes   [][2]string   `json:"mutes"`
+	HideVia [][2]string   `json:"hide_via"`
 	Posts   []FixturePost `json:"posts"`
 	Likes   []FixtureLike `json:"likes"`
 }
@@ -222,7 +224,7 @@ func (f *Fixture) build(ctx context.Context, d *core.Deps, name string) (*batch,
 	for _, t := range []struct {
 		in  [][2]string
 		out *[][2]core.UserID
-	}{{f.Blocks, &b.blocks}, {f.Mutes, &b.mutes}} {
+	}{{f.Blocks, &b.blocks}, {f.Mutes, &b.mutes}, {f.HideVia, &b.hideVia}} {
 		for _, p := range t.in {
 			a, err := user(p[0])
 			if err != nil {
@@ -233,7 +235,7 @@ func (f *Fixture) build(ctx context.Context, d *core.Deps, name string) (*batch,
 				return nil, err
 			}
 			if a == c {
-				return nil, fmt.Errorf("devseed: %s cannot block or mute themself", p[0])
+				return nil, fmt.Errorf("devseed: %s cannot block, mute or hide-via themself", p[0])
 			}
 			if t.out == &b.blocks && pairs[[2]core.UserID{min(a, c), max(a, c)}] {
 				// A block always unfriends (P0-W03): a pair is never both.

@@ -1,42 +1,79 @@
-// The invitee side of an in-person invite (§7, §10.8, plan §4.7 invites):
-// scan the inviter's rotating QR code with the camera, show the 6-digit code
-// the inviter confirms ("codes match"), then the terms and age attestation,
-// the username and the passkey, and finally the optional second passkey.
-// Owner: P0-W04 → P1-W02.
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+// The claiming device of an in-person handshake (§7, §10.8, plan P1-W02): the
+// invitee (guest session) or, for a friend+ upgrade, the signed-in friend.
+// Scan the initiator's rotating QR code with the camera (this device makes its
+// own keys and claims the code), show the 6-digit code the initiator confirms,
+// play the handshake sound (or, without sound, scan the second code), and then:
+// an invitee accepts the terms, picks a username, creates a passkey and signs
+// the Invite and Friendship records with it (the signup ceremony); someone
+// signed in co-signs the Friendship (a connect: the same invite code, scanned
+// signed in; or a friend+ upgrade). Scan, Waiting, Sound and Dual are exported for
+// the recovering device of a guardian recovery (features/recovery, steward:
+// contract request p1-w10-1). Owner: P0-W04 → P1-W02.
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useNavigate } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
+import { ApiError } from '../../api/errors';
 import { Loading } from '../../app/Loading';
 import { sessionKey, useSession } from '../../app/session';
 import { SecondPasskeyPrompt } from '../auth/SecondPasskeyPrompt';
-import { createPasskey } from '../auth/webauthn';
-import { claim, joinStart, joinStatus, registerBegin, registerFinish, type JoinStart } from './api';
+import { createPasskey, getAssertion } from '../auth/webauthn';
+import { AdvancedRecords, requestCosign, toRecordVMs } from '../cosign';
+import { cosignHandshake } from '../invites/api';
+import { handshakeAudio } from '../invites/audio';
+import { ClaimDevice, isDualFrame, isFrame } from '../invites/handshake';
+import { mustVerify, passed, signedInPeer, type HandshakeOutcome, type StatusVM } from '../invites/vm';
+import {
+  audioStart,
+  claim,
+  dualFrame,
+  joinStart,
+  joinStatus,
+  registerBegin,
+  registerCosign,
+  registerFinish,
+  type JoinStart,
+  type Signup,
+} from './api';
 import { CameraError, startScanner } from './scanner';
 import { browserLanguages, joinErrorKey } from './vm';
 import './join.css';
+import { InfoTip } from '../../lib/InfoTip';
 
 type Step =
   | { kind: 'intro' }
-  | { kind: 'scanning'; start: JoinStart }
-  | { kind: 'claimed'; start: JoinStart }
-  | { kind: 'form'; start: JoinStart }
+  | { kind: 'scanning' }
+  | { kind: 'claimed' }
+  | { kind: 'sound'; st: StatusVM }
+  | { kind: 'form' }
+  | { kind: 'upgrade'; outcome?: HandshakeOutcome }
   | { kind: 'ended'; reason: 'cancelled' | 'expired' }
-  | { kind: 'done'; inviter: string | undefined };
+  | { kind: 'done'; inviter: string | undefined }
+  | { kind: 'friendPlus'; outcome?: HandshakeOutcome; connect: boolean }
+  | { kind: 'recovered' };
 
 export default function JoinPage() {
   const { t } = useTranslation(['join', 'errors']);
   const session = useSession();
   const navigate = useNavigate();
   const [step, setStep] = useState<Step>({ kind: 'intro' });
+  const [start, setStart] = useState<JoinStart | undefined>();
   const [err, setErr] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
+  const [d, setDev] = useState<ClaimDevice | undefined>();
+  const signedIn = session.data?.authenticated === true;
+  // ?scan=1 (the friend upgrade offer, or its push) opens the scanner at once.
+  const [params] = useSearchParams();
+  const autoScan = params.get('scan') === '1';
+  const autoStarted = useRef(false);
 
   const begin = async () => {
     setBusy(true);
     setErr(undefined);
     try {
-      setStep({ kind: 'scanning', start: await joinStart() });
+      setDev(await ClaimDevice.create());
+      if (!signedIn) setStart(await joinStart());
+      setStep({ kind: 'scanning' });
     } catch (e) {
       setErr(joinErrorKey(e));
     } finally {
@@ -44,49 +81,90 @@ export default function JoinPage() {
     }
   };
 
+  useEffect(() => {
+    if (autoScan && signedIn && !autoStarted.current) {
+      autoStarted.current = true;
+      void begin();
+    }
+    // begin is recreated each render; the ref makes this run once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoScan, signedIn]);
+
+  // passedTo moves on once the handshake's outcome passed.
+  const passedTo = (st: StatusVM) => {
+    if (signedInPeer(st.kind)) setStep({ kind: 'upgrade', ...(st.kind === 'connect' && st.outcome ? { outcome: st.outcome } : {}) });
+    else if (st.kind === 'recovery') setStep({ kind: 'recovered' });
+    else setStep({ kind: 'form' });
+  };
+
   if (session.isPending) return <Loading />;
-  if (step.kind === 'intro' && session.data?.authenticated) {
-    return (
-      <section className="page join-page">
-        <h1>{t('page.title')}</h1>
-        <p>{t('signedIn')}</p>
-        <Link to="/">{t('home')}</Link>
-      </section>
-    );
-  }
   return (
     <section className="page join-page" data-testid="join-page" data-step={step.kind}>
-      <h1>{step.kind === 'done' ? t('done.title') : t('page.title')}</h1>
+      <h1>{step.kind === 'done' ? t('done.title') : signedIn ? t('page.friendTitle') : t('page.title')}</h1>
       {step.kind === 'intro' ? (
-        <>
-          <p>{t('page.intro')}</p>
-          <button type="button" data-testid="join-scan" disabled={busy} onClick={() => void begin()}>
-            {t('scan.start')}
-          </button>
-        </>
+        signedIn ? (
+          <>
+            <p>{t('signedIn')}</p>
+            <p>{t('page.friendIntro')}</p>
+            <button type="button" data-testid="join-scan-friend" disabled={busy} onClick={() => void begin()}>
+              {t('scan.startFriend')}
+            </button>
+            <p>
+              <Link to="/">{t('home')}</Link>
+            </p>
+          </>
+        ) : (
+          <>
+            <p>{t('page.intro')}</p>
+            <button type="button" data-testid="join-scan" disabled={busy} onClick={() => void begin()}>
+              {t('scan.start')}
+            </button>
+          </>
+        )
       ) : null}
-      {step.kind === 'scanning' ? (
+      {step.kind === 'scanning' && d ? (
         <Scan
-          onClaimed={() => {
-            setStep({ kind: 'claimed', start: step.start });
+          accept={isFrame}
+          onFrame={(p) => claim(d, p)}
+          onDone={() => {
+            setStep({ kind: 'claimed' });
           }}
         />
       ) : null}
-      {step.kind === 'claimed' ? (
+      {step.kind === 'claimed' && d ? (
         <Waiting
-          onConfirmed={() => {
-            setStep({ kind: 'form', start: step.start });
+          dev={d}
+          onConfirmed={(st) => {
+            if (passed(st) && !mustVerify(st)) passedTo(st);
+            else setStep({ kind: 'sound', st });
           }}
           onEnded={(reason) => {
             setStep({ kind: 'ended', reason });
           }}
         />
       ) : null}
-      {step.kind === 'form' ? (
+      {step.kind === 'sound' && d ? (
+        step.st.mode === 'dual_qr' ? (
+          <Dual dev={d} onPassed={passedTo} />
+        ) : (
+          <Sound dev={d} first={step.st} onPassed={passedTo} />
+        )
+      ) : null}
+      {step.kind === 'form' && d && start ? (
         <Register
-          start={step.start}
+          dev={d}
+          start={start}
           onJoined={(inviter) => {
             setStep({ kind: 'done', inviter });
+          }}
+        />
+      ) : null}
+      {step.kind === 'upgrade' && d ? (
+        <UpgradeSign
+          dev={d}
+          outcome={step.outcome}
+          onDone={() => {
+            setStep({ kind: 'friendPlus', connect: step.outcome !== undefined, ...(step.outcome ? { outcome: step.outcome } : {}) });
           }}
         />
       ) : null}
@@ -112,6 +190,19 @@ export default function JoinPage() {
           />
         </>
       ) : null}
+      {step.kind === 'friendPlus' ? (
+        <>
+          <p role="status" data-testid="join-friend-plus">
+            {step.connect && step.outcome === 'accepted' ? t('upgrade.doneAcquaintances') : t('upgrade.done')}
+          </p>
+          <Link to="/friends">{t('upgrade.friends')}</Link>
+        </>
+      ) : null}
+      {step.kind === 'recovered' ? (
+        <p role="status" data-testid="join-recovered">
+          {t('recovery.done')}
+        </p>
+      ) : null}
       {err ? (
         <p className="join-error" role="alert">
           {t(err as 'errors:unknown')}
@@ -121,40 +212,50 @@ export default function JoinPage() {
   );
 }
 
-// Scan runs the camera until a frame is claimed. A frame the server refused is
-// not sent again; the next rotation is.
-function Scan({ onClaimed }: { onClaimed: () => void }) {
+// Scan runs the camera until onFrame accepted a decoded code. A code the
+// server refused is not sent again; the next rotation is.
+export function Scan({
+  accept,
+  onFrame,
+  onDone,
+  hint,
+}: {
+  accept: (payload: string) => boolean;
+  onFrame: (payload: string) => Promise<unknown>;
+  onDone: () => void;
+  hint?: string;
+}) {
   const { t } = useTranslation('join');
   const video = useRef<HTMLVideoElement>(null);
-  const [problem, setProblem] = useState<'camera' | 'bad' | undefined>();
-  const done = useRef(onClaimed);
+  const [problem, setProblem] = useState<'camera' | 'bad' | 'already' | undefined>();
+  const cb = useRef({ accept, onFrame, onDone });
   useEffect(() => {
-    done.current = onClaimed;
+    cb.current = { accept, onFrame, onDone };
   });
 
   useEffect(() => {
     let live = true;
     let stop: (() => void) | undefined;
     const tried = new Set<string>();
-    let claiming = false;
-    const onFrame = (payload: string) => {
-      if (claiming || tried.has(payload)) return;
+    let busy = false;
+    const handle = (payload: string) => {
+      if (busy || tried.has(payload) || !cb.current.accept(payload)) return;
       tried.add(payload);
-      claiming = true;
-      claim(payload).then(
+      busy = true;
+      cb.current.onFrame(payload).then(
         () => {
           if (!live) return;
           stop?.();
-          done.current();
+          cb.current.onDone();
         },
-        () => {
-          claiming = false;
-          if (live) setProblem('bad');
+        (e: unknown) => {
+          busy = false;
+          if (live) setProblem(e instanceof ApiError && e.code === 'already_friends' ? 'already' : 'bad');
         },
       );
     };
     if (video.current) {
-      startScanner(video.current, onFrame).then(
+      startScanner(video.current, handle).then(
         (s) => {
           if (live) stop = s.stop;
           else s.stop();
@@ -172,42 +273,55 @@ function Scan({ onClaimed }: { onClaimed: () => void }) {
 
   return (
     <div className="join-scan">
-      <p>{t('scan.hint')}</p>
+      <p>{hint ?? t('scan.hint')}</p>
       <video ref={video} className="join-video" aria-label={t('scan.videoLabel')} data-testid="join-video" />
       {problem ? (
         <p className="join-error" role="alert">
-          {problem === 'camera' ? t('scan.noCamera') : t('scan.bad')}
+          {problem === 'camera' ? t('scan.noCamera') : problem === 'already' ? t('errors.already_friends') : t('scan.bad')}
         </p>
       ) : null}
     </div>
   );
 }
 
-// Waiting shows the SAS until the inviter confirms or cancels.
-function Waiting({ onConfirmed, onEnded }: { onConfirmed: () => void; onEnded: (r: 'cancelled' | 'expired') => void }) {
+// useJoinStatus polls the signed join status.
+function useJoinStatus(dev: ClaimDevice, every = 1500) {
+  return useQuery({ queryKey: ['join', 'status'], queryFn: () => joinStatus(dev), refetchInterval: every, gcTime: 0 });
+}
+
+// Waiting shows the SAS until the initiator confirms or cancels.
+export function Waiting({
+  dev,
+  onConfirmed,
+  onEnded,
+}: {
+  dev: ClaimDevice;
+  onConfirmed: (st: StatusVM) => void;
+  onEnded: (r: 'cancelled' | 'expired') => void;
+}) {
   const { t } = useTranslation('join');
-  const q = useQuery({
-    queryKey: ['join', 'status'],
-    queryFn: joinStatus,
-    refetchInterval: 1500,
-    gcTime: 0,
-  });
-  const state = q.data?.state;
+  const q = useJoinStatus(dev);
+  const st = q.data;
+  const cb = useRef({ onConfirmed, onEnded });
   useEffect(() => {
-    if (state === 'confirmed') onConfirmed();
-    if (state === 'cancelled' || state === 'expired') onEnded(state);
-  }, [state, onConfirmed, onEnded]);
+    cb.current = { onConfirmed, onEnded };
+  });
+  useEffect(() => {
+    if (!st) return;
+    if (st.state === 'confirmed') cb.current.onConfirmed(st);
+    if (st.state === 'cancelled' || st.state === 'expired') cb.current.onEnded(st.state);
+  }, [st]);
   return (
     <div className="join-sas">
       <h2>{t('sas.title')}</h2>
-      {q.data?.sas ? (
+      {st?.sas ? (
         <p className="join-sas-code" data-testid="join-sas">
-          {q.data.sas}
+          {st.sas}
         </p>
       ) : (
         <Loading />
       )}
-      <p>{t('sas.body')}</p>
+      <p>{signedInPeer(st?.kind) ? t('sas.bodyFriend') : t('sas.body')}</p>
       <p className="muted" role="status">
         {t('sas.waiting')}
       </p>
@@ -215,7 +329,134 @@ function Waiting({ onConfirmed, onEnded }: { onConfirmed: () => void; onEnded: (
   );
 }
 
-function Register({ start, onJoined }: { start: JoinStart; onJoined: (inviter: string | undefined) => void }) {
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+// SoundError is a failure to play the sound on this device (not an API error);
+// blocked means the browser never let audio start.
+class SoundError extends Error {
+  blocked: boolean;
+  constructor(cause: unknown) {
+    super('sound', { cause });
+    this.blocked = cause instanceof Error && cause.message === 'audio_blocked';
+  }
+}
+
+// Sound plays the handshake sound and waits for the initiator's report.
+export function Sound({ dev, first, onPassed }: { dev: ClaimDevice; first: StatusVM; onPassed: (st: StatusVM) => void }) {
+  const { t } = useTranslation(['join', 'errors']);
+  const [st, setSt] = useState<StatusVM>(first);
+  const [phase, setPhase] = useState<'ready' | 'playing' | 'waiting'>('ready');
+  const [err, setErr] = useState<string | undefined>();
+  const play = async () => {
+    setErr(undefined);
+    // Before any await: Safari only starts audio inside the click itself.
+    const audio = handshakeAudio();
+    setPhase('playing');
+    try {
+      const k = await dev.kmac();
+      const attempt = await audioStart(dev, k);
+      try {
+        await audio.play(await dev.bits(k, attempt), { quiet: st.quiet });
+      } catch (e) {
+        throw new SoundError(e);
+      }
+      setPhase('waiting');
+      for (let i = 0; i < 40; i++) {
+        const now = await joinStatus(dev);
+        if (now.attempt === attempt && !now.playing && now.outcome) {
+          setSt(now);
+          setPhase('ready');
+          if (passed(now) && !mustVerify(now)) onPassed(now);
+          return;
+        }
+        await sleep(500);
+      }
+      setPhase('ready');
+    } catch (e) {
+      setPhase('ready');
+      setErr(
+        e instanceof ApiError
+          ? joinErrorKey(e)
+          : e instanceof SoundError && e.blocked
+            ? 'join:sound.blocked'
+            : 'join:sound.failed',
+      );
+    }
+  };
+  const retry = st.outcome === 'retry';
+  return (
+    <div className="join-sound">
+      <h2>{t('sound.title')}</h2>
+      <p>{st.quiet ? t('sound.bodyQuiet') : t('sound.body')}</p>
+      {retry ? (
+        <p role="status" data-testid="join-outcome" data-outcome="retry">
+          {st.hint === 'try_jingle'
+            ? t('sound.retryJingle')
+            : st.hint === 'volume_up'
+              ? t('sound.retryVolume')
+              : t('sound.retry')}
+        </p>
+      ) : null}
+      {phase === 'ready' && st.attemptsLeft > 0 ? (
+        <button type="button" data-testid="join-play" onClick={() => void play()}>
+          {retry ? t('sound.again') : t('sound.play')}
+        </button>
+      ) : null}
+      {phase === 'playing' ? (
+        <p role="status" className="join-playing" data-testid="join-playing">
+          <span className="join-playing-dot" aria-hidden="true" />
+          {t('sound.playing')}
+        </p>
+      ) : null}
+      {phase === 'waiting' ? (
+        <p role="status" className="muted">
+          {t('sound.waiting')}
+        </p>
+      ) : null}
+      {st.attemptsLeft === 0 && phase === 'ready' ? <p role="alert">{t('sound.noAttempts')}</p> : null}
+      {err ? (
+        <p className="join-error" role="alert">
+          {t(err as 'errors:unknown')}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+// Dual scans the initiator's second code (no sound; Accepted at most).
+export function Dual({ dev, onPassed }: { dev: ClaimDevice; onPassed: (st: StatusVM) => void }) {
+  const { t } = useTranslation('join');
+  const [retry, setRetry] = useState(false);
+  return (
+    <div className="join-sound">
+      <h2>{t('dual.title')}</h2>
+      {retry ? (
+        <p role="status" data-testid="join-outcome" data-outcome="retry">
+          {t('dual.retry')}
+        </p>
+      ) : null}
+      <Scan
+        key={String(retry)}
+        hint={t('dual.hint')}
+        accept={isDualFrame}
+        onFrame={async (p) => {
+          const outcome = await dualFrame(dev, p, await dev.kmac());
+          if (outcome === 'retry') {
+            setRetry(true);
+            throw new Error('retry');
+          }
+        }}
+        onDone={() => {
+          void joinStatus(dev).then(onPassed);
+        }}
+      />
+    </div>
+  );
+}
+
+function Register({ dev, start, onJoined }: { dev: ClaimDevice; start: JoinStart; onJoined: (inviter: string | undefined) => void }) {
   const { t, i18n } = useTranslation(['join', 'errors']);
   const qc = useQueryClient();
   const id = useId();
@@ -225,31 +466,51 @@ function Register({ start, onJoined }: { start: JoinStart; onJoined: (inviter: s
   const [age, setAge] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | undefined>();
+  const [signup, setSignup] = useState<Signup | undefined>();
   const ready = handle.trim() !== '' && tos && age && !busy;
 
   const submit = async () => {
     setBusy(true);
     setErr(undefined);
     try {
+      const st = await joinStatus(dev);
       // A fresh ceremony per attempt (each is single use on the server).
-      const options = await registerBegin({
-        handle: handle.trim(),
-        displayName: name.trim(),
-        tosVersion: start.tosVersion,
-        ageAttested: age,
-        locale: i18n.language,
-        languages: browserLanguages(navigator.languages),
-      });
+      const options = await registerBegin(
+        dev,
+        {
+          handle: handle.trim(),
+          displayName: name.trim(),
+          tosVersion: start.tosVersion,
+          ageAttested: age,
+          locale: i18n.language,
+          languages: browserLanguages(navigator.languages),
+        },
+        st.signupToken ?? '',
+      );
       const credential = await createPasskey(options);
-      const sv = await registerFinish(credential);
-      qc.setQueryData(sessionKey, sv);
-      onJoined(sv.me?.inviter.handle);
+      setSignup(await registerFinish(dev, credential));
     } catch (e) {
       setErr(joinErrorKey(e));
+    } finally {
       setBusy(false);
     }
   };
 
+  if (signup) {
+    return (
+      <SignupCeremony
+        dev={dev}
+        signup={signup}
+        onJoined={(sv) => {
+          qc.setQueryData(sessionKey, sv);
+          onJoined(sv.me?.inviter.handle);
+        }}
+        onRestart={() => {
+          setSignup(undefined);
+        }}
+      />
+    );
+  }
   return (
     <form
       className="join-form"
@@ -304,6 +565,12 @@ function Register({ start, onJoined }: { start: JoinStart; onJoined: (inviter: s
           />
           {t('form.tos', { version: start.tosVersion })}
         </label>
+        {/* A new tab, so the half-filled form and the handshake stay put. */}
+        <p className="join-terms-link">
+          <a href="/terms" target="_blank" rel="noopener" data-testid="join-terms">
+            {t('form.readTerms')}
+          </a>
+        </p>
         <label className="join-choice">
           <input
             type="checkbox"
@@ -325,5 +592,136 @@ function Register({ start, onJoined }: { start: JoinStart; onJoined: (inviter: s
         </p>
       ) : null}
     </form>
+  );
+}
+
+// SignupCeremony shows the drafted Invite and Friendship records and signs
+// them with the new passkey; the account exists only once that signature and
+// the inviter's are in (fidelity #21).
+function SignupCeremony({
+  dev,
+  signup,
+  onJoined,
+  onRestart,
+}: {
+  dev: ClaimDevice;
+  signup: Signup;
+  onJoined: (sv: Awaited<ReturnType<typeof registerCosign>>) => void;
+  onRestart: () => void;
+}) {
+  const { t } = useTranslation(['join', 'errors']);
+  const [waiting, setWaiting] = useState(false);
+  const records = toRecordVMs(signup.records);
+  const sign = useMutation({
+    mutationFn: async () => {
+      const assertion = await getAssertion(signup.options);
+      for (;;) {
+        try {
+          return await registerCosign(dev, assertion);
+        } catch (e) {
+          if (!(e instanceof ApiError && e.code === 'awaiting_inviter')) throw e;
+          setWaiting(true);
+          // The same assertion goes again once the inviter signed.
+          for (let i = 0; i < 600; i++) {
+            await sleep(1000);
+            if ((await joinStatus(dev)).peerSigned) break;
+          }
+        }
+      }
+    },
+    onSuccess: onJoined,
+    onSettled: () => {
+      setWaiting(false);
+    },
+  });
+  const errKey = sign.error ? joinErrorKey(sign.error) : undefined;
+  return (
+    <div className="join-ceremony" data-testid="join-ceremony">
+      <h2>{t('ceremony.title')}</h2>
+      <p>
+        {t('ceremony.body')}
+        <InfoTip>{t('ceremony.bodyTip')}</InfoTip>
+      </p>
+      <AdvancedRecords records={records} />
+      <button type="button" data-testid="join-sign" disabled={sign.isPending}
+        onClick={() => {
+          sign.mutate();
+        }}
+      >
+        {sign.isPending ? t('ceremony.working') : t('ceremony.sign')}
+      </button>
+      {waiting ? (
+        <p role="status" data-testid="join-awaiting-inviter">
+          {t('ceremony.awaiting')}
+        </p>
+      ) : null}
+      {sign.error ? (
+        <>
+          {errKey ? (
+            <p className="join-error" role="alert">
+              {t(errKey as 'errors:unknown')}
+            </p>
+          ) : null}
+          <button type="button" onClick={onRestart}>
+            {t('ceremony.restart')}
+          </button>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+// UpgradeSign co-signs the Friendship of a Verified upgrade or of a passed
+// connect (outcome set: Verified makes friends, Accepted acquaintances).
+function UpgradeSign({ dev, outcome, onDone }: { dev: ClaimDevice; outcome?: HandshakeOutcome; onDone: () => void }) {
+  const { t } = useTranslation(['join', 'errors']);
+  const q = useJoinStatus(dev, 1000);
+  const st = q.data;
+  const asked = useRef(false);
+  const sign = useMutation({
+    mutationFn: async (hs: string) => {
+      const summary = outcome === 'accepted' ? t('upgrade.summaryAccepted') : t('upgrade.summary');
+      const r = await requestCosign({ purpose: 'friend_upgrade', target: hs, summary });
+      if (!r) return;
+      await cosignHandshake(hs, r.intent, r.assertion);
+      await q.refetch();
+    },
+  });
+  const cb = useRef(onDone);
+  useEffect(() => {
+    cb.current = onDone;
+  });
+  useEffect(() => {
+    if (st?.state === 'done') cb.current();
+    if (st?.sign === 'needed' && st.hs && !asked.current) {
+      asked.current = true;
+      sign.mutate(st.hs);
+    }
+  }, [st, sign]);
+  return (
+    <div className="join-sound">
+      <h2>{outcome === 'accepted' ? t('upgrade.titleAccepted') : t('upgrade.title')}</h2>
+      {st?.sign === 'waiting' ? (
+        <p role="status">{t('upgrade.waiting')}</p>
+      ) : st?.hs ? (
+        <button
+          type="button"
+          data-testid="join-upgrade-sign"
+          disabled={sign.isPending}
+          onClick={() => {
+            sign.mutate(st.hs ?? '');
+          }}
+        >
+          {t('upgrade.sign')}
+        </button>
+      ) : (
+        <Loading />
+      )}
+      {sign.error ? (
+        <p className="join-error" role="alert">
+          {t(joinErrorKey(sign.error) as 'errors:unknown')}
+        </p>
+      ) : null}
+    </div>
   );
 }

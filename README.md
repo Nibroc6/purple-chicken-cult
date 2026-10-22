@@ -8,17 +8,18 @@ A bot-free social media site that works for social good.
   - If you're out of invites, you see a countdown to when you can next invite someone
 - Invite blame
   - The person you were invited by is clearly shown on your profile so if someone invites a bunch of bots other people can go complain about them
-    - This stays visible permanently, even after an unfriend, but it's display-only: no further interaction with the inviter is possible through it (complaints go to moderators)
+    - This stays visible permanently, even after you remove them, but it's display-only: no further interaction with the inviter is possible through it (complaints go to moderators)
   - Invites must happen in real life: a dynamic code you scan in person, confirmed by a short handshake sound (an optional, recognizable audible jingle plus near-ultrasonic audio)
-  - An invite also creates a friendship between inviter and invitee
+  - An invite also connects inviter and invitee: as friends when the handshake verified you're together, otherwise as acquaintances
+  - The same in-person code works for people who already have an account: scanning it while signed in makes you friends, without spending an invite
 - Network graph based connections
-  - You see content in the order of your connection to people - that is, if a 1st degree connection posts something, it will always come before a 2nd degree or 3rd degree connection (among posts you haven't seen yet). Additionally, you never see content from someone you have no connection to. This means that if a bot ends up on the platform, as long as all the real people unfriend it (or the people who invited it) it will become isolated and never have any content reach a real human.
+  - You see content in the order of your connection to people - that is, if a 1st degree connection posts something, it will always come before a 2nd degree or 3rd degree connection (among posts you haven't seen yet). Additionally, you never see content from someone you have no connection to. This means that if a bot ends up on the platform, as long as all the real people remove it (or the people who invited it) it will become isolated and never have any content reach a real human.
   - A post's connection level is always your *shortest* path to its author (never A→B→C→D when A and D are connected), and that shortest chain is shown with the post
   - There is no system-wide maximum distance: a post can reach anyone connected to its author
   - Within a connection level, posts are ranked by a mix of recency and the preferences of people in your own network (you can switch to pure chronological)
-  - All connections/friend requests must be bi-directional. That is, for an algorithmic link to be made, both sides of a request must OK the connection.
+  - All connections/acquaintance requests must be bi-directional. That is, for an algorithmic link to be made, both sides of a request must OK the connection.
   - Allow people to limit posts by connection level: authors may optionally select the maximum distance (1st, 2nd, 3rd degree, or everyone connected) at which their post may be viewed
-  - A "friendship+" level requires real-life verification (the same in-person handshake as invites)
+  - Two levels of connection: an **acquaintance** is anyone you're connected to (a request both sides accepted), and a **friend** is an acquaintance you've verified in real life (the same in-person handshake as invites)
 - The connection graph is private: it's only visible through your own connections, and if you're in a disconnected part of the network you can't see anything about the rest
 - ~~Ideally distributed/federated~~ Decided against federation for now: it conflicts with graph privacy, unlimited reach, and exact shortest distances (see ARCHITECTURE.md §11). Exports of your own signed records keep the door open.
 - Content-wise, something between Reddit, Instagram, and Twitter
@@ -32,7 +33,7 @@ A bot-free social media site that works for social good.
   - No titles outside the post
   - Markdown and link previews are allowed, with headers toned down so header text doesn't become the only thing people send
   - Start out with just text as a PoC and see where it goes from there
-- No groups or communities: the friend graph acts as a natural proxy for communities
+- No groups or communities: the connection graph acts as a natural proxy for communities
 - Several UI formats to pick from, with a sensible, clean default. Advanced users can build their own layouts inside the app
 - No public API: it would mostly make scraping easy. Fight bot scraping (and scraping for AI training) as hard as possible
   - Nothing is public, and members' content is never sold, licensed, or used for AI training

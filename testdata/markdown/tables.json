@@ -1,0 +1,1118 @@
+{
+  "$comment": "Shared GFM table fixtures (P1-W11): internal/platform/mdscan (Go) and web/src/markdown (TS) must find exactly these tables (alignments and cell plain text, header row first) and these links and mentions, in document order. Tables are top level only, at most 10 columns, and the header and delimiter rows start with a pipe (table.go, table.ts). Offsets are Unicode code points into body (checked in Go only).",
+  "cases": [
+    {
+      "name": "basic",
+      "body": "| Name | Age |\n| --- | --- |\n| Ana | 31 |\n| Bo | 7 |",
+      "links": [],
+      "mentions": [],
+      "tables": [
+        {
+          "align": [
+            "",
+            ""
+          ],
+          "rows": [
+            [
+              "Name",
+              "Age"
+            ],
+            [
+              "Ana",
+              "31"
+            ],
+            [
+              "Bo",
+              "7"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "alignments",
+      "body": "| l | c | r | n |\n|:--|:-:|--:|---|\n| 1 | 2 | 3 | 4 |",
+      "links": [],
+      "mentions": [],
+      "tables": [
+        {
+          "align": [
+            "left",
+            "center",
+            "right",
+            ""
+          ],
+          "rows": [
+            [
+              "l",
+              "c",
+              "r",
+              "n"
+            ],
+            [
+              "1",
+              "2",
+              "3",
+              "4"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "header only",
+      "body": "| only | head |\n|---|---|",
+      "links": [],
+      "mentions": [],
+      "tables": [
+        {
+          "align": [
+            "",
+            ""
+          ],
+          "rows": [
+            [
+              "only",
+              "head"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "one column",
+      "body": "| x |\n| - |\n| y |",
+      "links": [],
+      "mentions": [],
+      "tables": [
+        {
+          "align": [
+            ""
+          ],
+          "rows": [
+            [
+              "x"
+            ],
+            [
+              "y"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ten columns",
+      "body": "|1|2|3|4|5|6|7|8|9|10|\n|-|-|-|-|-|-|-|-|-|-|\n|a|b|c|d|e|f|g|h|i|j|",
+      "links": [],
+      "mentions": [],
+      "tables": [
+        {
+          "align": [
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            ""
+          ],
+          "rows": [
+            [
+              "1",
+              "2",
+              "3",
+              "4",
+              "5",
+              "6",
+              "7",
+              "8",
+              "9",
+              "10"
+            ],
+            [
+              "a",
+              "b",
+              "c",
+              "d",
+              "e",
+              "f",
+              "g",
+              "h",
+              "i",
+              "j"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "eleven columns stay text",
+      "body": "|1|2|3|4|5|6|7|8|9|10|11|\n|-|-|-|-|-|-|-|-|-|-|-|\n|a|b|c|d|e|f|g|h|i|j|k|",
+      "links": [],
+      "mentions": [],
+      "tables": []
+    },
+    {
+      "name": "header must start with a pipe",
+      "body": "a | b\n--- | ---\n| c | d |",
+      "links": [],
+      "mentions": [],
+      "tables": []
+    },
+    {
+      "name": "delimiter must start with a pipe",
+      "body": "| a | b |\n--- | ---\n| c | d |",
+      "links": [],
+      "mentions": [],
+      "tables": []
+    },
+    {
+      "name": "cell count mismatch",
+      "body": "| a | b | c |\n| - | - |\n| d | e |",
+      "links": [],
+      "mentions": [],
+      "tables": []
+    },
+    {
+      "name": "bad delimiter cell",
+      "body": "| a | b |\n| - | x |",
+      "links": [],
+      "mentions": [],
+      "tables": []
+    },
+    {
+      "name": "empty middle delimiter cell",
+      "body": "| a | b | c |\n| - || - |",
+      "links": [],
+      "mentions": [],
+      "tables": []
+    },
+    {
+      "name": "not in a blockquote",
+      "body": "> | a | b |\n> | - | - |\n> | c | d |",
+      "links": [],
+      "mentions": [],
+      "tables": []
+    },
+    {
+      "name": "not in a list",
+      "body": "- | a | b |\n  | - | - |\n  | c | d |",
+      "links": [],
+      "mentions": [],
+      "tables": []
+    },
+    {
+      "name": "indented header",
+      "body": "    | a | b |\n| - | - |",
+      "links": [],
+      "mentions": [],
+      "tables": []
+    },
+    {
+      "name": "indented delimiter",
+      "body": "| a | b |\n    | - | - |",
+      "links": [],
+      "mentions": [],
+      "tables": []
+    },
+    {
+      "name": "three spaces of indentation",
+      "body": "   | a | b |\n   | - | - |\n   | c | d |",
+      "links": [],
+      "mentions": [],
+      "tables": [
+        {
+          "align": [
+            "",
+            ""
+          ],
+          "rows": [
+            [
+              "a",
+              "b"
+            ],
+            [
+              "c",
+              "d"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "paragraph before",
+      "body": "Results below\n| a | b |\n| - | - |\n| c | d |",
+      "links": [],
+      "mentions": [],
+      "tables": [
+        {
+          "align": [
+            "",
+            ""
+          ],
+          "rows": [
+            [
+              "a",
+              "b"
+            ],
+            [
+              "c",
+              "d"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ends at a blank line",
+      "body": "| a |\n| - |\n| b |\n\nafter https://after.example",
+      "links": [
+        {
+          "raw": "https://after.example",
+          "no_preview": false,
+          "offset": 25
+        }
+      ],
+      "mentions": [],
+      "tables": [
+        {
+          "align": [
+            ""
+          ],
+          "rows": [
+            [
+              "a"
+            ],
+            [
+              "b"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "rows without pipes",
+      "body": "| a | b |\n| - | - |\nc | d\nplain row",
+      "links": [],
+      "mentions": [],
+      "tables": [
+        {
+          "align": [
+            "",
+            ""
+          ],
+          "rows": [
+            [
+              "a",
+              "b"
+            ],
+            [
+              "c",
+              "d"
+            ],
+            [
+              "plain row",
+              ""
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "short rows padded long rows cut",
+      "body": "| a | b | c |\n| - | - | - |\n| 1 |\n| 1 | 2 | 3 | 4 | 5 |",
+      "links": [],
+      "mentions": [],
+      "tables": [
+        {
+          "align": [
+            "",
+            "",
+            ""
+          ],
+          "rows": [
+            [
+              "a",
+              "b",
+              "c"
+            ],
+            [
+              "1",
+              "",
+              ""
+            ],
+            [
+              "1",
+              "2",
+              "3"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "empty cells",
+      "body": "| a |  | c |\n| - | - | - |\n|  | | |",
+      "links": [],
+      "mentions": [],
+      "tables": [
+        {
+          "align": [
+            "",
+            "",
+            ""
+          ],
+          "rows": [
+            [
+              "a",
+              "",
+              "c"
+            ],
+            [
+              "",
+              "",
+              ""
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "escaped pipes",
+      "body": "| a \\| b | `c \\| d` |\n| - | - |\n| x\\|y | \\\\| |",
+      "links": [],
+      "mentions": [],
+      "tables": [
+        {
+          "align": [
+            "",
+            ""
+          ],
+          "rows": [
+            [
+              "a | b",
+              "c | d"
+            ],
+            [
+              "x|y",
+              "|"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "unescaped pipe in code splits the cell",
+      "body": "| `a|b` |\n| - | - |\n| `c|d` |",
+      "links": [],
+      "mentions": [],
+      "tables": [
+        {
+          "align": [
+            "",
+            ""
+          ],
+          "rows": [
+            [
+              "`a",
+              "b`"
+            ],
+            [
+              "`c",
+              "d`"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "pipe in link text splits",
+      "body": "| [a|b](https://split.example) |\n| - | - |",
+      "links": [
+        {
+          "raw": "https://split.example",
+          "no_preview": false,
+          "offset": 8
+        }
+      ],
+      "mentions": [],
+      "tables": [
+        {
+          "align": [
+            "",
+            ""
+          ],
+          "rows": [
+            [
+              "[a",
+              "b](https://split.example)"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "links mentions and urls in cells",
+      "body": "| who | where |\n| --- | --- |\n| @alice | https://a.example/x |\n| [docs](https://docs.example) | <https://quiet.example> |\n| ![img](https://img.example/p.png) | see @bob_2 |",
+      "links": [
+        {
+          "raw": "https://a.example/x",
+          "no_preview": false,
+          "offset": 41
+        },
+        {
+          "raw": "https://docs.example",
+          "no_preview": false,
+          "offset": 65
+        },
+        {
+          "raw": "https://quiet.example",
+          "no_preview": true,
+          "offset": 96
+        },
+        {
+          "raw": "https://img.example/p.png",
+          "no_preview": true,
+          "offset": 124
+        }
+      ],
+      "mentions": [
+        {
+          "handle": "alice",
+          "ord": 0,
+          "offset": 32
+        },
+        {
+          "handle": "bob_2",
+          "ord": 1,
+          "offset": 164
+        }
+      ],
+      "tables": [
+        {
+          "align": [
+            "",
+            ""
+          ],
+          "rows": [
+            [
+              "who",
+              "where"
+            ],
+            [
+              "@alice",
+              "https://a.example/x"
+            ],
+            [
+              "docs",
+              "https://quiet.example"
+            ],
+            [
+              "img",
+              "see @bob_2"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "mention order continues across the table",
+      "body": "@first before\n\n| @second | x |\n| - | - |\n| @third | y |\n\n@fourth",
+      "links": [],
+      "mentions": [
+        {
+          "handle": "first",
+          "ord": 0,
+          "offset": 0
+        },
+        {
+          "handle": "second",
+          "ord": 1,
+          "offset": 17
+        },
+        {
+          "handle": "third",
+          "ord": 2,
+          "offset": 43
+        },
+        {
+          "handle": "fourth",
+          "ord": 3,
+          "offset": 57
+        }
+      ],
+      "tables": [
+        {
+          "align": [
+            "",
+            ""
+          ],
+          "rows": [
+            [
+              "@second",
+              "x"
+            ],
+            [
+              "@third",
+              "y"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "reference link defined after",
+      "body": "| [site][r] |\n| --- |\n| ok |\n\n[r]: https://ref.example/page",
+      "links": [
+        {
+          "raw": "https://ref.example/page",
+          "no_preview": false,
+          "offset": 2
+        }
+      ],
+      "mentions": [],
+      "tables": [
+        {
+          "align": [
+            ""
+          ],
+          "rows": [
+            [
+              "site"
+            ],
+            [
+              "ok"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "emphasis per cell",
+      "body": "| *a | b* |\n| - | - |\n| **c** | ~~d~~ |",
+      "links": [],
+      "mentions": [],
+      "tables": [
+        {
+          "align": [
+            "",
+            ""
+          ],
+          "rows": [
+            [
+              "*a",
+              "b*"
+            ],
+            [
+              "c",
+              "d"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "raw html stays text",
+      "body": "| <b>x</b> | <https://auto.example> |\n| - | - |",
+      "links": [
+        {
+          "raw": "https://auto.example",
+          "no_preview": true,
+          "offset": 13
+        }
+      ],
+      "mentions": [],
+      "tables": [
+        {
+          "align": [
+            "",
+            ""
+          ],
+          "rows": [
+            [
+              "<b>x</b>",
+              "https://auto.example"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "entities and escapes",
+      "body": "| &amp; &#64;nobody | \\@nobody \\* |\n| - | - |",
+      "links": [],
+      "mentions": [],
+      "tables": [
+        {
+          "align": [
+            "",
+            ""
+          ],
+          "rows": [
+            [
+              "& @nobody",
+              "@nobody *"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "heading ends the table",
+      "body": "| a |\n| - |\n| b |\n# Heading https://h.example",
+      "links": [
+        {
+          "raw": "https://h.example",
+          "no_preview": false,
+          "offset": 28
+        }
+      ],
+      "mentions": [],
+      "tables": [
+        {
+          "align": [
+            ""
+          ],
+          "rows": [
+            [
+              "a"
+            ],
+            [
+              "b"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "blockquote ends the table",
+      "body": "| a |\n| - |\n| b |\n> quoted @carol",
+      "links": [],
+      "mentions": [
+        {
+          "handle": "carol",
+          "ord": 0,
+          "offset": 27
+        }
+      ],
+      "tables": [
+        {
+          "align": [
+            ""
+          ],
+          "rows": [
+            [
+              "a"
+            ],
+            [
+              "b"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "bullet ends the table",
+      "body": "| a |\n| - |\n| b |\n- item",
+      "links": [],
+      "mentions": [],
+      "tables": [
+        {
+          "align": [
+            ""
+          ],
+          "rows": [
+            [
+              "a"
+            ],
+            [
+              "b"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ordered list from 1 ends the table",
+      "body": "| a |\n| - |\n| b |\n1. item",
+      "links": [],
+      "mentions": [],
+      "tables": [
+        {
+          "align": [
+            ""
+          ],
+          "rows": [
+            [
+              "a"
+            ],
+            [
+              "b"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "list from 2 is a row",
+      "body": "| a |\n| - |\n| b |\n2. two\n- \n| c |",
+      "links": [],
+      "mentions": [],
+      "tables": [
+        {
+          "align": [
+            ""
+          ],
+          "rows": [
+            [
+              "a"
+            ],
+            [
+              "b"
+            ],
+            [
+              "2. two"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "thematic break ends the table",
+      "body": "| a |\n| - |\n| b |\n***\n| c |",
+      "links": [],
+      "mentions": [],
+      "tables": [
+        {
+          "align": [
+            ""
+          ],
+          "rows": [
+            [
+              "a"
+            ],
+            [
+              "b"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "fence ends the table",
+      "body": "| a |\n| - |\n| b |\n```\n| https://code.example |\n```",
+      "links": [],
+      "mentions": [],
+      "tables": [
+        {
+          "align": [
+            ""
+          ],
+          "rows": [
+            [
+              "a"
+            ],
+            [
+              "b"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "setext underline ends the table",
+      "body": "| a |\n| - |\n| b |\n===\n| c |",
+      "links": [],
+      "mentions": [],
+      "tables": [
+        {
+          "align": [
+            ""
+          ],
+          "rows": [
+            [
+              "a"
+            ],
+            [
+              "b"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "dash underline ends the table",
+      "body": "intro\n| a |\n| - |\n| b |\n---\nafter",
+      "links": [],
+      "mentions": [],
+      "tables": [
+        {
+          "align": [
+            ""
+          ],
+          "rows": [
+            [
+              "a"
+            ],
+            [
+              "b"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "indented line is a row",
+      "body": "| a |\n| - |\n    | b @dave |",
+      "links": [],
+      "mentions": [
+        {
+          "handle": "dave",
+          "ord": 0,
+          "offset": 20
+        }
+      ],
+      "tables": [
+        {
+          "align": [
+            ""
+          ],
+          "rows": [
+            [
+              "a"
+            ],
+            [
+              "b @dave"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "whitespace-only row ends the table",
+      "body": "| a |\n| - |\n| b |\n \n| c | d |\n| - | - |\n| e | f |",
+      "links": [],
+      "mentions": [],
+      "tables": [
+        {
+          "align": [
+            ""
+          ],
+          "rows": [
+            [
+              "a"
+            ],
+            [
+              "b"
+            ]
+          ]
+        },
+        {
+          "align": [
+            "",
+            ""
+          ],
+          "rows": [
+            [
+              "c",
+              "d"
+            ],
+            [
+              "e",
+              "f"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "two tables",
+      "body": "| a |\n| - |\n\n| b | c |\n|:-|-:|\n| 1 | 2 |",
+      "links": [],
+      "mentions": [],
+      "tables": [
+        {
+          "align": [
+            ""
+          ],
+          "rows": [
+            [
+              "a"
+            ]
+          ]
+        },
+        {
+          "align": [
+            "left",
+            "right"
+          ],
+          "rows": [
+            [
+              "b",
+              "c"
+            ],
+            [
+              "1",
+              "2"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "unicode cells",
+      "body": "| 日本 | 😀 @émile |\n| - | - |\n| ×2 | https://例え.jp/パス |",
+      "links": [
+        {
+          "raw": "https://例え.jp/パス",
+          "no_preview": false,
+          "offset": 35
+        }
+      ],
+      "mentions": [],
+      "tables": [
+        {
+          "align": [
+            "",
+            ""
+          ],
+          "rows": [
+            [
+              "日本",
+              "😀 @émile"
+            ],
+            [
+              "×2",
+              "https://例え.jp/パス"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "crlf line endings",
+      "body": "| a | b |\r\n| - | - |\r\n| https://crlf.example | @erin |\r\n",
+      "links": [
+        {
+          "raw": "https://crlf.example",
+          "no_preview": false,
+          "offset": 24
+        }
+      ],
+      "mentions": [
+        {
+          "handle": "erin",
+          "ord": 0,
+          "offset": 47
+        }
+      ],
+      "tables": [
+        {
+          "align": [
+            "",
+            ""
+          ],
+          "rows": [
+            [
+              "a",
+              "b"
+            ],
+            [
+              "https://crlf.example",
+              "@erin"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "tab indentation",
+      "body": "\t| a |\n| - |",
+      "links": [],
+      "mentions": [],
+      "tables": []
+    },
+    {
+      "name": "one space of indentation and trailing spaces",
+      "body": "  | a | b |   \n | :-: | --: |  \n| c | d |  ",
+      "links": [],
+      "mentions": [],
+      "tables": [
+        {
+          "align": [
+            "center",
+            "right"
+          ],
+          "rows": [
+            [
+              "a",
+              "b"
+            ],
+            [
+              "c",
+              "d"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "delimiter without trailing pipe",
+      "body": "| a | b\n| - | -\n| c | d",
+      "links": [],
+      "mentions": [],
+      "tables": [
+        {
+          "align": [
+            "",
+            ""
+          ],
+          "rows": [
+            [
+              "a",
+              "b"
+            ],
+            [
+              "c",
+              "d"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "bare url touching a pipe",
+      "body": "| https://a.example|https://b.example |\n| - | - |",
+      "links": [
+        {
+          "raw": "https://a.example",
+          "no_preview": false,
+          "offset": 2
+        },
+        {
+          "raw": "https://b.example",
+          "no_preview": false,
+          "offset": 20
+        }
+      ],
+      "mentions": [],
+      "tables": [
+        {
+          "align": [
+            "",
+            ""
+          ],
+          "rows": [
+            [
+              "https://a.example",
+              "https://b.example"
+            ]
+          ]
+        }
+      ]
+    }
+  ]
+}

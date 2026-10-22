@@ -33,8 +33,13 @@ export function withOwnPosts(pages: FeedPageVM[], own: readonly FeedItemVM[]): F
   return [{ session: first.session, preset: first.preset, items: [...own] }, ...pages];
 }
 
-// The presets a reader can pick in Phase 0 (Top arrives with P1-W08).
-export const presets: readonly Preset[] = ['latest', 'balanced'];
+// The presets a reader can pick (§5.5: λ 0, 0.5, 1).
+export const presets: readonly Preset[] = ['latest', 'balanced', 'top'];
+
+// savedPreset is the reader's saved order (Balanced when it cannot be read).
+export function savedPreset(name: string | undefined): Preset {
+  return presets.find((p) => p === name) ?? 'balanced';
+}
 
 // toFeedItemVM maps one item; an item the client cannot render (an unknown
 // type, a post item without its post) is dropped rather than guessed at.

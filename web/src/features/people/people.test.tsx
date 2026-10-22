@@ -13,11 +13,26 @@ import FriendsPage from './FriendsPage';
 import PersonPage from './PersonPage';
 import RequestsPage from './RequestsPage';
 import SuggestionsPage from './SuggestionsPage';
-import { peopleErrorKey, primaryActions, reportPath, secondaryActions, toPersonVM } from './vm';
+import { ReportModal } from '../moderation/ReportModal';
+import { canUpgrade, cosignPurpose, peopleErrorKey, primaryActions, secondaryActions, toPersonVM } from './vm';
+
+// The co-sign dialog is the cosign feature's; here it signs (or is cancelled) at once.
+interface Signed {
+  intent: string;
+  assertion: Record<string, unknown>;
+}
+const cosign = vi.hoisted(() => ({ result: null as Signed | null, asked: [] as unknown[] }));
+vi.mock('../cosign', () => ({
+  requestCosign: (req: unknown) => {
+    cosign.asked.push(req);
+    return Promise.resolve(cosign.result);
+  },
+}));
 
 interface Call {
   method: string;
   path: string;
+  body?: string;
 }
 
 function json(status: number, body: unknown): Response {
@@ -44,8 +59,9 @@ function stubAPI(handler: (c: Call) => Response | undefined): Call[] {
   const calls: Call[] = [];
   vi.stubGlobal(
     'fetch',
-    vi.fn((req: Request) => {
-      const c = { method: req.method, path: new URL(req.url).pathname.replace(/^\/api/, '') };
+    vi.fn(async (req: Request) => {
+      const text = await req.clone().text();
+      const c: Call = { method: req.method, path: new URL(req.url).pathname.replace(/^\/api/, ''), ...(text ? { body: text } : {}) };
       calls.push(c);
       if (c.path === '/session') return json(200, { authenticated: true, kind: 'user', csrf: 'x' });
       return handler(c) ?? json(404, { error: 'not_found' });
@@ -57,8 +73,15 @@ function stubAPI(handler: (c: Call) => Response | undefined): Call[] {
 function renderAt(path: string, pattern: string, el: ReactNode) {
   const router = createMemoryRouter(
     [
-      { path: pattern, element: el },
-      { path: '/report', element: <p>report page</p> },
+      {
+        path: pattern,
+        element: (
+          <>
+            {el}
+            <ReportModal />
+          </>
+        ),
+      },
     ],
     { initialEntries: [path] },
   );
@@ -88,7 +111,9 @@ describe('people view-models', () => {
       chain: { dist: 2, firstHop: { ref: asRef('r-carol'), handle: 'carol' }, middle: [], hiddenMiddle: 0, firstHopPlus: false },
       blocked: false,
       muted: true,
+      hiddenVia: false,
     });
+    expect(toPersonVM(person('bob', { hidden_via: true }) as never).hiddenVia).toBe(true);
   });
 
   it('offers actions by relation and request state', () => {
@@ -102,12 +127,31 @@ describe('people view-models', () => {
     expect(secondaryActions(vm({}))).toEqual(['mute', 'block']);
     expect(secondaryActions(vm({ muted: true }))).toEqual(['unmute', 'block']);
     expect(secondaryActions(vm({ relation: 'self' }))).toEqual([]);
+    // P1: hide-via for friends; showing the paths again for anyone hidden.
+    expect(secondaryActions(vm({ relation: 'friend' }))).toEqual(['mute', 'hide_via', 'block']);
+    expect(secondaryActions(vm({ relation: 'friend_plus', hidden_via: true }))).toEqual(['mute', 'show_via', 'block']);
+    expect(secondaryActions(vm({ hidden_via: true }))).toEqual(['mute', 'show_via', 'block']);
+    expect(canUpgrade(vm({ relation: 'friend' }))).toBe(true);
+    expect(canUpgrade(vm({ relation: 'friend_plus' }))).toBe(false);
+    expect(canUpgrade(vm({}))).toBe(false);
   });
 
-  it('names errors and report paths', () => {
+  it('names the co-sign purpose of graph-changing actions', () => {
+    const vm = (over: Record<string, unknown>) => toPersonVM(person('bob', over) as never);
+    expect(cosignPurpose('request', vm({}))).toBe('friend_request');
+    expect(cosignPurpose('accept', vm({ request: 'incoming' }))).toBe('friend_accept');
+    expect(cosignPurpose('unfriend', vm({ relation: 'friend' }))).toBe('unfriend');
+    expect(cosignPurpose('block', vm({}))).toBe('block');
+    // Blocking a friend signs the Revocation the block writes.
+    expect(cosignPurpose('block', vm({ relation: 'friend_plus' }))).toBe('unfriend');
+    for (const a of ['withdraw', 'decline', 'unblock', 'mute', 'unmute', 'hide_via', 'show_via'] as const) {
+      expect(cosignPurpose(a, vm({}))).toBeUndefined();
+    }
+  });
+
+  it('names errors', () => {
     expect(peopleErrorKey(new ApiError(409, { error: 'friend_cap' }))).toBe('people:errors.friend_cap');
     expect(peopleErrorKey(new ApiError(404, { error: 'not_found' }))).toBe('errors:not_found');
-    expect(reportPath('inviter', 'r-x')).toBe('/report?kind=inviter&ref=r-x');
   });
 });
 
@@ -164,6 +208,103 @@ describe('people pages', () => {
     });
   });
 
+  it('co-signs a request in a passkey session and sends the signature', async () => {
+    cosign.asked = [];
+    cosign.result = { intent: 'i-1', assertion: { id: 'cred' } };
+    const calls = stubAPI((c) => {
+      if (c.path === '/auth/passkeys') return json(200, { items: [{ id: 'p', name: 'x', created_at: '2026-01-01T00:00:00Z', current: true }] });
+      if (c.path === '/people/r-bob' && c.method === 'GET') return json(200, person('bob'));
+      if (c.path === '/people/r-bob/request' && c.method === 'POST') return json(202, { state: 'outgoing' });
+      return undefined;
+    });
+    renderAt('/people/r-bob', '/people/:ref', <PersonPage />);
+    fireEvent.click(await screen.findByRole('button', { name: tr('people:action.request') }));
+    await waitFor(() => {
+      expect(calls.some((c) => c.method === 'POST' && c.path === '/people/r-bob/request')).toBe(true);
+    });
+    const sent = calls.find((c) => c.method === 'POST' && c.path === '/people/r-bob/request');
+    expect(JSON.parse(sent?.body ?? '{}')).toEqual({ intent: 'i-1', assertion: { id: 'cred' } });
+    expect(cosign.asked).toEqual([{ purpose: 'friend_request', target: 'r-bob', summary: tr('people:cosign.request', { handle: 'bob' }) }]);
+  });
+
+  it('changes nothing when the co-sign dialog is cancelled; a block of a friend signs the unfriend', async () => {
+    cosign.asked = [];
+    cosign.result = null;
+    const calls = stubAPI((c) => {
+      if (c.path === '/auth/passkeys') return json(200, { items: [{ id: 'p', name: 'x', created_at: '2026-01-01T00:00:00Z', current: true }] });
+      if (c.path === '/people/r-bob' && c.method === 'GET') return json(200, person('bob', { relation: 'friend' }));
+      return undefined;
+    });
+    renderAt('/people/r-bob', '/people/:ref', <PersonPage />);
+    fireEvent.click(await screen.findByRole('button', { name: tr('people:action.block', { handle: 'bob' }) }));
+    fireEvent.click(screen.getByTestId('confirm-block'));
+    await waitFor(() => {
+      expect(cosign.asked).toHaveLength(1);
+    });
+    expect(cosign.asked[0]).toMatchObject({ purpose: 'unfriend', target: 'r-bob' });
+    expect(calls.some((c) => c.method === 'PUT')).toBe(false);
+    expect(screen.getByTestId('confirm-block')).toBeTruthy();
+  });
+
+  it('hides the paths through a friend and shows them again', async () => {
+    let hidden = false;
+    const calls = stubAPI((c) => {
+      if (c.path === '/people/r-bob' && c.method === 'GET') return json(200, person('bob', { relation: 'friend', hidden_via: hidden }));
+      if (c.path === '/people/r-bob/hide-via') {
+        hidden = c.method === 'PUT';
+        return json(204, null);
+      }
+      return undefined;
+    });
+    renderAt('/people/r-bob', '/people/:ref', <PersonPage />);
+    fireEvent.click(await screen.findByTestId('action-hide_via'));
+    expect(screen.getByText(tr('people:confirm.hide_via', { handle: 'bob' }))).toBeTruthy();
+    fireEvent.click(screen.getByTestId('confirm-hide_via'));
+    expect(await screen.findByTestId('person-hidden-via')).toBeTruthy();
+    expect(calls.some((c) => c.method === 'PUT' && c.path === '/people/r-bob/hide-via')).toBe(true);
+    fireEvent.click(await screen.findByTestId('action-show_via'));
+    await waitFor(() => {
+      expect(screen.queryByTestId('person-hidden-via')).toBeNull();
+    });
+    expect(calls.some((c) => c.method === 'DELETE' && c.path === '/people/r-bob/hide-via')).toBe(true);
+  });
+
+  it('opens the friend+ upgrade handshake for a plain friend only', async () => {
+    let rel = 'friend';
+    const calls = stubAPI((c) => {
+      if (c.path === '/people/r-bob' && c.method === 'GET') return json(200, person('bob', { relation: rel }));
+      if (c.path === '/friends/r-bob/upgrade' && c.method === 'POST') {
+        return json(201, { hs: 'h-1', mode: 'qr_audio', frame_ttl_ms: 250, frame_key: 'AAAA' });
+      }
+      return undefined;
+    });
+    const view = renderAt('/people/r-bob', '/people/:ref', <PersonPage />);
+    fireEvent.click(await screen.findByTestId('action-upgrade'));
+    expect(await screen.findByTestId('invite-handshake')).toBeTruthy();
+    expect(screen.getByText(tr('people:upgrade.hint', { handle: 'bob' }))).toBeTruthy();
+    expect(calls.find((c) => c.method === 'POST' && c.path === '/friends/r-bob/upgrade')?.body).toBe('{"quiet":false}');
+    view.unmount();
+    rel = 'friend_plus';
+    renderAt('/people/r-bob', '/people/:ref', <PersonPage />);
+    expect(await screen.findByTestId('person-relation')).toBeTruthy();
+    expect(screen.queryByTestId('action-upgrade')).toBeNull();
+  });
+
+  it('opens a quiet upgrade when the jingle is switched off', async () => {
+    const calls = stubAPI((c) => {
+      if (c.path === '/people/r-bob' && c.method === 'GET') return json(200, person('bob', { relation: 'friend' }));
+      if (c.path === '/friends/r-bob/upgrade' && c.method === 'POST') {
+        return json(201, { hs: 'h-1', mode: 'qr_audio', frame_ttl_ms: 250, frame_key: 'AAAA' });
+      }
+      return undefined;
+    });
+    renderAt('/people/r-bob', '/people/:ref', <PersonPage />);
+    fireEvent.click(await screen.findByTestId('upgrade-quiet'));
+    fireEvent.click(screen.getByTestId('action-upgrade'));
+    expect(await screen.findByTestId('invite-handshake')).toBeTruthy();
+    expect(calls.find((c) => c.method === 'POST' && c.path === '/friends/r-bob/upgrade')?.body).toBe('{"quiet":true}');
+  });
+
   it('shows the not-found page for a person the viewer cannot see', async () => {
     stubAPI(() => undefined);
     renderAt('/people/r-nope', '/people/:ref', <PersonPage />);
@@ -174,7 +315,7 @@ describe('people pages', () => {
     stubAPI((c) => (c.path === '/people/r-bob' ? json(200, person('bob')) : undefined));
     renderAt('/people/r-bob', '/people/:ref', <PersonPage />);
     fireEvent.click(await screen.findByTestId('integrity-report'));
-    expect(await screen.findByText('report page')).toBeTruthy();
+    expect(await screen.findByTestId('report-modal')).toBeTruthy();
   });
 
   it('pages through friends', async () => {

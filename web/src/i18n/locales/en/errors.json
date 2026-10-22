@@ -7,5 +7,6 @@
   "internal": "Something went wrong on our side.",
   "not_implemented": "This is not built yet.",
   "network": "You seem to be offline.",
-  "unknown": "Something went wrong."
+  "unknown": "Something went wrong.",
+  "updated": "The app was updated. Reload to get the new version."
 }

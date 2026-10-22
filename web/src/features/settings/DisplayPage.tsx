@@ -1,9 +1,10 @@
-// Display settings: name, layout, density, accessibility and feed order (§10.7,
+// Display settings: name, layout, navigation, density, accessibility and feed order (§10.7,
 // §15.1). Owner: P0-W11 → P1-W10.
 import { useId, useState, type SyntheticEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { MeView } from '../../app/session';
 import { applyA11y } from '../../lib/a11y';
+import { applyNavLayout, navLayouts } from '../../lib/navLayout';
 import { SaveBar, SettingsShell, useSaveSettings } from './shared';
 import {
   contrasts,
@@ -18,7 +19,8 @@ import {
   type UIPrefs,
 } from './vm';
 
-const formatLabel = { cards: 'display.format.cards', compact: 'display.format.compact' } as const;
+const formatLabel = { cards: 'display.format.cards', compact: 'display.format.compact', explorer: 'display.format.explorer' } as const;
+const navLabel = { sidebar: 'display.nav.sidebar', header: 'display.nav.header' } as const;
 const densityLabel = { comfortable: 'display.density.comfortable', compact: 'display.density.compact' } as const;
 const contrastLabel = { normal: 'display.a11y.contrastNormal', high: 'display.a11y.contrastHigh' } as const;
 const textLabel = {
@@ -27,7 +29,7 @@ const textLabel = {
   large: 'display.a11y.textLarge',
   xlarge: 'display.a11y.textXlarge',
 } as const;
-const presetLabel = { latest: 'display.preset.latest', balanced: 'display.preset.balanced' } as const;
+const presetLabel = { latest: 'display.preset.latest', balanced: 'display.preset.balanced', top: 'display.preset.top' } as const;
 
 function DisplayForm({ me }: { me: MeView }) {
   const { t } = useTranslation('settings');
@@ -47,6 +49,7 @@ function DisplayForm({ me }: { me: MeView }) {
       {
         onSuccess: () => {
           applyA11y(toA11y(prefs));
+          applyNavLayout(prefs.nav);
         },
       },
     );
@@ -84,6 +87,24 @@ function DisplayForm({ me }: { me: MeView }) {
               }}
             />
             {t(formatLabel[f])}
+          </label>
+        ))}
+      </fieldset>
+
+      <fieldset>
+        <legend>{t('display.nav.legend')}</legend>
+        {navLayouts.map((l) => (
+          <label key={l} className="settings-choice">
+            <input
+              type="radio"
+              name={`${id}-nav`}
+              value={l}
+              checked={prefs.nav === l}
+              onChange={() => {
+                setPrefs((p) => ({ ...p, nav: l }));
+              }}
+            />
+            {t(navLabel[l])}
           </label>
         ))}
       </fieldset>

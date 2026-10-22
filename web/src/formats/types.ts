@@ -11,12 +11,15 @@ export interface PostActions {
   openTree: (post: Ref) => void;
   hide: (post: Ref) => void;
   showLess: (post: Ref) => void;
+  // unhide undoes a hide or show less (the notice's Undo).
+  unhide?: (post: Ref) => void;
+  // save sets or clears the viewer's private save (P1-W08; saved_by_me is the state).
+  save?: (post: Ref, on: boolean) => void;
   report: (target: ReportTarget) => void;
   markSeen?: (post: Ref) => void;
 }
 
 export interface TreeActions extends PostActions {
-  recenter: (gen: number, center: Ref) => void;
   more: (gen: number, center: Ref, cursor: string) => void;
   loadEarlier: () => void;
   loadLater: () => void;

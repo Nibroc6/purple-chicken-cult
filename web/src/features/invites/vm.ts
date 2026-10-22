@@ -9,16 +9,23 @@ import { toPersonVM } from '../people/vm';
 type BudgetView = components['schemas']['BudgetView'];
 type InviteeView = components['schemas']['InviteeView'];
 type FrameView = components['schemas']['FrameView'];
+type StatusView = components['schemas']['InvitesStatus'];
 
 export type HandshakeState = components['schemas']['HandshakeStatus']['state'];
+export type HandshakeKind = StatusView['kind'];
+export type HandshakeOutcome = NonNullable<StatusView['outcome']>;
+export type RetryHint = NonNullable<StatusView['hint']>;
 
 export interface BudgetVM {
   available: number;
   cap: number;
   nextAt?: Date;
-  probation?: { until: Date; needOutsideFriends: number };
+  probation?: { until: Date; needOutsideFriends: number; friendPlus: boolean };
   pausedUntil?: Date;
   revoked: boolean;
+  // attempts is the build-up limit on showing a code, apart from the invites
+  // saved: every code shown takes one, whether or not someone joins.
+  attempts?: { available: number; cap: number; nextAt?: Date };
 }
 
 export function toBudgetVM(b: BudgetView): BudgetVM {
@@ -27,16 +34,50 @@ export function toBudgetVM(b: BudgetView): BudgetVM {
     cap: b.cap,
     ...(b.next_at ? { nextAt: new Date(b.next_at) } : {}),
     ...(b.probation
-      ? { probation: { until: new Date(b.probation.until), needOutsideFriends: b.probation.need_outside_friends } }
+      ? {
+          probation: {
+            until: new Date(b.probation.until),
+            needOutsideFriends: b.probation.need_outside_friends,
+            friendPlus: b.probation.friend_plus === true,
+          },
+        }
       : {}),
     ...(b.paused_until ? { pausedUntil: new Date(b.paused_until) } : {}),
     revoked: b.revoked === true,
+    ...(b.attempts
+      ? {
+          attempts: {
+            available: b.attempts.available,
+            cap: b.attempts.cap,
+            ...(b.attempts.next_at ? { nextAt: new Date(b.attempts.next_at) } : {}),
+          },
+        }
+      : {}),
   };
 }
 
-// canOpen reports whether the inviter may show a code now.
-export function canOpen(b: BudgetVM): boolean {
+// canInvite reports whether a guest can sign up with the caller's code now
+// (the code itself opens whenever an attempt is left: it also connects
+// someone signed in).
+export function canInvite(b: BudgetVM): boolean {
   return b.available > 0 && !b.probation && !b.pausedUntil && !b.revoked;
+}
+
+// canShowCode reports whether a code attempt is left to open one now.
+export function canShowCode(b: BudgetVM): boolean {
+  return (b.attempts?.available ?? 1) > 0;
+}
+
+// signedInPeer reports whether the other device of a handshake is someone
+// signed in (a friend upgrade, or an invite code they scanned: a connect).
+export function signedInPeer(kind: HandshakeKind | undefined): boolean {
+  return kind === 'upgrade' || kind === 'connect';
+}
+
+// mustVerify reports whether a passed outcome still needs Verified (an
+// upgrade exists to be Verified; a connect is an acquaintance when Accepted).
+export function mustVerify(st: { kind: HandshakeKind; outcome?: HandshakeOutcome }): boolean {
+  return st.kind === 'upgrade' && st.outcome !== 'verified';
 }
 
 export interface InviteeVM {
@@ -62,6 +103,53 @@ export interface FrameVM {
 
 export function toFrameVM(f: FrameView): FrameVM {
   return { payload: f.payload, validUntil: new Date(f.valid_until) };
+}
+
+// StatusVM is either device's view of a handshake (plan §5.3 InvitesStatus).
+export interface StatusVM {
+  state: HandshakeState;
+  sas?: string;
+  kind: HandshakeKind;
+  mode: 'qr' | 'qr_audio' | 'dual_qr';
+  quiet: boolean;
+  attempt: number;
+  attemptsLeft: number;
+  playing: boolean;
+  outcome?: HandshakeOutcome;
+  hint?: RetryHint;
+  sign?: 'needed' | 'waiting';
+  peerSigned: boolean;
+  hs?: string;
+  signupToken?: string;
+}
+
+export function toStatusVM(s: StatusView): StatusVM {
+  return {
+    state: s.state,
+    ...(s.sas ? { sas: s.sas } : {}),
+    kind: s.kind,
+    mode: s.mode,
+    quiet: s.quiet,
+    attempt: s.attempt,
+    attemptsLeft: s.attempts_left,
+    playing: s.playing === true,
+    ...(s.outcome ? { outcome: s.outcome } : {}),
+    ...(s.hint ? { hint: s.hint } : {}),
+    ...(s.sign ? { sign: s.sign } : {}),
+    peerSigned: s.peer_signed === true,
+    ...(s.hs ? { hs: s.hs } : {}),
+    ...(s.signup_token ? { signupToken: s.signup_token } : {}),
+  };
+}
+
+// live reports whether a handshake may still change.
+export function isLive(st: HandshakeState): boolean {
+  return st === 'open' || st === 'claimed' || st === 'confirmed';
+}
+
+// passed reports whether the latest attempt let the handshake continue.
+export function passed(s: StatusVM): boolean {
+  return s.outcome === 'verified' || s.outcome === 'accepted';
 }
 
 // Countdown is a remaining duration split for the countdown messages.
@@ -95,7 +183,8 @@ export function errorParams(err: unknown): Record<string, number> {
   return {};
 }
 
-// joinURL is the address an invitee opens to scan the code.
-export function joinURL(origin: string): string {
-  return `${new URL(origin).host}/join`;
+// joinURL is the address an invitee (path /join) or a recovering device
+// (path /recover) opens to scan the code.
+export function joinURL(origin: string, path: '/join' | '/recover' = '/join'): string {
+  return `${new URL(origin).host}${path}`;
 }

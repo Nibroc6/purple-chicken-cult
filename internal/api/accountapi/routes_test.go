@@ -60,8 +60,8 @@ func TestMeSettingsAndKeys(t *testing.T) {
 	}
 	for body, code := range map[string]string{
 		`{"translate_to":"de"}`:              "translate_to_not_in_languages",
-		`{"rank_preset":"top"}`:              "preset_unavailable",
-		`{"ui_prefs":{"format":"explorer"}}`: "ui_prefs_invalid",
+		`{"rank_preset":"Top"}`:              "preset_unavailable",
+		`{"ui_prefs":{"format":"timeline"}}`: "ui_prefs_invalid",
 		`{"display_name":"Alice ✓"}`:         "display_name_invalid",
 		`{"languages":["en","not a tag"]}`:   "lang_invalid",
 		`{"ui_locale":"--"}`:                 "locale_invalid",
@@ -169,5 +169,38 @@ func TestModRecoveryRoutes(t *testing.T) {
 	}
 	if rec := h.Do(http.MethodGet, "/api/mod/recovery/AAAA/link", nil); rec.Code != http.StatusNotFound {
 		t.Fatalf("member link %d", rec.Code)
+	}
+}
+
+// P1 guardian recovery routes: everything a caller may not see is the uniform
+// not-found (gate/account tests the flow).
+func TestGuardianRecoveryRoutes(t *testing.T) {
+	h := harness(t)
+	if rec := h.Do(http.MethodGet, "/api/recovery/status", nil); rec.Code != http.StatusNotFound {
+		t.Fatalf("status without a ticket = %d", rec.Code)
+	}
+	rec := h.Raw(http.MethodGet, "/api/recovery/status", nil, map[string]string{"X-PCC-Recovery": "nope"})
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status with an unknown ticket = %d", rec.Code)
+	}
+	if rec := h.Do(http.MethodGet, "/api/recovery/requests", nil); rec.Code != http.StatusNotFound {
+		t.Fatalf("anonymous requests = %d", rec.Code)
+	}
+	h.Login("alice")
+	rec = h.Do(http.MethodGet, "/api/recovery/requests", nil)
+	if rec.Code != http.StatusOK || strings.TrimSpace(rec.Body.String()) != `{"items":[]}` {
+		t.Fatalf("requests %d %s", rec.Code, rec.Body)
+	}
+	for _, c := range []struct {
+		path string
+		body any
+	}{
+		{"/api/recovery/sessions", map[string]string{"friend": "garbage"}},
+		{"/api/recovery/requests/garbage/approve", nil},
+		{"/api/recovery/claim", map[string]string{"payload": "pcc2.x"}},
+	} {
+		if rec := h.Do(http.MethodPost, c.path, c.body); rec.Code != http.StatusNotFound {
+			t.Errorf("POST %s = %d %s", c.path, rec.Code, rec.Body)
+		}
 	}
 }

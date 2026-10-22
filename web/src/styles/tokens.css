@@ -18,6 +18,20 @@
   --font-body: system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', sans-serif;
   --font-size: 16px;
   --content-width: 40rem;
+  --sidebar-width: 14rem;
+  --sidebar-width-collapsed: 4.5rem;
+  /* Derived from the colours above, so every theme gets them for free. */
+  --color-accent-soft: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  --color-on-accent: var(--color-surface);
+  --color-border-strong: color-mix(in srgb, var(--color-muted) 45%, var(--color-border));
+  --color-hover: color-mix(in srgb, var(--color-accent) 7%, var(--color-surface));
+  --radius-control: min(var(--radius), 10px);
+  --shadow-color: 260deg 40% 20%;
+  --shadow-sm: 0 1px 2px hsl(var(--shadow-color) / 6%), 0 1px 3px hsl(var(--shadow-color) / 5%);
+  --shadow-md: 0 2px 4px hsl(var(--shadow-color) / 6%), 0 8px 20px hsl(var(--shadow-color) / 8%);
+  --shadow-lg: 0 12px 32px hsl(var(--shadow-color) / 18%), 0 2px 6px hsl(var(--shadow-color) / 8%);
+  --focus-ring: 0 0 0 3px color-mix(in srgb, var(--color-accent) 35%, transparent);
+  --ease: 150ms cubic-bezier(0.2, 0, 0, 1);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -30,6 +44,7 @@
     --color-border: #2f2742;
     --color-integrity-bg: #2a1d4d;
     --color-integrity-text: #e9e0ff;
+    --shadow-color: 260deg 60% 2%;
   }
 }
 
@@ -38,6 +53,10 @@
   --color-bg: #ffffff;
   --color-muted: #222222;
   --color-border: #000000;
+  --color-border-strong: #000000;
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: none;
 }
 
 :root[data-text-scale='small'] {

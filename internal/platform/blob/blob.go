@@ -53,7 +53,7 @@ func New(c *config.Config, b config.BlobConfig, log *slog.Logger) (Store, error)
 	switch b.Driver {
 	case config.BlobFS:
 		if c.Prod() {
-			if !c.AllowFSBlob || c.Scanner.Driver != config.ScannerPhotoDNA {
+			if !c.AllowFSBlob || (c.Scanner.Driver != config.ScannerPhotoDNA && !c.UnscannedMedia()) {
 				return nil, errFSNotAllowed
 			}
 			if log != nil {

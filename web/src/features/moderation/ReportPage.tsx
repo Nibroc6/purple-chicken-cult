@@ -2,7 +2,8 @@
 // to moderators only and never name the reporter. The server answers the same
 // way whether or not the target exists or is visible, so the page only ever
 // says "sent". kind=inviter carries the INVITEE's ref (the inviter is never
-// addressable, §3).
+// addressable, §3). In the app the same form opens as a modal (ReportModal);
+// the page is for links.
 import { useMutation } from '@tanstack/react-query';
 import { useId, useState, type SyntheticEvent } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -30,7 +31,7 @@ export default function ReportPage() {
   return (
     <section className="page moderation-page" data-testid="report-page">
       {isTargetKind(kind) && isRef(ref) ? (
-        <ReportForm kind={kind} target={ref} />
+        <ReportPageForm kind={kind} target={ref} />
       ) : (
         <>
           <h1>{t('report.title')}</h1>
@@ -44,9 +45,28 @@ export default function ReportPage() {
   );
 }
 
-function ReportForm({ kind, target }: { kind: TargetKind; target: string }) {
-  const { t } = useTranslation(['moderation', 'errors']);
+function ReportPageForm({ kind, target }: { kind: TargetKind; target: string }) {
+  const { t } = useTranslation('moderation');
   const navigate = useNavigate();
+  return (
+    <>
+      {/* i18n-dynamic: moderation:report.heading. */}
+      <h1>{t(`report.heading.${kind}`)}</h1>
+      <ReportForm
+        kind={kind}
+        target={target}
+        onBack={() => {
+          void navigate(-1);
+        }}
+      />
+    </>
+  );
+}
+
+// ReportForm is the report flow under its heading: what happens, the reason,
+// an optional note, and "sent". onBack leaves it (cancel, or after sending).
+export function ReportForm({ kind, target, onBack }: { kind: TargetKind; target: string; onBack: () => void }) {
+  const { t } = useTranslation(['moderation', 'errors']);
   const noteId = useId();
   const [reason, setReason] = useState<ReportReason>(defaultReason(kind));
   const [note, setNote] = useState('');
@@ -57,13 +77,9 @@ function ReportForm({ kind, target }: { kind: TargetKind; target: string }) {
     e.preventDefault();
     if (!tooLong) send.mutate();
   };
-  const back = () => {
-    void navigate(-1);
-  };
+  const back = onBack;
   return (
     <>
-      {/* i18n-dynamic: moderation:report.heading. */}
-      <h1>{t(`report.heading.${kind}`)}</h1>
       {/* i18n-dynamic: moderation:report.about. */}
       <p className="muted">{t(`report.about.${kind}`)}</p>
       {send.isSuccess ? (

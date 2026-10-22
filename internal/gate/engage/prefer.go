@@ -11,8 +11,11 @@ import (
 // memoKids2 keys KidsN with grandchildren (gens = 2, P1) apart from direct KidsN.
 const memoKids2 uint8 = 32
 
-// likeSignal is the signal of a like (§5.2; a save, P1, adds 2).
-const likeSignal = 1.0
+// Signals of one engager (§5.2): a like 1, a save 2, at most SignalCap together.
+const (
+	likeSignal = 1.0
+	saveSignal = 2.0
+)
 
 // N returns network preference n for p as seen from sr (§5.2, Phase 0 subset
 // §5.5), memoized per (snapshot, post):
@@ -24,8 +27,8 @@ const likeSignal = 1.0
 // post's author and for accounts on probation (or not active); all invitees of
 // one inviter together contribute at most 4 units. Likes from farther away, or
 // from people the reader cannot reach, never count, so n only ever reflects the
-// reader's own 2-hop aggregate (§2.2(6)). Phase 0 signals are likes (+1); P1
-// adds saves (+2).
+// reader's own 2-hop aggregate (§2.2(6)). Signals are a like (+1) and a save
+// (+2). Saves enter only this sum: they are never displayed or counted alone.
 func (s *Service) N(ctx context.Context, sr core.Search, p core.Checked, memo *core.Memo) float64 {
 	pm := p.Meta()
 	key := core.MemoKey{Kind: core.MemoN, Post: pm.ID}
@@ -35,10 +38,13 @@ func (s *Service) N(ctx context.Context, sr core.Search, p core.Checked, memo *c
 		}
 	}
 	l1, l2 := sr.LayerBitmap(1), sr.LayerBitmap(2)
-	var near1, near2 *roaring.Bitmap
-	s.withLikers(ctx, []core.PostID{pm.ID}, func(_ core.PostID, b *roaring.Bitmap) {
-		near1, near2 = roaring.And(b, l1), roaring.And(b, l2)
+	near := roaring.Or(l1, l2)
+	var liked, saved *roaring.Bitmap
+	s.withEngagers(ctx, []core.PostID{pm.ID}, func(_ core.PostID, e *engagers) {
+		liked, saved = roaring.And(e.likes, near), roaring.And(e.saves, near)
 	})
+	engaged := roaring.Or(liked, saved)
+	near1, near2 := roaring.And(engaged, l1), roaring.And(engaged, l2)
 	now := s.now()
 	byInviter := map[core.UserID]float64{}
 	var n float64
@@ -55,7 +61,14 @@ func (s *Service) N(ctx context.Context, sr core.Search, p core.Checked, memo *c
 			if err != nil || meta.Status != core.StatusActive || meta.OnProbation(now) {
 				return true
 			}
-			units := proximity * min(SignalCap, likeSignal)
+			var sig float64
+			if liked.Contains(x) {
+				sig += likeSignal
+			}
+			if saved.Contains(x) {
+				sig += saveSignal
+			}
+			units := proximity * min(SignalCap, sig)
 			if inv, ok := s.d.Users.InviterOf(u); ok && inv != 0 {
 				byInviter[inv] += units
 				return true

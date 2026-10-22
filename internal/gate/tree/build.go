@@ -152,7 +152,7 @@ func (s *Service) candidate(ctx context.Context, sr core.Search, sn *snapshot, c
 	}
 	return rank.Candidate{
 		Key: [16]byte(m.ID), Author: uint32(m.Author), CreatedAt: m.CreatedAt, IsReply: s.visibleReply(ctx, sr, m),
-		N: s.d.Prefer.N(ctx, sr, c, sn.memo), KidsN: s.d.Prefer.KidsN(ctx, sr, c, sn.memo, 1),
+		N: s.d.Prefer.N(ctx, sr, c, sn.memo), KidsN: s.d.Prefer.KidsN(ctx, sr, c, sn.memo, kidsGens),
 		FirstHopPlus: sr.FirstHopPlus(m.Author), FirstHopSince: sn.hops[fh], FirstHopID: uint32(fh),
 		ShowLess: sn.showLess[m.Author],
 	}

@@ -15,69 +15,65 @@ import (
 	"time"
 
 	"github.com/RoaringBitmap/roaring/v2"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/internal/core"
-	"github.com/Nibroc6/purple-chicken-cult/internal/gate/internal/coreref"
 	"github.com/Nibroc6/purple-chicken-cult/internal/platform/logx"
 	"github.com/Nibroc6/purple-chicken-cult/internal/store"
 )
 
 // Job kinds registered by the invites module (plan §4.3).
-const JobProbationEvaluate = "probation.evaluate"
-
-// Budget, probation and handshake parameters (plan §4.7 invites, §8, D23).
 const (
-	TokenEvery        = 24 * time.Hour // +1 invite per day
-	DefaultCap        = 3
-	GenesisCap        = 5
-	FriendCap         = 1000 // own edges + outgoing pending requests (D23)
-	ProbationFor      = 7 * 24 * time.Hour
-	OutsideFriends    = 3 // edges to users outside the own invite subtree
-	FrameWindow       = 10 * time.Second
-	OpenTTL           = 10 * time.Minute // an unclaimed handshake
-	ClaimedTTL        = 15 * time.Minute // a claimed handshake must finish registration
-	HandleTries       = 10               // handle_taken answers per handshake (D21)
+	JobProbationEvaluate = "probation.evaluate"
+	JobDiversity         = "invites.diversity"
+)
+
+// Budget, probation and handshake parameters (plan §4.7 invites, §7, §8, D23).
+const (
+	TokenEvery     = 24 * time.Hour // +1 invite per day (× the diversity multiplier)
+	DefaultCap     = 3
+	GenesisCap     = 5
+	FriendCap      = 1000                // own edges + outgoing pending requests (D23)
+	ProbationFor   = 30 * 24 * time.Hour // Phase 1 rule: 30 days and 3 friend+ edges outside the own subtree
+	ProbationForP0 = 7 * 24 * time.Hour  // Phase 0 rule (accounts mid-probation at the cut-over)
+	OutsideFriends = 3                   // edges to users outside the own invite subtree
+	OpenTTL        = 10 * time.Minute    // an unclaimed handshake
+	ClaimedTTL     = 15 * time.Minute    // a claimed handshake must finish (sound, registration, co-signing)
+	HandleTries    = 10                  // handle_taken answers per handshake (D21)
+
+	FrameEvery    = 250 * time.Millisecond // client-rendered QR frames
+	FrameMaxAge   = 4                      // frames: the camera saw the screen within ~1 s (server clock)
+	FrameMaxAhead = 1                      // frames a device may run early
+	MaxAttempts   = 5                      // sound (or dual-QR) attempts per handshake
+	AudioBound    = 5 * time.Second        // server-measured report_at − play_at
+	LayerBound    = 3 * time.Second        // a layer decoded later than this (client timing) fails
+	SyncMaxMs     = 100                    // |offset| for the "both layers in sync" bonus
+	TimingBucket  = 250 * time.Millisecond // records keep timings in these buckets
+
+	DiversityTarget = 0.5  // share of edges outside the inviter's subtree that earns the full rate
+	DiversityFloor  = 0.25 // slowest rate (one invite in four days)
+
 	ProbationJobEvery = 24 * time.Hour
+	DiversityJobEvery = 24 * time.Hour
 	notifyRedeemed    = "invite_redeemed"
-	metricRedeemed    = "invites.redeemed"
-	liveTopic         = "handshake"
+	// notifyFriendUpgrade and topicFriendUpgrade offer the scanner to the
+	// other side of an upgrade (notify.KindFriendUpgrade, TopicFriendUpgrade).
+	notifyFriendUpgrade = "friend_upgrade"
+	topicFriendUpgrade  = "friend_upgrade"
+	metricRedeemed      = "invites.redeemed"
+	liveTopic           = "handshake"
 )
 
-// handshake_sessions.kind and .state values.
+// users.probation_rule values.
 const (
-	kindInvite int16 = 0
-
-	stOpen      int16 = 0
-	stClaimed   int16 = 1
-	stConfirmed int16 = 2
-	stDone      int16 = 3
-	stCancelled int16 = 4
-	stExpired   int16 = 5
+	RuleP0 int16 = 0
+	RuleP1 int16 = 1
 )
-
-func stateName(st int16) string {
-	switch st {
-	case stClaimed:
-		return "claimed"
-	case stConfirmed:
-		return "confirmed"
-	case stDone:
-		return "done"
-	case stCancelled:
-		return "cancelled"
-	case stExpired:
-		return "expired"
-	}
-	return "open"
-}
 
 // Service is the invites module.
 type Service struct {
-	d  *core.Deps
-	hs *coreref.MemHandshakes
+	d *core.Deps
 }
 
 var (
@@ -87,20 +83,24 @@ var (
 )
 
 // New returns the service.
-func New(d *core.Deps) *Service { return &Service{d: d, hs: &coreref.MemHandshakes{D: d}} }
+func New(d *core.Deps) *Service { return &Service{d: d} }
 
-// Init registers probation.evaluate (daily) and the EdgeAdded hook: a new edge
-// can be the one that ends either side's probation.
+// Init registers the co-sign purposes, probation.evaluate and
+// invites.diversity (daily) and the edge hooks: a new or upgraded edge can be
+// the one that ends either side's probation.
 func (s *Service) Init(context.Context) error {
+	s.registerPurposes()
 	if s.d.Bus != nil {
-		core.Subscribe(s.d.Bus, func(e core.EdgeAdded) {
+		eval := func(us ...core.UserID) {
 			ctx := context.Background()
-			for _, u := range []core.UserID{e.A, e.B} {
+			for _, u := range us {
 				if _, err := s.evaluate(ctx, u); err != nil && s.d.Log != nil {
 					s.d.Log.Error("invites: probation evaluation failed", logx.UID(uint32(u)), "err", err)
 				}
 			}
-		})
+		}
+		core.Subscribe(s.d.Bus, func(e core.EdgeAdded) { eval(e.A, e.B) })
+		core.Subscribe(s.d.Bus, func(e core.EdgeUpgraded) { eval(e.A, e.B) })
 	}
 	if s.d.Jobs == nil {
 		return nil
@@ -110,6 +110,11 @@ func (s *Service) Init(context.Context) error {
 		return err
 	})
 	s.d.Jobs.Every(JobProbationEvaluate, ProbationJobEvery)
+	s.d.Jobs.Handle(JobDiversity, func(ctx context.Context, _ json.RawMessage) error {
+		_, err := s.EvaluateDiversity(ctx)
+		return err
+	})
+	s.d.Jobs.Every(JobDiversity, DiversityJobEvery)
 	return nil
 }
 
@@ -133,6 +138,7 @@ func notFoundOr(err error) error {
 // budget is one invite_budgets row with the accrual applied at now.
 type budget struct {
 	tokens    float64 // accrued, capped
+	diversity float64 // accrual multiplier (§8 diversity decay)
 	cap       int
 	paused    *time.Time
 	revoked   bool
@@ -149,7 +155,7 @@ func (b budget) available() int {
 }
 
 // loadBudget reads (creating it on first use) u's bucket and applies the
-// accrual at now. lock takes the row lock for a spend. A new bucket starts full
+// accrual at now (one token per TokenEvery, times the diversity multiplier). lock takes the row lock for a spend. A new bucket starts full
 // for genesis accounts, empty during probation (clearance sets one token) and
 // with one token otherwise.
 func (s *Service) loadBudget(ctx context.Context, q store.Q, m core.UserMeta, now time.Time, lock bool) (budget, error) {
@@ -164,16 +170,17 @@ func (s *Service) loadBudget(ctx context.Context, q store.Q, m core.UserMeta, no
 		ON CONFLICT (user_id) DO NOTHING`, int64(m.ID), start, int16(cap), now); err != nil {
 		return budget{}, err
 	}
-	sql := "SELECT tokens, cap, refreshed_at, paused_until, revoked FROM invite_budgets WHERE user_id = $1"
+	sql := "SELECT tokens, cap, refreshed_at, paused_until, revoked, diversity FROM invite_budgets WHERE user_id = $1"
 	if lock {
-		sql = "SELECT tokens, cap, refreshed_at, paused_until, revoked FROM invite_budgets WHERE user_id = $1 FOR UPDATE"
+		sql = "SELECT tokens, cap, refreshed_at, paused_until, revoked, diversity FROM invite_budgets WHERE user_id = $1 FOR UPDATE"
 	}
 	var (
 		b       budget
 		cap16   int16
 		refresh time.Time
 	)
-	if err := q.QueryRow(ctx, sql, int64(m.ID)).Scan(&b.tokens, &cap16, &refresh, &b.paused, &b.revoked); err != nil {
+	if err := q.QueryRow(ctx, sql, int64(m.ID)).Scan(&b.tokens, &cap16, &refresh, &b.paused, &b.revoked,
+		&b.diversity); err != nil {
 		return budget{}, err
 	}
 	b.cap = int(cap16)
@@ -184,15 +191,16 @@ func (s *Service) loadBudget(ctx context.Context, q store.Q, m core.UserMeta, no
 	if b.probation || b.revoked || b.paused != nil {
 		return b, nil // nothing accrues while invites are locked
 	}
+	b.diversity = min(max(b.diversity, DiversityFloor), 1)
 	if el := now.Sub(refresh); el > 0 {
-		b.tokens += float64(el) / float64(TokenEvery)
+		b.tokens += float64(el) / float64(TokenEvery) * b.diversity
 	}
 	if b.tokens >= float64(b.cap) {
 		b.tokens = float64(b.cap)
 		return b, nil
 	}
 	frac := b.tokens - math.Floor(b.tokens)
-	next := now.Add(time.Duration((1 - frac) * float64(TokenEvery)))
+	next := now.Add(time.Duration((1 - frac) * float64(TokenEvery) / b.diversity))
 	if t := next.Truncate(time.Second); t.Before(next) {
 		next = t.Add(time.Second) // a countdown never reaches zero early
 	}
@@ -223,15 +231,28 @@ func (s *Service) Budget(ctx context.Context) (gate.BudgetView, error) {
 		return gate.BudgetView{}, err
 	}
 	out := gate.BudgetView{Available: b.available(), Cap: b.cap, PausedUntil: b.paused, Revoked: b.revoked}
+	if s.d.Limits != nil {
+		a, ok, err := s.d.Limits.WriteAllowance(ctx, v, core.WriteKind("invite_handshake"))
+		if err != nil {
+			return gate.BudgetView{}, err
+		}
+		if ok {
+			out.Attempts = &gate.AllowanceView{Available: a.Available, Cap: a.Cap, NextAt: a.NextAt}
+		}
+	}
 	if !b.probation && !b.revoked && b.paused == nil {
 		out.NextAt = b.nextAt
 	}
 	if b.probation {
-		need, err := s.needOutside(ctx, v.ID)
+		rule, err := s.rule(ctx, v.ID)
 		if err != nil {
 			return gate.BudgetView{}, err
 		}
-		out.Probation = &gate.ProbationView{Until: *m.ProbationUntil, NeedOutsideFriends: need}
+		need, err := s.needOutside(ctx, v.ID, rule)
+		if err != nil {
+			return gate.BudgetView{}, err
+		}
+		out.Probation = &gate.ProbationView{Until: *m.ProbationUntil, NeedOutsideFriends: need, FriendPlus: rule == RuleP1}
 	}
 	return out, nil
 }
@@ -339,8 +360,26 @@ func (s *Service) Subtree(ctx context.Context, root core.UserID) (*roaring.Bitma
 	return out, rows.Err()
 }
 
-// Reset puts users back on probation until until (P1 quarantine). Their
-// buckets empty; clearance grants one token again.
+// Penalize records one invite-tree quarantine offense of inviter in tx
+// (core.InvitePenalties; steward body, contract request p1-w06-1): the first
+// offense pauses its invites until until, any later one revokes them.
+func (s *Service) Penalize(ctx context.Context, tx store.Q, inviter core.UserID, until time.Time) (int, error) {
+	var n int16
+	err := s.q(tx).QueryRow(ctx, `INSERT INTO invite_budgets (user_id, tokens, refreshed_at, paused_until, offenses)
+		VALUES ($1, 0, $2, $3, 1)
+		ON CONFLICT (user_id) DO UPDATE SET offenses = invite_budgets.offenses + 1,
+			paused_until = CASE WHEN invite_budgets.offenses = 0 THEN EXCLUDED.paused_until ELSE invite_budgets.paused_until END,
+			revoked = invite_budgets.revoked OR invite_budgets.offenses >= 1
+		RETURNING offenses`, int64(inviter), s.d.Clock.Now(), until).Scan(&n)
+	if err != nil {
+		return 0, err
+	}
+	s.d.Bus.Publish(core.UserChanged{ID: inviter})
+	return int(n), nil
+}
+
+// Reset puts users back on probation until until (P1 quarantine), under the
+// Phase 1 rule. Their buckets empty; clearance grants one token again.
 func (s *Service) Reset(ctx context.Context, tx store.Q, users []core.UserID, until time.Time) error {
 	if len(users) == 0 {
 		return nil
@@ -350,8 +389,8 @@ func (s *Service) Reset(ctx context.Context, tx store.Q, users []core.UserID, un
 	for i, u := range users {
 		ids[i] = int64(u)
 	}
-	if _, err := q.Exec(ctx, `UPDATE users SET probation_until = $2, probation_cleared_at = NULL
-		WHERE id = ANY($1) AND NOT is_genesis`, ids, until); err != nil {
+	if _, err := q.Exec(ctx, `UPDATE users SET probation_until = $2, probation_cleared_at = NULL, probation_rule = $3
+		WHERE id = ANY($1) AND NOT is_genesis`, ids, until, RuleP1); err != nil {
 		return err
 	}
 	if _, err := q.Exec(ctx, "UPDATE invite_budgets SET tokens = 0, refreshed_at = $2 WHERE user_id = ANY($1)",
@@ -362,26 +401,4 @@ func (s *Service) Reset(ctx context.Context, tx store.Q, users []core.UserID, un
 		s.d.Bus.Publish(core.UserChanged{ID: u})
 	}
 	return nil
-}
-
-// ---- core.Handshakes (P1-W02) ----
-
-// OpenUpgrade opens a friend+ upgrade handshake.
-func (s *Service) OpenUpgrade(ctx context.Context, v core.Viewer, peer core.UserID) (gate.HandshakeView, error) {
-	return s.hs.OpenUpgrade(ctx, v, peer)
-}
-
-// OpenRecovery opens a guardian recovery handshake.
-func (s *Service) OpenRecovery(ctx context.Context, guardian, account core.UserID) (gate.HandshakeView, error) {
-	return s.hs.OpenRecovery(ctx, guardian, account)
-}
-
-// ClaimRecovery claims a recovery handshake from a guest session.
-func (s *Service) ClaimRecovery(ctx context.Context, sess [32]byte, payload string) (core.UserID, error) {
-	return s.hs.ClaimRecovery(ctx, sess, payload)
-}
-
-// Result returns a handshake's outcome.
-func (s *Service) Result(ctx context.Context, hs uuid.UUID) (core.Outcome, error) {
-	return s.hs.Result(ctx, hs)
 }

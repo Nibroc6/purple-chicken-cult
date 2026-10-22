@@ -18,6 +18,28 @@
 //     pseudonyms; a handle appears only to viewers who have that person in their
 //     horizon.
 //
+// Phase 1 (P1-W06):
+//   - One queue (mod_queue) for reports, CSAM holds, behavioral signals
+//     (gate/signals/behavior), step-up repeats and invite clusters, csam first;
+//     a moderator may claim an item for an hour. CSAM items show the hold's
+//     match metadata (core.CSAMHolds), never content or a media URL.
+//   - Two-person actions (suspend_user, the csam_report filing, dismissing a
+//     CSAM hold, quarantine_subtree) wait 24 h for a second, different
+//     moderator, who co-signs the exact ModAction record with their own passkey
+//     (core.Cosign, purpose mod_action, security #30); the record is stored
+//     signed. Sessions without a passkey (test hooks only) fall back to the P0
+//     fresh step-up.
+//   - Invite-tree quarantine (§8): once ≥ PCC_QUARANTINE_K accounts of an
+//     inviter's subtree are confirmed bad (suspended by two moderators since
+//     its last quarantine), two moderators can send the subtree back to
+//     probation and pause the inviter's invites for 30 days; a second offense
+//     revokes them. Nothing outside the subtree changes.
+//   - A confirmed suspension marks the inviter "invited a removed account" for
+//     90 days, visible only to the users in the removed account's component at
+//     that moment (removed_account_marks.viewers) and to moderators.
+//   - Nothing reaches an inviter (blame entry, notification, mark) before a
+//     moderator confirmed the action.
+//
 // Owner: P0-W12 → P1-W06.
 package moderation
 
@@ -36,16 +58,20 @@ import (
 
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/internal/core"
-	"github.com/Nibroc6/purple-chicken-cult/internal/gate/internal/coreref"
-	"github.com/Nibroc6/purple-chicken-cult/internal/store"
 )
 
-// Actions (mod_actions.action, the P0 subset a moderator resolves with).
+// Actions (mod_actions.action).
 const (
 	ActionRemovePost  = "remove_post"
 	ActionSuspendUser = "suspend_user"
 	ActionDismiss     = "dismiss"
+	ActionQuarantine  = "quarantine_subtree"
+	ActionCSAMReport  = "csam_report"
 )
+
+// PurposeModAction is the co-sign purpose of the second moderator's
+// confirmation (core.CosignPurposes; the record is a ModAction).
+const PurposeModAction = "mod_action"
 
 // Report target kinds (API name → reports.target_kind).
 const (
@@ -82,11 +108,18 @@ const (
 	LogPage   = 50
 	// PseudonymBytes of HMAC(PseudonymKey, user) name a log subject.
 	PseudonymBytes = 6
+	// ClaimFor is how long a moderator's claim on a queue item holds.
+	ClaimFor = time.Hour
+	// QuarantineFor is the quarantine's probation and invite pause (§8).
+	QuarantineFor = 30 * 24 * time.Hour
+	// MarkFor is how long an "invited a removed account" mark lasts (§8).
+	MarkFor = 90 * 24 * time.Hour
 )
 
 // Jobs.
 const (
-	// JobExpire marks two-person actions older than SecondWithin expired.
+	// JobExpire marks two-person actions older than SecondWithin expired and
+	// deletes removed-account marks past their 90 days.
 	JobExpire = "moderation.expire"
 	// ExpireEvery is the moderation.expire period.
 	ExpireEvery = time.Hour
@@ -94,29 +127,39 @@ const (
 
 // Service is the moderation module.
 type Service struct {
-	d     *core.Deps
-	queue *coreref.MemModQueue
+	d *core.Deps
 }
 
-var _ core.ModQueue = (*Service)(nil)
+var (
+	_ core.ModQueue     = (*Service)(nil)
+	_ core.RemovedMarks = (*Service)(nil)
+)
 
 // New returns the service.
-func New(d *core.Deps) *Service { return &Service{d: d, queue: &coreref.MemModQueue{}} }
+func New(d *core.Deps) *Service { return &Service{d: d} }
 
-// Init registers moderation.expire.
+// Init registers moderation.expire and the mod_action co-sign purpose.
 func (s *Service) Init(context.Context) error {
 	if s.d.Jobs != nil {
 		s.d.Jobs.Handle(JobExpire, func(ctx context.Context, _ json.RawMessage) error { return s.Expire(ctx) })
 		s.d.Jobs.Every(JobExpire, ExpireEvery)
 	}
+	if s.d.CosignPurposes != nil {
+		s.d.CosignPurposes.RegisterPurpose(PurposeModAction, core.RecModAction, s.modActionDraft)
+	}
 	return nil
 }
 
 // Expire marks two-person actions that waited longer than SecondWithin expired
-// (moderation.expire). Confirm checks the deadline itself as well.
+// and deletes expired removed-account marks (moderation.expire). Confirm and
+// Marked check the deadlines themselves as well.
 func (s *Service) Expire(ctx context.Context) error {
-	_, err := s.d.DB.Q().Exec(ctx, "UPDATE mod_actions SET state = $1 WHERE state = $2 AND created_at <= $3",
-		actionExpired, actionPending, s.d.Clock.Now().Add(-SecondWithin))
+	now := s.d.Clock.Now()
+	if _, err := s.d.DB.Q().Exec(ctx, "UPDATE mod_actions SET state = $1 WHERE state = $2 AND created_at <= $3",
+		actionExpired, actionPending, now.Add(-SecondWithin)); err != nil {
+		return err
+	}
+	_, err := s.d.DB.Q().Exec(ctx, "DELETE FROM removed_account_marks WHERE expires_at <= $1", now)
 	return err
 }
 
@@ -133,10 +176,12 @@ func validReason[T ~string](list []T, r string) bool {
 
 // GrantModerator makes handle a moderator (CLI `pcc mod grant`). by must be an
 // existing active admin; bootstrap makes handle the first admin and works only
-// while no admin exists. users.role is this module's column (plan §3.4).
+// while no admin exists. users.role is this module's column (plan §3.4). A
+// change of role is logged like one made on the roles page (roles.go); a
+// handle that already has the role (or a higher one) changes nothing.
 func (s *Service) GrantModerator(ctx context.Context, handle, by string, bootstrap bool) error {
-	handle = strings.ToLower(strings.TrimPrefix(strings.TrimSpace(handle), "@"))
-	by = strings.ToLower(strings.TrimPrefix(strings.TrimSpace(by), "@"))
+	handle, by = canonHandle(handle), canonHandle(by)
+	now := s.d.Clock.Now()
 	var id int64
 	err := s.d.DB.TxSerializable(ctx, func(tx pgx.Tx) error {
 		var admins int
@@ -144,26 +189,37 @@ func (s *Service) GrantModerator(ctx context.Context, handle, by string, bootstr
 			int16(core.RoleAdmin), int16(core.StatusActive)).Scan(&admins); err != nil {
 			return err
 		}
-		role := int16(core.RoleModerator)
+		role, action := int16(core.RoleModerator), ActionGrantModerator
+		var byID int64
 		if bootstrap {
 			if admins > 0 {
 				return errors.New("moderation: an admin already exists; use --by")
 			}
-			role = int16(core.RoleAdmin)
+			role, action = int16(core.RoleAdmin), ActionGrantAdmin
 		} else {
 			var byRole int16
-			err := tx.QueryRow(ctx, "SELECT role FROM users WHERE handle_canon = $1 AND status = $2", by,
-				int16(core.StatusActive)).Scan(&byRole)
+			err := tx.QueryRow(ctx, "SELECT id, role FROM users WHERE handle_canon = $1 AND status = $2", by,
+				int16(core.StatusActive)).Scan(&byID, &byRole)
 			if err != nil || byRole != int16(core.RoleAdmin) {
 				return errors.New("moderation: --by must name an active admin")
 			}
 		}
-		err := tx.QueryRow(ctx, "UPDATE users SET role = GREATEST(role, $2) WHERE handle_canon = $1 AND status = $3 RETURNING id",
-			handle, role, int16(core.StatusActive)).Scan(&id)
+		var old int16
+		err := tx.QueryRow(ctx, "SELECT id, role FROM users WHERE handle_canon = $1 AND status = $2 FOR UPDATE",
+			handle, int16(core.StatusActive)).Scan(&id, &old)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return gate.ErrNotFound
 		}
-		return err
+		if err != nil || old >= role {
+			return err
+		}
+		if _, err := tx.Exec(ctx, "UPDATE users SET role = $2 WHERE id = $1", id, role); err != nil {
+			return err
+		}
+		if bootstrap {
+			byID = id
+		}
+		return s.logRoleChange(ctx, tx, core.UserID(byID), core.UserID(id), action, nil, now) //nolint:gosec // users.id < 2^32 (DB CHECK)
 	})
 	if err != nil {
 		return err
@@ -277,11 +333,4 @@ func (s *Service) freshModerator(ctx context.Context) (core.Viewer, error) {
 		return core.Viewer{}, err
 	}
 	return core.RequireFresh(ctx, s.d.Clock.Now())
-}
-
-// ---- core.ModQueue (P1-W06) ----
-
-// Enqueue adds a moderation queue item (P1-W06; the reference keeps it in memory).
-func (s *Service) Enqueue(ctx context.Context, tx store.Q, item core.ModQueueItem) error {
-	return s.queue.Enqueue(ctx, tx, item)
 }

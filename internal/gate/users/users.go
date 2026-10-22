@@ -233,7 +233,10 @@ func (s *Service) Create(ctx context.Context, tx store.Q, u core.NewUser) (core.
 		v := int64(u.InvitedBy)
 		invitedBy = &v
 	}
-	ext := s.d.IDs.New()
+	ext := u.ExtID // reserved by the caller (P1 signup ceremony), else generated
+	if ext == uuid.Nil {
+		ext = s.d.IDs.New()
+	}
 	if ext == uuid.Nil {
 		ext = uuid.Must(uuid.NewV7())
 	}

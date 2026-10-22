@@ -285,6 +285,48 @@ func (x *Index) WindowScan(fn func(core.PostMeta) bool) {
 	}
 }
 
+// ByAuthor returns author's live posts after after, in the requested order,
+// from the database (the whole history, not only the window). Without a
+// database (tests) it lists the window.
+func (x *Index) ByAuthor(ctx context.Context, author core.UserID, after *core.PostMeta, oldestFirst bool, limit int) ([]core.PostMeta, error) {
+	if x.d.DB == nil {
+		return x.byAuthorWindow(author, after, oldestFirst, limit), nil
+	}
+	sql := byAuthorNewestSQL
+	if oldestFirst {
+		sql = byAuthorOldestSQL
+	}
+	var (
+		at *time.Time
+		id *string
+	)
+	if after != nil {
+		t, s := after.CreatedAt, after.ID.String()
+		at, id = &t, &s
+	}
+	return loadMetas(ctx, x.d.DB.Q(), sql, int64(author), at, id, limit)
+}
+
+func (x *Index) byAuthorWindow(author core.UserID, after *core.PostMeta, oldestFirst bool, limit int) []core.PostMeta {
+	ids := x.Recent(author)
+	if oldestFirst {
+		slices.Reverse(ids)
+	}
+	x.mu.Lock()
+	defer x.mu.Unlock()
+	var out []core.PostMeta
+	for _, id := range ids {
+		m, ok := x.win[id]
+		if !ok || (after != nil && !core.PostsBefore(*after, m, oldestFirst)) {
+			continue
+		}
+		if out = append(out, m); limit > 0 && len(out) == limit {
+			break
+		}
+	}
+	return out
+}
+
 // WindowSize is the number of window posts (no copy: the planner asks for
 // every tier it plans).
 func (x *Index) WindowSize() int {

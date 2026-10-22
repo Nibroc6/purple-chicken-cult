@@ -1,8 +1,110 @@
 # OpenAPI fragment of the push module (plan §5.3). Owner: P1-W05.
 # Paths are relative to /api. Schemas: module-prefixed names in this file, or
 # $ref: '_common.yaml#/components/schemas/X'. Validated on its own by apitest.
+#
+# Web Push fails closed (D20): without VAPID keys /push/key says
+# {enabled:false} and subscribing answers feature_disabled. A subscription
+# belongs to the caller's account and session: logging out removes it, and
+# re-subscribing an endpoint someone else holds moves it to the caller (the
+# other account stops receiving). Messages carry server-rendered catalog text
+# in the recipient's ui_locale (only the generic text with hide_content), never
+# post bodies, encrypted and padded to a fixed size for the push service.
 openapi: 3.0.3
 info:
   title: pcc internal API (push)
   version: "0"
-paths: {}
+paths:
+  /push/key:
+    get:
+      operationId: pushKey
+      summary: Whether push is enabled, and the VAPID application server key
+      responses:
+        "200":
+          description: The key (absent when push is disabled)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PushKeyOut' }
+  /push/subscriptions:
+    get:
+      operationId: pushSubscriptionState
+      summary: The caller's server-side state of one endpoint (free)
+      description: >-
+        An endpoint the caller does not hold (unknown, removed at logout, or
+        moved to another account) is subscribed:false.
+      parameters:
+        - { name: endpoint, in: query, required: true, schema: { type: string, maxLength: 2048 } }
+      responses:
+        "200":
+          description: The state
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PushState' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "422": { $ref: '#/components/responses/PushInvalid' }
+    post:
+      operationId: pushSubscribe
+      summary: Store this device's subscription for the caller's account and session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '_common.yaml#/components/schemas/PushSub' }
+      responses:
+        "204": { description: "Subscribed (or updated, or moved to the caller)" }
+        "400": { $ref: '_common.yaml#/components/responses/Problem' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409": { $ref: '#/components/responses/PushDisabled' }
+        "422": { $ref: '#/components/responses/PushInvalid' }
+        "429": { $ref: '#/components/responses/PushRateLimited' }
+    delete:
+      operationId: pushUnsubscribe
+      summary: Remove the caller's subscription of an endpoint (works with push disabled)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PushEndpointIn' }
+      responses:
+        "204": { description: "Removed (or the caller did not hold it)" }
+        "400": { $ref: '_common.yaml#/components/responses/Problem' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "422": { $ref: '#/components/responses/PushInvalid' }
+        "429": { $ref: '#/components/responses/PushRateLimited' }
+components:
+  responses:
+    PushDisabled:
+      description: '{"error":"feature_disabled","feature":"push"} — push fails closed without VAPID keys'
+      content:
+        application/json:
+          schema: { $ref: '_common.yaml#/components/schemas/Error' }
+    PushInvalid:
+      description: push_endpoint_invalid (not an https push service URL) or push_keys_invalid
+      content:
+        application/json:
+          schema: { $ref: '_common.yaml#/components/schemas/Error' }
+    PushRateLimited:
+      description: rate_limited (account writes, 50/day).
+      content:
+        application/json:
+          schema: { $ref: '_common.yaml#/components/schemas/Error' }
+  schemas:
+    PushKeyOut:
+      type: object
+      additionalProperties: false
+      required: [enabled]
+      properties:
+        enabled: { type: boolean }
+        key: { type: string, description: VAPID public key (base64url uncompressed P-256 point) }
+    PushState:
+      type: object
+      additionalProperties: false
+      required: [subscribed, hide_content]
+      properties:
+        subscribed: { type: boolean }
+        hide_content: { type: boolean }
+    PushEndpointIn:
+      type: object
+      additionalProperties: false
+      required: [endpoint]
+      properties:
+        endpoint: { type: string, maxLength: 2048 }

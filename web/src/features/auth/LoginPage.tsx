@@ -9,7 +9,7 @@ import { Navigate, useNavigate } from 'react-router';
 import { Loading } from '../../app/Loading';
 import { sessionKey, useSession } from '../../app/session';
 import { loginBegin, loginFinish, type SessionView } from './api';
-import { authErrorKey } from './vm';
+import { authError, type ErrorMsg } from './vm';
 import { autofillSupported, cancelCeremony, getAssertion } from './webauthn';
 import './auth.css';
 
@@ -25,7 +25,7 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const inputId = useId();
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | undefined>();
+  const [err, setErr] = useState<ErrorMsg | undefined>();
   // The autofill ceremony: a button press waits for its begin, then supersedes it.
   const autofill = useRef<Autofill | null>(null);
   const signedOut = session.data?.authenticated === false;
@@ -53,7 +53,7 @@ export default function LoginPage() {
         if (stale()) return;
         await doneRef.current(await loginFinish(credential));
       } catch (e) {
-        if (!stale()) setErr(authErrorKey(e));
+        if (!stale()) setErr(authError(e));
       }
     };
     void run();
@@ -80,7 +80,7 @@ export default function LoginPage() {
       const credential = await getAssertion(options);
       await doneRef.current(await loginFinish(credential));
     } catch (e) {
-      setErr(authErrorKey(e));
+      setErr(authError(e));
       setBusy(false);
     }
   };
@@ -104,7 +104,7 @@ export default function LoginPage() {
       </form>
       {err ? (
         <p className="auth-error" role="alert">
-          {t(err as 'errors:unknown')}
+          {t(err.key as 'errors:unknown', err.params)}
         </p>
       ) : null}
       <p className="muted">{t('login.noAccount')}</p>

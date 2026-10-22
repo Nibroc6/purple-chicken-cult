@@ -7,12 +7,15 @@ package authapi
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 
 	"github.com/Nibroc6/purple-chicken-cult/internal/api"
 	"github.com/Nibroc6/purple-chicken-cult/internal/api/apix"
+	"github.com/Nibroc6/purple-chicken-cult/internal/gate"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/auth"
+	"github.com/Nibroc6/purple-chicken-cult/internal/platform/dbsc"
 	"github.com/Nibroc6/purple-chicken-cult/internal/platform/httpx"
 )
 
@@ -23,9 +26,20 @@ type credentialIn struct {
 	Credential json.RawMessage `json:"credential"`
 }
 
+// passkeyIn finishes a passkey addition: the new credential (and its name),
+// or — for a session that must co-sign — the intent and assertion of the
+// PasskeyChange record.
 type passkeyIn struct {
-	Credential json.RawMessage `json:"credential"`
-	Name       string          `json:"name"`
+	Credential json.RawMessage `json:"credential,omitempty"`
+	Name       string          `json:"name,omitempty"`
+	Intent     gate.Ref        `json:"intent,omitempty"`
+	Assertion  json.RawMessage `json:"assertion,omitempty"`
+}
+
+// cosignIn is the optional co-signature of a passkey removal.
+type cosignIn struct {
+	Intent    gate.Ref        `json:"intent"`
+	Assertion json.RawMessage `json:"assertion"`
 }
 
 type enrollBeginIn struct {
@@ -33,10 +47,11 @@ type enrollBeginIn struct {
 }
 
 type enrollFinishIn struct {
-	Credential  json.RawMessage `json:"credential"`
-	RemoveOld   bool            `json:"remove_old"`
-	TOSVersion  int             `json:"tos_version"`
-	AgeAttested bool            `json:"age_attested"`
+	Credential json.RawMessage `json:"credential"`
+	// RemoveOld is accepted and ignored: recovery keeps the old passkeys.
+	RemoveOld   bool `json:"remove_old"`
+	TOSVersion  int  `json:"tos_version"`
+	AgeAttested bool `json:"age_attested"`
 }
 
 type optionsOut struct {
@@ -55,6 +70,7 @@ func Register(r chi.Router, d *api.Deps) {
 		if err != nil {
 			return err
 		}
+		offer(w, d.Auth.DBSCOffer(r.Context(), ""))
 		return apix.JSON(w, http.StatusOK, sv)
 	})
 	apix.Route(r, http.MethodPost, "/auth/logout", apix.Free, func(w http.ResponseWriter, r *http.Request) error {
@@ -62,6 +78,7 @@ func Register(r chi.Router, d *api.Deps) {
 			return err
 		}
 		httpx.ClearSessionCookie(w, secure)
+		dbsc.ClearBoundCookie(w, secure)
 		return apix.NoContent(w)
 	})
 
@@ -87,11 +104,12 @@ func Register(r chi.Router, d *api.Deps) {
 			return err
 		}
 		httpx.SetSessionCookie(w, tok, auth.MaxAge("user"), secure)
+		offer(w, d.Auth.DBSCOffer(r.Context(), tok))
 		return apix.JSON(w, http.StatusOK, sv)
 	})
 
 	// Step-up (D27): an assertion over the viewer's own credentials.
-	apix.Route(r, http.MethodPost, "/auth/stepup/begin", apix.Write("account"), func(w http.ResponseWriter, r *http.Request) error {
+	apix.Route(r, http.MethodPost, "/auth/stepup/begin", apix.Step("account"), func(w http.ResponseWriter, r *http.Request) error {
 		if _, err := apix.Decode[struct{}](r, 0); err != nil {
 			return err
 		}
@@ -101,7 +119,7 @@ func Register(r chi.Router, d *api.Deps) {
 		}
 		return apix.JSON(w, http.StatusOK, optionsOut{Options: opts})
 	})
-	apix.Route(r, http.MethodPost, "/auth/stepup/finish", apix.Write("account"), func(w http.ResponseWriter, r *http.Request) error {
+	apix.Route(r, http.MethodPost, "/auth/stepup/finish", apix.Step("account"), func(w http.ResponseWriter, r *http.Request) error {
 		in, err := apix.Decode[credentialIn](r, WebAuthnMax)
 		if err != nil {
 			return err
@@ -130,21 +148,55 @@ func Register(r chi.Router, d *api.Deps) {
 		}
 		return apix.JSON(w, http.StatusOK, optionsOut{Options: opts})
 	})
-	apix.Route(r, http.MethodPost, "/auth/passkeys/finish", apix.Write("account"), func(w http.ResponseWriter, r *http.Request) error {
+	apix.Route(r, http.MethodPost, "/auth/passkeys/finish", apix.Step("account"), func(w http.ResponseWriter, r *http.Request) error {
 		in, err := apix.Decode[passkeyIn](r, WebAuthnMax)
 		if err != nil {
 			return err
 		}
-		if err := d.Auth.AddPasskeyFinish(r.Context(), in.Credential, in.Name); err != nil {
+		res, err := d.Auth.AddPasskeyFinish(r.Context(), in.Credential, in.Name, in.Intent, in.Assertion)
+		if err != nil {
 			return err
+		}
+		if res.Cosign != "" {
+			return apix.JSON(w, http.StatusAccepted, res)
 		}
 		return apix.NoContent(w)
 	})
 	apix.Route(r, http.MethodDelete, "/auth/passkeys/{id}", apix.Write("account"), func(w http.ResponseWriter, r *http.Request) error {
-		if err := d.Auth.RemovePasskey(r.Context(), apix.Ref(r, "id")); err != nil {
+		var in cosignIn
+		if r.ContentLength != 0 {
+			var err error
+			if in, err = apix.Decode[cosignIn](r, WebAuthnMax); err != nil {
+				return err
+			}
+		}
+		if err := d.Auth.RemovePasskey(r.Context(), apix.Ref(r, "id"), in.Intent, in.Assertion); err != nil {
 			return err
 		}
 		return apix.NoContent(w)
+	})
+
+	// Device Bound Session Credentials (P1): called by the browser itself; the
+	// proof is the JWT in Sec-Session-Response (plan §5.3).
+	apix.Route(r, http.MethodPost, "/auth/dbsc/register", apix.Anon("dbsc"), func(w http.ResponseWriter, r *http.Request) error {
+		v, err := d.Auth.DBSCRegister(r.Context(), proof(r))
+		if err != nil {
+			return err
+		}
+		dbsc.SetBoundCookie(w, v.Token, secure)
+		return apix.JSON(w, http.StatusOK, v.Config)
+	})
+	apix.Route(r, http.MethodPost, "/auth/dbsc/refresh", apix.Anon("dbsc"), func(w http.ResponseWriter, r *http.Request) error {
+		v, err := d.Auth.DBSCRefresh(r.Context(), proof(r))
+		if err != nil {
+			return err
+		}
+		if v.Challenge != "" {
+			w.Header().Set(dbsc.HeaderChallenge, v.Challenge)
+			return apix.JSON(w, http.StatusUnauthorized, challengeOut{Error: "dbsc_challenge"})
+		}
+		dbsc.SetBoundCookie(w, v.Token, secure)
+		return apix.JSON(w, http.StatusOK, v.Config)
 	})
 
 	// Enrollment (genesis and recovery): the token comes from the URL fragment.
@@ -167,11 +219,33 @@ func Register(r chi.Router, d *api.Deps) {
 		if err != nil {
 			return err
 		}
-		tok, sv, err := d.Auth.EnrollFinish(r.Context(), in.Credential, in.RemoveOld, in.TOSVersion, in.AgeAttested)
+		tok, sv, err := d.Auth.EnrollFinish(r.Context(), in.Credential, in.TOSVersion, in.AgeAttested)
 		if err != nil {
 			return err
 		}
 		httpx.SetSessionCookie(w, tok, auth.MaxAge("user"), secure)
+		offer(w, d.Auth.DBSCOffer(r.Context(), tok))
 		return apix.JSON(w, http.StatusOK, sv)
 	})
+}
+
+// challengeOut is the body of a refresh that needs a proof first.
+type challengeOut struct {
+	Error string `json:"error"`
+}
+
+// offer sends a DBSC registration offer, if any.
+func offer(w http.ResponseWriter, h string) {
+	if h != "" {
+		w.Header().Set(dbsc.HeaderRegistration, h)
+	}
+}
+
+// proof is the DBSC JWT of a request (header Sec-Session-Response), bounded.
+func proof(r *http.Request) []byte {
+	v := r.Header.Get(dbsc.HeaderResponse)
+	if len(v) > dbsc.MaxJWT {
+		return nil
+	}
+	return []byte(strings.Trim(v, `"`))
 }

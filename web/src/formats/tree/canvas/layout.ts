@@ -1,0 +1,358 @@
+// Node layout of the reply-tree canvas (pure; §10.1.4). One band per
+// generation, top to bottom as the tree's rows come; in each band the row's
+// centered post sits on the vertical axis and the others alternate right and
+// left of it in ranked order, so the focal post and the line through its
+// parents and replies run down the middle. Edges follow the rows' meaning: a
+// row at or below the focal row holds replies to the centered post of the row
+// above; a row above holds parents of the post below it (the focal post for
+// "replying to", the centered parent further up). The focal post's other
+// parents join it with an "also" edge. A post already shown higher up ("shown
+// above", a diamond) gets no second node: its edge goes, dashed, to the node it
+// already has. Edges are routed as family-tree elbows (down, across, down) so
+// siblings hang from one shared line. Owner: P1-W09.
+import type { Ref, TreeItemVM, TreeRowVM, TreeVM } from '../../../vm/types';
+
+export const NODE_W = 208;
+export const NODE_H = 96;
+export const GAP_X = 32;
+export const ROW_H = 168;
+export const PAD = 64;
+// RADIUS rounds an elbow's corners.
+export const RADIUS = 10;
+
+export interface CanvasNode {
+  ref: Ref;
+  gen: number;
+  x: number; // center
+  y: number; // center
+  centered: boolean;
+  focal: boolean;
+  tier: number;
+  handle: string;
+  name: string;
+  excerpt: string;
+  replies: number;
+}
+
+export type EdgeKind = 'reply' | 'also' | 'above';
+
+export interface CanvasEdge {
+  from: Ref; // upper end
+  to: Ref; // lower end
+  kind: EdgeKind;
+}
+
+export interface CanvasMore {
+  gen: number;
+  center: Ref;
+  cursor?: string;
+  x: number;
+  y: number;
+  count: number;
+}
+
+export interface Bounds {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export interface CanvasLayout {
+  nodes: CanvasNode[];
+  edges: CanvasEdge[];
+  more: CanvasMore[];
+  bounds: Bounds;
+  byRef: Map<Ref, CanvasNode>;
+}
+
+// slotOffset is a slot's place on the axis: 0, then +1, -1, +2, -2, …
+export function slotOffset(rank: number): number {
+  if (rank === 0) return 0;
+  const step = Math.ceil(rank / 2);
+  return rank % 2 === 1 ? step : -step;
+}
+
+const EXCERPT = 56;
+// LINE is how many characters of an excerpt fit on one line of a card.
+export const LINE = 27;
+
+// excerpt is the first words of a post body's text (the parsed Markdown tree;
+// anything without text yields nothing).
+export function excerpt(nodes: readonly unknown[] | undefined): string {
+  let out = '';
+  const walk = (n: unknown): void => {
+    if (out.length > EXCERPT) return;
+    if (typeof n === 'string') {
+      out += `${n} `;
+      return;
+    }
+    if (n === null || typeof n !== 'object') return;
+    const o = n as {
+      v?: unknown;
+      text?: unknown;
+      c?: unknown;
+      lines?: unknown;
+      items?: unknown;
+    };
+    if (typeof o.v === 'string') out += o.v;
+    else if (typeof o.text === 'string') out += o.text;
+    for (const k of [o.c, o.lines, o.items]) if (Array.isArray(k)) k.forEach(walk);
+    out += ' ';
+  };
+  (nodes ?? []).forEach(walk);
+  const s = out.replace(/\s+/g, ' ').trim();
+  return s.length > EXCERPT ? `${s.slice(0, EXCERPT - 1).trimEnd()}…` : s;
+}
+
+// lines wraps an excerpt into at most max lines of about width characters,
+// breaking between words (a word longer than a line is cut), the last line
+// ending in an ellipsis when text is left over.
+export function lines(text: string, width = LINE, max = 2): string[] {
+  const out: string[] = [];
+  let rest = text.trim();
+  while (rest !== '' && out.length < max) {
+    if (rest.length <= width) {
+      out.push(rest);
+      rest = '';
+      break;
+    }
+    let cut = rest.lastIndexOf(' ', width);
+    if (cut <= 0) cut = width;
+    out.push(rest.slice(0, cut).trimEnd());
+    rest = rest.slice(cut).trimStart();
+  }
+  if (rest !== '' && out.length > 0) {
+    const last = out[out.length - 1] ?? '';
+    out[out.length - 1] = `${(last.length >= width ? last.slice(0, width - 1) : last).trimEnd()}…`;
+  }
+  return out;
+}
+
+// Centers gives the centered post of a row: the chosen one, else its first post.
+export type Centers = (row: TreeRowVM) => Ref | undefined;
+
+// A post's slot on the canvas while laying out: its row, the band it ends up
+// in, and its parents on the canvas (the row's parent first).
+interface Slot {
+  it: TreeItemVM;
+  gen: number;
+  center: boolean;
+  band: number;
+  moved: boolean;
+  parents: Ref[];
+}
+
+export function layoutTree(tree: TreeVM, centered: Centers): CanvasLayout {
+  const nodes: CanvasNode[] = [];
+  const edges: CanvasEdge[] = [];
+  const more: CanvasMore[] = [];
+  const byRef = new Map<Ref, CanvasNode>();
+  const centers = new Map<number, Ref>();
+  for (const row of tree.rows) {
+    const c = centered(row) ?? row.items.find((i) => !i.shownAbove)?.post.ref;
+    if (c) centers.set(row.gen, c);
+  }
+
+  // Each post once, in its row's band: the centered post first, then the rest
+  // in ranked order. A reply's parents are the row's centered post above plus
+  // its other visible parents.
+  const slots: Slot[] = [];
+  const slotOf = new Map<Ref, Slot>();
+  tree.rows.forEach((row, band) => {
+    const center = centers.get(row.gen);
+    const own = row.items.filter((i) => !i.shownAbove);
+    const ordered = [...own.filter((i) => i.post.ref === center), ...own.filter((i) => i.post.ref !== center)];
+    for (const it of ordered) {
+      if (slotOf.has(it.post.ref)) continue;
+      const above = centers.get(row.gen - 1);
+      const parents = row.gen >= 0 ? [...(above ? [above] : []), ...it.alsoParents.filter((p) => p !== above)] : [];
+      const sl: Slot = { it, gen: row.gen, center: it.post.ref === center, band, moved: false, parents };
+      slots.push(sl);
+      slotOf.set(it.post.ref, sl);
+    }
+  });
+  // A reply sits one band below its lowest parent (and its own replies below
+  // it in turn), so it hangs from every parent it has on the canvas.
+  for (let changed = true, pass = 0; changed && pass <= slots.length; pass++) {
+    changed = false;
+    for (const sl of slots) {
+      for (const p of sl.parents) {
+        const ps = slotOf.get(p);
+        if (ps && ps.band >= sl.band) {
+          sl.band = ps.band + 1;
+          sl.moved = true;
+          changed = true;
+        }
+      }
+    }
+  }
+
+  // Slots per band: the band's own posts in order, then the ones moved into it.
+  const bands = new Map<number, Slot[]>();
+  for (const sl of [...slots.filter((x) => !x.moved), ...slots.filter((x) => x.moved)]) {
+    bands.set(sl.band, [...(bands.get(sl.band) ?? []), sl]);
+  }
+  const maxOffset = new Map<number, number>();
+  for (const [band, list] of bands) {
+    list.forEach((sl, rank) => {
+      const off = slotOffset(rank);
+      maxOffset.set(band, Math.max(maxOffset.get(band) ?? 0, off));
+      const p = sl.it.post;
+      const n: CanvasNode = {
+        ref: p.ref,
+        gen: sl.gen,
+        x: off * (NODE_W + GAP_X),
+        y: band * ROW_H,
+        centered: sl.center,
+        focal: p.ref === tree.focal,
+        tier: p.tier,
+        handle: p.author.handle,
+        name: p.author.displayName,
+        excerpt: excerpt(p.body?.nodes),
+        replies: p.replyCount,
+      };
+      nodes.push(n);
+      byRef.set(n.ref, n);
+    });
+  }
+  tree.rows.forEach((row, band) => {
+    if (row.more > 0) {
+      more.push({
+        gen: row.gen,
+        center: row.center,
+        ...(row.cursor ? { cursor: row.cursor } : {}),
+        x: ((maxOffset.get(band) ?? 0) + 1) * (NODE_W + GAP_X),
+        y: band * ROW_H,
+        count: row.more,
+      });
+    }
+  });
+
+  const seen = new Set<string>();
+  const add = (from: Ref | undefined, to: Ref | undefined, kind: EdgeKind) => {
+    if (!from || !to || from === to || !byRef.has(from) || !byRef.has(to)) return;
+    const k = `${from}>${to}`;
+    if (seen.has(k)) return;
+    seen.add(k);
+    edges.push({ from, to, kind });
+  };
+  for (const sl of slots) {
+    const ref = sl.it.post.ref;
+    if (sl.gen >= 0) {
+      sl.parents.forEach((p, i) => {
+        add(p, ref, i === 0 ? 'reply' : 'also');
+      });
+    } else if (sl.gen === -1) {
+      // The primary parent carries the focal row; the others join the focal post.
+      add(ref, tree.focal, ref === centers.get(-1) ? 'reply' : 'also');
+    } else {
+      add(ref, centers.get(sl.gen + 1), 'reply');
+    }
+  }
+  // A post shown again further down keeps one node; its second spot is a
+  // dashed line to it, unless a parent line already joins the two.
+  for (const row of tree.rows) {
+    for (const it of row.items) {
+      if (!it.shownAbove) continue;
+      if (row.gen >= 0) add(centers.get(row.gen - 1), it.post.ref, 'above');
+      else add(it.post.ref, row.gen === -1 ? tree.focal : centers.get(row.gen + 1), 'above');
+    }
+  }
+
+  const xs = [...nodes.map((n) => n.x), ...more.map((m) => m.x)];
+  const ys = nodes.map((n) => n.y);
+  const minX = Math.min(0, ...xs) - NODE_W / 2 - PAD;
+  const maxX = Math.max(0, ...xs) + NODE_W / 2 + PAD;
+  const minY = Math.min(0, ...ys) - NODE_H / 2 - PAD;
+  const maxY = Math.max(0, ...ys) + NODE_H / 2 + PAD;
+  return {
+    nodes,
+    edges,
+    more,
+    byRef,
+    bounds: { x: minX, y: minY, w: maxX - minX, h: maxY - minY },
+  };
+}
+
+const n2 = (v: number) => String(Math.round(v * 10) / 10);
+
+// elbow runs vertically from (x1, y1) to the line at my, across, and
+// vertically on to (x2, y2), with rounded corners.
+function elbow(x1: number, y1: number, x2: number, y2: number, my: number): string {
+  const dx = x2 - x1;
+  if (Math.abs(dx) < 1) return `M ${n2(x1)} ${n2(y1)} V ${n2(y2)}`;
+  const v1 = Math.sign(my - y1) || 1;
+  const v2 = Math.sign(y2 - my) || 1;
+  const r = Math.min(RADIUS, Math.abs(dx) / 2, Math.abs(my - y1), Math.abs(y2 - my));
+  const s = Math.sign(dx);
+  return [
+    `M ${n2(x1)} ${n2(y1)}`,
+    `V ${n2(my - v1 * r)}`,
+    `Q ${n2(x1)} ${n2(my)} ${n2(x1 + s * r)} ${n2(my)}`,
+    `H ${n2(x2 - s * r)}`,
+    `Q ${n2(x2)} ${n2(my)} ${n2(x2)} ${n2(my + v2 * r)}`,
+    `V ${n2(y2)}`,
+  ].join(' ');
+}
+
+// polyline joins points by straight lines with rounded corners.
+function polyline(pts: [number, number][]): string {
+  const out: string[] = [];
+  pts.forEach(([x, y], i) => {
+    const prev = pts[i - 1];
+    const next = pts[i + 1];
+    if (!prev) {
+      out.push(`M ${n2(x)} ${n2(y)}`);
+      return;
+    }
+    if (!next) {
+      out.push(`L ${n2(x)} ${n2(y)}`);
+      return;
+    }
+    const r = Math.min(RADIUS, Math.hypot(x - prev[0], y - prev[1]) / 2, Math.hypot(next[0] - x, next[1] - y) / 2);
+    const back = (p: [number, number]) => [x + Math.sign(p[0] - x) * r, y + Math.sign(p[1] - y) * r];
+    const [bx, by] = back(prev);
+    const [fx, fy] = back(next);
+    out.push(`L ${n2(bx ?? x)} ${n2(by ?? y)}`, `Q ${n2(x)} ${n2(y)} ${n2(fx ?? x)} ${n2(fy ?? y)}`);
+  });
+  return out.join(' ');
+}
+
+// LOOP is how far below a row a line between two of its posts runs.
+const LOOP = 20;
+
+// route is the SVG path of an edge from a (the parent) to b (the reply). From
+// a row to the one below, it runs from the bottom of a down to a line between
+// the rows, across, and down to the top of b: replies share the line halfway
+// down, so siblings hang from one line; "also" edges cross a third of the way
+// down, apart from the focal row's siblings. A "shown above" edge whose reply
+// sits in the same row loops under the row, and one whose reply sits higher
+// up runs from the top of a up to the bottom of b.
+export function route(a: { x: number; y: number }, b: { x: number; y: number }, kind: EdgeKind): string {
+  if (b.y > a.y) {
+    const y1 = a.y + NODE_H / 2;
+    const y2 = b.y - NODE_H / 2;
+    const share = kind === 'also' ? 0.35 : 0.5;
+    if (y2 - y1 <= ROW_H) return elbow(a.x, y1, b.x, y2, y1 + (y2 - y1) * share);
+    // Across more than one band: down to the gap under a, along to a lane
+    // between two columns of cards, down it, and along the gap above b.
+    const gap = ROW_H - NODE_H;
+    const lane = b.x + (Math.sign(a.x - b.x) || 1) * ((NODE_W + GAP_X) / 2);
+    return polyline([
+      [a.x, y1],
+      [a.x, y1 + gap * share],
+      [lane, y1 + gap * share],
+      [lane, y2 - gap * share],
+      [b.x, y2 - gap * share],
+      [b.x, y2],
+    ]);
+  }
+  if (b.y === a.y) {
+    const y = a.y + NODE_H / 2;
+    return elbow(a.x, y, b.x, y, y + LOOP);
+  }
+  const y1 = a.y - NODE_H / 2;
+  const y2 = b.y + NODE_H / 2;
+  return elbow(a.x, y1, b.x, y2, (y1 + y2) / 2);
+}

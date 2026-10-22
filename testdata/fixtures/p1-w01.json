@@ -1,0 +1,5 @@
+{
+  "users": [
+    { "handle": "bob", "name": "Bob", "preset": "latest" }
+  ]
+}

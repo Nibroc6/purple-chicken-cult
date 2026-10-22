@@ -34,6 +34,10 @@
   gap: var(--space-1);
 }
 
+.post-lang-auto {
+  margin: 0;
+}
+
 .post-field textarea {
   font: inherit;
   inline-size: 100%;
@@ -108,4 +112,10 @@
 .post-offer p {
   margin: 0;
   flex-basis: 100%;
+}
+
+.post-preview-media {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }

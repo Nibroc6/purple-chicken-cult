@@ -23,6 +23,7 @@ import (
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/internal/coreref"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/wire"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/wire/wiretest"
+	"github.com/Nibroc6/purple-chicken-cult/internal/platform/dbsc"
 	"github.com/Nibroc6/purple-chicken-cult/internal/platform/httpx"
 )
 
@@ -38,9 +39,9 @@ type env struct {
 	ended []core.SessionEnded
 }
 
-func newEnv(t *testing.T) *env {
+func newEnv(t *testing.T, opts ...wiretest.Option) *env {
 	t.Helper()
-	a := wiretest.NewApp(t)
+	a := wiretest.NewApp(t, opts...)
 	d := a.Deps()
 	rec := &coreref.RecordingNotifier{D: d}
 	d.Notify = rec
@@ -94,14 +95,25 @@ func (e *env) authn() *authtest.Authenticator { return authtest.New(e.d.Cfg.Orig
 type client struct {
 	e      *env
 	cookie string
+	// authn is the authenticator that created the session (its passkey
+	// co-signs the session's passkey changes).
+	authn *authtest.Authenticator
+	// bound is the DBSC bound cookie (P1).
+	bound string
 }
 
 // ctx returns the request context the middleware builds for the cookie.
-func (c *client) ctx() context.Context {
+func (c *client) ctx() context.Context { return c.ctxAt(http.MethodPost, "/api/x") }
+
+// ctxAt is ctx for a request to method path.
+func (c *client) ctxAt(method, path string) context.Context {
 	c.e.t.Helper()
-	req := httptest.NewRequest(http.MethodPost, "/api/x", nil)
+	req := httptest.NewRequest(method, path, nil)
 	if c.cookie != "" {
 		req.AddCookie(&http.Cookie{Name: httpx.CookieName(false), Value: c.cookie}) //nolint:gosec // test request
+	}
+	if c.bound != "" {
+		req.AddCookie(&http.Cookie{Name: dbsc.BoundCookieName(false), Value: c.bound}) //nolint:gosec // test request
 	}
 	var got context.Context
 	c.e.a.Auth.Middleware(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) { got = r.Context() })).
@@ -131,14 +143,14 @@ func (e *env) enroll(handle string, a *authtest.Authenticator) (*client, core.Us
 	if err != nil {
 		e.t.Fatal(err)
 	}
-	sess, sv, err := e.a.Auth.EnrollFinish(c.ctx(), resp, false, e.d.Cfg.TOSVersion, true)
+	sess, sv, err := e.a.Auth.EnrollFinish(c.ctx(), resp, e.d.Cfg.TOSVersion, true)
 	if err != nil {
 		e.t.Fatalf("enroll finish: %v", err)
 	}
 	if !sv.Authenticated || sv.Me == nil || sv.Me.Handle != handle || sv.CSRF == "" {
 		e.t.Fatalf("enroll session %+v", sv)
 	}
-	c.cookie = sess
+	c.cookie, c.authn = sess, a
 	id, ok := e.a.Users.ByHandle(e.ctx, handle)
 	if !ok {
 		e.t.Fatal("no user")
@@ -166,8 +178,39 @@ func (e *env) login(a *authtest.Authenticator) (*client, error) {
 	if !sv.Authenticated || sv.Kind != "user" || sv.CSRF == "" {
 		e.t.Fatalf("login session %+v", sv)
 	}
-	c.cookie = tok
+	c.cookie, c.authn = tok, a
 	return c, nil
+}
+
+// hookSession is a credential-less, fresh session of handle (test hooks).
+func (e *env) hookSession(handle string) *client {
+	e.t.Helper()
+	tok, _ := wiretest.Login(e.t, e.a, handle)
+	return &client{e: e, cookie: tok}
+}
+
+// cosign opens an intent of c for purpose and signs it with signer.
+func (e *env) cosign(c *client, signer *authtest.Authenticator, purpose string, target gate.Ref) (gate.Ref, []byte, error) {
+	e.t.Helper()
+	in, err := e.a.Cosign.Begin(c.ctx(), purpose, target)
+	if err != nil {
+		return "", nil, err
+	}
+	resp, err := signer.Get(in.Options)
+	if err != nil {
+		return "", nil, err
+	}
+	return in.Intent, resp, nil
+}
+
+// removePasskey removes id from c's account, co-signed with c's passkey.
+func (e *env) removePasskey(c *client, id gate.Ref) error {
+	e.t.Helper()
+	intent, assertion, err := e.cosign(c, c.authn, auth.PurposePasskeyRemove, id)
+	if err != nil {
+		return err
+	}
+	return e.a.Auth.RemovePasskey(c.ctx(), id, intent, assertion)
 }
 
 // stepUp runs the step-up ceremony with a.
@@ -195,7 +238,17 @@ func (e *env) addPasskey(c *client, a *authtest.Authenticator, name string) erro
 	if err != nil {
 		return err
 	}
-	return e.a.Auth.AddPasskeyFinish(c.ctx(), resp, name)
+	res, err := e.a.Auth.AddPasskeyFinish(c.ctx(), resp, name, "", nil)
+	if err != nil || res.Cosign == "" {
+		return err
+	}
+	// A passkey session co-signs the PasskeyChange with its existing passkey.
+	intent, assertion, err := e.cosign(c, c.authn, res.Cosign, "")
+	if err != nil {
+		return err
+	}
+	_, err = e.a.Auth.AddPasskeyFinish(c.ctx(), nil, "", intent, assertion)
+	return err
 }
 
 func wantNotFound(t *testing.T, err error) {
@@ -479,7 +532,7 @@ func TestStepUpAndAddPasskey(t *testing.T) {
 	if !errors.Is(err, gate.ErrStepUp) {
 		t.Fatalf("add without fresh auth: %v", err)
 	}
-	if err := e.a.Auth.AddPasskeyFinish(c.ctx(), []byte(`{}`), ""); !errors.Is(err, gate.ErrStepUp) {
+	if _, err := e.a.Auth.AddPasskeyFinish(c.ctx(), []byte(`{}`), "", "", nil); !errors.Is(err, gate.ErrStepUp) {
 		t.Fatalf("add finish without fresh auth: %v", err)
 	}
 
@@ -578,7 +631,9 @@ func TestStepUpAndAddPasskey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantNotFound(t, e.a.Auth.RemovePasskey(bc.ctx(), list[0].ID))
+	wantNotFound(t, e.a.Auth.RemovePasskey(bc.ctx(), list[0].ID, "", nil))
+	_, _, err = e.cosign(bc, b, auth.PurposePasskeyRemove, list[0].ID)
+	wantNotFound(t, err)
 }
 
 func TestRemovePasskey(t *testing.T) {
@@ -606,15 +661,18 @@ func TestRemovePasskey(t *testing.T) {
 		t.Fatalf("passkeys from s2 %+v", list)
 	}
 	e.advance(core.FreshFor + time.Second)
-	if err := e.a.Auth.RemovePasskey(s2.ctx(), list[0].ID); !errors.Is(err, gate.ErrStepUp) {
-		t.Fatalf("remove without fresh auth: %v", err)
+	// A passkey session must co-sign; the co-signature is its fresh check.
+	if err := e.a.Auth.RemovePasskey(s2.ctx(), list[0].ID, "", nil); !errors.Is(err, gate.ErrStepUp) {
+		t.Fatalf("stale uncosigned remove: %v", err)
 	}
 	if err := e.stepUp(s2, a2); err != nil {
 		t.Fatal(err)
 	}
-	wantNotFound(t, e.a.Auth.RemovePasskey(s2.ctx(), "not-a-ref"))
+	wantNotFound(t, e.a.Auth.RemovePasskey(s2.ctx(), list[0].ID, "", nil))
+	e.advance(core.FreshFor + time.Second)
+	wantNotFound(t, e.removePasskey(s2, "not-a-ref"))
 	before := e.endedFor(alice)
-	if err := e.a.Auth.RemovePasskey(s2.ctx(), list[0].ID); err != nil {
+	if err := e.removePasskey(s2, list[0].ID); err != nil {
 		t.Fatal(err)
 	}
 	// Every session the removed credential authenticated is gone (s1 and the
@@ -634,7 +692,7 @@ func TestRemovePasskey(t *testing.T) {
 		t.Fatalf("removed passkey still logs in: %v", err)
 	}
 	// The last passkey cannot be removed.
-	wantProblem(t, e.a.Auth.RemovePasskey(s2.ctx(), list[1].ID), "last_passkey")
+	wantProblem(t, e.removePasskey(s2, list[1].ID), "last_passkey")
 	if n := e.count("SELECT count(*) FROM webauthn_credentials WHERE user_id = $1", int64(alice)); n != 1 {
 		t.Fatalf("%d credentials left", n)
 	}
@@ -663,9 +721,6 @@ func TestEnrollmentTokenBindingAndRules(t *testing.T) {
 		t.Fatal(err)
 	}
 	x.cookie = ev.Token
-	// Another browser cannot take the token over while x's session lives.
-	_, err = e.a.Auth.EnrollBegin((&client{e: e}).ctx(), tok)
-	wantNotFound(t, err)
 	// x may begin again (a reload) without a new session.
 	ev2, err := e.a.Auth.EnrollBegin(x.ctx(), tok)
 	if err != nil || ev2.Token != "" || ev2.CSRF != ev.CSRF {
@@ -676,21 +731,21 @@ func TestEnrollmentTokenBindingAndRules(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Genesis needs the current terms and the age attestation.
-	_, _, err = e.a.Auth.EnrollFinish(x.ctx(), resp, false, e.d.Cfg.TOSVersion-1, true)
+	_, _, err = e.a.Auth.EnrollFinish(x.ctx(), resp, e.d.Cfg.TOSVersion-1, true)
 	wantProblem(t, err, "tos_required")
-	_, _, err = e.a.Auth.EnrollFinish(x.ctx(), resp, false, e.d.Cfg.TOSVersion, false)
+	_, _, err = e.a.Auth.EnrollFinish(x.ctx(), resp, e.d.Cfg.TOSVersion, false)
 	wantProblem(t, err, "age_required")
 	// A session not bound to the token cannot finish.
-	_, _, err = e.a.Auth.EnrollFinish((&client{e: e}).ctx(), resp, false, e.d.Cfg.TOSVersion, true)
+	_, _, err = e.a.Auth.EnrollFinish((&client{e: e}).ctx(), resp, e.d.Cfg.TOSVersion, true)
 	wantNotFound(t, err)
-	tokUser, _, err := e.a.Auth.EnrollFinish(x.ctx(), resp, false, e.d.Cfg.TOSVersion, true)
+	tokUser, _, err := e.a.Auth.EnrollFinish(x.ctx(), resp, e.d.Cfg.TOSVersion, true)
 	if err != nil {
 		t.Fatal(err)
 	}
 	// Used: no second enrollment, from any session.
 	_, err = e.a.Auth.EnrollBegin((&client{e: e}).ctx(), tok)
 	wantNotFound(t, err)
-	_, _, err = e.a.Auth.EnrollFinish(x.ctx(), resp, false, e.d.Cfg.TOSVersion, true)
+	_, _, err = e.a.Auth.EnrollFinish(x.ctx(), resp, e.d.Cfg.TOSVersion, true)
 	wantNotFound(t, err)
 	if (&client{e: e, cookie: tokUser}).ctx() == nil {
 		t.Fatal("no context")
@@ -712,6 +767,48 @@ func TestEnrollmentTokenBindingAndRules(t *testing.T) {
 	wantNotFound(t, err)
 	e.advance(auth.EnrollTokenTTL + time.Second)
 	_, err = e.a.Auth.EnrollBegin((&client{e: e}).ctx(), tok2)
+	wantNotFound(t, err)
+}
+
+// A passkey prompt that failed in one browser must not lock the link: opening
+// it in another browser takes the binding over and ends the first session,
+// which can then no longer finish. The token is used only by a finish.
+func TestEnrollmentRetryFromAnotherBrowser(t *testing.T) {
+	e := newEnv(t)
+	a := e.authn()
+	tok, err := e.a.Auth.GenesisToken(e.ctx, "alice")
+	if err != nil {
+		t.Fatal(err)
+	}
+	x := &client{e: e}
+	ev, err := e.a.Auth.EnrollBegin(x.ctx(), tok)
+	if err != nil {
+		t.Fatal(err)
+	}
+	x.cookie = ev.Token
+	stale, err := a.Create(ev.Options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	y := &client{e: e}
+	ev, err = e.a.Auth.EnrollBegin(y.ctx(), tok)
+	if err != nil {
+		t.Fatalf("retry from another browser: %v", err)
+	}
+	y.cookie = ev.Token
+	if _, ok := x.viewer(); ok {
+		t.Fatal("the replaced enrollment session still lives")
+	}
+	_, _, err = e.a.Auth.EnrollFinish(x.ctx(), stale, e.d.Cfg.TOSVersion, true)
+	wantNotFound(t, err)
+	resp, err := a.Create(ev.Options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := e.a.Auth.EnrollFinish(y.ctx(), resp, e.d.Cfg.TOSVersion, true); err != nil {
+		t.Fatal(err)
+	}
+	_, err = e.a.Auth.EnrollBegin((&client{e: e}).ctx(), tok)
 	wantNotFound(t, err)
 }
 
@@ -742,7 +839,7 @@ func TestEnrollmentSessionExpiryReleasesBinding(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := e.a.Auth.EnrollFinish(y.ctx(), resp, false, e.d.Cfg.TOSVersion, true); err != nil {
+	if _, _, err := e.a.Auth.EnrollFinish(y.ctx(), resp, e.d.Cfg.TOSVersion, true); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -790,8 +887,8 @@ func TestRecoveryEnrollment(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := e.endedFor(alice)
-	// Recovery needs no terms (accepted at join); remove the old passkeys.
-	tokUser, sv, err := e.a.Auth.EnrollFinish(r.ctx(), resp, true, 0, false)
+	// Recovery needs no terms (accepted at join); the old passkeys stay.
+	tokUser, sv, err := e.a.Auth.EnrollFinish(r.ctx(), resp, 0, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -806,13 +903,7 @@ func TestRecoveryEnrollment(t *testing.T) {
 	if e.endedFor(alice)-before < 2 {
 		t.Fatal("no SessionEnded for revoked sessions")
 	}
-	if _, err := e.login(a); !errors.Is(err, gate.ErrNotFound) {
-		t.Fatal("removed old passkey still logs in")
-	}
-	if _, err := e.login(fresh); err != nil {
-		t.Fatal(err)
-	}
-	r.cookie = tokUser
+	r.cookie, r.authn = tokUser, fresh
 	if v, ok := r.viewer(); !ok || v.ID != alice {
 		t.Fatal("recovered session not live")
 	}
@@ -820,8 +911,83 @@ func TestRecoveryEnrollment(t *testing.T) {
 		t.Fatalf("friend notifications %+v", evs)
 	}
 	if n := e.count("SELECT count(*) FROM signed_records WHERE kind = $1 AND convert_from(body, 'UTF8')::jsonb->>'op' = 'remove'",
-		int16(core.RecPasskeyChange)); n != 1 {
+		int16(core.RecPasskeyChange)); n != 0 {
 		t.Fatalf("%d remove records", n)
+	}
+	// The old passkey still signs in (§10.3: recovery never removes it)...
+	old, err := e.login(a)
+	if err != nil {
+		t.Fatalf("old passkey after recovery: %v", err)
+	}
+	old.authn = a
+	list, err := e.a.Auth.Passkeys(r.ctx())
+	if err != nil || len(list) != 2 || !list[1].Current {
+		t.Fatalf("passkeys %+v %v", list, err)
+	}
+	// ...and the recovered passkey cannot remove it for RecoveryLockFor...
+	wantProblem(t, e.removePasskey(r, list[0].ID), "recovery_lock")
+	e.advance(auth.RecoveryLockFor - time.Hour)
+	if r, err = e.login(fresh); err != nil {
+		t.Fatal(err)
+	}
+	r.authn = fresh
+	wantProblem(t, e.removePasskey(r, list[0].ID), "recovery_lock")
+	// ...while the old one can remove the recovered one (it ends its sessions).
+	if old, err = e.login(a); err != nil {
+		t.Fatal(err)
+	}
+	old.authn = a
+	ol, err := e.a.Auth.Passkeys(old.ctx())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := e.removePasskey(old, ol[1].ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := r.viewer(); ok {
+		t.Fatal("the removed recovered passkey's session survived")
+	}
+}
+
+// After RecoveryLockFor the recovered passkey is an ordinary one.
+func TestRecoveryLockEnds(t *testing.T) {
+	e := newEnv(t)
+	a := e.authn()
+	_, alice := e.enroll("alice", a)
+	var tok string
+	if err := e.d.DB.Tx(e.ctx, func(tx pgx.Tx) error {
+		var err error
+		tok, err = e.d.Passkeys.IssueEnrollment(e.ctx, tx, alice, 1, time.Time{})
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	e.advance(time.Second)
+	r := &client{e: e}
+	ev, err := e.a.Auth.EnrollBegin(r.ctx(), tok)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.cookie = ev.Token
+	fresh := e.authn()
+	resp, err := fresh.Create(ev.Options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.cookie, _, err = e.a.Auth.EnrollFinish(r.ctx(), resp, 0, false); err != nil {
+		t.Fatal(err)
+	}
+	e.advance(auth.RecoveryLockFor + time.Second)
+	if r, err = e.login(fresh); err != nil {
+		t.Fatal(err)
+	}
+	r.authn = fresh
+	list, err := e.a.Auth.Passkeys(r.ctx())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := e.removePasskey(r, list[0].ID); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -833,26 +999,35 @@ func TestSessionLifetimes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Sliding: active use keeps the session past the idle limit...
+	// A session that is not device-bound is short (P1, §17.2(2)): active use
+	// does not keep it past ShortTTL after the last passkey verification...
 	for range 3 {
-		e.advance(9 * 24 * time.Hour)
+		e.advance(3 * time.Hour)
 		if _, ok := c.viewer(); !ok {
 			t.Fatal("active session expired")
 		}
 	}
-	// ...but never past the absolute limit.
-	e.advance(auth.UserAbsolute - 27*24*time.Hour)
-	if _, ok := c.viewer(); ok {
-		t.Fatal("session outlived the absolute limit")
+	// ...a re-verification (step-up) extends it ShortTTL from then...
+	if err := e.stepUp(c, a); err != nil {
+		t.Fatal(err)
 	}
-	// Idle: 14 days without use ends a session; the purge publishes SessionEnded.
+	e.advance(auth.ShortTTL - time.Minute)
+	if _, ok := c.viewer(); !ok {
+		t.Fatal("re-verified session expired early")
+	}
+	// ...and without one it ends.
+	e.advance(2 * time.Minute)
+	if _, ok := c.viewer(); ok {
+		t.Fatal("short session outlived ShortTTL")
+	}
+	// The purge publishes SessionEnded.
 	d, err := e.login(a)
 	if err != nil {
 		t.Fatal(err)
 	}
-	e.advance(auth.UserIdle + time.Second)
+	e.advance(auth.ShortTTL + time.Second)
 	if _, ok := d.viewer(); ok {
-		t.Fatal("idle session survived")
+		t.Fatal("short session survived")
 	}
 	before := e.endedFor(alice)
 	if err := e.a.Auth.PurgeExpired(e.ctx); err != nil {
@@ -902,7 +1077,7 @@ func TestMiddlewareCookies(t *testing.T) {
 	rec := run(c.cookie)
 	ck := rec.Result().Cookies()
 	if len(ck) != 1 || ck[0].Value != c.cookie || !ck[0].HttpOnly || ck[0].SameSite != http.SameSiteStrictMode ||
-		ck[0].MaxAge != int(auth.UserIdle/time.Second) {
+		ck[0].MaxAge != int((auth.ShortTTL-2*time.Minute)/time.Second) {
 		t.Fatalf("slid cookie %+v", ck)
 	}
 	if ck := run(c.cookie).Result().Cookies(); len(ck) != 0 {

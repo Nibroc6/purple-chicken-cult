@@ -16,9 +16,9 @@ export default function FriendsPage() {
   const people = q.data?.pages.flatMap((p) => p.items) ?? [];
   return (
     <section className="page people-page">
-      <h1>{t('friends.title')}</h1>
+      <h1>{t('nav.label')}</h1>
       <PeopleNav />
-      {q.isPending ? <Loading /> : q.error ? <ErrorText err={q.error} /> : <PeopleList people={people} empty={t('friends.empty')} />}
+      {q.isPending ? <Loading /> : q.error ? <ErrorText err={q.error} /> : <PeopleList people={people} empty={t('friends.empty')} emptyTip={t('friends.emptyTip')} />}
       {q.hasNextPage ? (
         <button
           type="button"

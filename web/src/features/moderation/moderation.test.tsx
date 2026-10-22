@@ -3,6 +3,9 @@
 // blame inbox, the moderator queue (members see nothing, remove_post only for
 // posts, two-person suspend with the second moderator's confirm, error codes),
 // the public log (names vs pseudonyms), the footer slot and a pseudo-locale pass.
+// P1-W06: the unified queue (csam holds without content, signals, claims), the
+// co-signed confirmation of a passkey session, the csam report and quarantine.
+// The admin roles page: the team, adding and removing moderators, the history.
 import { QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
@@ -10,24 +13,33 @@ import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../../api/errors';
 import { makeQueryClient } from '../../app/App';
+import { requestCosign } from '../cosign';
 import { i18n } from '../../i18n/setup';
 import {
+  actionsFor,
+  canQuarantine,
   codePoints,
+  reportRefOK,
   defaultReason,
   isRef,
   isTargetKind,
   modReasons,
   moderationErrorKey,
+  parseReport,
   reportReasons,
   type BlameItem,
   type LogItem,
   type ModItem,
+  type Staff,
 } from './api';
 import BlamePage from './BlamePage';
 import ModLogPage from './ModLogPage';
 import ModQueuePage from './ModQueuePage';
+import { ReportModal, useOpenReport } from './ReportModal';
 import ReportPage from './ReportPage';
-import { ModerationFooter } from './slots';
+import RolesPage from './RolesPage';
+
+vi.mock('../cosign', () => ({ requestCosign: vi.fn() }));
 
 const tr = i18n.t.bind(i18n) as unknown as (k: string, o?: Record<string, unknown>) => string;
 
@@ -162,6 +174,89 @@ describe('report page', () => {
     renderAt('/report?kind=person&ref=u1', <ReportPage />);
     fireEvent.click(await screen.findByRole('button', { name: tr('moderation:report.cancel') }));
     expect(await screen.findByTestId('home')).toBeTruthy();
+  });
+});
+
+describe('report modal', () => {
+  function Opener() {
+    const open = useOpenReport();
+    return (
+      <button
+        type="button"
+        data-testid="open-report"
+        onClick={() => {
+          open({ kind: 'post', ref: 'p1' });
+        }}
+      >
+        report
+      </button>
+    );
+  }
+
+  function renderPage(path: string) {
+    const router = createMemoryRouter(
+      [
+        {
+          path: '/',
+          element: (
+            <>
+              <p data-testid="home">home</p>
+              <Opener />
+              <ReportModal />
+            </>
+          ),
+        },
+      ],
+      { initialEntries: [path] },
+    );
+    render(
+      <QueryClientProvider client={makeQueryClient()}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>,
+    );
+    return router;
+  }
+
+  it('reads ?report=<kind>:<ref>', () => {
+    expect(parseReport('post:p1')).toEqual({ kind: 'post', ref: 'p1' });
+    expect(parseReport('inviter:a_b-c')).toEqual({ kind: 'inviter', ref: 'a_b-c' });
+    expect(parseReport('account:p1')).toBeUndefined();
+    expect(parseReport('post:')).toBeUndefined();
+    expect(parseReport('post')).toBeUndefined();
+    expect(parseReport(null)).toBeUndefined();
+  });
+
+  it('opens over the page, sends, and goes back to the page', async () => {
+    const calls = stub('member', (c) => (c.method === 'POST' && c.path === '/reports' ? json(202, {}) : undefined));
+    const router = renderPage('/');
+    fireEvent.click(screen.getByTestId('open-report'));
+    const modal = await screen.findByTestId('report-modal');
+    expect(modal.tagName).toBe('DIALOG');
+    expect(router.state.location.search).toBe('?report=post%3Ap1');
+    expect(screen.getByTestId('home')).toBeTruthy();
+    fireEvent.click(screen.getByTestId('report-submit'));
+    expect(await screen.findByTestId('report-sent')).toBeTruthy();
+    expect(calls.find((c) => c.path === '/reports')?.body).toMatchObject({ target: { kind: 'post', ref: 'p1' } });
+    fireEvent.click(screen.getByRole('button', { name: tr('moderation:report.back') }));
+    await waitFor(() => {
+      expect(screen.queryByTestId('report-modal')).toBeNull();
+    });
+    expect(router.state.location.search).toBe('');
+  });
+
+  it('closes in place on cancel when opened from a link; says so for a bad target', async () => {
+    stub('member', () => undefined);
+    const router = renderPage('/?report=person:u1');
+    fireEvent.click(await screen.findByRole('button', { name: tr('moderation:report.cancel') }));
+    await waitFor(() => {
+      expect(screen.queryByTestId('report-modal')).toBeNull();
+    });
+    expect(router.state.location.pathname).toBe('/');
+    await act(async () => {
+      await router.navigate('/?report=account:x');
+    });
+    expect(await screen.findByTestId('report-invalid')).toBeTruthy();
+    expect(screen.queryByTestId('report-form')).toBeNull();
   });
 });
 
@@ -338,6 +433,159 @@ describe('moderator queue', () => {
   });
 });
 
+describe('unified queue (P1)', () => {
+  const hold = {
+    match_info: { driver: 'photodna', match: 'known' },
+    source_url: 'https://example.test/img.png',
+    held_at: '2026-10-01T10:00:00Z',
+    retain_until: '2027-10-01T10:00:00Z',
+    account_held: true,
+  };
+
+  it('shows a csam hold by its metadata only, never content or a link', async () => {
+    stub('moderator', (c) =>
+      c.path === '/mod/queue'
+        ? json(200, {
+            items: [
+              modItem({ id: 'c1', source: 'csam', reason: 'csam', priority: 0, subject: { ref: 's', handle: 'bob' }, csam: hold }),
+            ],
+          })
+        : undefined,
+    );
+    renderAt('/mod', <ModQueuePage />);
+    const item = await screen.findByTestId('queue-item');
+    expect(item.dataset.source).toBe('csam');
+    const panel = within(item).getByTestId('queue-csam');
+    expect(panel.textContent).toContain('photodna');
+    expect(within(item).getByTestId('queue-csam-url').textContent).toBe(hold.source_url);
+    expect(item.querySelector('a, img, video')).toBeNull();
+    expect(within(item).queryByTestId('queue-post')).toBeNull();
+    expect(within(item).getByTestId('queue-csam-reported').textContent).toBe(tr('moderation:csam.notReported'));
+    expect(within(item).getByText(tr('moderation:source.csam'))).toBeTruthy();
+  });
+
+  it('starts the csam report with a valid reference only', async () => {
+    const calls = stub('moderator', (c) => {
+      if (c.path === '/mod/queue') {
+        return json(200, { items: [modItem({ id: 'c1', source: 'csam', reason: 'csam', priority: 0, csam: hold })] });
+      }
+      if (c.path === '/mod/items/c1/csam-report') return new Response(null, { status: 204 });
+      return undefined;
+    });
+    renderAt('/mod', <ModQueuePage />);
+    const item = await screen.findByTestId('queue-item');
+    const button = within(item).getByTestId<HTMLButtonElement>('queue-csam-report');
+    fireEvent.change(within(item).getByTestId('queue-csam-ref'), { target: { value: 'not valid!' } });
+    expect(button.disabled).toBe(true);
+    fireEvent.change(within(item).getByTestId('queue-csam-ref'), { target: { value: ' CT-123456 ' } });
+    fireEvent.click(button);
+    await waitFor(() => {
+      expect(calls.find((c) => c.path === '/mod/items/c1/csam-report')?.body).toEqual({ report_ref: 'CT-123456' });
+    });
+    // A csam hold offers dismiss (a false match, two-person) and suspension, no removal.
+    expect([...within(item).getByTestId<HTMLSelectElement>('queue-action').options].map((o) => o.value)).toEqual([
+      'suspend_user',
+      'dismiss',
+    ]);
+  });
+
+  it('shows signals with their facts, claims, and the quarantine once the tree qualifies', async () => {
+    const calls = stub('moderator', (c) => {
+      if (c.path === '/mod/queue') {
+        return json(200, {
+          items: [
+            modItem({
+              id: 'g1',
+              source: 'signal',
+              reason: 'cadence',
+              subject: { ref: 's', handle: 'bot' },
+              subject_inviter: { kind: 'user', handle: 'host' },
+              summary: { cadence: 1, posts: 20, hours: 18, subtree_confirmed: 3, quarantine_k: 3, inviter_marks: 1 },
+            }),
+            modItem({
+              id: 'g2',
+              source: 'invite_cluster',
+              reason: 'invite_cluster',
+              claimed: true,
+              subject: { ref: 's2', handle: 'joiner' },
+              summary: { invite_cluster: 1, accounts: 4, shared_network: 1, subtree_confirmed: 1, quarantine_k: 3 },
+            }),
+          ],
+        });
+      }
+      if (c.path === '/mod/items/g1/claim' || c.path === '/mod/quarantine') return new Response(null, { status: 204 });
+      return undefined;
+    });
+    renderAt('/mod', <ModQueuePage />);
+    const [sig, cluster] = (await screen.findAllByTestId('queue-item')) as [HTMLElement, HTMLElement];
+    expect(within(sig).getByText(tr('moderation:signal.cadence'))).toBeTruthy();
+    const facts = within(sig).getByTestId('queue-facts');
+    expect(facts.textContent).toContain(tr('moderation:fact.posts', { count: 20 }));
+    expect(facts.textContent).toContain(tr('moderation:fact.inviter_marks', { count: 1 }));
+    expect(within(sig).getByTestId('queue-subtree').textContent).toBe(tr('moderation:fact.subtree_confirmed', { count: 3, k: 3 }));
+    expect(within(cluster).getByTestId('queue-claimed').textContent).toBe(tr('moderation:queue.claimedByOther'));
+    expect(within(cluster).queryByTestId('queue-quarantine')).toBeNull();
+    fireEvent.click(within(sig).getByTestId('queue-claim'));
+    fireEvent.click(within(sig).getByTestId('queue-quarantine'));
+    await waitFor(() => {
+      expect(calls.find((c) => c.path === '/mod/quarantine')?.body).toEqual({ subject_item: 'g1' });
+    });
+    expect(calls.some((c) => c.path === '/mod/items/g1/claim')).toBe(true);
+  });
+
+  it('co-signs the confirmation in a passkey session and sends nothing when cancelled', async () => {
+    const cosign = vi.mocked(requestCosign);
+    cosign.mockResolvedValueOnce(null).mockResolvedValueOnce({ intent: 'in1', assertion: { id: 'cred' } });
+    const calls = stub('moderator', (c) => {
+      if (c.path === '/auth/passkeys') return json(200, { items: [{ ref: 'k', current: true }] });
+      if (c.path === '/mod/queue') {
+        return json(200, {
+          items: [
+            modItem({
+              id: 'p1',
+              reason: 'bot',
+              awaiting_second: true,
+              pending: { action: 'suspend_user', reason: 'bot', mine: false, at: new Date().toISOString() },
+              subject: { ref: 's', handle: 'bob' },
+            }),
+          ],
+        });
+      }
+      if (c.path === '/mod/items/p1/confirm') return new Response(null, { status: 204 });
+      return undefined;
+    });
+    renderAt('/mod', <ModQueuePage />);
+    const item = await screen.findByTestId('queue-item');
+    expect(within(item).getByTestId('queue-awaiting').textContent).toBe(tr('moderation:awaiting.suspend_user'));
+    expect(within(item).queryByTestId('queue-claim')).toBeNull();
+    fireEvent.click(within(item).getByTestId('queue-confirm'));
+    await waitFor(() => {
+      expect(cosign).toHaveBeenCalledTimes(1);
+    });
+    expect(cosign.mock.calls[0]?.[0]).toMatchObject({ purpose: 'mod_action', target: 'p1' });
+    expect(calls.some((c) => c.path === '/mod/items/p1/confirm')).toBe(false);
+    fireEvent.click(within(item).getByTestId('queue-confirm'));
+    await waitFor(() => {
+      expect(calls.find((c) => c.path === '/mod/items/p1/confirm')?.body).toEqual({ intent: 'in1', assertion: { id: 'cred' } });
+    });
+  });
+
+  it('decides actions and quarantine from the item', () => {
+    expect(actionsFor(modItem({ summary: { kind_person: 1 } }))).toEqual(['suspend_user', 'dismiss']);
+    expect(actionsFor(modItem({ source: 'csam', summary: { csam_match: 1, preview: 1 } }))).toEqual([
+      'remove_post',
+      'suspend_user',
+      'dismiss',
+    ]);
+    expect(canQuarantine(modItem({ summary: { subtree_confirmed: 2, quarantine_k: 3 } }))).toBe(false);
+    expect(canQuarantine(modItem({ summary: { subtree_confirmed: 3, quarantine_k: 3 } }))).toBe(true);
+    expect(canQuarantine(modItem({}))).toBe(false);
+    expect(reportRefOK('CT-1')).toBe(true);
+    expect(reportRefOK('-x')).toBe(false);
+    expect(reportRefOK('a'.repeat(129))).toBe(false);
+  });
+});
+
 describe('moderation log', () => {
   it('names people in the horizon and shows pseudonyms for everyone else', async () => {
     const items: LogItem[] = [
@@ -356,36 +604,54 @@ describe('moderation log', () => {
   });
 });
 
-describe('footer', () => {
-  function renderFooter() {
-    const router = createMemoryRouter([{ path: '/', element: <ModerationFooter /> }]);
-    render(
-      <QueryClientProvider client={makeQueryClient()}>
-        <RouterProvider router={router} />
-      </QueryClientProvider>,
-    );
-  }
-  it('links the terms for everyone and moderator pages for moderators', async () => {
-    stub(undefined, () => undefined);
-    renderFooter();
-    const footer = await screen.findByTestId('site-footer');
-    await waitFor(() => {
-      expect([...footer.querySelectorAll('a')].map((a) => a.getAttribute('href'))).toEqual(['/terms']);
-    });
+describe('roles page', () => {
+  const staff: Staff = {
+    members: [
+      { ref: 'aliceRef', handle: 'alice', role: 'admin', me: true, since: '2026-10-01T00:00:00Z' },
+      { ref: 'mo1Ref', handle: 'mo1', display_name: 'Mo One', role: 'moderator' },
+    ],
+    changes: [{ action: 'grant_admin', handle: 'alice', by_handle: 'alice', at: '2026-10-01T00:00:00Z' }],
+  };
+  it('is for admins only', async () => {
+    const calls = stub('moderator', () => undefined);
+    renderAt('/mod/roles', <RolesPage />);
+    expect(await screen.findByText(tr('moderation:roles.adminsOnly'))).toBeTruthy();
+    expect(calls.some((c) => c.path === '/mod/roles')).toBe(false);
   });
-  it('adds the log, the blame inbox and the queue', async () => {
-    stub('moderator', () => undefined);
-    renderFooter();
-    const footer = await screen.findByTestId('site-footer');
-    await waitFor(() => {
-      expect([...footer.querySelectorAll('a')].map((a) => a.getAttribute('href'))).toEqual([
-        '/terms',
-        '/mod/log',
-        '/blame',
-        '/mod',
-        '/mod/recovery',
-      ]);
+  it('lists the team and the history, adds and removes moderators', async () => {
+    const calls = stub('admin', (c) => {
+      if (c.path === '/mod/roles' && c.method === 'GET') return json(200, staff);
+      if (c.path === '/mod/roles' && c.method === 'POST') {
+        const h = (c.body as { handle: string }).handle;
+        return h === 'nobody' ? json(422, { error: 'handle_unknown', field: 'handle' }) : new Response(null, { status: 204 });
+      }
+      if (c.path === '/mod/roles/mo1Ref/revoke') return new Response(null, { status: 204 });
+      return undefined;
     });
+    renderAt('/mod/roles', <RolesPage />);
+    const members = await screen.findAllByTestId('roles-member');
+    expect(members.map((m) => m.getAttribute('data-role'))).toEqual(['admin', 'moderator']);
+    const [admin, mod] = members as [HTMLElement, HTMLElement];
+    expect(within(admin).queryByTestId('roles-remove')).toBeNull();
+    expect(screen.getAllByTestId('roles-change')).toHaveLength(1);
+
+    fireEvent.change(screen.getByTestId('roles-handle'), { target: { value: '@nobody' } });
+    fireEvent.click(screen.getByTestId('roles-add-submit'));
+    expect((await screen.findByTestId('roles-add-error')).textContent).toBe(tr('moderation:errors.handle_unknown'));
+    fireEvent.change(screen.getByTestId('roles-handle'), { target: { value: ' carol' } });
+    fireEvent.click(screen.getByTestId('roles-add-submit'));
+    expect((await screen.findByTestId('roles-notice')).textContent).toBe(tr('moderation:roles.added', { handle: 'carol' }));
+    expect(calls.filter((c) => c.method === 'POST' && c.path === '/mod/roles').map((c) => c.body)).toEqual([
+      { handle: 'nobody' },
+      { handle: 'carol' },
+    ]);
+
+    fireEvent.click(within(mod).getByTestId('roles-remove'));
+    fireEvent.click(within(mod).getByTestId('roles-remove-yes'));
+    await waitFor(() => {
+      expect(screen.getByTestId('roles-notice').textContent).toBe(tr('moderation:roles.removed', { handle: 'mo1' }));
+    });
+    expect(calls.some((c) => c.method === 'POST' && c.path === '/mod/roles/mo1Ref/revoke')).toBe(true);
   });
 });
 

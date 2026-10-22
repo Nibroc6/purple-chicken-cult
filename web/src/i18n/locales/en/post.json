@@ -11,18 +11,22 @@
     "policy": "Who can reply with a post"
   },
   "lang": {
-    "und": "Mixed or unknown"
+    "und": "Mixed or unknown",
+    "detected": "Language: {name} (detected)",
+    "assumed": "Language: {name}",
+    "change": "Change"
   },
   "audience": {
     "connected": "Everyone connected to you",
-    "d1": "Friends only",
+    "d1": "Acquaintances only",
     "d2": "Within 2 steps",
-    "d3": "Within 3 steps"
+    "d3": "Within 3 steps",
+    "friend_plus": "Friends only (people you met in person)"
   },
   "policy": {
     "anyone": "Anyone who can see it",
     "two_hops": "People within 2 steps",
-    "friends": "Friends only",
+    "friends": "Acquaintances only",
     "nobody": "Nobody (replies off)"
   },
   "thread": {
@@ -42,7 +46,8 @@
   "edit": {
     "title": "Edit",
     "body": "Text",
-    "parentsFixed": "An edit changes the text only. What the post replies to stays the same, and readers see that it was edited.",
+    "parentsFixed": "Only the text can change.",
+    "parentsFixedTip": "What the post replies to stays the same, and readers see that it was edited.",
     "save": "Save the new version",
     "saved": "Saved."
   },
@@ -77,6 +82,7 @@
     "ref_not_allowed": "Its author turned replies off for you.",
     "ref_cap": "You already replied to that post twice today.",
     "too_many_parts": "A thread can have at most 25 parts.",
-    "cont_not_detachable": "Continuations of your own thread can't be detached."
+    "cont_not_detachable": "Continuations of your own thread can't be detached.",
+    "too_many_media": "A post can have at most 4 pictures."
   }
 }

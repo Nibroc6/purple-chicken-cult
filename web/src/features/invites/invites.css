@@ -40,8 +40,9 @@
   background: #fff;
   padding: var(--space-2);
   border-radius: var(--radius);
-  inline-size: min(100%, 320px);
+  inline-size: min(100%, 360px);
   block-size: auto;
+  image-rendering: pixelated;
 }
 
 .invites-sas {
@@ -59,4 +60,33 @@
 
 .invites-meta {
   margin: 0;
+}
+
+/* P1-W02: handshake mode choice. */
+.invites-mode {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-3) var(--space-4);
+  margin-block: var(--space-3);
+}
+
+.invites-choice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.invites-sub {
+  padding-inline-start: var(--space-4);
+}
+
+.invites-attempts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  border-block-start: 1px solid var(--color-border);
+  padding-block-start: var(--space-2);
 }

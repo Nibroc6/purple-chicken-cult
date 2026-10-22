@@ -1,0 +1,53 @@
+/* Explorer format (P1-W09): cards with a tree thumbnail (the reply-tree
+   canvas every format shares is styled in canvas/canvas.css). Logical
+   properties only; every color is a theme token. */
+
+.explorer-card {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+.explorer-card > .post {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+.explorer-thumb {
+  flex: 0 0 auto;
+  margin-block-start: var(--space-2);
+  padding: var(--space-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  cursor: pointer;
+  min-block-size: 24px;
+  min-inline-size: 24px;
+}
+.explorer-thumb:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+.explorer-thumb svg {
+  display: block;
+}
+.explorer-thumb-edge {
+  stroke: var(--color-muted);
+  stroke-width: 1;
+}
+.explorer-thumb-dot {
+  fill: var(--color-muted);
+}
+.explorer-thumb-self {
+  fill: var(--color-accent);
+}
+.explorer-thumb-more {
+  fill: var(--color-muted);
+  font-size: 9px;
+}
+@media (max-width: 30rem) {
+  .explorer-card {
+    flex-direction: column-reverse;
+  }
+  .explorer-thumb {
+    margin-block-start: 0;
+  }
+}

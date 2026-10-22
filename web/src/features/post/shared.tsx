@@ -1,9 +1,11 @@
 // Shared pieces of the post and composer features: error text, the length
 // counter, the language / audience / reference-policy pickers and a compact
 // preview of a post. Owner: P0-W05 → P1-W12.
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AudienceBadge, EditedMark } from '../../integrity';
 import { Markdown } from '../../markdown';
+import { MediaImage } from '../media';
 import type { Audience, PostVM, RefPolicy } from '../../vm/types';
 import { langName, langOptions, UND } from './lang';
 import { audiences, codePoints, counterState, errorParams, HARD_LIMIT, postErrorKey, refPolicies, SOFT_LIMIT } from './vm';
@@ -71,6 +73,43 @@ export function LangSelect({
   );
 }
 
+// AutoLang shows the language the composer picked from the text itself, with a
+// way to choose another; once opened, the picker stays and its choice sticks.
+export function AutoLang({
+  value,
+  detected,
+  languages,
+  uiLocale,
+  onChange,
+  id,
+}: {
+  value: string;
+  detected: boolean;
+  languages: readonly string[] | undefined;
+  uiLocale: string;
+  onChange: (lang: string) => void;
+  id: string;
+}) {
+  const { t } = useTranslation('post');
+  const [open, setOpen] = useState(false);
+  if (open) return <LangSelect id={id} value={value} languages={languages} uiLocale={uiLocale} onChange={onChange} />;
+  const name = value === UND ? t('lang.und') : langName(value, uiLocale);
+  return (
+    <p className="post-lang-auto" data-testid="post-lang-auto" data-lang={value}>
+      <span>{detected ? t('lang.detected', { name }) : t('lang.assumed', { name })}</span>{' '}
+      <button
+        type="button"
+        data-testid="post-lang-change"
+        onClick={() => {
+          setOpen(true);
+        }}
+      >
+        {t('lang.change')}
+      </button>
+    </p>
+  );
+}
+
 // i18n-dynamic: post:audience.
 export function AudienceSelect({ value, onChange, id }: { value: Audience; onChange: (a: Audience) => void; id: string }) {
   const { t } = useTranslation('post');
@@ -120,7 +159,8 @@ export function PolicySelect({ value, onChange, id }: { value: RefPolicy; onChan
 }
 
 // PostPreview is a compact, read-only rendering of one post with its audience
-// badge and edited mark (integrity elements) and visible context rows.
+// badge and edited mark (integrity elements), visible context rows and its
+// pictures as thumbs.
 // i18n-dynamic: post:context.
 export function PostPreview({ post }: { post: PostVM }) {
   const { t } = useTranslation('post');
@@ -141,6 +181,13 @@ export function PostPreview({ post }: { post: PostVM }) {
         </p>
       ))}
       {post.body ? <Markdown doc={post.body} /> : null}
+      {post.media.length > 0 ? (
+        <div className="post-preview-media" data-testid="post-preview-media">
+          {post.media.map((m) => (
+            <MediaImage key={m.ref} media={m} variant="thumb" />
+          ))}
+        </div>
+      ) : null}
       <footer className="post-preview-meta">
         <AudienceBadge audience={post.audience} forced={post.audienceForced} />
         <EditedMark {...(post.editedAt ? { editedAt: post.editedAt } : {})} />

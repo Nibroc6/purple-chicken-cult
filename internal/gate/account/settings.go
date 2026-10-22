@@ -22,8 +22,9 @@ const (
 
 // Closed value sets of ui_prefs (§10.7, §15.1).
 var (
-	Formats    = []string{"cards", "compact"} // P1 adds explorer
+	Formats    = []string{"cards", "compact", "explorer"} // explorer: P1-W09 (steward: p1-w09-1)
 	Densities  = []string{"comfortable", "compact"}
+	NavLayouts = []string{"sidebar", "header"}
 	Contrasts  = []string{"normal", "high"}
 	TextScales = []string{"small", "normal", "large", "xlarge"}
 )
@@ -31,6 +32,7 @@ var (
 // UIPrefs is the ui_prefs JSON schema (unknown keys are rejected).
 type UIPrefs struct {
 	Format  *string    `json:"format,omitempty"`
+	Nav     *string    `json:"nav,omitempty"`
 	Density *string    `json:"density,omitempty"`
 	A11y    *A11yPrefs `json:"a11y,omitempty"`
 }
@@ -62,7 +64,7 @@ func ValidateUIPrefs(raw []byte) ([]byte, error) {
 	if err := dec.Decode(&p); err != nil || dec.More() {
 		return nil, bad
 	}
-	if !oneOf(p.Format, Formats) || !oneOf(p.Density, Densities) {
+	if !oneOf(p.Format, Formats) || !oneOf(p.Nav, NavLayouts) || !oneOf(p.Density, Densities) {
 		return nil, bad
 	}
 	if p.A11y != nil && (!oneOf(p.A11y.Contrast, Contrasts) || !oneOf(p.A11y.TextScale, TextScales)) {
@@ -85,7 +87,7 @@ func ParseTag(s string) (string, bool) {
 
 // UpdateSettings validates and applies a settings patch (nil fields are left
 // unchanged). Problems: display_name_invalid, locale_invalid, lang_invalid,
-// translate_to_not_in_languages, preset_unavailable (top in P0, or unknown),
+// translate_to_not_in_languages, preset_unavailable (unknown),
 // ui_prefs_invalid. An empty translate_to clears it; a languages patch that drops
 // the current translate_to clears it too.
 func (s *Service) UpdateSettings(ctx context.Context, p gate.SettingsPatch) (gate.SettingsView, error) {
@@ -180,7 +182,7 @@ func (s *Service) apply(r *settingsRow, p gate.SettingsPatch) error {
 	}
 	if p.RankPreset != nil {
 		pr, ok := core.ParsePreset(*p.RankPreset)
-		if !ok || pr == core.PresetTop { // top is Phase 1
+		if !ok {
 			return gate.NewProblem(gate.StatusUnprocessable, "preset_unavailable", "rank_preset")
 		}
 		r.preset = int16(pr)

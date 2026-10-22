@@ -1,7 +1,11 @@
 // Package invitesapi serves /api/invites/* and /api/join/* (plan §5.3).
 //
-// Owner: P0-W04 → P1-W02. The join flow runs in a guest session that
-// /join/start creates; /join/register/finish replaces it with a user session.
+// Owner: P0-W04 → P1-W02. The inviter (and every initiator of an in-person
+// handshake) drives /invites/handshakes/*; the other device drives /join/*.
+// The join flow of an invite runs in a guest session that /join/start
+// creates; /join/register/cosign replaces it with a user session. Every join
+// call after the claim carries the claiming device's signature in the
+// X-PCC-Join-Sig header (handshake protocol v2).
 package invitesapi
 
 import (
@@ -21,10 +25,18 @@ import (
 // WebAuthnMax bounds a WebAuthn response body (plan §5.2).
 const WebAuthnMax = 64 << 10
 
+// JoinSigHeader carries the claiming device's signature of a join call.
+const JoinSigHeader = "X-PCC-Join-Sig"
+
 var (
 	rGraph = apix.Read("graph_read")
 	wI     = apix.Write("invite_handshake")
-	aJoin  = apix.Anon("join")
+	// Everything after opening a handshake (the ephemeral key, the confirm or
+	// cancel, the sound reports, the co-signature) is a step of that one
+	// invite: no minimum spacing, and only the opening counts toward the
+	// daily cap (limits.Policy.FreeSteps).
+	sI    = apix.Step("invite_handshake")
+	aJoin = apix.Anon("join")
 )
 
 // InviteesOut is GET /api/invites/invitees.
@@ -38,6 +50,16 @@ type OpenIn struct {
 	Quiet bool   `json:"quiet"`
 }
 
+// EpubIn is POST /api/invites/handshakes/{hs}/epub.
+type EpubIn struct {
+	EI string `json:"e_i"`
+}
+
+// PeerOut is GET /api/invites/handshakes/{hs}/peer.
+type PeerOut struct {
+	EV string `json:"e_v"`
+}
+
 // JoinStartOut is POST /api/join/start: the guest session's CSRF token and
 // what the join form must attest (D29).
 type JoinStartOut struct {
@@ -46,9 +68,9 @@ type JoinStartOut struct {
 	MinAge     int    `json:"min_age"`
 }
 
-// ClaimIn is POST /api/join/claim.
-type ClaimIn struct {
-	Payload string `json:"payload"`
+// AudioStartIn is POST /api/join/audio/start.
+type AudioStartIn struct {
+	Kmac string `json:"kmac"`
 }
 
 // OptionsOut carries WebAuthn creation options.
@@ -61,10 +83,18 @@ type CredentialIn struct {
 	Credential json.RawMessage `json:"credential"`
 }
 
+// AssertionIn carries the signup ceremony's WebAuthn get response.
+type AssertionIn struct {
+	Assertion json.RawMessage `json:"assertion"`
+}
+
+func sig(r *http.Request) string { return r.Header.Get(JoinSigHeader) }
+
 // Register registers the module routes on the /api router.
 func Register(r chi.Router, d *api.Deps) {
 	inv := d.Invites
 	secure := d.Auth.SecureCookies()
+	hs := func(r *http.Request) gate.Ref { return apix.Ref(r, "hs") }
 
 	apix.Route(r, http.MethodGet, "/invites/budget", rGraph, func(w http.ResponseWriter, r *http.Request) error {
 		b, err := inv.Budget(r.Context())
@@ -91,34 +121,72 @@ func Register(r chi.Router, d *api.Deps) {
 		}
 		return apix.JSON(w, http.StatusCreated, hv)
 	})
+	apix.Route(r, http.MethodPost, "/invites/handshakes/{hs}/epub", sI, func(w http.ResponseWriter, r *http.Request) error {
+		in, err := apix.Decode[EpubIn](r, 0)
+		if err != nil {
+			return err
+		}
+		if err := inv.Epub(r.Context(), hs(r), in.EI); err != nil {
+			return err
+		}
+		return apix.NoContent(w)
+	})
 	apix.Route(r, http.MethodGet, "/invites/handshakes/{hs}/frame", apix.Free, func(w http.ResponseWriter, r *http.Request) error {
-		f, err := inv.Frame(r.Context(), apix.Ref(r, "hs"))
+		f, err := inv.Frame(r.Context(), hs(r))
 		if err != nil {
 			return err
 		}
 		return apix.JSON(w, http.StatusOK, f)
 	})
 	apix.Route(r, http.MethodGet, "/invites/handshakes/{hs}", apix.Free, func(w http.ResponseWriter, r *http.Request) error {
-		st, err := inv.Status(r.Context(), apix.Ref(r, "hs"))
+		st, err := inv.Status(r.Context(), hs(r))
 		if err != nil {
 			return err
 		}
 		return apix.JSON(w, http.StatusOK, st)
 	})
-	apix.Route(r, http.MethodPost, "/invites/handshakes/{hs}/confirm", wI, func(w http.ResponseWriter, r *http.Request) error {
-		if err := inv.Confirm(r.Context(), apix.Ref(r, "hs")); err != nil {
+	apix.Route(r, http.MethodGet, "/invites/handshakes/{hs}/peer", apix.Free, func(w http.ResponseWriter, r *http.Request) error {
+		ev, err := inv.Peer(r.Context(), hs(r))
+		if err != nil {
+			return err
+		}
+		return apix.JSON(w, http.StatusOK, PeerOut{EV: ev})
+	})
+	apix.Route(r, http.MethodPost, "/invites/handshakes/{hs}/confirm", sI, func(w http.ResponseWriter, r *http.Request) error {
+		if err := inv.Confirm(r.Context(), hs(r)); err != nil {
 			return err
 		}
 		return apix.NoContent(w)
 	})
-	apix.Route(r, http.MethodDelete, "/invites/handshakes/{hs}", wI, func(w http.ResponseWriter, r *http.Request) error {
-		if err := inv.Cancel(r.Context(), apix.Ref(r, "hs")); err != nil {
+	apix.Route(r, http.MethodDelete, "/invites/handshakes/{hs}", sI, func(w http.ResponseWriter, r *http.Request) error {
+		if err := inv.Cancel(r.Context(), hs(r)); err != nil {
+			return err
+		}
+		return apix.NoContent(w)
+	})
+	apix.Route(r, http.MethodPost, "/invites/handshakes/{hs}/report", sI, func(w http.ResponseWriter, r *http.Request) error {
+		in, err := apix.Decode[invites.ReportIn](r, 0)
+		if err != nil {
+			return err
+		}
+		out, err := inv.Report(r.Context(), hs(r), in)
+		if err != nil {
+			return err
+		}
+		return apix.JSON(w, http.StatusOK, out)
+	})
+	apix.Route(r, http.MethodPost, "/invites/handshakes/{hs}/cosign", sI, func(w http.ResponseWriter, r *http.Request) error {
+		in, err := apix.Decode[invites.CosignIn](r, WebAuthnMax)
+		if err != nil {
+			return err
+		}
+		if err := inv.Cosign(r.Context(), hs(r), in); err != nil {
 			return err
 		}
 		return apix.NoContent(w)
 	})
 
-	// Join (invitee side).
+	// Join (the claiming device).
 	apix.Route(r, http.MethodPost, "/join/start", aJoin, func(w http.ResponseWriter, r *http.Request) error {
 		if _, err := apix.Decode[struct{}](r, 0); err != nil {
 			return err
@@ -135,28 +203,50 @@ func Register(r chi.Router, d *api.Deps) {
 		return apix.JSON(w, http.StatusOK, JoinStartOut{CSRF: csrf, TOSVersion: d.Cfg.TOSVersion, MinAge: d.Cfg.MinAge})
 	})
 	apix.Route(r, http.MethodPost, "/join/claim", aJoin, func(w http.ResponseWriter, r *http.Request) error {
-		in, err := apix.Decode[ClaimIn](r, 0)
+		in, err := apix.Decode[invites.ClaimIn](r, 0)
 		if err != nil {
 			return err
 		}
-		if err := inv.Claim(r.Context(), in.Payload); err != nil {
+		if err := inv.Claim(r.Context(), in); err != nil {
 			return err
 		}
 		return apix.NoContent(w)
 	})
 	apix.Route(r, http.MethodGet, "/join/status", aJoin, func(w http.ResponseWriter, r *http.Request) error {
-		st, err := inv.JoinStatus(r.Context())
+		st, err := inv.JoinStatus(r.Context(), sig(r))
 		if err != nil {
 			return err
 		}
 		return apix.JSON(w, http.StatusOK, st)
+	})
+	apix.Route(r, http.MethodPost, "/join/audio/start", aJoin, func(w http.ResponseWriter, r *http.Request) error {
+		in, err := apix.Decode[AudioStartIn](r, 0)
+		if err != nil {
+			return err
+		}
+		out, err := inv.AudioStart(r.Context(), sig(r), in.Kmac)
+		if err != nil {
+			return err
+		}
+		return apix.JSON(w, http.StatusOK, out)
+	})
+	apix.Route(r, http.MethodPost, "/join/dual/frame", aJoin, func(w http.ResponseWriter, r *http.Request) error {
+		in, err := apix.Decode[invites.DualIn](r, 0)
+		if err != nil {
+			return err
+		}
+		out, err := inv.DualFrame(r.Context(), sig(r), in)
+		if err != nil {
+			return err
+		}
+		return apix.JSON(w, http.StatusOK, out)
 	})
 	apix.Route(r, http.MethodPost, "/join/register/begin", aJoin, func(w http.ResponseWriter, r *http.Request) error {
 		in, err := apix.Decode[invites.Registration](r, 0)
 		if err != nil {
 			return err
 		}
-		opts, err := inv.RegisterBegin(r.Context(), in)
+		opts, err := inv.RegisterBegin(r.Context(), sig(r), in)
 		if err != nil {
 			return err
 		}
@@ -167,7 +257,18 @@ func Register(r chi.Router, d *api.Deps) {
 		if err != nil {
 			return err
 		}
-		tok, me, err := inv.RegisterFinish(r.Context(), in.Credential)
+		out, err := inv.RegisterFinish(r.Context(), sig(r), in.Credential)
+		if err != nil {
+			return err
+		}
+		return apix.JSON(w, http.StatusOK, out)
+	})
+	apix.Route(r, http.MethodPost, "/join/register/cosign", aJoin, func(w http.ResponseWriter, r *http.Request) error {
+		in, err := apix.Decode[AssertionIn](r, WebAuthnMax)
+		if err != nil {
+			return err
+		}
+		tok, me, err := inv.RegisterCosign(r.Context(), sig(r), in.Assertion)
 		if err != nil {
 			return err
 		}
@@ -176,6 +277,6 @@ func Register(r chi.Router, d *api.Deps) {
 			return err
 		}
 		httpx.SetSessionCookie(w, tok, auth.MaxAge("user"), secure)
-		return apix.JSON(w, http.StatusOK, gate.SessionView{Authenticated: true, Kind: "user", CSRF: csrf, Me: &me})
+		return apix.JSON(w, http.StatusCreated, gate.SessionView{Authenticated: true, Kind: "user", CSRF: csrf, Me: &me})
 	})
 }

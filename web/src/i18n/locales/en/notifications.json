@@ -1,7 +1,8 @@
 {
   "page": {
     "title": "Notifications",
-    "empty": "Nothing yet. Friend requests, mentions and replies to your posts show up here.",
+    "empty": "Nothing yet.",
+    "emptyTip": "Acquaintance requests, mentions and replies to your posts show up here.",
     "more": "Show older"
   },
   "badge": {
@@ -12,17 +13,20 @@
   "item": {
     "handle": "@{handle}",
     "new": "New",
-    "openPost": "Open the post"
+    "openPost": "Open the post",
+    "scan": "Scan their code"
   },
   "kind": {
-    "friend_request": "sent you a friend request",
-    "request_accepted": "accepted your friend request",
+    "friend_request": "sent you an acquaintance request",
+    "request_accepted": "accepted your acquaintance request",
     "invite_redeemed": "joined with your invite",
     "mention": "mentioned you in a post",
     "post_referenced": "{who, select, person {{others, plural, =0 {replied to your post} one {and # other person replied to your post} other {and # others replied to your post}}} other {{count, plural, one {Someone in your network replied to your post} other {# replies to your post from your network}}}}",
-    "friend_security": "{who, select, person {{reason, select, passkey_added {added a passkey to their account} passkey_removed {removed a passkey from their account} recovery_enrolled {recovered their account with a new passkey} recovery_pending {has an account recovery waiting to finish} account_deleted {deleted their account} other {changed how they sign in}}} other {{reason, select, account_deleted {A friend deleted their account} other {A friend changed how they sign in}}}}",
+    "friend_security": "{who, select, person {{reason, select, passkey_added {added a passkey to their account} passkey_removed {removed a passkey from their account} recovery_enrolled {recovered their account with a new passkey} recovery_pending {has an account recovery waiting to finish} account_deleted {deleted their account} other {changed how they sign in}}} other {{reason, select, account_deleted {An acquaintance deleted their account} other {An acquaintance changed how they sign in}}}}",
     "invitee_action": "{who, select, person {(invited by you): {action, select, remove_post {a moderator removed one of their posts} suspend_user {a moderator suspended the account} other {a moderator took action}}} other {{action, select, remove_post {A moderator removed a post by someone you invited} suspend_user {A moderator suspended someone you invited} other {A moderator took action on someone you invited}}}}",
-    "recovery_approval": "{who, select, person {asked you to approve their account recovery} other {An account recovery is waiting for your approval}}"
+    "recovery_approval": "{who, select, person {asked you to approve their account recovery} other {An account recovery is waiting for your approval}}",
+    "account_recovery": "{reason, select, recovery_pending {A recovery of your account was approved and finishes in 24 hours. If it isn't you, cancel it now, or sign in with one of your passkeys.} other {Someone started recovering your account. If it isn't you, cancel it from the banner, or sign in with one of your passkeys.}}",
+    "friend_upgrade": "is showing you their code to become friends"
   },
   "mute": {
     "action": "Mute replies to this post",

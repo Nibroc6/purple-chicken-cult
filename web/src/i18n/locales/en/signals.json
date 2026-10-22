@@ -1,1 +1,7 @@
-{}
+{
+  "stepup": {
+    "title": "Quick check: is this you?",
+    "body": "This session has been unusually busy for a while, the way automated tools are. Confirm with one of your passkeys and carry on.",
+    "privacy": "Nothing has been blocked or sent to anyone. We only count how often pages load and whether a keyboard, touch or pointer is used — never what you read or type."
+  }
+}

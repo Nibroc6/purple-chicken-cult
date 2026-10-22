@@ -28,7 +28,8 @@ function stubAPI(handler: (c: Call) => Response | undefined, meOver: Record<stri
   vi.stubGlobal(
     'fetch',
     vi.fn(async (req: Request) => {
-      const text = await req.clone().text();
+      const json_ = req.headers.get('Content-Type')?.includes('json') ?? false;
+      const text = json_ ? await req.clone().text() : '';
       const c = { method: req.method, path: new URL(req.url).pathname.replace(/^\/api/, ''), body: text ? (JSON.parse(text) as unknown) : undefined };
       calls.push(c);
       if (c.path === '/session') {
@@ -134,7 +135,7 @@ describe('compose page', () => {
     const calls = stubAPI((c) => (c.method === 'POST' && c.path === '/posts' ? json(201, postJSON()) : undefined));
     renderAt('/compose');
     const box = await screen.findByTestId('composer-body');
-    expect((screen.getByTestId<HTMLSelectElement>('post-lang')).value).toBe('de');
+    expect(screen.getByTestId('post-lang-auto').dataset.lang).toBe('de');
     expect((screen.getByTestId<HTMLSelectElement>('post-policy')).value).toBe('anyone');
     fireEvent.change(box, { target: { value: '😀'.repeat(279) } });
     expect(screen.queryByTestId('composer-counter')).toBeNull();
@@ -155,12 +156,30 @@ describe('compose page', () => {
     expect((await screen.findByTestId<HTMLTextAreaElement>('composer-body')).value).toBe('');
   });
 
+  it('detects the language from the text, and a choice overrides it', async () => {
+    const calls = stubAPI((c) => (c.method === 'POST' && c.path === '/posts' ? json(201, postJSON()) : undefined));
+    renderAt('/compose');
+    const box = await screen.findByTestId('composer-body');
+    fireEvent.change(box, { target: { value: 'Les poules sont dans la cour et je suis très content' } });
+    expect(screen.getByTestId('post-lang-auto').dataset.lang).toBe('fr');
+    expect(screen.getByTestId('post-lang-auto').textContent).toContain(tr('post:lang.detected', { name: 'French' }));
+    fireEvent.click(screen.getByTestId('post-lang-change'));
+    const select = screen.getByTestId<HTMLSelectElement>('post-lang');
+    expect(select.value).toBe('fr');
+    fireEvent.change(select, { target: { value: 'it' } });
+    fireEvent.change(box, { target: { value: 'the chickens are out in the yard again' } });
+    expect(select.value).toBe('it');
+    fireEvent.click(screen.getByTestId('composer-publish'));
+    await screen.findByTestId('composer-published');
+    expect((calls.find((c) => c.method === 'POST')?.body as { lang: string }).lang).toBe('it');
+  });
+
   it('defaults to slippery when the settings say so', async () => {
     stubAPI(() => undefined, { slippery_default: true, languages: [] });
     renderAt('/compose');
     await screen.findByTestId('composer-body');
     expect((screen.getByTestId<HTMLSelectElement>('post-policy')).value).toBe('nobody');
-    expect((screen.getByTestId<HTMLSelectElement>('post-lang')).value).toBe('en');
+    expect(screen.getByTestId('post-lang-auto').dataset.lang).toBe('en');
   });
 
   it('splits into an editable thread and publishes it in one request', async () => {
@@ -216,6 +235,41 @@ describe('compose page', () => {
     expect((calls.find((c) => c.method === 'POST')?.body as { parents: unknown }).parents).toEqual([{ ref: 'par', kind: 'ref' }]);
   });
 
+  it('replies to several posts at once: from the address, adds one by link, takes one out', async () => {
+    const calls = stubAPI((c) => {
+      const m = /^\/posts\/(\w+)$/.exec(c.path);
+      if (c.method === 'GET' && m?.[1]) {
+        return json(200, postJSON({ ref: m[1], mine: false, author: { ...postJSON().author, handle: `h${m[1]}` } }));
+      }
+      if (c.method === 'POST' && c.path === '/posts') return json(201, postJSON());
+      return undefined;
+    });
+    renderAt('/compose?parent=a1&parent=b2&parent=a1&kind=ref');
+    await waitFor(() => {
+      expect(screen.getAllByTestId('composer-parent')).toHaveLength(2);
+    });
+    expect(screen.getByText(tr('composer:parent.refMany', { count: 2 }))).toBeTruthy();
+    // A pasted link adds a third; that is the most a post can reply to.
+    fireEvent.change(screen.getByTestId('composer-add-parent'), { target: { value: 'not a link!' } });
+    fireEvent.click(screen.getByTestId('composer-add-parent-button'));
+    expect(screen.getByTestId('composer-add-parent-bad')).toBeTruthy();
+    fireEvent.change(screen.getByTestId('composer-add-parent'), { target: { value: 'https://pcc.example/p/c3?x=1' } });
+    fireEvent.click(screen.getByTestId('composer-add-parent-button'));
+    await waitFor(() => {
+      expect(screen.getAllByTestId('composer-parent')).toHaveLength(3);
+    });
+    expect(screen.getByTestId('composer-parent-max')).toBeTruthy();
+    fireEvent.click(screen.getAllByTestId('composer-parent-remove')[1] as HTMLElement);
+    expect(screen.getAllByTestId('composer-parent')).toHaveLength(2);
+    fireEvent.change(screen.getByTestId('composer-body'), { target: { value: 'a reply to two' } });
+    fireEvent.click(screen.getByTestId('composer-publish'));
+    await screen.findByTestId('composer-published');
+    expect((calls.find((c) => c.method === 'POST')?.body as { parents: unknown }).parents).toEqual([
+      { ref: 'a1', kind: 'ref' },
+      { ref: 'c3', kind: 'ref' },
+    ]);
+  });
+
   it('refuses replies the parent does not accept and unknown parents', async () => {
     stubAPI((c) =>
       c.path === '/posts/slip' ? json(200, postJSON({ ref: 'slip', mine: false, can_reference: false, ref_policy: 'nobody' })) : undefined,
@@ -235,11 +289,80 @@ describe('compose page', () => {
     });
   });
 
+  it('offers the friend+ audience', async () => {
+    const calls = stubAPI((c) => (c.method === 'POST' && c.path === '/posts' ? json(201, postJSON({ audience: 'friend_plus' })) : undefined));
+    renderAt('/compose');
+    fireEvent.change(await screen.findByTestId('composer-body'), { target: { value: 'close friends' } });
+    fireEvent.change(screen.getByTestId('post-audience'), { target: { value: 'friend_plus' } });
+    fireEvent.click(screen.getByTestId('composer-publish'));
+    await screen.findByTestId('composer-published');
+    expect((calls.find((c) => c.method === 'POST')?.body as { audience: string }).audience).toBe('friend_plus');
+  });
+
+  it('attaches uploaded pictures in order, removes one, and sends their refs', async () => {
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: () => 'blob:x', revokeObjectURL: () => undefined }));
+    let n = 0;
+    const calls = stubAPI((c) => {
+      if (c.method === 'POST' && c.path === '/media') {
+        n++;
+        return json(201, { ref: `m${String(n)}`, w: 40, h: 30 });
+      }
+      if (c.path.endsWith('/url')) return json(200, { url: `/m/k${c.path}?e=1`, expires_at: '2099-01-01T00:00:00Z' });
+      if (c.method === 'POST' && c.path === '/posts') {
+        return json(201, postJSON({ media: [{ ref: 'm1', w: 40, h: 30 }, { ref: 'm3', w: 40, h: 30 }] }));
+      }
+      return undefined;
+    });
+    renderAt('/compose');
+    fireEvent.change(await screen.findByTestId('composer-body'), { target: { value: 'pictures' } });
+    const png = (name: string) => new File([new Uint8Array(4)], name, { type: 'image/png' });
+    fireEvent.change(screen.getByTestId('media-file'), { target: { files: [png('a.png'), png('b.png'), png('c.png')] } });
+    fireEvent.click(screen.getByTestId('media-upload'));
+    await waitFor(() => {
+      expect(screen.getAllByTestId('composer-media-item')).toHaveLength(3);
+    });
+    expect(screen.getByTestId('composer-media-count').textContent).toBe(tr('composer:media.attached', { count: 3 }));
+    fireEvent.click(screen.getAllByTestId('composer-media-remove')[1] as HTMLElement);
+    expect(screen.getAllByTestId('composer-media-item')).toHaveLength(2);
+    fireEvent.click(screen.getByTestId('composer-publish'));
+    await screen.findByTestId('composer-published');
+    expect((calls.find((c) => c.method === 'POST' && c.path === '/posts')?.body as { media: string[] }).media).toEqual(['m1', 'm3']);
+    expect(screen.getByTestId('post-preview-media').querySelectorAll('[data-testid=media-image]')).toHaveLength(2);
+  });
+
+  it('hides the picker once four pictures are attached', async () => {
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: () => 'blob:x', revokeObjectURL: () => undefined }));
+    let n = 0;
+    stubAPI((c) => {
+      if (c.method === 'POST' && c.path === '/media') return json(201, { ref: `m${String(++n)}`, w: 4, h: 3 });
+      if (c.path.endsWith('/url')) return json(200, { url: '/m/k?e=1', expires_at: '2099-01-01T00:00:00Z' });
+      return undefined;
+    });
+    renderAt('/compose');
+    await screen.findByTestId('composer-body');
+    const files = Array.from({ length: 5 }, (_, i) => new File([new Uint8Array(4)], `${String(i)}.png`, { type: 'image/png' }));
+    fireEvent.change(screen.getByTestId('media-file'), { target: { files } });
+    expect(screen.getAllByTestId('media-item')).toHaveLength(4);
+    fireEvent.click(screen.getByTestId('media-upload'));
+    await waitFor(() => {
+      expect(screen.getAllByTestId('composer-media-item')).toHaveLength(4);
+    });
+    expect(screen.queryByTestId('media-picker')).toBeNull();
+  });
+
   it('shows Problems from the post catalog', async () => {
     stubAPI((c) => (c.method === 'POST' ? json(409, { error: 'ref_cap', field: 'parents' }) : undefined));
     renderAt('/compose');
     fireEvent.change(await screen.findByTestId('composer-body'), { target: { value: 'x' } });
     fireEvent.click(screen.getByTestId('composer-publish'));
     expect(await screen.findByText(tr('post:errors.ref_cap'))).toBeTruthy();
+  });
+
+  it('localizes too_many_media', async () => {
+    stubAPI((c) => (c.method === 'POST' ? json(422, { error: 'too_many_media', field: 'media' }) : undefined));
+    renderAt('/compose');
+    fireEvent.change(await screen.findByTestId('composer-body'), { target: { value: 'x' } });
+    fireEvent.click(screen.getByTestId('composer-publish'));
+    expect(await screen.findByText(tr('post:errors.too_many_media'))).toBeTruthy();
   });
 });

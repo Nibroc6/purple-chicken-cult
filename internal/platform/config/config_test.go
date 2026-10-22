@@ -101,7 +101,7 @@ func TestDevLoopback(t *testing.T) {
 
 // TestMediaFailClosedMatrix: Env × Scanner × Blob × Evidence ⇒ MediaEnabled.
 func TestMediaFailClosedMatrix(t *testing.T) {
-	scanners := []string{"photodna", "dev", "none"}
+	scanners := []string{"photodna", "dev", "none", "unscanned", "unscanned+allow"}
 	blobs := []string{"none", "fs", "fs+allow", "s3"}
 	evidence := []string{"none", "set"}
 	for _, e := range []string{"dev", "test", "prod"} {
@@ -113,7 +113,10 @@ func TestMediaFailClosedMatrix(t *testing.T) {
 					if e != "prod" {
 						m["PCC_ORIGIN"] = "http://localhost:5173"
 					}
-					m["PCC_SCANNER"] = sc
+					m["PCC_SCANNER"] = strings.TrimSuffix(sc, "+allow")
+					if sc == "unscanned+allow" {
+						m["PCC_ALLOW_UNSCANNED_MEDIA"] = "1"
+					}
 					if sc == "photodna" {
 						m["PCC_PHOTODNA_KEY"], m["PCC_PHOTODNA_URL"] = "k", "https://photodna.example"
 					}
@@ -147,9 +150,9 @@ func TestMediaFailClosedMatrix(t *testing.T) {
 					want := false
 					blobOK := bl != "none"
 					if e == "prod" {
-						want = sc == "photodna" && ev == "set" && (bl == "s3" || bl == "fs+allow")
+						want = (sc == "photodna" || sc == "unscanned+allow") && ev == "set" && (bl == "s3" || bl == "fs+allow")
 					} else {
-						want = (sc == "photodna" || sc == "dev") && blobOK && ev == "set"
+						want = (sc == "photodna" || sc == "dev" || sc == "unscanned+allow") && blobOK && ev == "set"
 					}
 					if got := c.MediaEnabled(); got != want {
 						t.Errorf("%s: MediaEnabled=%v want %v", name, got, want)
@@ -184,5 +187,27 @@ func TestDerivedKeysDistinct(t *testing.T) {
 	}
 	if len(c.Key("pcc/ref/v1", 64)) != 64 {
 		t.Fatal("ref key must be 64 bytes")
+	}
+}
+
+// TestCDNPurge: the purge driver is an enum (unknown ⇒ refuse to start) and
+// cloudflare needs its zone and token (contract request p1-w04-1).
+func TestCDNPurge(t *testing.T) {
+	m := prodBase()
+	c, err := LoadFrom(env(m))
+	if err != nil || c.CDN.Purge != CDNPurgeNone {
+		t.Fatalf("default: %v %+v", err, c)
+	}
+	m["PCC_CDN_PURGE"] = "fastly"
+	if _, err := LoadFrom(env(m)); err == nil {
+		t.Fatal("unknown purge driver must refuse to start")
+	}
+	m["PCC_CDN_PURGE"] = "cloudflare"
+	if _, err := LoadFrom(env(m)); err == nil {
+		t.Fatal("cloudflare purge without zone and token must refuse to start")
+	}
+	m["PCC_CDN_ZONE_ID"], m["PCC_CDN_API_TOKEN"] = "z", "t"
+	if c, err := LoadFrom(env(m)); err != nil || c.CDN.Purge != CDNPurgeCloudflare {
+		t.Fatalf("cloudflare: %v", err)
 	}
 }

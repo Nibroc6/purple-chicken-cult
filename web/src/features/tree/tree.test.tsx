@@ -1,8 +1,10 @@
 // Tree feature: view-model mapping (tree folding at 10 lines), the state
 // changes of an open tree, and the tree page against a stubbed API — opened
-// with the saved preset, re-centering (rows below reload, rows above stay),
-// "+N more" pages, earlier / later rows, the reopen on tree_snapshot_expired,
-// the uniform "not available", and the reader's format.
+// with the saved preset, another post brought into focus (the tree reopens
+// around it, the old one shown meanwhile), earlier / later generations, the
+// reopen on tree_snapshot_expired,
+// the uniform "not available", a fresh tree on coming back, and the reader's
+// format.
 import { QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
@@ -25,7 +27,10 @@ interface Call {
 }
 
 function json(status: number, body: unknown): Response {
-  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
 }
 
 function stubAPI(handler: (c: Call) => Response | undefined): Call[] {
@@ -34,7 +39,11 @@ function stubAPI(handler: (c: Call) => Response | undefined): Call[] {
     'fetch',
     vi.fn((req: Request) => {
       const u = new URL(req.url);
-      const c = { method: req.method, path: u.pathname.replace(/^\/api/, ''), query: Object.fromEntries(u.searchParams) };
+      const c = {
+        method: req.method,
+        path: u.pathname.replace(/^\/api/, ''),
+        query: Object.fromEntries(u.searchParams),
+      };
       calls.push(c);
       return Promise.resolve(handler(c) ?? json(404, { error: 'not_found' }));
     }),
@@ -62,9 +71,19 @@ const post = (ref: string, over: Record<string, unknown> = {}): S['PostView'] =>
     ...over,
   }) as S['PostView'];
 
-const item = (ref: string, over: Record<string, unknown> = {}, p: Record<string, unknown> = {}): S['TreeItem'] => ({ post: post(ref, p), ...over });
+const item = (ref: string, over: Record<string, unknown> = {}, p: Record<string, unknown> = {}): S['TreeItem'] => ({
+  post: post(ref, p),
+  ...over,
+});
 
-const rowJSON = (gen: number, label: S['TreeRow']['label'], center: string, items: S['TreeItem'][], more = 0, cursor?: string): S['TreeRow'] => ({
+const rowJSON = (
+  gen: number,
+  label: S['TreeRow']['label'],
+  center: string,
+  items: S['TreeItem'][],
+  more = 0,
+  cursor?: string,
+): S['TreeRow'] => ({
   gen,
   label,
   center,
@@ -96,7 +115,11 @@ function treeAPI(extra: (c: Call) => Response | undefined = () => undefined, pre
     const r = extra(c);
     if (r) return r;
     if (c.path === '/session') return session();
-    if (c.path === '/me') return json(200, { ...me, settings: { ...me.settings, ui_prefs: prefs } });
+    if (c.path === '/me')
+      return json(200, {
+        ...me,
+        settings: { ...me.settings, ui_prefs: prefs },
+      });
     if (c.path === '/tree/f') return json(200, view());
     if (c.path === '/tree/s/snap-1/row') {
       const g = Number(c.query.gen);
@@ -109,9 +132,9 @@ function treeAPI(extra: (c: Call) => Response | undefined = () => undefined, pre
   });
 }
 
-function renderAt(path = '/p/f') {
+function renderAt(path = '/p/f', client = makeQueryClient()) {
   return render(
-    <QueryClientProvider client={makeQueryClient()}>
+    <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[path]}>
         <Routes>
           <Route path="/p/:ref" element={<TreePage />} />
@@ -121,12 +144,12 @@ function renderAt(path = '/p/f') {
   );
 }
 
-const rowOf = (gen: number) => {
-  const el = document.querySelector<HTMLElement>(`[data-testid="tree-row"][data-gen="${String(gen)}"]`);
-  if (!el) throw new Error(`no row ${String(gen)}`);
+const nodes = () => screen.getAllByTestId('explorer-node').map((e) => e.dataset.ref);
+const node = (ref: string) => {
+  const el = document.querySelector<SVGGElement>(`[data-testid="explorer-node"][data-ref="${ref}"]`);
+  if (!el) throw new Error(`no node ${ref}`);
   return el;
 };
-const refsOf = (gen: number) => within(rowOf(gen)).getAllByTestId('tree-item').map((e) => e.dataset.ref);
 const treeCalls = (calls: Call[]) => calls.filter((c) => c.path.startsWith('/tree'));
 
 beforeEach(() => {
@@ -141,7 +164,23 @@ describe('tree view-models', () => {
   it('maps the view, rows and items; posts fold past 10 lines in the tree', () => {
     const v = view();
     const long = Array.from({ length: 11 }, (_, i) => `line ${String(i)}`).join('\n');
-    v.rows[3] = rowJSON(1, 'replies', 'f', [item('c1', { also_replies_to: [{ ref: 'u-x', handle: 'xena' }], also_parents: ['p9'] }, { body: long })], 3, 'cur');
+    v.rows[3] = rowJSON(
+      1,
+      'replies',
+      'f',
+      [
+        item(
+          'c1',
+          {
+            also_replies_to: [{ ref: 'u-x', handle: 'xena' }],
+            also_parents: ['p9'],
+          },
+          { body: long },
+        ),
+      ],
+      3,
+      'cur',
+    );
     const vm = toTreeVM(v);
     expect(vm.snapshot).toBe('snap-1');
     expect(vm.focal).toBe('f');
@@ -173,14 +212,29 @@ describe('tree view-models', () => {
 
   it('puts rows (dropping the rows below a replaced one), appends pages and earlier rows', () => {
     const vm = toTreeVM(view());
-    const r1 = toTreeVM({ ...view(), rows: [rowJSON(1, 'replies', 'f', [item('n1')])] }).rows[0];
+    const r1 = toTreeVM({
+      ...view(),
+      rows: [rowJSON(1, 'replies', 'f', [item('n1')])],
+    }).rows[0];
     if (!r1) throw new Error('no row');
     expect(putRow(vm, r1).rows.map((r) => r.gen)).toEqual([-2, -1, 0, 1]);
     const r0 = { ...r1, gen: 0 };
     expect(putRow(vm, r0).rows.map((r) => r.gen)).toEqual([-2, -1, 0, 1, 2]);
     expect(putRow(vm, { ...r1, items: [] }).rows.map((r) => r.gen)).toEqual([-2, -1, 0]);
-    const page = { ...r1, gen: 1, center: asRef('f'), items: r1.items, more: 0 };
-    const withMore = appendMore({ ...vm, rows: vm.rows.map((r) => (r.gen === 1 ? { ...r, more: 1, cursor: 'c' } : r)) }, page);
+    const page = {
+      ...r1,
+      gen: 1,
+      center: asRef('f'),
+      items: r1.items,
+      more: 0,
+    };
+    const withMore = appendMore(
+      {
+        ...vm,
+        rows: vm.rows.map((r) => (r.gen === 1 ? { ...r, more: 1, cursor: 'c' } : r)),
+      },
+      page,
+    );
     const merged = withMore.rows.find((r) => r.gen === 1);
     expect(merged?.items.map((i) => i.post.ref)).toEqual(['c1', 'c2', 'n1']);
     expect(merged?.more).toBe(0);
@@ -227,12 +281,12 @@ describe('tree page', () => {
     renderAt();
     await screen.findByTestId('tree-layout');
     expect(screen.getByTestId('tree-layout').dataset.format).toBe('cards');
-    expect(screen.getAllByTestId('tree-row').map((r) => r.dataset.gen)).toEqual(['-2', '-1', '0', '1', '2']);
-    expect(screen.getByText('the focal post')).toBeTruthy();
+    expect(nodes()).toEqual(['g1', 'p1', 'p2', 'f', 's1', 'c1', 'c2', 'd1']);
+    expect(within(screen.getByTestId('tree-focus')).getByText('the focal post')).toBeTruthy();
     expect(treeCalls(calls)).toEqual([{ method: 'GET', path: '/tree/f', query: {} }]);
   });
 
-  it('uses the Compact outline when the reader chose it', async () => {
+  it('uses the reader format for the focused post', async () => {
     treeAPI(undefined, { format: 'compact' });
     renderAt();
     await waitFor(() => {
@@ -240,32 +294,67 @@ describe('tree page', () => {
     });
   });
 
-  it('re-centers a row: the rows below reload, the rows above stay', async () => {
-    const calls = treeAPI();
+  it('brings another post into focus: the tree reopens around it', async () => {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    const calls: Call[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((req: Request) => {
+        const u = new URL(req.url);
+        const path = u.pathname.replace(/^\/api/, '');
+        calls.push({
+          method: req.method,
+          path,
+          query: Object.fromEntries(u.searchParams),
+        });
+        if (path === '/tree/c2') {
+          const v = {
+            ...view('snap-2'),
+            focal: 'c2',
+            rows: [
+              rowJSON(-1, 'replying_to', 'c2', [item('f')]),
+              rowJSON(0, 'this_post', 'f', [item('c2', {}, { body: 'now in focus' }), item('c1')]),
+            ],
+          };
+          return gate.then(() => json(200, v));
+        }
+        if (path === '/session') return Promise.resolve(session());
+        if (path === '/me') return Promise.resolve(json(200, me));
+        if (path === '/tree/f') return Promise.resolve(json(200, view()));
+        return Promise.resolve(json(404, { error: 'not_found' }));
+      }),
+    );
     renderAt();
     await screen.findByTestId('tree-layout');
-    fireEvent.click(within(rowOf(1)).getByTestId('tree-next'));
+    fireEvent.click(node('c2'));
+    // The current tree stays on screen while the new one loads.
     await waitFor(() => {
-      expect(refsOf(2)).toEqual(['e1']);
+      expect(screen.getByTestId('tree-page').getAttribute('aria-busy')).toBe('true');
     });
-    expect(refsOf(-2)).toEqual(['g1']);
-    expect(treeCalls(calls).slice(1)).toEqual([{ method: 'GET', path: '/tree/s/snap-1/row', query: { gen: '2', center: 'c2' } }]);
-    // Another parent: the focal row lists the replies under it.
-    fireEvent.click(within(rowOf(-1)).getByTestId('tree-next'));
+    expect(screen.getByTestId('tree-focus').dataset.ref).toBe('f');
+    release();
     await waitFor(() => {
-      expect(refsOf(0)).toEqual(['f', 's9']);
+      expect(screen.getByTestId('tree-focus').dataset.ref).toBe('c2');
     });
-    expect(treeCalls(calls).at(-1)?.query).toEqual({ gen: '0', center: 'p2' });
-    expect(refsOf(1)).toEqual(['c1', 'c2']);
+    expect(node('c2').dataset.focal).toBe('true');
+    expect(within(screen.getByTestId('tree-focus')).getByText('now in focus')).toBeTruthy();
+    expect(treeCalls(calls).at(-1)).toEqual({
+      method: 'GET',
+      path: '/tree/c2',
+      query: {},
+    });
   });
 
-  it('loads later rows from the centered post and stops when there are no earlier ones', async () => {
+  it('loads later generations from the first post of the bottom one, and earlier ones until there are none', async () => {
     const calls = treeAPI();
     renderAt();
     await screen.findByTestId('tree-layout');
     fireEvent.click(screen.getByTestId('tree-later'));
     await waitFor(() => {
-      expect(refsOf(3)).toEqual(['h1']);
+      expect(nodes()).toContain('h1');
     });
     expect(treeCalls(calls).at(-1)?.query).toEqual({ gen: '3', center: 'd1' });
     expect(screen.queryByTestId('tree-later')).toBeNull(); // h1 has no replies
@@ -288,7 +377,7 @@ describe('tree page', () => {
     });
     renderAt();
     await screen.findByTestId('tree-layout');
-    fireEvent.click(within(rowOf(1)).getByTestId('tree-next'));
+    fireEvent.click(screen.getByTestId('tree-later'));
     await waitFor(() => {
       expect(screen.getByTestId('tree-page').dataset.opened).toBe('1');
     });
@@ -296,6 +385,18 @@ describe('tree page', () => {
       expect(treeCalls(calls).filter((c) => c.path === '/tree/f')).toHaveLength(2);
     });
     expect(screen.queryByTestId('tree-action-error')).toBeNull();
+  });
+
+  it('opens a fresh tree when the reader comes back to the post (new replies show)', async () => {
+    const calls = treeAPI();
+    const client = makeQueryClient();
+    const first = renderAt('/p/f', client);
+    await screen.findByTestId('tree-layout');
+    first.unmount();
+    await new Promise((r) => setTimeout(r, 0)); // the unused tree is dropped
+    renderAt('/p/f', client);
+    await screen.findByTestId('tree-layout');
+    expect(treeCalls(calls).filter((c) => c.path === '/tree/f')).toHaveLength(2);
   });
 
   it('shows the uniform "not available" for a post it cannot open', async () => {

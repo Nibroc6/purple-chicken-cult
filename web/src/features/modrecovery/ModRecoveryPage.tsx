@@ -1,14 +1,17 @@
 // Moderator page for manual account recovery (§10.3, security #14): moderator 1
 // opens it, a different moderator approves (each with a fresh passkey
-// step-up), and after the 24 h hold the second moderator fetches the one-time
+// step-up; P1: the approval is co-signed), and after the 24 h hold the second moderator fetches the one-time
 // enrollment link. Owner: P0-W11 → P1-W10.
 import { useMutation } from '@tanstack/react-query';
 import { useId, useState, type SyntheticEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ApiError } from '../../api/errors';
 import { useMe } from '../../app/session';
+import { requestCosign } from '../cosign';
+import { sessionCosigns } from '../settings/api';
 import { approveRecovery, isRef, openRecovery, recoveryErrorKey, recoveryLink } from './api';
 import '../settings/settings.css';
+import { InfoTip } from '../../lib/InfoTip';
 
 function ErrorLine({ err }: { err: unknown }) {
   const { t } = useTranslation(['modrecovery', 'errors']);
@@ -74,11 +77,26 @@ function Step({
 function RecoverySteps() {
   const { t } = useTranslation('modrecovery');
   const open = useMutation({ mutationFn: openRecovery });
-  const approve = useMutation({ mutationFn: approveRecovery });
+  const approve = useMutation({
+    // A passkey session co-signs the RecoveryApproval record (P1).
+    mutationFn: async (id: string) => {
+      if (await sessionCosigns()) {
+        const c = await requestCosign({ purpose: 'recovery_approve', target: id, summary: t('approve.summary', { id }) });
+        if (!c) return false;
+        await approveRecovery(id, c);
+      } else {
+        await approveRecovery(id);
+      }
+      return true;
+    },
+  });
   const link = useMutation({ mutationFn: recoveryLink });
   return (
     <>
-      <p>{t('page.intro')}</p>
+      <p>
+        {t('page.intro')}
+        <InfoTip>{t('page.introTip')}</InfoTip>
+      </p>
       <Step legend={t('request.legend')} label={t('request.subject')} button={t('request.button')} run={open}>
         <small className="muted">{t('request.help')}</small>
         {open.data ? (
@@ -88,7 +106,7 @@ function RecoverySteps() {
         ) : null}
       </Step>
       <Step legend={t('approve.legend')} label={t('approve.id')} button={t('approve.button')} run={approve}>
-        {approve.isSuccess ? <p role="status">{t('approve.done')}</p> : null}
+        {approve.data === true ? <p role="status">{t('approve.done')}</p> : null}
       </Step>
       <Step legend={t('link.legend')} label={t('link.id')} button={t('link.button')} run={link}>
         {link.data ? (

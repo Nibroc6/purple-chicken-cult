@@ -55,3 +55,56 @@
   padding-inline-start: var(--space-2);
   margin: 0;
 }
+
+.people-upgrade {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-3) var(--space-4);
+  margin-block-start: var(--space-4);
+}
+
+.people-upgrade-quiet {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: 44px;
+  margin-block-end: var(--space-2);
+}
+
+/* A person's post history. */
+.people-posts-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-block-end: var(--space-3);
+}
+
+.people-posts-head h2 {
+  margin: 0;
+}
+
+.people-posts-order {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.people-posts-order-btn[aria-pressed='true'] {
+  font-weight: 600;
+  border-color: var(--color-accent);
+}
+
+.people-posts-list {
+  list-style: none;
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.people-posts-item {
+  border-block-end: 1px solid var(--color-border);
+  padding-block-end: var(--space-3);
+}

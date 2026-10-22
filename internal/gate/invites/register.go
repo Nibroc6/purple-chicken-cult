@@ -3,7 +3,9 @@ package invites
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/json"
 	"regexp"
 	"time"
@@ -16,6 +18,25 @@ import (
 	"github.com/Nibroc6/purple-chicken-cult/internal/platform/sigs"
 )
 
+// Registration (the invitee side after a passed handshake, plan §4.7):
+//
+//  1. register/begin {form, signup_token}: the token (issued once the outcome
+//     passed, bound to E_v) and the form are checked; the passkey creation
+//     ceremony starts.
+//  2. register/finish {credential}: the new credential is verified (not yet
+//     bound to anyone), the account's ext_id is reserved and the Invite and
+//     Friendship records are drafted (Verified ⇒ friend+, Accepted ⇒ friend,
+//     fidelity #20); the signup ceremony (fidelity #21, core.SignupCosign)
+//     returns get options over those drafts. The inviter is asked to co-sign
+//     the Invite (purpose invite_inviter) from now on.
+//  3. register/cosign {assertion}: the RegisterFinish transaction. It needs the
+//     inviter's assertion (else Problem awaiting_inviter: the device waits and
+//     sends the same assertion again) and verifies the invitee's get assertion
+//     with the new credential inside the transaction; any failure aborts it
+//     and nothing is created.
+//
+// Every call is signed by the claiming device's key (claim.go).
+
 // Registration is the join form (POST /api/join/register/begin).
 type Registration struct {
 	Handle      string   `json:"handle"`
@@ -24,16 +45,46 @@ type Registration struct {
 	Languages   []string `json:"languages"`
 	TOSVersion  int      `json:"tos_version"`
 	AgeAttested bool     `json:"age_attested"`
+	SignupToken string   `json:"signup_token"`
 }
 
-// pending is what RegisterBegin keeps on the handshake for RegisterFinish.
+// pending is what the registration keeps on the handshake between its calls
+// (an upgrade keeps only its Friendship draft).
 type pending struct {
-	Handle      string   `json:"handle"`
-	DisplayName string   `json:"display_name"`
-	Locale      string   `json:"locale"`
-	Languages   []string `json:"languages"`
-	WebAuthnID  []byte   `json:"webauthn_user_id"`
-	TOSVersion  int      `json:"tos_version"`
+	Handle      string   `json:"handle,omitempty"`
+	DisplayName string   `json:"display_name,omitempty"`
+	Locale      string   `json:"locale,omitempty"`
+	Languages   []string `json:"languages,omitempty"`
+	WebAuthnID  []byte   `json:"webauthn_user_id,omitempty"`
+	TOSVersion  int      `json:"tos_version,omitempty"`
+	// Drafted at register/finish (invites) or at the outcome (upgrades).
+	ExtID      *uuid.UUID       `json:"ext_id,omitempty"`
+	Credential *core.Credential `json:"credential,omitempty"`
+	Invite     *inviteBody      `json:"invite,omitempty"`
+	Friendship *friendshipBody  `json:"friendship,omitempty"`
+}
+
+func readPending(raw []byte) (pending, bool) {
+	var p pending
+	if len(raw) == 0 || json.Unmarshal(raw, &p) != nil {
+		return pending{}, false
+	}
+	return p, true
+}
+
+// hasDrafts reports whether the records to co-sign are drafted.
+func hasDrafts(raw []byte) bool {
+	p, ok := readPending(raw)
+	return ok && p.Friendship != nil
+}
+
+// signupToken is the single-use signup token of a passed invite handshake,
+// bound to E_v: HMAC(secret, "pcc-signup-v1" ‖ E_v)[:16] (base64url).
+func signupToken(secret, ev []byte) string {
+	m := hmac.New(sha256.New, secret)
+	m.Write([]byte("pcc-signup-v1"))
+	m.Write(ev)
+	return b64.EncodeToString(m.Sum(nil)[:16])
 }
 
 const maxLanguages = 10
@@ -53,21 +104,31 @@ func cleanLangs(in []string) []string {
 	return out
 }
 
-// RegisterBegin validates the join form and starts the passkey ceremony in the
-// guest session. It needs the session's claimed handshake to be confirmed (the
-// inviter tapped "codes match"); otherwise, and once HandleTries handle_taken
-// answers were given on this handshake, the uniform not-found (D21).
-func (s *Service) RegisterBegin(ctx context.Context, r Registration) (json.RawMessage, error) {
-	v, err := guest(ctx)
+// registering authenticates a registration call: a guest session's signed
+// call on its invite handshake, confirmed and passed.
+func (s *Service) registering(ctx context.Context, sig, call string) (core.Viewer, hsRow, error) {
+	v, h, err := s.joinCall(ctx, s.d.DB.Q(), sig, call, false)
+	if err != nil {
+		return core.Viewer{}, hsRow{}, err
+	}
+	if v.Kind != core.SessGuest || h.kind != kindInvite || h.live(s.d.Clock.Now()) != stConfirmed || !h.passed() {
+		return core.Viewer{}, hsRow{}, gate.ErrNotFound
+	}
+	return v, h, nil
+}
+
+// RegisterBegin validates the join form and the signup token and starts the
+// passkey ceremony in the guest session. Before the outcome passed, with a
+// wrong token, and once HandleTries handle_taken answers were given on this
+// handshake: the uniform not-found (D21). A new begin discards drafts and
+// signatures of an earlier attempt.
+func (s *Service) RegisterBegin(ctx context.Context, sig string, r Registration) (json.RawMessage, error) {
+	v, h, err := s.registering(ctx, sig, CallRegisterBegin)
 	if err != nil {
 		return nil, err
 	}
-	now := s.d.Clock.Now()
-	h, err := s.claimedBy(ctx, s.d.DB.Q(), v.Session, false)
-	if err != nil {
-		return nil, err
-	}
-	if h.live(now) != stConfirmed || h.tries >= HandleTries {
+	if h.tries >= HandleTries ||
+		!hmac.Equal([]byte(r.SignupToken), []byte(signupToken(h.secret, h.ev))) {
 		return nil, gate.ErrNotFound
 	}
 	if r.TOSVersion != s.d.Cfg.TOSVersion {
@@ -110,8 +171,8 @@ func (s *Service) RegisterBegin(ctx context.Context, r Registration) (json.RawMe
 	if err != nil {
 		return nil, err
 	}
-	tag, err := s.d.DB.Q().Exec(ctx, "UPDATE handshake_sessions SET pending = $2 WHERE id = $1 AND state = $3",
-		h.id, raw, stConfirmed)
+	tag, err := s.d.DB.Q().Exec(ctx, `UPDATE handshake_sessions SET pending = $2, assertions = NULL
+		WHERE id = $1 AND state = $3`, h.id, raw, stConfirmed)
 	if err != nil {
 		return nil, err
 	}
@@ -122,44 +183,46 @@ func (s *Service) RegisterBegin(ctx context.Context, r Registration) (json.RawMe
 		DisplayName: p.DisplayName})
 }
 
-// RegisterFinish verifies the passkey and redeems the invite: it creates the
-// account, its Invite and Friendship records and the inviter edge, and turns
-// the guest session into a user session (returned as a new token).
-func (s *Service) RegisterFinish(ctx context.Context, body []byte) (string, gate.MeView, error) {
-	v, err := guest(ctx)
-	if err != nil {
-		return "", gate.MeView{}, err
-	}
-	h, err := s.claimedBy(ctx, s.d.DB.Q(), v.Session, false)
-	if err != nil {
-		return "", gate.MeView{}, err
-	}
-	if h.live(s.d.Clock.Now()) != stConfirmed || h.pending == nil {
-		return "", gate.MeView{}, gate.ErrNotFound
-	}
-	cred, err := s.d.Passkeys.FinishRegistration(ctx, v.Session, body)
-	if err != nil {
-		return "", gate.MeView{}, err
-	}
-	tok, uid, err := s.redeem(ctx, v.Session, cred)
-	if err != nil {
-		return "", gate.MeView{}, err
-	}
-	me, err := s.me(ctx, uid)
-	if err != nil {
-		return "", gate.MeView{}, err
-	}
-	return tok, me, nil
+// RegisterFinishOut answers register/finish: the signup ceremony's get
+// options and the drafts it signs (a JSON array: Invite, Friendship).
+type RegisterFinishOut struct {
+	Options json.RawMessage `json:"options"`
+	Records json.RawMessage `json:"records"`
 }
 
 // handshakeInfo is the "handshake" field of the Invite and Friendship records
-// and of the invites row (§7: which channels passed; P0 has only the QR).
+// and of the invites row (§7: which channels passed and the server-measured
+// timing, bucketed; nothing else).
 type handshakeInfo struct {
 	Mode           string   `json:"mode"`
 	ChannelsPassed []string `json:"channels_passed"`
+	Timings        *timings `json:"timings,omitempty"`
 }
 
-var p0Handshake = handshakeInfo{Mode: "qr", ChannelsPassed: []string{"qr"}}
+type timings struct {
+	ReportMs int64 `json:"report_ms"`
+}
+
+// infoOf is the handshake field of h's passed attempt.
+func infoOf(h hsRow) handshakeInfo {
+	info := handshakeInfo{Mode: modeName(h.mode), ChannelsPassed: []string{chQR}}
+	var r attemptReport
+	if len(h.report) > 0 && json.Unmarshal(h.report, &r) == nil && len(r.Channels) > 0 {
+		info.ChannelsPassed = r.Channels
+		if h.mode == modeQRAudio {
+			info.Timings = &timings{ReportMs: r.ElapsedMs}
+		}
+	}
+	return info
+}
+
+// levelOf is the friendship level a passed handshake creates (fidelity #20).
+func levelOf(o core.Outcome) (core.EdgeLevel, string) {
+	if o == core.OutcomeVerified {
+		return core.LevelFriendPlus, "friend+"
+	}
+	return core.LevelFriend, "friend"
+}
 
 // inviteBody is the signed Invite record body.
 type inviteBody struct {
@@ -180,17 +243,102 @@ type friendshipBody struct {
 	Handshake *handshakeInfo `json:"handshake,omitempty"`
 }
 
+func ordered(x, y uuid.UUID) (uuid.UUID, uuid.UUID) {
+	if bytes.Compare(x[:], y[:]) > 0 {
+		return y, x
+	}
+	return x, y
+}
+
+// records are the records the invitee's signup ceremony signs, in order.
+func (p pending) records() []core.CosignRecord {
+	return []core.CosignRecord{{Kind: core.RecInvite, Body: *p.Invite}, {Kind: core.RecFriendship, Body: *p.Friendship}}
+}
+
+// RegisterFinish verifies the new passkey, drafts the records and starts the
+// signup ceremony (see above).
+func (s *Service) RegisterFinish(ctx context.Context, sig string, body []byte) (RegisterFinishOut, error) {
+	v, h, err := s.registering(ctx, sig, CallRegisterFinish)
+	if err != nil {
+		return RegisterFinishOut{}, err
+	}
+	p, ok := readPending(h.pending)
+	if !ok || p.Handle == "" || p.Credential != nil {
+		return RegisterFinishOut{}, gate.ErrNotFound
+	}
+	cred, err := s.d.Passkeys.FinishRegistration(ctx, v.Session, body)
+	if err != nil {
+		return RegisterFinishOut{}, err
+	}
+	inviter, err := s.d.Users.Get(ctx, h.initiator)
+	if err != nil {
+		return RegisterFinishOut{}, err
+	}
+	ext, err := uuid.NewV7()
+	if err != nil {
+		return RegisterFinishOut{}, err
+	}
+	now := s.d.Clock.Now()
+	info := infoOf(h)
+	_, level := levelOf(h.outcome)
+	a, b := ordered(inviter.ExtID, ext)
+	p.ExtID, p.Credential = &ext, &cred
+	p.Invite = &inviteBody{Inviter: inviter.ExtID, Invitee: ext, IssuedAt: sigs.T(h.createdAt), Handshake: info,
+		InviteeCredential: sigs.Bytes(cred.ID)}
+	p.Friendship = &friendshipBody{A: a, B: b, Level: level, CreatedAt: sigs.T(now), Handshake: &info}
+	in, err := s.d.Signup.BeginSignup(ctx, v.Session, cred, p.records())
+	if err != nil {
+		return RegisterFinishOut{}, err
+	}
+	raw, err := json.Marshal(p)
+	if err != nil {
+		return RegisterFinishOut{}, err
+	}
+	tag, err := s.d.DB.Q().Exec(ctx, `UPDATE handshake_sessions SET pending = $2, assertions = NULL
+		WHERE id = $1 AND state = $3`, h.id, raw, stConfirmed)
+	if err != nil {
+		return RegisterFinishOut{}, err
+	}
+	if tag.RowsAffected() != 1 {
+		return RegisterFinishOut{}, gate.ErrNotFound
+	}
+	s.liveEvent(h, "signing")
+	return RegisterFinishOut{Options: in.Options, Records: in.Record}, nil
+}
+
+// RegisterCosign completes the join with the invitee's get assertion over the
+// drafts and returns the new user session's token and the account's view.
+func (s *Service) RegisterCosign(ctx context.Context, sig string, assertion []byte) (string, gate.MeView, error) {
+	v, _, err := s.registering(ctx, sig, CallRegisterCosign)
+	if err != nil {
+		return "", gate.MeView{}, err
+	}
+	tok, uid, err := s.redeem(ctx, v.Session, assertion)
+	if err != nil {
+		return "", gate.MeView{}, err
+	}
+	me, err := s.me(ctx, uid)
+	if err != nil {
+		return "", gate.MeView{}, err
+	}
+	return tok, me, nil
+}
+
 // redeem is the RegisterFinish transaction (plan §4.7, serializable): re-check
-// the inviter ⇒ create the user ⇒ bind the credential ⇒ Invite and Friendship
-// records ⇒ invites row ⇒ edge ⇒ spend one token ⇒ handshake done ⇒ upgrade
-// the guest session. Graph memory, the bus, the metric and the live event
-// follow the commit. Exactly one redemption of a handshake can succeed.
-func (s *Service) redeem(ctx context.Context, sess [32]byte, cred core.Credential) (string, core.UserID, error) {
+// the inviter ⇒ create the user (reserved ext_id) ⇒ bind the credential ⇒
+// verify the signup ceremony ⇒ Invite and Friendship records with the
+// inviter's and the invitee's assertions ⇒ invites row ⇒ edge at the
+// outcome's level ⇒ spend one token ⇒ handshake done ⇒ upgrade the guest
+// session. Graph memory, the bus, the metric and the live event follow the
+// commit. Exactly one redemption of a handshake can succeed; any failure,
+// a failed assertion included, rolls everything back.
+func (s *Service) redeem(ctx context.Context, sess [32]byte, assertion []byte) (string, core.UserID, error) {
 	var (
-		tok     string
-		uid     core.UserID
-		inviter core.UserID
-		now     time.Time
+		tok   string
+		uid   core.UserID
+		now   time.Time
+		level core.EdgeLevel
+		h     hsRow
 	)
 	// The inviter checks that read through the pool run first: inside the
 	// transaction only tx is used, so concurrent redemptions waiting on the
@@ -199,7 +347,7 @@ func (s *Service) redeem(ctx context.Context, sess [32]byte, cred core.Credentia
 	if err != nil {
 		return "", 0, err
 	}
-	inviter = pre.inviter
+	inviter := pre.initiator
 	m, err := s.d.Users.Get(ctx, inviter)
 	if err != nil {
 		return "", 0, err
@@ -209,20 +357,26 @@ func (s *Service) redeem(ctx context.Context, sess [32]byte, cred core.Credentia
 	} else if edges+outgoing >= FriendCap {
 		return "", 0, gate.ErrNotFound
 	}
-	var hsID uuid.UUID
 	err = s.d.DB.TxSerializable(ctx, func(tx pgx.Tx) error {
 		now = s.d.Clock.Now()
-		h, err := s.claimedBy(ctx, tx, sess, true)
+		var err error
+		h, err = s.claimedBy(ctx, tx, sess, true)
 		if err != nil {
 			return err
 		}
-		if h.live(now) != stConfirmed || h.pending == nil || h.inviter != inviter {
+		p, ok := readPending(h.pending)
+		if h.kind != kindInvite || h.live(now) != stConfirmed || !h.passed() || h.initiator != inviter || !ok ||
+			p.Credential == nil || p.ExtID == nil || p.Invite == nil || p.Friendship == nil {
 			return gate.ErrNotFound
 		}
-		hsID = h.id
-		var p pending
-		if err := json.Unmarshal(h.pending, &p); err != nil {
-			return gate.ErrNotFound
+		var sg signatures
+		if len(h.assertions) > 0 {
+			if err := json.Unmarshal(h.assertions, &sg); err != nil {
+				return gate.ErrNotFound
+			}
+		}
+		if len(sg.Initiator) == 0 {
+			return gate.NewProblem(gate.StatusConflict, "awaiting_inviter")
 		}
 		if m.Status != core.StatusActive || m.OnProbation(now) {
 			return gate.ErrNotFound
@@ -236,34 +390,33 @@ func (s *Service) redeem(ctx context.Context, sess [32]byte, cred core.Credentia
 		}
 		uid, err = s.d.Users.Create(ctx, tx, core.NewUser{Handle: p.Handle, DisplayName: p.DisplayName, Locale: p.Locale,
 			Languages: p.Languages, InvitedBy: inviter, ProbationUntil: probationUntil(now), TOSVersion: p.TOSVersion,
-			AgeAttested: true, WebAuthnID: p.WebAuthnID, Status: core.StatusActive})
+			AgeAttested: true, WebAuthnID: p.WebAuthnID, Status: core.StatusActive, ExtID: *p.ExtID})
 		if err != nil {
 			return err
 		}
-		_, ext, _, err := s.d.Accounts.Account(ctx, tx, uid, false)
+		if _, err := tx.Exec(ctx, "UPDATE users SET probation_rule = $2 WHERE id = $1", int64(uid), RuleP1); err != nil {
+			return err
+		}
+		if err := s.d.Passkeys.BindCredential(ctx, tx, uid, *p.Credential); err != nil {
+			return err
+		}
+		mine, err := s.d.Signup.FinishSignup(ctx, tx, sess, uid, *p.Credential, p.records(), assertion)
 		if err != nil {
 			return err
 		}
-		if err := s.d.Passkeys.BindCredential(ctx, tx, uid, cred); err != nil {
-			return err
+		if len(mine) != 2 {
+			return gate.ErrNotFound
 		}
 		parties := []core.UserID{inviter, uid}
-		invHash, err := s.d.Signer.Sign(ctx, tx, core.RecInvite, inviter, inviteBody{Inviter: m.ExtID, Invitee: ext,
-			IssuedAt: sigs.T(h.createdAt), Handshake: p0Handshake, InviteeCredential: sigs.Bytes(cred.ID)}, parties)
+		invHash, err := s.d.Signer.Sign(ctx, tx, core.RecInvite, inviter, *p.Invite, parties, sg.Initiator[0], mine[0])
 		if err != nil {
 			return err
 		}
-		a, bb := m.ExtID, ext
-		if bytes.Compare(a[:], bb[:]) > 0 {
-			a, bb = bb, a
-		}
-		hsInfo := p0Handshake
-		frHash, err := s.d.Signer.Sign(ctx, tx, core.RecFriendship, inviter, friendshipBody{A: a, B: bb, Level: "friend",
-			CreatedAt: sigs.T(now), Handshake: &hsInfo}, parties)
+		frHash, err := s.d.Signer.Sign(ctx, tx, core.RecFriendship, inviter, *p.Friendship, parties, mine[1])
 		if err != nil {
 			return err
 		}
-		hsJSON, err := json.Marshal(p0Handshake)
+		hsJSON, err := json.Marshal(p.Invite.Handshake)
 		if err != nil {
 			return err
 		}
@@ -272,17 +425,18 @@ func (s *Service) redeem(ctx context.Context, sess [32]byte, cred core.Credentia
 			invHash, frHash); err != nil {
 			return err
 		}
-		if err := s.d.Edges.Create(ctx, tx, inviter, uid, core.LevelFriend, frHash); err != nil {
+		level, _ = levelOf(h.outcome)
+		if err := s.d.Edges.Create(ctx, tx, inviter, uid, level, frHash); err != nil {
 			return err
 		}
 		if err := s.spend(ctx, tx, inviter, b, now); err != nil {
 			return err
 		}
-		if _, err := tx.Exec(ctx, `UPDATE handshake_sessions SET state = $2, completed_at = $3, pending = NULL
-			WHERE id = $1`, h.id, stDone, now); err != nil {
+		if _, err := tx.Exec(ctx, `UPDATE handshake_sessions SET state = $2, completed_at = $3, pending = NULL,
+			assertions = NULL WHERE id = $1`, h.id, stDone, now); err != nil {
 			return err
 		}
-		if tok, err = s.d.Passkeys.Upgrade(ctx, tx, sess, uid, cred.ID); err != nil {
+		if tok, err = s.d.Passkeys.Upgrade(ctx, tx, sess, uid, p.Credential.ID); err != nil {
 			return err
 		}
 		return s.d.Notify.Notify(ctx, tx, core.Event{To: inviter, Kind: notifyRedeemed, SubjectUser: uid})
@@ -290,10 +444,10 @@ func (s *Service) redeem(ctx context.Context, sess [32]byte, cred core.Credentia
 	if err != nil {
 		return "", 0, err
 	}
-	s.d.Graph.AddEdge(inviter, uid, core.LevelFriend, now)
-	s.d.Bus.Publish(core.EdgeAdded{A: inviter, B: uid, Level: core.LevelFriend, At: now})
+	s.d.Graph.AddEdge(inviter, uid, level, now)
+	s.d.Bus.Publish(core.EdgeAdded{A: inviter, B: uid, Level: level, At: now})
 	s.d.Metrics.Inc(metricRedeemed, "", 1)
-	s.d.Notify.Live(inviter, liveTopic, map[string]any{"hs": s.d.Refs.Handshake(inviter, hsID), "state": "done"})
+	s.liveEvent(h, "done")
 	return tok, uid, nil
 }
 

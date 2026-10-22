@@ -81,6 +81,7 @@ type storedCred struct {
 	name          string
 	createdAt     time.Time
 	lastUsedAt    *time.Time
+	recoveredAt   *time.Time // enrolled through recovery
 }
 
 func (c storedCred) webauthn() webauthn.Credential {
@@ -102,7 +103,7 @@ func (s *Service) credentials(ctx context.Context, q store.Q, user core.UserID, 
 		order = "ORDER BY created_at, id FOR UPDATE"
 	}
 	sql := `SELECT id, public_key, alg, sign_count, aaguid, transports, backup_eligible, backup_state, name, created_at,
-		last_used_at FROM webauthn_credentials WHERE user_id = $1 ` + order
+		last_used_at, recovered_at FROM webauthn_credentials WHERE user_id = $1 ` + order
 	rows, err := q.Query(ctx, sql, int64(user))
 	if err != nil {
 		return nil, err
@@ -113,7 +114,7 @@ func (s *Service) credentials(ctx context.Context, q store.Q, user core.UserID, 
 		var c storedCred
 		var alg int32
 		if err := rows.Scan(&c.id, &c.publicKey, &alg, &c.signCount, &c.aaguid, &c.transports, &c.be, &c.bs, &c.name,
-			&c.createdAt, &c.lastUsedAt); err != nil {
+			&c.createdAt, &c.lastUsedAt, &c.recoveredAt); err != nil {
 			return nil, err
 		}
 		c.alg = int(alg)
@@ -155,8 +156,18 @@ func pendingUser(a account, creds []storedCred) core.PendingUser {
 	return pu
 }
 
-// bindCredential inserts c for user and signs its PasskeyChange add record.
+// bindCredential inserts c for user and signs its PasskeyChange add record
+// (server-signed: the first credential of a chain, or a credential-less session).
 func (s *Service) bindCredential(ctx context.Context, tx store.Q, user core.UserID, c core.Credential, name string) error {
+	if err := s.insertCredential(ctx, tx, user, c, name); err != nil {
+		return err
+	}
+	return s.signChange(ctx, tx, user, opAdd, c.ID, c.PublicKey, c.Alg, s.d.Clock.Now())
+}
+
+// insertCredential stores c for user; an already registered credential (to
+// anyone) is gate.ErrNotFound.
+func (s *Service) insertCredential(ctx context.Context, tx store.Q, user core.UserID, c core.Credential, name string) error {
 	if len(c.ID) == 0 || len(c.PublicKey) == 0 {
 		return errors.New("auth: empty credential")
 	}
@@ -176,7 +187,7 @@ func (s *Service) bindCredential(ctx context.Context, tx store.Q, user core.User
 		}
 		return err
 	}
-	return s.signChange(ctx, tx, user, opAdd, c.ID, c.PublicKey, c.Alg, now)
+	return nil
 }
 
 // signChange writes a PasskeyChange record (party: the account).

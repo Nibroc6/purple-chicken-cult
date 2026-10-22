@@ -1,1 +1,57 @@
-{}
+{
+  "dialog": {
+    "title": "Confirm with your passkey",
+    "body": "Your passkey signs this change, so it's on record that you approved it.",
+    "loading": "Preparing…",
+    "sign": "Sign with passkey",
+    "working": "Waiting for your passkey…",
+    "cancel": "Cancel"
+  },
+  "record": {
+    "issuedAt": "Prepared {when}",
+    "exact": "Show the exact record"
+  },
+  "kinds": {
+    "invite": "Invite",
+    "friendship": "Friendship",
+    "revocation": "Unfriending",
+    "post": "Post",
+    "tombstone": "Deletion",
+    "block": "Block",
+    "report": "Report",
+    "passkey_change": "Passkey change",
+    "mod_action": "Moderation decision",
+    "unknown": "Record ({kind})"
+  },
+  "fields": {
+    "a": "Person A",
+    "b": "Person B",
+    "at": "Time",
+    "by": "By",
+    "blocked": "Blocked person",
+    "blocker": "Blocking person",
+    "created_at": "Created",
+    "credential_id": "Passkey",
+    "edge": "Friendship",
+    "handshake": "Handshake",
+    "invitee": "Invited person",
+    "invitee_credential": "Invited person's passkey",
+    "inviter": "Inviting person",
+    "issued_at": "Issued",
+    "level": "Level",
+    "op": "Change",
+    "user": "Account"
+  },
+  "check": {
+    "title": "Check co-signing",
+    "body": "Sign a test record with one of your passkeys. Nothing is saved.",
+    "summary": "A test record that is never saved.",
+    "run": "Sign a test record",
+    "signed": "Your passkey signed the record.",
+    "cancelled": "Nothing was signed."
+  },
+  "advanced": {
+    "summary": "Advanced: what your passkey signs",
+    "note": "The exact record your passkey signs. It holds public account IDs and times only: never your passkey or any secret code."
+  }
+}

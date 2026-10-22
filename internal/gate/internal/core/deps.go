@@ -65,6 +65,9 @@ type Deps struct {
 	RecordExporter RecordExporter
 	PostAdmin      PostAdmin
 	Enrollments    Enrollments
+	// Steward addition (contract request p1-w10-3); impl: gate/account.
+	// Optional: nil skips the passkey veto.
+	Recovery RecoveryGuard
 
 	// Steward additions (contract request p0-w02-1). Optional: nil until the
 	// implementing WP lands; gate/views treats nil as "none".
@@ -80,4 +83,20 @@ type Deps struct {
 	// Steward additions (contract request p0-w12-1); impl: gate/posts, gate/users.
 	PostRemover PostRemover
 	Suspensions Suspensions
+
+	// Steward additions (contract request p1-w01-1); impl: gate/cosign.
+	CosignPurposes CosignPurposes
+	Signup         SignupCosign
+
+	// Steward addition (contract request p1-w04-1); impl: gate/media.
+	CSAM CSAMHolds
+
+	// Steward addition (contract request p1-w09-3); impl: gate/media.
+	// Optional: gate/themes treats nil as "media is off".
+	ThemeMedia ThemeMedia
+
+	// Steward additions (contract request p1-w06-1); impl: gate/invites,
+	// gate/moderation. Marks is optional: gate/views treats nil as "none".
+	InvitePenalties InvitePenalties
+	Marks           RemovedMarks
 }

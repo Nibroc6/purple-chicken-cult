@@ -72,6 +72,10 @@ type NewUser struct {
 	AgeAttested                 bool
 	WebAuthnID                  []byte
 	Status                      uint8
+	// ExtID is the account's ext_id when the caller reserved it before the
+	// transaction (the P1 signup ceremony signs drafts that name the invitee);
+	// uuid.Nil ⇒ generated. Steward: contract request p1-w01-1.
+	ExtID uuid.UUID
 }
 
 // Users is the user directory.
@@ -228,6 +232,11 @@ type PostIndex interface {
 	RecentLen(author UserID) int
 	WindowScan(fn func(PostMeta) bool) // newest first over all window posts (time scan)
 	WindowSize() int
+	// ByAuthor returns up to limit of author's live posts in their whole
+	// history (not just the window), newest first (created_at desc, id asc) or
+	// oldest first (the reverse), strictly after the post at after (nil: from
+	// the start). RAW: callers check visibility.
+	ByAuthor(ctx context.Context, author UserID, after *PostMeta, oldestFirst bool, limit int) ([]PostMeta, error)
 	Children(ctx context.Context, parent PostID, fn func(LinkMeta) bool) // newest first, ALL links; RAW (archtest A10)
 	Parents(ctx context.Context, child PostID) []LinkMeta                // RAW (archtest A10)
 	Bodies(ctx context.Context, ids []PostID) map[PostID]string
@@ -374,6 +383,9 @@ const (
 	RecReport        RecordKind = 7
 	RecPasskeyChange RecordKind = 8
 	RecModAction     RecordKind = 9
+	// Steward: contract request p1-w10-1 (co-signed deletion and recovery).
+	RecAccountDelete    RecordKind = 10
+	RecRecoveryApproval RecordKind = 11
 )
 
 // String returns the record body "kind" value.
@@ -397,6 +409,10 @@ func (k RecordKind) String() string {
 		return "passkey_change"
 	case RecModAction:
 		return "mod_action"
+	case RecAccountDelete:
+		return "account_delete"
+	case RecRecoveryApproval:
+		return "recovery_approval"
 	}
 	return ""
 }
@@ -408,6 +424,14 @@ const RecordSchemaVersion = 1
 type Assertion struct {
 	CredentialID, AuthenticatorData, ClientDataJSON, Signature []byte
 	User                                                       UserID
+	// Draft is the exact co-sign draft this assertion signed (Signer.Draft
+	// bytes: the record body plus its "cosign" {nonce, issued_at} member).
+	// Bundle, when set, lists the challenges of every draft one assertion
+	// signed together (the signup ceremony); clientDataJSON.challenge is then
+	// BundleChallenge(Bundle). Cosign fills both; Signer stores them with the
+	// record so the assertion verifies offline. Steward: contract request p1-w01-1.
+	Draft  []byte
+	Bundle [][]byte
 }
 
 // Signer writes signed records.
@@ -472,6 +496,16 @@ type Enrollments interface {
 	CancelEnrollment(ctx context.Context, tx store.Q, tokenHash []byte) error
 }
 
+// RecoveryGuard lets a passkey the account already had veto a recovery of it
+// (impl: gate/account). Steward: contract request p1-w10-3.
+type RecoveryGuard interface {
+	// PasskeyLogin is told, before the login's session is issued, that user
+	// signed in with a passkey created at credCreated. It cancels every live
+	// recovery of user that opened once that passkey existed (in its own
+	// transaction).
+	PasskeyLogin(ctx context.Context, user UserID, credCreated time.Time) error
+}
+
 // ---- invites (impl: gate/invites) ----
 
 // Invites exposes the invite tree.
@@ -526,4 +560,14 @@ type Limiter interface {
 	ChargeRead(ctx context.Context, v Viewer, c ReadClass) error         // gate.ErrRateLimited
 	ChargeWrite(ctx context.Context, v Viewer, k WriteKind, n int) error // gate.ErrRateLimited
 	ChargeAnon(ip netip.Prefix, bucket string) error                     // unauthenticated surface (memory only)
+	// WriteAllowance reports what is left of a build-up write limit of kind k
+	// (ok false when k has none).
+	WriteAllowance(ctx context.Context, v Viewer, k WriteKind) (a Allowance, ok bool, err error)
+}
+
+// Allowance is what is left of a build-up limit: Available of Cap now, and
+// when the next one builds up (nil while full).
+type Allowance struct {
+	Available, Cap int
+	NextAt         *time.Time
 }

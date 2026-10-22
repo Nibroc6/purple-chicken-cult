@@ -1,0 +1,7 @@
+# Dev scanner blocklist (platform/scan "dev" driver; dev/test only, never prod).
+# One lowercase SHA-256 digest per line. Every entry is a SYNTHETIC test pattern
+# generated in code, never real imagery: tests use synthetic hash matches only.
+#
+# 32×32 RGB PNG, pixel (x, y) = (8x, 8y, 0xC0), filter 0, stored (uncompressed)
+# deflate: built byte for byte by blockedPNG() in web/e2e/p1-w04.spec.ts.
+861364b7279c7afa520bb38f0e2b4d57a312b593fa4dce73742ffcfa81102046

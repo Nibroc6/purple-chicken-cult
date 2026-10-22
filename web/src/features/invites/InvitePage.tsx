@@ -1,46 +1,52 @@
 // The invite screen (§7, §8, plan §4.7 invites): the saved invites with a
 // countdown to the next one, or during probation a countdown to the end of its
-// time part plus the outside friends still needed; then the rotating QR code,
-// the SAS check ("codes match / don't match") and the outcome. Owner: P0-W04 → P1-W02.
+// time part plus the outside friends still needed; then the handshake (the
+// rotating QR code, the SAS check, the sound or the dual QR, the co-signature)
+// in HandshakeHost. One code, two uses: someone new signs up with it (while
+// the budget allows), someone signed in becomes a friend (always).
+// Owner: P0-W04 → P1-W02.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import QRCode from 'qrcode';
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { Loading } from '../../app/Loading';
 import { formatDateTime } from '../../lib/time';
-import {
-  cancelHandshake,
-  confirmHandshake,
-  fetchBudget,
-  fetchFrame,
-  fetchStatus,
-  openHandshake,
-  type OpenedVM,
-} from './api';
+import { fetchBudget, openHandshake, type HandshakeMode, type OpenedVM } from './api';
+import { HandshakeHost } from './HandshakeHost';
 import { ErrorText, invitesKey, useNow } from './shared';
-import { canOpen, countdown, joinURL, type BudgetVM, type HandshakeState } from './vm';
-
-const live: ReadonlySet<HandshakeState> = new Set(['open', 'claimed', 'confirmed']);
+import { canInvite, canShowCode, countdown, type BudgetVM } from './vm';
+import { InfoTip } from '../../lib/InfoTip';
 
 export default function InvitePage() {
   const { t } = useTranslation('invites');
   const qc = useQueryClient();
   const budget = useQuery({ queryKey: [...invitesKey, 'budget'], queryFn: fetchBudget });
   const [opened, setOpened] = useState<OpenedVM | undefined>();
+  const [mode, setMode] = useState<HandshakeMode>('qr_audio');
+  const [quiet, setQuiet] = useState(false);
   const open = useMutation({
-    mutationFn: openHandshake,
+    mutationFn: () => openHandshake(mode, quiet),
     onSuccess: (o) => {
       setOpened(o);
     },
+    // Opening uses an attempt (or was refused for want of one): show the count.
+    onSettled: () => qc.invalidateQueries({ queryKey: [...invitesKey, 'budget'] }),
   });
   return (
     <section className="page invites-page">
       <h1>{t('page.title')}</h1>
-      <p>{t('page.intro')}</p>
+      <p>
+        {t('page.intro')}
+        <InfoTip>{t('page.introTip')}</InfoTip>
+      </p>
       {budget.isPending ? <Loading /> : budget.error ? <ErrorText err={budget.error} /> : <Budget b={budget.data} />}
+      {opened && !opened.invite ? (
+        <p className="muted" data-testid="invite-connect-only">
+          {t('open.connectOnly')}
+        </p>
+      ) : null}
       {opened ? (
-        <Handshake
+        <HandshakeHost
           key={opened.hs}
           opened={opened}
           onDone={() => {
@@ -52,18 +58,61 @@ export default function InvitePage() {
           }}
         />
       ) : (
-        <div className="invites-actions">
-          <button
-            type="button"
-            data-testid="invite-open"
-            disabled={!budget.data || !canOpen(budget.data) || open.isPending}
-            onClick={() => {
-              open.mutate();
-            }}
-          >
-            {open.isPending ? t('open.working') : t('open.button')}
-          </button>
-        </div>
+        <>
+          <fieldset className="invites-mode">
+            <legend>{t('mode.legend')}</legend>
+            <label className="invites-choice">
+              <input
+                type="radio"
+                name="mode"
+                checked={mode === 'qr_audio'}
+                onChange={() => {
+                  setMode('qr_audio');
+                }}
+              />
+              {t('mode.audio')}
+            </label>
+            {mode === 'qr_audio' ? (
+              <label className="invites-choice invites-sub">
+                <input
+                  type="checkbox"
+                  name="quiet"
+                  data-testid="invite-quiet"
+                  checked={quiet}
+                  onChange={(e) => {
+                    setQuiet(e.target.checked);
+                  }}
+                />
+                {t('mode.quiet')}
+              </label>
+            ) : null}
+            <label className="invites-choice">
+              <input
+                type="radio"
+                name="mode"
+                data-testid="invite-mode-dual"
+                checked={mode === 'dual_qr'}
+                onChange={() => {
+                  setMode('dual_qr');
+                }}
+              />
+              {t('mode.dual')}
+            </label>
+          </fieldset>
+          <div className="invites-actions">
+            <button
+              type="button"
+              data-testid="invite-open"
+              disabled={!budget.data || !canShowCode(budget.data) || open.isPending}
+              onClick={() => {
+                open.mutate();
+              }}
+            >
+              {open.isPending ? t('open.working') : t('open.button')}
+            </button>
+          </div>
+          {budget.data && !canInvite(budget.data) ? <p className="muted">{t('open.connectOnly')}</p> : null}
+        </>
       )}
       <ErrorText err={open.error} />
       <p>
@@ -104,9 +153,12 @@ function Budget({ b }: { b: BudgetVM }) {
         </p>
         {b.probation.needOutsideFriends > 0 ? (
           <p data-testid="invite-probation-friends">
-            {t('budget.probationFriends', { count: b.probation.needOutsideFriends })}
+            {b.probation.friendPlus
+              ? t('budget.probationFriendsPlus', { count: b.probation.needOutsideFriends })
+              : t('budget.probationFriends', { count: b.probation.needOutsideFriends })}
           </p>
         ) : null}
+        <Attempts b={b} remaining={remaining} />
       </div>
     );
   }
@@ -120,118 +172,22 @@ function Budget({ b }: { b: BudgetVM }) {
       ) : (
         <p className="muted">{t('budget.full')}</p>
       )}
+      <Attempts b={b} remaining={remaining} />
     </div>
   );
 }
 
-function Handshake({ opened, onDone, onAgain }: { opened: OpenedVM; onDone: () => void; onAgain: () => void }) {
+// Attempts shows the code attempts (they also limit codes that only connect).
+function Attempts({ b, remaining }: { b: BudgetVM; remaining: (target: Date) => string }) {
   const { t } = useTranslation('invites');
-  const status = useQuery({
-    queryKey: [...invitesKey, 'hs', opened.hs],
-    queryFn: () => fetchStatus(opened.hs),
-    refetchInterval: (q) => (q.state.data && !live.has(q.state.data.state) ? false : 1000),
-  });
-  const state = status.data?.state ?? 'open';
-  const doneRef = useRef(false);
-  useEffect(() => {
-    if (state === 'done' && !doneRef.current) {
-      doneRef.current = true;
-      onDone();
-    }
-  }, [state, onDone]);
-  const confirm = useMutation({ mutationFn: () => confirmHandshake(opened.hs), onSuccess: () => status.refetch() });
-  const cancel = useMutation({ mutationFn: () => cancelHandshake(opened.hs), onSuccess: () => status.refetch() });
-
+  if (!b.attempts) return null;
   return (
-    <div className="invites-handshake" data-testid="invite-handshake" data-state={state}>
-      {state === 'open' ? <Frame opened={opened} /> : null}
-      {state === 'claimed' && status.data?.sas ? (
-        <>
-          <p>{t('hs.claimed')}</p>
-          <p className="invites-sas" data-testid="invite-sas">
-            {status.data.sas}
-          </p>
-          <div className="invites-actions">
-            <button
-              type="button"
-              data-testid="invite-match"
-              disabled={confirm.isPending || cancel.isPending}
-              onClick={() => {
-                confirm.mutate();
-              }}
-            >
-              {t('hs.match')}
-            </button>
-            <button
-              type="button"
-              data-testid="invite-mismatch"
-              disabled={confirm.isPending || cancel.isPending}
-              onClick={() => {
-                cancel.mutate();
-              }}
-            >
-              {t('hs.mismatch')}
-            </button>
-          </div>
-        </>
+    <div className="invites-attempts" data-testid="invite-attempts">
+      <p data-testid="invite-attempts-left">{t('attempts.left', { count: b.attempts.available, cap: b.attempts.cap })}</p>
+      {b.attempts.nextAt ? (
+        <p data-testid="invite-attempts-next">{t('attempts.next', { time: remaining(b.attempts.nextAt) })}</p>
       ) : null}
-      {state === 'confirmed' ? <p role="status">{t('hs.confirmed')}</p> : null}
-      {state === 'done' ? (
-        <p role="status" data-testid="invite-done">
-          {t('hs.done')}
-        </p>
-      ) : null}
-      {state === 'cancelled' || state === 'expired' ? (
-        <>
-          <p role="status">{state === 'cancelled' ? t('hs.cancelled') : t('hs.expired')}</p>
-          <button type="button" data-testid="invite-again" onClick={onAgain}>
-            {t('hs.again')}
-          </button>
-        </>
-      ) : null}
-      {state === 'open' || state === 'confirmed' ? (
-        <button
-          type="button"
-          disabled={cancel.isPending}
-          onClick={() => {
-            cancel.mutate();
-          }}
-        >
-          {t('hs.cancel')}
-        </button>
-      ) : null}
-      <ErrorText err={confirm.error ?? cancel.error} />
+      <p className="muted">{t('attempts.hint')}</p>
     </div>
-  );
-}
-
-// Frame shows the rotating QR code; it fetches the next frame when the current
-// one's window ends.
-function Frame({ opened }: { opened: OpenedVM }) {
-  const { t } = useTranslation('invites');
-  const canvas = useRef<HTMLCanvasElement>(null);
-  const frame = useQuery({
-    queryKey: [...invitesKey, 'frame', opened.hs],
-    queryFn: () => fetchFrame(opened.hs),
-    refetchInterval: (q) =>
-      q.state.data ? Math.max(500, q.state.data.validUntil.getTime() - Date.now() + 100) : opened.frameTTLms,
-  });
-  const payload = frame.data?.payload;
-  useEffect(() => {
-    if (!payload || !canvas.current) return;
-    QRCode.toCanvas(canvas.current, payload, { errorCorrectionLevel: 'M', margin: 2, width: 320 }).catch(() => undefined);
-  }, [payload]);
-  return (
-    <>
-      <canvas
-        ref={canvas}
-        className="invites-qr"
-        role="img"
-        aria-label={t('hs.qrLabel')}
-        data-testid="invite-qr"
-      />
-      <p>{t('hs.scanHint', { url: joinURL(location.origin) })}</p>
-      <ErrorText err={frame.error} />
-    </>
   );
 }

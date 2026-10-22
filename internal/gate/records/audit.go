@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/ed25519"
+	"encoding/base64"
 	"encoding/json"
 	"time"
 
@@ -25,10 +26,29 @@ func orderedExt(a, b uuid.UUID) extPair {
 // AuditEdges checks every edges row (both directions) against its signed
 // Friendship record (§4.5, fidelity #31) and returns the number of rows that
 // fail: the record is missing, is not a Friendship, does not hash to its key,
-// does not verify under its signing key, names other users, is scheduled for
-// purging (revoked), or is followed by a Revocation of the same pair.
+// does not verify under its signing key (a user-key record also needs a valid
+// server countersign), names other users, is scheduled for purging (revoked),
+// or is followed by a Revocation of the same pair.
 func (s *Service) AuditEdges(ctx context.Context) (int, error) {
 	q := s.d.DB.Q()
+	server := map[string][]byte{}
+	krows, err := q.Query(ctx, "SELECT key_id, public_key FROM signing_keys WHERE owner_id IS NULL")
+	if err != nil {
+		return 0, err
+	}
+	for krows.Next() {
+		var id string
+		var pub []byte
+		if err := krows.Scan(&id, &pub); err != nil {
+			krows.Close()
+			return 0, err
+		}
+		server[id] = pub
+	}
+	krows.Close()
+	if err := krows.Err(); err != nil {
+		return 0, err
+	}
 	revoked := map[extPair][]time.Time{}
 	rrows, err := q.Query(ctx, "SELECT body FROM signed_records WHERE kind = $1", int16(core.RecRevocation))
 	if err != nil {
@@ -59,7 +79,7 @@ func (s *Service) AuditEdges(ctx context.Context) (int, error) {
 	}
 
 	rows, err := q.Query(ctx, `SELECT ua.ext_id, ub.ext_id, e.record_hash, r.hash, r.kind, r.body, r.sig, r.key_id,
-		r.purge_after IS NOT NULL, k.public_key
+		r.purge_after IS NOT NULL, k.public_key, k.owner_id IS NOT NULL, r.cosigs
 		FROM edges e
 		JOIN users ua ON ua.id = e.user_id
 		JOIN users ub ON ub.id = e.friend_id
@@ -77,12 +97,15 @@ func (s *Service) AuditEdges(ctx context.Context) (int, error) {
 			sig, pub                []byte
 			kind                    *int16
 			keyID                   *string
-			purging                 *bool
+			purging, userKey        *bool
+			cosigs                  []byte
 		)
-		if err := rows.Scan(&extA, &extB, &edgeHash, &recHash, &kind, &body, &sig, &keyID, &purging, &pub); err != nil {
+		if err := rows.Scan(&extA, &extB, &edgeHash, &recHash, &kind, &body, &sig, &keyID, &purging, &pub, &userKey,
+			&cosigs); err != nil {
 			return 0, err
 		}
-		if !friendshipValid(extA, extB, edgeHash, recHash, kind, body, sig, keyID, purging, pub, revoked) {
+		if !friendshipValid(extA, extB, edgeHash, recHash, kind, body, sig, keyID, purging, pub, revoked) ||
+			(userKey != nil && *userKey && !countersigned(body, cosigs, server)) {
 			bad++
 		}
 	}
@@ -121,4 +144,19 @@ func friendshipValid(extA, extB uuid.UUID, edgeHash, recHash []byte, kind *int16
 		}
 	}
 	return true
+}
+
+// countersigned reports whether a user-key record carries a valid server countersign.
+func countersigned(body, cosigs []byte, server map[string][]byte) bool {
+	var cs []sigs.Cosig
+	if json.Unmarshal(cosigs, &cs) != nil {
+		return false
+	}
+	for _, c := range cs {
+		sig, err := base64.RawURLEncoding.Strict().DecodeString(c.Sig)
+		if pub, ok := server[c.KeyID]; ok && err == nil && sigs.Verify(pub, c.KeyID, body, sig) {
+			return true
+		}
+	}
+	return false
 }

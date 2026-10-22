@@ -7,14 +7,19 @@
 // - FoldableBody: cards fold posts longer than 6 lines or 400 characters behind
 //   "Show more" (the tree folds at 10 lines); a real button with aria-expanded
 //   and aria-controls, so keyboard and screen-reader users unfold it too.
-// - ContextRows, PersonLink, PostTime, PreviewList, PostLinks.
+// - ContextRows, PersonLink, PostTime, PreviewList (with preview images),
+//   MediaList (P1: attached pictures; display size in the feed and the focal
+//   post, thumbs in tree rows), PostLinks.
 // - groupTiers: feed items (across pages) → tier sections for sticky headers.
 import { createContext, useContext, useId, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useInRouterContext } from 'react-router';
+import { IconButton } from '../../../lib/IconButton';
 import { formatDateTime, formatRelative } from '../../../lib/time';
+import { ReplyPick } from '../../../features/composer';
+import { MediaImage } from '../../../features/media';
 import { LinkPreviews, Markdown } from '../../../markdown';
-import type { ContextVM, FeedItemVM, FeedPageVM, MarkdownDoc, PostVM, PreviewVM, Ref } from '../../../vm/types';
+import type { ContextVM, FeedItemVM, FeedPageVM, MarkdownDoc, MediaVM, PostVM, PreviewVM, Ref } from '../../../vm/types';
 import type { PostActions } from '../../types';
 
 // ---- seen tracking ----
@@ -120,37 +125,71 @@ export function ContextRows({ rows, withCont = true }: { rows: ContextVM[]; with
 }
 
 // PreviewList shows link previews with their real host (§10.1.6) through the
-// shared Markdown module (protocol check, tracking-parameter stripping).
+// shared Markdown module (protocol check, tracking-parameter stripping), then
+// the previews' images (fetched and scanned by the server, never by viewers).
 export function PreviewList({ previews }: { previews: readonly PreviewVM[] }) {
-  return <LinkPreviews previews={previews} />;
+  const images = previews.flatMap((p) => (p.image ? [p.image] : []));
+  return (
+    <>
+      <LinkPreviews previews={previews} />
+      {images.length > 0 ? (
+        <div className="post-preview-images" data-testid="feed-preview-images">
+          {images.map((m) => (
+            <MediaImage key={m.ref} media={m} variant="thumb" />
+          ))}
+        </div>
+      ) : null}
+    </>
+  );
 }
 
-// PostLinks: reply (when the reader may reference the post) and the family tree
-// with its visible reply count.
+// mediaVariant: tree rows show thumbs; feed cards and the focal post the
+// display size.
+export function mediaVariant(variant: 'feed' | 'tree' | 'focal'): 'thumb' | 'display' {
+  return variant === 'tree' ? 'thumb' : 'display';
+}
+
+// MediaList shows a post's attached pictures in order, each with its alt text.
+export function MediaList({ media, variant }: { media: readonly MediaVM[]; variant: 'thumb' | 'display' }) {
+  if (media.length === 0) return null;
+  return (
+    <div className={`post-media post-media-${variant}`} data-testid="feed-media" data-count={media.length}>
+      {media.map((m) => (
+        <MediaImage key={m.ref} media={m} variant={variant} />
+      ))}
+    </div>
+  );
+}
+
+// PostLinks: reply and add to a reply to several posts (when the reader may
+// reference the post), and the family tree with its visible reply count.
 export function PostLinks({ post, actions }: { post: PostVM; actions: PostActions }) {
-  const { t } = useTranslation('feed');
+  const { t, i18n } = useTranslation('feed');
   return (
     <div className="post-links" role="group" aria-label={t('post.links')}>
       {post.canReference ? (
-        <button
-          type="button"
+        <IconButton
+          icon="reply"
+          label={t('post.reply')}
           data-testid="feed-reply"
+          data-part="reply"
           onClick={() => {
             actions.reply(post.ref);
           }}
-        >
-          {t('post.reply')}
-        </button>
+        />
       ) : null}
-      <button
-        type="button"
+      {post.canReference ? <ReplyPick post={post} /> : null}
+      <IconButton
+        icon="replies"
+        label={t('post.tree', { count: post.replyCount })}
         data-testid="feed-tree"
+        data-part="tree"
         onClick={() => {
           actions.openTree(post.ref);
         }}
       >
-        {t('post.tree', { count: post.replyCount })}
-      </button>
+        {post.replyCount > 0 ? <span className="icon-button-count">{new Intl.NumberFormat(i18n.language).format(post.replyCount)}</span> : null}
+      </IconButton>
     </div>
   );
 }

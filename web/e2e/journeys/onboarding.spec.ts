@@ -3,8 +3,11 @@
 // then a signed export verified offline (plan §7 required journeys).
 //  1. A genesis account (alice) enrolls from its one-time link.
 //  2. alice shows her rotating invite QR; bob's browser films it, both screens
-//     show the same SAS, alice confirms, bob registers his passkey: they are
-//     friends, bob is "invited by @alice" and on probation.
+//     show the same SAS, alice confirms, bob plays the handshake sound (relayed
+//     to alice's device through the AudioInput seam; the jingle alone makes it
+//     Accepted, a plain friend), registers his passkey and signs the drafts
+//     while alice co-signs the Invite with hers (handshake v2, P1-W02): they
+//     are friends, bob is "invited by @alice" and on probation.
 //  3. bob posts (probation forces friends-only, which only he is told); alice
 //     finds it in tier 1 with the chain and inviter label, and replies from
 //     the card.
@@ -20,7 +23,7 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import { request as pwRequest } from '@playwright/test';
 import { addVirtualAuthenticator } from '../fixtures/auth';
-import { launchWithCamera } from '../fixtures/camera';
+import { installListener, installPlayer, launchWithCamera, relaySound } from '../fixtures/camera';
 import { World } from '../fixtures/world';
 import { Actor, at, expect, sameOrigin, test, type PostJSON } from './helpers';
 
@@ -36,6 +39,7 @@ test('enroll, invite in person, post, reply, notify, like, export and verify', a
   // 1. alice enrolls (genesis) with a passkey.
   const token = await world.genesisToken('alice');
   await addVirtualAuthenticator(context, page);
+  await installListener(page);
   await page.goto(`/enroll#${token}`);
   await page.locator('input[name=tos]').check();
   await page.locator('input[name=age]').check();
@@ -54,18 +58,25 @@ test('enroll, invite in person, post, reply, notify, like, export and verify', a
   try {
     const { ctx, page: bob } = await newWatchedContext(cam.browser);
     await addVirtualAuthenticator(ctx, bob);
+    await installPlayer(bob);
     await bob.goto('/join');
     await bob.getByTestId('join-scan').click();
     const sas = bob.getByTestId('join-sas');
     await expect(sas).toHaveText(/^[0-9]{6}$/, { timeout: 20_000 });
     await expect(page.getByTestId('invite-sas')).toHaveText((await sas.textContent()) ?? '');
+    // The sound starts only after "codes match"; registration only after the outcome.
     await page.getByTestId('invite-match').click();
+    await bob.getByTestId('join-play').click();
+    await relaySound(bob, page, { ultra: false, jingle: true });
     await bob.locator('input[name=handle]').fill('bob');
     await bob.locator('input[name=display_name]').fill('Bob');
     await bob.locator('input[name=tos]').check();
     await bob.locator('input[name=age]').check();
     await bob.getByTestId('join-submit').click();
-    await expect(bob.getByTestId('join-invited-by')).toContainText(at('alice'));
+    // bob signs the drafts with his new passkey; alice co-signs the Invite.
+    await bob.getByTestId('join-sign').click();
+    await page.getByTestId('cosign-dialog').getByTestId('cosign-sign').click();
+    await expect(bob.getByTestId('join-invited-by')).toContainText(at('alice'), { timeout: 20_000 });
     await bob.getByTestId('second-done').click();
     await expect(bob).toHaveURL(`${origin}/`);
     await expect(page.getByTestId('invite-done')).toBeVisible();

@@ -49,6 +49,9 @@ const (
 	ExpandMax = 100
 	// threadWalk bounds a walk along a continuation thread (a split has ≤ 25 parts).
 	threadWalk = 32
+	// kidsGens is the depth of the upward credit (§5.1): children and, P1,
+	// their own children at weight β.
+	kidsGens = 2
 )
 
 // Bot isolation (§4.4): from tier CollapseFrom on, posts of accounts younger
@@ -265,9 +268,6 @@ func (s *Service) Why(ctx context.Context, p gate.Ref) (gate.WhyView, error) {
 		return gate.WhyView{}, err
 	}
 	preset := me.Preset
-	if preset == core.PresetTop {
-		preset = core.PresetBalanced // P0: top is not available; the feed would refuse it
-	}
 	via, err := s.d.Chains.Chain(ctx, sr, m.Author)
 	if err != nil {
 		return gate.WhyView{}, err
@@ -282,21 +282,18 @@ func (s *Service) Why(ctx context.Context, p gate.Ref) (gate.WhyView, error) {
 	}, nil
 }
 
-// preset resolves the requested preset: "" is the viewer's saved preset; top
-// (Phase 1) and unknown names are Problem preset_unavailable.
+// preset resolves the requested preset: "" is the viewer's saved preset;
+// unknown names are Problem preset_unavailable.
 func (s *Service) preset(ctx context.Context, v core.UserID, name string) (core.Preset, error) {
 	if name == "" {
 		me, err := s.d.Users.Get(ctx, v)
 		if err != nil {
 			return 0, err
 		}
-		if me.Preset == core.PresetTop {
-			return core.PresetBalanced, nil
-		}
 		return me.Preset, nil
 	}
 	p, ok := core.ParsePreset(name)
-	if !ok || p == core.PresetTop {
+	if !ok {
 		return 0, gate.NewProblem(gate.StatusUnprocessable, "preset_unavailable", "preset")
 	}
 	return p, nil

@@ -33,7 +33,8 @@
     "illegal": "Illegal content",
     "csam": "Child sexual abuse material",
     "other": "Something else",
-    "ban_evasion": "Evading a suspension"
+    "ban_evasion": "Evading a suspension",
+    "role_change": "Change of moderators"
   },
   "reasonHint": {
     "spam": "Unwanted advertising, repeated posts, scams.",
@@ -48,11 +49,15 @@
   "action": {
     "remove_post": "Remove the post",
     "suspend_user": "Suspend the account",
-    "dismiss": "Dismiss"
+    "dismiss": "Dismiss",
+    "grant_moderator": "Made a moderator",
+    "revoke_moderator": "Removed as moderator",
+    "grant_admin": "Made an admin"
   },
   "blame": {
     "title": "Blame inbox",
-    "intro": "When a moderator confirms action against someone you invited, it shows up here. Who reported it is never shown.",
+    "intro": "Moderator actions against people you invited.",
+    "introTip": "Only actions a moderator confirmed show up here. Who reported it is never shown.",
     "empty": "Nothing here. Nobody you invited has had a moderator act on them.",
     "more": "Show older",
     "item": "{action, select, remove_post {A moderator removed a post by @{handle}, whom you invited.} suspend_user {A moderator suspended @{handle}, whom you invited.} other {A moderator took action on @{handle}, whom you invited.}}",
@@ -63,8 +68,9 @@
   "queue": {
     "title": "Moderation queue",
     "membersOnly": "Only moderators can see this page.",
-    "intro": "Open reports, most urgent first. Suspending an account needs a second moderator within 24 hours.",
-    "empty": "No open reports.",
+    "intro": "Reports, held images and signals, most urgent first.",
+    "introTip": "Suspending an account, reporting held images, releasing a hold and quarantining an invite tree need a second moderator within 24 hours.",
+    "empty": "Nothing to review.",
     "more": "Show more",
     "urgent": "Urgent",
     "reports": "{count, plural, one {# report} other {# reports}}",
@@ -73,17 +79,23 @@
     "probation": "On probation",
     "subjectRef": "Account reference (for account recovery):",
     "noContent": "The content is never shown for this reason.",
-    "awaiting": "Waiting for a second moderator to confirm the suspension.",
     "confirm": "Confirm as second moderator",
     "action": "Action",
     "reason": "Reason",
     "resolve": "Apply",
     "twoPerson": "A second moderator has to confirm this.",
-    "started": "Sent. A second moderator has to confirm it within 24 hours."
+    "started": "Sent. A second moderator has to confirm it within 24 hours.",
+    "awaitingMine": "You started it, so another moderator has to confirm.",
+    "claim": "Take this one",
+    "claimedByMe": "You are handling this",
+    "claimedByOther": "Another moderator is handling this",
+    "quarantine": "Quarantine the invite tree of @{handle}",
+    "quarantineHint": "Everyone they invited, directly or not, goes back to probation for 30 days, and their invites pause for 30 days. A second time takes their invites away."
   },
   "log": {
     "title": "Moderation log",
-    "intro": "Every confirmed removal and suspension, by day. People you are connected to are named; everyone else has a stand-in name.",
+    "intro": "Confirmed removals, suspensions and moderator changes, by day.",
+    "introTip": "People you're connected to are named; everyone else has a stand-in name.",
     "empty": "No moderator actions yet.",
     "day": "Day",
     "action": "Action",
@@ -95,13 +107,33 @@
     "pseudonym": "Account {id}",
     "pseudonymHint": "Someone outside your network. The same account always has the same stand-in name."
   },
+  "roles": {
+    "title": "Moderators and admins",
+    "adminsOnly": "Only admins can see this page.",
+    "intro": "Making someone a moderator or removing them asks you to confirm with your passkey, and every change goes into the public moderation log. Admins can only be added or removed from the server command line.",
+    "current": "Current team",
+    "empty": "Nobody yet.",
+    "role": "{role, select, admin {Admin} other {Moderator}}",
+    "you": "(you)",
+    "since": "since {date}",
+    "remove": "Remove as moderator",
+    "removeConfirm": "Remove @{handle} as moderator? They go back to being a member, and anything they were handling goes back to the queue.",
+    "removeYes": "Remove",
+    "cancel": "Cancel",
+    "removed": "@{handle} is no longer a moderator.",
+    "addTitle": "Add a moderator",
+    "handle": "Their handle",
+    "add": "Make moderator",
+    "added": "@{handle} is now a moderator.",
+    "history": "Recent changes",
+    "historyEmpty": "No changes recorded yet.",
+    "change": "{action, select, grant_moderator {@{by} made @{handle} a moderator} revoke_moderator {@{by} removed @{handle} as moderator} grant_admin {@{handle} became an admin} other {@{by} changed the role of @{handle}}}"
+  },
   "footer": {
-    "label": "About and moderation",
-    "terms": "Terms",
     "log": "Moderation log",
-    "blame": "Blame inbox",
     "queue": "Moderation queue",
-    "recovery": "Account recovery"
+    "recovery": "Account recovery",
+    "roles": "Moderators and admins"
   },
   "errors": {
     "kind_invalid": "This cannot be reported.",
@@ -109,11 +141,68 @@
     "note_too_long": "The note is too long.",
     "action_invalid": "That action does not fit this report.",
     "item_resolved": "Another moderator already handled this.",
-    "action_pending": "A suspension is already waiting for a second moderator.",
+    "action_pending": "An action is already waiting for a second moderator.",
     "post_gone": "The post was already deleted.",
     "no_subject": "There is no account to act on.",
     "second_moderator_required": "A different moderator has to confirm this.",
     "action_expired": "The 24 hours ran out. Start again.",
-    "subject_inactive": "This account is already suspended or deleted."
+    "subject_inactive": "This account is already suspended or deleted.",
+    "item_claimed": "Another moderator is handling this.",
+    "quarantine_threshold": "Not enough accounts in this invite tree are confirmed bad yet.",
+    "quarantine_active": "This invite tree was quarantined less than 30 days ago.",
+    "csam_already_reported": "This image was already reported.",
+    "handle_unknown": "Nobody active has that handle.",
+    "already_staff": "They are already a moderator or an admin.",
+    "admin_role": "Admins can only be changed from the server command line.",
+    "not_moderator": "They are not a moderator anymore."
+  },
+  "source": {
+    "report": "Report",
+    "signal": "Automated signal",
+    "csam": "Held image",
+    "stepup": "Repeated passkey checks",
+    "invite_cluster": "Invite cluster"
+  },
+  "signal": {
+    "cadence": "Posting around the clock or like a machine",
+    "similarity": "Accounts posting nearly the same text",
+    "invite_cluster": "Several people invited by one account on the same network",
+    "stepup": "Asked to confirm with a passkey again and again",
+    "signal": "Automated signal"
+  },
+  "fact": {
+    "posts": "{count, plural, one {# post in a day} other {# posts in a day}}",
+    "hours": "{count, plural, one {active in # hour of the day} other {active in # different hours of the day}}",
+    "accounts": "{count, plural, one {# account} other {# accounts}} in this group",
+    "shared_network": "They share a network",
+    "inviter_marks": "{count, plural, one {Their inviter invited # removed account recently} other {Their inviter invited # removed accounts recently}}",
+    "subtree_confirmed": "{count, plural, one {# account} other {# accounts}} in this invite tree confirmed bad (quarantine at {k, number})"
+  },
+  "csam": {
+    "noContent": "The image is never shown. These are the scanner's match details.",
+    "sourceURL": "Found at",
+    "heldAt": "Held since",
+    "retainUntil": "Evidence kept until",
+    "reported": "Report to NCMEC",
+    "reportedAt": "Reported {date}, reference {ref}",
+    "notReported": "Not reported yet",
+    "account": "Uploads",
+    "accountHeld": "Blocked until reviewed",
+    "accountReleased": "Allowed again",
+    "reportRef": "CyberTipline report number",
+    "start": "Record the report",
+    "hint": "File the report with NCMEC first, then enter its number. A second moderator confirms it."
+  },
+  "awaiting": {
+    "suspend_user": "Waiting for a second moderator to confirm the suspension.",
+    "dismiss": "Waiting for a second moderator to confirm that this was a false match.",
+    "quarantine_subtree": "Waiting for a second moderator to confirm the quarantine of the invite tree.",
+    "csam_report": "Waiting for a second moderator to confirm report {ref}."
+  },
+  "cosign": {
+    "suspend_user": "Confirm the suspension of @{handle}",
+    "dismiss": "Confirm that the held image was a false match",
+    "quarantine_subtree": "Confirm the quarantine of the invite tree",
+    "csam_report": "Confirm the NCMEC report"
   }
 }

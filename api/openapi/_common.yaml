@@ -61,6 +61,7 @@ components:
         blocked: { type: boolean }
         muted: { type: boolean }
         hidden_via: { type: boolean }
+        invited_removed: { type: boolean, description: 'The "invited a removed account" mark (90 days; only for viewers who had the removed account in their horizon).' }
     AuthorView:
       type: object
       required: [ref, handle, display_name, inviter, chain]
@@ -265,7 +266,7 @@ components:
         id: { $ref: '#/components/schemas/Ref' }
         kind:
           type: string
-          enum: [friend_request, request_accepted, post_referenced, mention, invitee_action, friend_security, invite_redeemed, recovery_approval]
+          enum: [friend_request, request_accepted, post_referenced, mention, invitee_action, friend_security, invite_redeemed, recovery_approval, account_recovery, friend_upgrade]
         count: { type: integer }
         person: { $ref: '#/components/schemas/ChainHop' }
         post: { $ref: '#/components/schemas/Ref' }
@@ -278,6 +279,7 @@ components:
       properties:
         until: { type: string, format: date-time }
         need_outside_friends: { type: integer }
+        friend_plus: { type: boolean, description: 'P1 rule: the outside friends must be friend+ (p1-w02-1)' }
     BudgetView:
       type: object
       required: [available, cap]
@@ -288,6 +290,17 @@ components:
         probation: { $ref: '#/components/schemas/ProbationView' }
         paused_until: { type: string, format: date-time }
         revoked: { type: boolean }
+        attempts: { $ref: '#/components/schemas/AllowanceView' }
+    AllowanceView:
+      type: object
+      description: >-
+        A build-up limit: available of cap now, and when the next one builds up
+        (absent while full). On BudgetView, the attempts at opening a handshake.
+      required: [available, cap]
+      properties:
+        available: { type: integer }
+        cap: { type: integer }
+        next_at: { type: string, format: date-time }
     HandshakeView:
       type: object
       required: [hs, mode, frame_ttl_ms]
@@ -296,6 +309,9 @@ components:
         mode: { type: string, enum: [qr, qr_audio, dual_qr] }
         frame_ttl_ms: { type: integer }
         frame_key: { type: string }
+        invite:
+          type: boolean
+          description: Invite codes only. A guest can sign up with this code now; without it the code only connects a signed-in friend.
     HandshakeStatus:
       type: object
       required: [state]
@@ -354,6 +370,30 @@ components:
         at: { type: string, format: date-time }
         claimed_by_me: { type: boolean }
         awaiting_second: { type: boolean }
+        claimed: { type: boolean }
+        pending: { $ref: '#/components/schemas/ModPending' }
+        csam: { $ref: '#/components/schemas/CSAMHoldView' }
+    ModPending:
+      type: object
+      required: [action, reason, mine, at]
+      properties:
+        action: { type: string, enum: [suspend_user, dismiss, quarantine_subtree, csam_report] }
+        reason: { type: string }
+        mine: { type: boolean }
+        at: { type: string, format: date-time }
+        report_ref: { type: string }
+    CSAMHoldView:
+      type: object
+      description: Match metadata and preservation state of a CSAM hold. Never the content or a media URL.
+      required: [match_info, held_at, retain_until, account_held]
+      properties:
+        match_info: { type: object, additionalProperties: { type: string } }
+        source_url: { type: string }
+        held_at: { type: string, format: date-time }
+        retain_until: { type: string, format: date-time }
+        reported_at: { type: string, format: date-time }
+        report_ref: { type: string }
+        account_held: { type: boolean }
     BlameItem:
       type: object
       required: [id, action, reason, invitee_handle, at, read]

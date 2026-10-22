@@ -3,7 +3,8 @@
 // nofollow ugc", send no referrer and show their real host; hrefs exist only
 // for http(s) (safeLink), otherwise the link's text renders as plain text.
 // Headings are paragraph-sized semibold lines, fenced code folds past 10
-// lines, mentions link only with a server-issued ref.
+// lines, mentions link only with a server-issued ref, tables scroll inside
+// their own box.
 import { useId, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useInRouterContext } from 'react-router';
@@ -73,7 +74,44 @@ function BlockView({ b }: { b: Block }) {
       return <CodeBlock lines={b.lines} />;
     case 'hr':
       return <hr className="md-hr" />;
+    case 'table':
+      return <TableView b={b} />;
   }
+}
+
+// TableView renders a GFM table; a wide one scrolls inside its own box (the
+// box is focusable so keyboard users can scroll it).
+function TableView({ b }: { b: Extract<Block, { t: 'table' }> }) {
+  const { t } = useTranslation('markdown');
+  const [head, ...body] = b.rows;
+  const cell = (kind: 'th' | 'td', c: readonly Inline[], i: number) => {
+    const align = b.align[i] || undefined;
+    return kind === 'th' ? (
+      <th key={i} scope="col" data-align={align}>
+        <Inlines nodes={c} />
+      </th>
+    ) : (
+      <td key={i} data-align={align}>
+        <Inlines nodes={c} />
+      </td>
+    );
+  };
+  return (
+    <div className="md-table-wrap" data-testid="md-table" tabIndex={0} role="region" aria-label={t('table.label')}>
+      <table className="md-table">
+        <thead>
+          <tr>{(head ?? []).map((c, i) => cell('th', c, i))}</tr>
+        </thead>
+        {body.length > 0 ? (
+          <tbody>
+            {body.map((r, k) => (
+              <tr key={k}>{r.map((c, i) => cell('td', c, i))}</tr>
+            ))}
+          </tbody>
+        ) : null}
+      </table>
+    </div>
+  );
 }
 
 // CodeBlock shows fenced or indented code; past 10 lines it is collapsed

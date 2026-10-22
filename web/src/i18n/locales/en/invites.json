@@ -1,18 +1,25 @@
 {
   "page": {
-    "title": "Invite someone you know in person",
-    "intro": "Invites only work face to face: the person you invite scans a code on your screen."
+    "title": "Feathers",
+    "intro": "Use a feather to show your code to someone you're with.",
+    "introTip": "If they're new here, they join with it. If they already have an account, they scan it while signed in and you become friends."
   },
   "budget": {
     "available": "{count, plural, =0 {No invites saved} one {# invite saved} other {# invites saved}} (up to {cap})",
     "next": "Next invite in {time}",
     "full": "Your invites are full. Use one before more can build up.",
-    "probationIntro": "New accounts can't invite anyone yet.",
+    "probationIntro": "You can't invite new people yet, but you can still become friends in person.",
     "probationTime": "Invites unlock in {time}",
     "probationTimeDone": "The waiting time is over.",
-    "probationFriends": "{count, plural, one {# more friend} other {# more friends}} outside your invite tree",
+    "probationFriends": "{count, plural, one {# more acquaintance} other {# more acquaintances}} outside your invite tree",
     "paused": "Your invites are paused until {date}.",
-    "revoked": "You can no longer invite people."
+    "revoked": "You can no longer invite people.",
+    "probationFriendsPlus": "{count, plural, one {# more friend} other {# more friends}} outside your invite tree (met in person)"
+  },
+  "attempts": {
+    "left": "Feathers: {count, number} of {cap, number} left",
+    "next": "Next feather in {time}",
+    "hint": "Showing your code uses a feather, even if nobody joins. Used feathers come back one at a time."
   },
   "countdown": {
     "days": "{d, plural, one {# day} other {# days}} {h, plural, one {# hour} other {# hours}}",
@@ -20,22 +27,28 @@
     "minutes": "{m, plural, one {# minute} other {# minutes}} {s, plural, one {# second} other {# seconds}}"
   },
   "open": {
-    "button": "Show my invite code",
+    "button": "Show my code",
     "working": "Opening…",
-    "people": "People you invited"
+    "people": "People you invited",
+    "connectOnly": "Right now your code only works for people who already have an account: you become friends. New people can't join with it yet."
   },
   "hs": {
-    "scanHint": "Ask the person you're inviting to open {url} on their phone and scan this code.",
-    "qrLabel": "Invite code",
+    "scanHint": "Ask them to open {url} on their phone and scan this code. If they already have an account, they scan it signed in.",
+    "qrLabel": "Your in-person code",
     "claimed": "Someone scanned your code. Check that their screen shows the same number:",
     "match": "Codes match",
     "mismatch": "Codes don't match",
-    "confirmed": "Waiting for them to finish signing up…",
+    "confirmed": "Waiting for them to create their account…",
     "done": "They joined! You're now friends.",
-    "cancelled": "This invite code was cancelled.",
-    "expired": "This invite code expired.",
+    "cancelled": "This code was cancelled.",
+    "expired": "This code expired.",
     "again": "Show a new code",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "preparing": "Preparing your code…",
+    "doneRecovery": "Done. The account's recovery can continue.",
+    "doneAccepted": "They joined! You're now acquaintances. Meet again with sound to become friends.",
+    "doneFriends": "Done! You're now friends.",
+    "doneAcquaintances": "Done! You're now acquaintances. Meet again with sound to become friends."
   },
   "people": {
     "title": "People you invited",
@@ -48,7 +61,41 @@
     "no_invites": "You have no invites saved right now.",
     "on_probation": "New accounts can't invite anyone yet.",
     "invites_paused": "Your invites are paused.",
-    "friend_cap": "You have reached the limit of 1,000 friends and open requests.",
+    "friend_cap": "You have reached the limit of 1,000 acquaintances and open requests.",
     "mode_unsupported": "This kind of invite isn't available yet."
+  },
+  "mode": {
+    "legend": "How to check you're together",
+    "audio": "With a sound (recommended)",
+    "quiet": "Quiet: only the near-silent tone, no jingle",
+    "dual": "Without sound: each phone scans the other's code"
+  },
+  "sound": {
+    "listening": "Listening… Ask them to tap \"Play the sound\" with their phone close to yours.",
+    "listeningQuiet": "Listening for the near-silent tone… Ask them to tap \"Play the sound\" with their phone close to yours.",
+    "noMic": "We couldn't use your microphone. Allow microphone access, or cancel and choose the option without sound."
+  },
+  "dual": {
+    "hint": "Now let them scan this second code.",
+    "qrLabel": "Second code"
+  },
+  "outcome": {
+    "verified": "Verified in person.",
+    "accepted": "Accepted.",
+    "retry": "That didn't work. Try again.",
+    "retryVolume": "We couldn't hear it. Ask them to turn their volume up and play it again.",
+    "retryJingle": "We couldn't hear the quiet tone. Ask them to switch the jingle on and play it again.",
+    "noAttempts": "No tries left. Cancel and show a new code."
+  },
+  "sign": {
+    "askInvite": "Sign the invite with your passkey.",
+    "askUpgrade": "Sign the friendship record with your passkey.",
+    "button": "Sign with passkey",
+    "summaryInvite": "You invite this person and become friends.",
+    "summaryUpgrade": "You and your acquaintance become friends.",
+    "waitingInvitee": "Signed. Waiting for them to finish…",
+    "waitingFriend": "Signed. Waiting for them to sign…",
+    "summaryConnect": "You two become friends.",
+    "summaryConnectAccepted": "You two become acquaintances."
   }
 }

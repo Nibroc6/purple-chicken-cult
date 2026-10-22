@@ -35,7 +35,16 @@ paths:
   /invites/handshakes:
     post:
       operationId: openHandshake
-      description: Opens an in-person invite handshake (Phase 0 mode "qr"). Cancels the caller's unfinished ones.
+      description: >-
+        Opens an in-person invite handshake: mode "qr_audio" (the default: QR frames plus
+        the two-layer sound; quiet turns the jingle off) or "dual_qr" (accessibility, at
+        most Accepted). The Phase 0 mode "qr" is mode_unsupported. Cancels the caller's
+        unfinished invite handshakes. The answer carries the frame key the device renders
+        the 250 ms frames with. One code, two uses: a guest who scans it signs up (only
+        while the caller can invite: "invite" says whether that holds now, and a guest's
+        claim checks it again); a signed-in account that scans it becomes the caller's
+        friend (a connect, which spends no invite). So the code opens on probation and
+        without budget too; only friend_cap stops it.
       requestBody:
         required: true
         content:
@@ -49,7 +58,7 @@ paths:
               schema: { $ref: '_common.yaml#/components/schemas/HandshakeView' }
         "400": { $ref: '_common.yaml#/components/responses/Problem' }
         "404": { $ref: '_common.yaml#/components/responses/NotFound' }
-        "409": { $ref: '#/components/responses/InvitesCannotInvite' }
+        "409": { $ref: '_common.yaml#/components/responses/Problem' }
         "422": { $ref: '_common.yaml#/components/responses/Problem' }
         "429": { $ref: '#/components/responses/InvitesRateLimited' }
   /invites/handshakes/{hs}:
@@ -57,13 +66,16 @@ paths:
       - { name: hs, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
     get:
       operationId: handshakeStatus
-      description: The inviter-side state, with the 6-digit SAS once a guest claimed the handshake.
+      description: >-
+        The initiator-side state of the caller's handshake (invite, upgrade or recovery):
+        the SAS once claimed, the sound attempts and their outcome, and what is left to
+        co-sign.
       responses:
         "200":
           description: The handshake state.
           content:
             application/json:
-              schema: { $ref: '_common.yaml#/components/schemas/HandshakeStatus' }
+              schema: { $ref: '#/components/schemas/InvitesStatus' }
         "404": { $ref: '_common.yaml#/components/responses/NotFound' }
         "429": { $ref: '#/components/responses/InvitesRateLimited' }
     delete:
@@ -73,12 +85,33 @@ paths:
         "204": { description: Cancelled. }
         "404": { $ref: '_common.yaml#/components/responses/NotFound' }
         "429": { $ref: '#/components/responses/InvitesRateLimited' }
+  /invites/handshakes/{hs}/epub:
+    parameters:
+      - { name: hs, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
+    post:
+      operationId: handshakeEpub
+      description: >-
+        The initiator device's ephemeral P-256 public key E_i (uncompressed, base64url),
+        once, while the handshake is open. No frame verifies without it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InvitesEpubIn' }
+      responses:
+        "204": { description: Recorded. }
+        "400": { $ref: '_common.yaml#/components/responses/Problem' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/InvitesRateLimited' }
   /invites/handshakes/{hs}/frame:
     parameters:
       - { name: hs, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
     get:
       operationId: handshakeFrame
-      description: The current QR frame of an open handshake (rotates every 10 s).
+      description: >-
+        The current frame of an open handshake as the server renders it
+        ("pcc2.<hs>.<E_i>.<n>.<mac>", n = 250 ms frames since the handshake opened). The
+        device syncs its frame counter to it and renders the following frames itself.
       responses:
         "200":
           description: The frame.
@@ -87,15 +120,74 @@ paths:
               schema: { $ref: '_common.yaml#/components/schemas/FrameView' }
         "404": { $ref: '_common.yaml#/components/responses/NotFound' }
         "429": { $ref: '#/components/responses/InvitesRateLimited' }
+  /invites/handshakes/{hs}/peer:
+    parameters:
+      - { name: hs, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
+    get:
+      operationId: handshakePeer
+      description: The claiming device's ephemeral key E_v, relayed once claimed.
+      responses:
+        "200":
+          description: E_v.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InvitesPeer' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/InvitesRateLimited' }
   /invites/handshakes/{hs}/confirm:
     parameters:
       - { name: hs, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
     post:
       operationId: confirmHandshake
-      description: The inviter saw the same code on both screens ("codes match").
+      description: The initiator saw the same code on both screens ("codes match").
       responses:
         "204": { description: Confirmed. }
         "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/InvitesRateLimited' }
+  /invites/handshakes/{hs}/report:
+    parameters:
+      - { name: hs, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
+    post:
+      operationId: handshakeReport
+      description: >-
+        The initiator device's decode of the pending sound attempt: the bits of each layer
+        it heard, sha256(kmac) and its timings (which can only tighten the bound). The
+        server measures the time bound itself (report − play start). No audio is sent.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InvitesReportIn' }
+      responses:
+        "200":
+          description: The attempt's outcome.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InvitesOutcome' }
+        "400": { $ref: '_common.yaml#/components/responses/Problem' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/InvitesRateLimited' }
+  /invites/handshakes/{hs}/cosign:
+    parameters:
+      - { name: hs, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
+    post:
+      operationId: handshakeCosign
+      description: >-
+        The caller's co-signature of the handshake's drafted record: the Invite (inviter,
+        purpose invite_inviter) or the Friendship of a Verified upgrade or a passed connect
+        (either side, purpose friend_upgrade), with the intent from POST /api/cosign. The
+        second signature of an upgrade promotes the friendship; of a connect, creates it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InvitesCosignIn' }
+      responses:
+        "204": { description: Signed. }
+        "400": { $ref: '_common.yaml#/components/responses/Problem' }
+        "401": { $ref: '#/components/responses/InvitesStepUp' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409": { $ref: '_common.yaml#/components/responses/Problem' }
         "429": { $ref: '#/components/responses/InvitesRateLimited' }
   /join/start:
     post:
@@ -119,8 +211,14 @@ paths:
     post:
       operationId: joinClaim
       description: >-
-        Binds a scanned QR frame to the caller's guest session. Every failure (stale or
-        forged frame, taken or finished handshake, no guest session) is the uniform 404.
+        Binds a scanned frame to the caller's session (an invite: a guest session; a
+        friend+ upgrade: the friend's own signed-in session) with the device's ephemeral
+        key E_v, its separate signing key and a proof signed with it. An invite code
+        claimed by a signed-in account turns into a connect (strangers: Verified makes
+        friend+, Accepted friend) or, between plain friends, an upgrade; friends+ already
+        get 409 already_friends. Every other failure (stale or forged frame, no E_v or
+        proof, taken or finished handshake, wrong session, an inviter who cannot invite
+        now, a block) is the uniform 404.
       requestBody:
         required: true
         content:
@@ -130,26 +228,85 @@ paths:
         "204": { description: Claimed. }
         "400": { $ref: '_common.yaml#/components/responses/Problem' }
         "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409": { $ref: '_common.yaml#/components/responses/Problem' }
         "429": { $ref: '#/components/responses/InvitesRateLimited' }
   /join/status:
     get:
       operationId: joinStatus
-      description: The invitee-side state of the claimed handshake, with the SAS.
+      description: >-
+        The claiming device's state of its handshake: the SAS, the sound attempts and their
+        outcome, the signup token once passed (invites), the friend's own ref (upgrades).
+      parameters:
+        - &joinSig
+          name: X-PCC-Join-Sig
+          in: header
+          required: true
+          description: >-
+            The claiming device's ECDSA P-256 signature (P1363, base64url) over
+            "pcc-join-v1" ‖ hs ‖ sha256(scanned frame) ‖ call name.
+          schema: { type: string, maxLength: 128 }
       responses:
         "200":
           description: The handshake state.
           content:
             application/json:
-              schema: { $ref: '_common.yaml#/components/schemas/HandshakeStatus' }
+              schema: { $ref: '#/components/schemas/InvitesStatus' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/InvitesRateLimited' }
+  /join/audio/start:
+    post:
+      operationId: joinAudioStart
+      description: >-
+        The claiming device reports kmac and is about to play; the server records its own
+        play time (the time bound runs from it). At most 5 attempts per handshake; the
+        sixth is 404.
+      parameters:
+        - *joinSig
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InvitesAudioStartIn' }
+      responses:
+        "200":
+          description: The server's play time and the attempt number.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InvitesAudioStart' }
+        "400": { $ref: '_common.yaml#/components/responses/Problem' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/InvitesRateLimited' }
+  /join/dual/frame:
+    post:
+      operationId: joinDualFrame
+      description: >-
+        Accessibility (dual QR): the claiming device scanned the initiator's second,
+        kmac-keyed QR. Accepted at most, never Verified. At most 5 attempts.
+      parameters:
+        - *joinSig
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InvitesDualIn' }
+      responses:
+        "200":
+          description: The attempt's outcome.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InvitesOutcome' }
+        "400": { $ref: '_common.yaml#/components/responses/Problem' }
         "404": { $ref: '_common.yaml#/components/responses/NotFound' }
         "429": { $ref: '#/components/responses/InvitesRateLimited' }
   /join/register/begin:
     post:
       operationId: joinRegisterBegin
       description: >-
-        Validates the join form and starts the passkey ceremony. Needs the inviter's
-        "codes match"; otherwise 404. handle_taken is answered at most 10 times per
-        handshake (D21), then 404.
+        Validates the join form and the signup token (issued once the handshake passed,
+        bound to E_v) and starts the passkey ceremony; otherwise 404. handle_taken is
+        answered at most 10 times per handshake (D21), then 404.
+      parameters:
+        - *joinSig
       requestBody:
         required: true
         content:
@@ -170,9 +327,11 @@ paths:
     post:
       operationId: joinRegisterFinish
       description: >-
-        Verifies the passkey, creates the account, the Invite and Friendship records and
-        the friendship with the inviter, and replaces the guest session with a user
-        session (Set-Cookie).
+        Verifies the new passkey (not yet bound to anyone), drafts the Invite and
+        Friendship records (Verified ⇒ friend+, Accepted ⇒ friend) and starts the signup
+        ceremony: get options for the new credential over the drafts, and the drafts.
+      parameters:
+        - *joinSig
       requestBody:
         required: true
         content:
@@ -180,6 +339,31 @@ paths:
             schema: { $ref: '#/components/schemas/InvitesCredentialIn' }
       responses:
         "200":
+          description: The signup ceremony.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InvitesSignup' }
+        "400": { $ref: '_common.yaml#/components/responses/Problem' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/InvitesRateLimited' }
+  /join/register/cosign:
+    post:
+      operationId: joinRegisterCosign
+      description: >-
+        The signup ceremony's get assertion. In one transaction: the account, its passkey,
+        the Invite and Friendship records with the inviter's and the invitee's assertions,
+        the friendship with the inviter; then the guest session becomes a user session
+        (Set-Cookie). A failed assertion aborts everything (404). awaiting_inviter (409):
+        the inviter has not signed yet; send the same assertion again later.
+      parameters:
+        - *joinSig
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InvitesAssertionIn' }
+      responses:
+        "201":
           description: The new session.
           content:
             application/json:
@@ -198,10 +382,63 @@ components:
     InvitesOpenIn:
       type: object
       additionalProperties: false
-      required: [mode]
       properties:
         mode: { type: string, maxLength: 16 }
         quiet: { type: boolean }
+    InvitesEpubIn:
+      type: object
+      additionalProperties: false
+      required: [e_i]
+      properties:
+        e_i: { type: string, maxLength: 128 }
+    InvitesPeer:
+      type: object
+      required: [e_v]
+      properties:
+        e_v: { type: string }
+    InvitesStatus:
+      allOf:
+        - { $ref: '_common.yaml#/components/schemas/HandshakeStatus' }
+        - type: object
+          required: [kind, mode, quiet, attempt, attempts_left]
+          properties:
+            kind: { type: string, enum: [invite, upgrade, connect, recovery] }
+            mode: { type: string, enum: [qr, qr_audio, dual_qr] }
+            quiet: { type: boolean }
+            attempt: { type: integer }
+            attempts_left: { type: integer }
+            playing: { type: boolean }
+            outcome: { type: string, enum: [retry, accepted, verified] }
+            hint: { type: string, enum: [volume_up, try_jingle] }
+            sign: { type: string, enum: [needed, waiting] }
+            peer_signed: { type: boolean }
+            hs: { $ref: '_common.yaml#/components/schemas/Ref' }
+            signup_token: { type: string }
+    InvitesReportIn:
+      type: object
+      additionalProperties: false
+      required: [kmac_commit]
+      properties:
+        ultra_bits: { type: string, maxLength: 16 }
+        jingle_bits: { type: string, maxLength: 16 }
+        kmac_commit: { type: string, maxLength: 64 }
+        t_ultra_ms: { type: integer }
+        t_jingle_ms: { type: integer }
+        offset_ms: { type: integer }
+        motif_level_db: { type: number }
+    InvitesOutcome:
+      type: object
+      required: [outcome]
+      properties:
+        outcome: { type: string, enum: [retry, accepted, verified] }
+        hint: { type: string, enum: [volume_up, try_jingle] }
+    InvitesCosignIn:
+      type: object
+      additionalProperties: false
+      required: [intent, assertion]
+      properties:
+        intent: { $ref: '_common.yaml#/components/schemas/Ref' }
+        assertion: { type: object, additionalProperties: true }
     InvitesJoinStart:
       type: object
       required: [csrf, tos_version, min_age]
@@ -212,13 +449,35 @@ components:
     InvitesClaimIn:
       type: object
       additionalProperties: false
-      required: [payload]
+      required: [payload, e_v, sig_pub, proof]
       properties:
         payload: { type: string, maxLength: 256 }
+        e_v: { type: string, maxLength: 128 }
+        sig_pub: { type: string, maxLength: 128 }
+        proof: { type: string, maxLength: 128 }
+    InvitesAudioStartIn:
+      type: object
+      additionalProperties: false
+      required: [kmac]
+      properties:
+        kmac: { type: string, maxLength: 64 }
+    InvitesAudioStart:
+      type: object
+      required: [play_at, attempt]
+      properties:
+        play_at: { type: string, format: date-time }
+        attempt: { type: integer }
+    InvitesDualIn:
+      type: object
+      additionalProperties: false
+      required: [payload, kmac]
+      properties:
+        payload: { type: string, maxLength: 128 }
+        kmac: { type: string, maxLength: 64 }
     InvitesRegistration:
       type: object
       additionalProperties: false
-      required: [handle, tos_version, age_attested]
+      required: [handle, tos_version, age_attested, signup_token]
       properties:
         handle: { type: string, maxLength: 64 }
         display_name: { type: string, maxLength: 256 }
@@ -226,22 +485,33 @@ components:
         languages: { type: array, maxItems: 20, items: { type: string, maxLength: 35 } }
         tos_version: { type: integer }
         age_attested: { type: boolean }
+        signup_token: { type: string, maxLength: 64 }
     InvitesOptions:
       type: object
       required: [options]
       properties:
         options: { type: object, additionalProperties: true }
+    InvitesSignup:
+      type: object
+      required: [options, records]
+      properties:
+        options: { type: object, additionalProperties: true }
+        records: { type: array, items: { type: object, additionalProperties: true } }
     InvitesCredentialIn:
       type: object
       additionalProperties: false
       required: [credential]
       properties:
         credential: { type: object, additionalProperties: true }
+    InvitesAssertionIn:
+      type: object
+      additionalProperties: false
+      required: [assertion]
+      properties:
+        assertion: { type: object, additionalProperties: true }
   responses:
-    InvitesCannotInvite:
-      description: >-
-        on_probation, no_invites (the budget is empty), invites_paused (quarantine or
-        revoked) or friend_cap (the caller's own friends plus outgoing requests reached 1,000).
+    InvitesStepUp:
+      description: step_up_required (the session must verify with a passkey first).
       content:
         application/json:
           schema: { $ref: '_common.yaml#/components/schemas/Error' }

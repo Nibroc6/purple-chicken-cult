@@ -1,7 +1,7 @@
 // Cards post layout (§10.1.7): an author row (display name with its @handle,
 // inviter label, chain, "why"), the visible context rows, the body (folded
 // past 6 lines or 400 characters in the feed, 10 lines in the tree), link
-// previews, the integrity footer (audience, edited, report) and the actions
+// pictures (P1), previews, the integrity footer (audience, edited, report) and the actions
 // (like summary, like / hide / show less, reply, family tree).
 // Owner: P0-W07 → P1-W12 (P0-W08 reuses it for the tree's 'tree' / 'focal' variants).
 import { useTranslation } from 'react-i18next';
@@ -9,7 +9,18 @@ import { EngageBar, useHidden } from '../../features/engage';
 import { AudienceBadge, Chain, EditedMark, InviterLabel, ReportAction, WhyButton } from '../../integrity';
 import type { PostVM } from '../../vm/types';
 import type { PostActions } from '../types';
-import { ContextRows, FoldableBody, PersonLink, PostLinks, PostTime, PreviewList, shouldFold, useSeenTarget } from './feed/parts';
+import {
+  ContextRows,
+  FoldableBody,
+  MediaList,
+  mediaVariant,
+  PersonLink,
+  PostLinks,
+  PostTime,
+  PreviewList,
+  shouldFold,
+  useSeenTarget,
+} from './feed/parts';
 import './feed/cards.css';
 
 export interface CardProps {
@@ -57,6 +68,7 @@ export function PostLayout({ post, actions, variant, part }: CardProps) {
         <>
           <ContextRows rows={post.context} withCont={part === undefined} />
           {post.body ? <FoldableBody doc={post.body} fold={shouldFold(post, variant)} /> : null}
+          <MediaList media={post.media} variant={mediaVariant(variant)} />
           <PreviewList previews={post.previews} />
         </>
       )}
@@ -66,10 +78,10 @@ export function PostLayout({ post, actions, variant, part }: CardProps) {
         <ReportAction target={{ kind: 'post', ref: post.ref }} onReport={actions.report} />
       </footer>
       {part === 'context' ? null : (
-        <>
+        <div className="post-actions">
           <EngageBar post={post} actions={actions} />
           {hidden ? null : <PostLinks post={post} actions={actions} />}
-        </>
+        </div>
       )}
     </article>
   );

@@ -9,6 +9,7 @@ import { errorKey } from '../../api/errors';
 import { Loading } from '../../app/Loading';
 import { fetchLog, type LogItem } from './api';
 import './moderation.css';
+import { InfoTip } from '../../lib/InfoTip';
 
 export const logKey = ['moderation', 'log'] as const;
 
@@ -25,7 +26,10 @@ export default function ModLogPage() {
   return (
     <section className="page moderation-page" data-testid="mod-log-page">
       <h1>{t('log.title')}</h1>
-      <p className="muted">{t('log.intro')}</p>
+      <p className="muted">
+        {t('log.intro')}
+        <InfoTip>{t('log.introTip')}</InfoTip>
+      </p>
       {q.isPending ? <Loading /> : null}
       {q.error ? (
         <p className="moderation-error" role="alert">

@@ -305,6 +305,36 @@ func TestTypesAndStatus(t *testing.T) {
 	}
 }
 
+// TestImageTypes: GetImage takes raster images only (never SVG or HTML), with
+// the same SSRF rules as GetHTML (a private address is refused before any
+// request).
+func TestImageTypes(t *testing.T) {
+	var accept atomic.Value
+	c, base := loopback(t, func(w http.ResponseWriter, r *http.Request) {
+		accept.Store(r.Header.Get("Accept"))
+		w.Header().Set("Content-Type", strings.TrimPrefix(r.URL.Path, "/t/"))
+		_, _ = w.Write([]byte("img"))
+	})
+	for mt, ok := range map[string]bool{
+		"image/png": true, "image/jpeg": true, "image/gif": true, "image/webp": true, "image/avif": true,
+		"image/svg+xml": false, "image/x-icon": false, "image/tiff": false, "text/html": false, "application/octet-stream": false,
+	} {
+		res, err := c.GetImage(context.Background(), mustURL(t, base+"/t/"+mt), 1<<10)
+		if ok && (err != nil || string(res.Body) != "img" || res.ContentType != mt) {
+			t.Errorf("%s: %v", mt, err)
+		}
+		if !ok && !errors.Is(err, ErrType) {
+			t.Errorf("%s: %v, want ErrType", mt, err)
+		}
+	}
+	if a, _ := accept.Load().(string); a != "image/*" {
+		t.Errorf("Accept %q", a)
+	}
+	if _, err := New().GetImage(context.Background(), mustURL(t, "http://10.0.0.1/a.png"), 1<<10); !errors.Is(err, ErrBlocked) {
+		t.Errorf("private address: %v", err)
+	}
+}
+
 func TestDeadline(t *testing.T) {
 	c, base := loopback(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")

@@ -16,7 +16,7 @@
 //   - a 3 s deadline for the whole fetch, 16 KiB of response headers, a body
 //     cap measured after gzip decompression (GetHTML keeps the first 512 KiB,
 //     GetImage refuses anything larger than its max), text/html only for
-//     GetHTML.
+//     GetHTML, raster image types only (ImageTypes, never SVG) for GetImage.
 //
 // deploy/runbooks/egress.md adds an egress firewall for the service user as
 // defense in depth.
@@ -123,7 +123,14 @@ func (c *Client) GetHTML(ctx context.Context, u *url.URL) (*Response, error) {
 	return c.get(ctx, u, "text/html", MaxHTML, false)
 }
 
-// GetImage fetches an image of at most max decoded bytes (P1 preview images).
+// ImageTypes are the media types GetImage accepts: raster formats only (never
+// SVG, which is a document).
+var ImageTypes = map[string]bool{
+	"image/png": true, "image/jpeg": true, "image/gif": true, "image/webp": true, "image/avif": true,
+}
+
+// GetImage fetches an image of at most max decoded bytes (P1 preview images):
+// one of ImageTypes, refused (never truncated) when larger than max.
 func (c *Client) GetImage(ctx context.Context, u *url.URL, max int64) (*Response, error) {
 	return c.get(ctx, u, "image/", max, true)
 }
@@ -184,7 +191,7 @@ func (c *Client) read(resp *http.Response, u *url.URL, want string, max int64, s
 		return nil, fmt.Errorf("%w: %d", ErrStatus, resp.StatusCode)
 	}
 	mt, params, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
-	if err != nil || (want == "text/html" && mt != want) || (want != "text/html" && !strings.HasPrefix(mt, want)) {
+	if err != nil || (want == "text/html" && mt != want) || (want != "text/html" && !ImageTypes[mt]) {
 		return nil, ErrType
 	}
 	var body io.Reader = resp.Body

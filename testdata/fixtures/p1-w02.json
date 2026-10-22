@@ -1,0 +1,9 @@
+{
+  "users": [
+    { "handle": "bob", "name": "Bob" },
+    { "handle": "carol", "name": "Carol" }
+  ],
+  "friends": [
+    { "a": "bob", "b": "carol" }
+  ]
+}

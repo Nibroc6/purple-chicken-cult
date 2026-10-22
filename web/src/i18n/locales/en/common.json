@@ -1,15 +1,34 @@
 {
   "app": {
-    "name": "Purple Chicken Cult"
+    "name": "Purple Chicken Cult",
+    "pageTitle": "{page} | Purple Chicken Cult"
   },
   "nav": {
     "label": "Main",
+    "tabs": "Shortcuts",
+    "skip": "Skip to content",
     "feed": "Feed",
     "compose": "New post",
-    "invite": "Invite",
-    "friends": "Friends",
+    "post": "Post",
+    "invite": "Feathers",
+    "people": "Chickens",
+    "saves": "Saved",
+    "seen": "Seen",
     "notifications": "Notifications",
-    "settings": "Settings"
+    "alerts": "Alerts",
+    "moderation": "Moderation",
+    "settings": "Settings",
+    "more": "About and moderation",
+    "terms": "Terms",
+    "modLog": "Moderation log",
+    "blame": "Blame inbox",
+    "modRecovery": "Account recovery",
+    "roles": "Moderators and admins",
+    "about": "How it works",
+    "menu": "Menu",
+    "close": "Close menu",
+    "collapse": "Collapse sidebar",
+    "expand": "Expand sidebar"
   },
   "placeholder": {
     "body": "This page is not built yet."
@@ -19,9 +38,15 @@
     "body": "This page does not exist, or you cannot see it."
   },
   "loading": "Loading…",
+  "modal": {
+    "close": "Close"
+  },
   "error": {
     "title": "Something went wrong",
     "retry": "Try again"
+  },
+  "infotip": {
+    "label": "More about this"
   },
   "settingsNav": {
     "label": "Settings sections",
@@ -30,6 +55,7 @@
     "privacy": "Privacy",
     "passkeys": "Passkeys",
     "blocks": "Blocked people",
+    "hidden": "Hidden posts",
     "export": "Export your data",
     "delete": "Delete account",
     "recovery": "Recovery contacts",

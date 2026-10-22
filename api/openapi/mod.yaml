@@ -6,7 +6,10 @@
 # (or a garbage or foreign ref) answers exactly like a stored one, and every
 # request is charged before its target is looked at. Moderator surfaces answer
 # the uniform 404 to members; queue item ids and subject refs are
-# moderator-scoped. Reasons and actions are closed codes.
+# moderator-scoped. Reasons and actions are closed codes. Phase 1: one queue for
+# reports, CSAM holds (match metadata only, never content or a media URL),
+# behavioral signals, step-up repeats and invite clusters; two-person actions
+# are confirmed by a second moderator who co-signs the ModAction record.
 openapi: 3.0.3
 info:
   title: pcc internal API (mod)
@@ -53,10 +56,15 @@ paths:
     get:
       operationId: modQueue
       description: >-
-        Moderators only. Open reports, csam first, then illegal, then oldest
-        first, with the subject (moderator-scoped ref and handle), the subject's
-        inviter label and probation flag, the reported content (never for csam)
-        and whether a two-person action awaits a second moderator.
+        Moderators only. Open queue items (reports, csam holds, signals,
+        step-up repeats, invite clusters) by priority (csam first, then
+        illegal), oldest first, with the subject (moderator-scoped ref and
+        handle), the subject's inviter label and probation flag, the reported
+        content (never for csam), the hold's match metadata for csam items, the
+        claim, the two-person action awaiting a second moderator, and in the
+        summary the confirmed-bad count of the subject's invite subtree
+        (subtree_confirmed, quarantine_k) and the inviter's removed-account
+        marks (inviter_marks).
       parameters:
         - { name: cursor, in: query, required: false, schema: { type: string, maxLength: 256 } }
       responses:
@@ -73,11 +81,12 @@ paths:
     post:
       operationId: modResolve
       description: >-
-        Moderators only. remove_post (post and preview reports) and dismiss take
-        one moderator and close every open report on the same target.
-        suspend_user needs a passkey verification within 5 minutes and only
-        starts a two-person action that a different moderator confirms within
-        24 hours.
+        Moderators only. remove_post (items with a post) and dismiss take one
+        moderator and close the item (a report item: every open report on the
+        same target). suspend_user, and dismissing a csam hold (which lifts the
+        account's upload hold), need a passkey verification within 5 minutes
+        and only start a two-person action that a different moderator confirms
+        within 24 hours. An item claimed by another moderator is item_claimed.
       requestBody:
         required: true
         content:
@@ -91,15 +100,88 @@ paths:
         "409": { $ref: '_common.yaml#/components/responses/Problem' }
         "422": { $ref: '_common.yaml#/components/responses/Problem' }
         "429": { $ref: '#/components/responses/ModRateLimited' }
+  /mod/items/{id}/claim:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, maxLength: 256 } }
+    post:
+      operationId: modClaim
+      description: >-
+        Moderators only. Claims the item for an hour (renews the caller's own
+        claim): other moderators cannot resolve it or start an action on it
+        meanwhile (item_claimed); a second moderator's confirmation is never
+        blocked.
+      responses:
+        "204": { description: Claimed. }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409": { $ref: '_common.yaml#/components/responses/Problem' }
+        "429": { $ref: '#/components/responses/ModRateLimited' }
+  /mod/items/{id}/csam-report:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, maxLength: 256 } }
+    post:
+      operationId: modCSAMReport
+      description: >-
+        Moderators only, csam items only. Starts the two-person csam_report
+        action with the NCMEC CyberTipline report reference; it is recorded on
+        the hold (and the evidence kept a year after the report) when a second
+        moderator confirms it. Needs a passkey verification within 5 minutes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ModCSAMReportIn' }
+      responses:
+        "204": { description: Awaiting the second moderator. }
+        "400": { $ref: '_common.yaml#/components/responses/Problem' }
+        "401": { $ref: '#/components/responses/ModStepUp' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409": { $ref: '_common.yaml#/components/responses/Problem' }
+        "422": { $ref: '_common.yaml#/components/responses/Problem' }
+        "429": { $ref: '#/components/responses/ModRateLimited' }
+  /mod/quarantine:
+    post:
+      operationId: modQuarantine
+      description: >-
+        Moderators only. Starts the two-person invite-tree quarantine of the
+        subtree the item's subject belongs to (its root is the subject's
+        inviter): needs at least PCC_QUARANTINE_K accounts of the subtree whose
+        suspension two moderators confirmed since its last quarantine
+        (quarantine_threshold) and none in the last 30 days
+        (quarantine_active). On confirmation the subtree goes back to probation
+        for 30 days and the root's invites pause for 30 days; a second offense
+        revokes them. Needs a passkey verification within 5 minutes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ModQuarantineIn' }
+      responses:
+        "204": { description: Awaiting the second moderator. }
+        "400": { $ref: '_common.yaml#/components/responses/Problem' }
+        "401": { $ref: '#/components/responses/ModStepUp' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409": { $ref: '_common.yaml#/components/responses/Problem' }
+        "422": { $ref: '_common.yaml#/components/responses/Problem' }
+        "429": { $ref: '#/components/responses/ModRateLimited' }
   /mod/items/{id}/confirm:
     parameters:
       - { name: id, in: path, required: true, schema: { type: string, maxLength: 256 } }
     post:
       operationId: modConfirm
       description: >-
-        The second moderator (not the one who started it, with a passkey
-        verification within 5 minutes) confirms a pending two-person action.
-        Only then does the subject's inviter get a blame entry.
+        The second moderator (not the one who started it) confirms the
+        two-person action pending on the item within 24 hours, co-signing the
+        exact ModAction record (POST /api/cosign {purpose: mod_action, target:
+        the item id}) with their own passkey; a passkey session without the
+        co-signature is the uniform 404. Sessions without a passkey (test
+        hooks) need a verification within 5 minutes instead. Only then is the
+        action applied and does the subject's inviter get a blame entry and a
+        removed-account mark.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ModConfirmIn' }
       responses:
         "204": { description: Confirmed and applied. }
         "401": { $ref: '#/components/responses/ModStepUp' }
@@ -110,9 +192,11 @@ paths:
     get:
       operationId: modLog
       description: >-
-        The public moderation log: confirmed removals and suspensions per day,
-        reason and subject with a count. A subject is named only if the caller
-        has that person in their horizon; otherwise it is a pseudonym.
+        The public moderation log: confirmed removals, suspensions and role
+        changes (grant_moderator, revoke_moderator, grant_admin; reason
+        role_change) per day, reason and subject with a count. A subject is
+        named only if the caller has that person in their horizon; otherwise it
+        is a pseudonym.
       parameters:
         - { name: cursor, in: query, required: false, schema: { type: string, maxLength: 256 } }
       responses:
@@ -122,6 +206,59 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ModLogPage' }
         "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/ModRateLimited' }
+  /mod/roles:
+    get:
+      operationId: modRoles
+      description: >-
+        Admins only. The active moderators and admins (admins first, then by
+        handle) with the time of their logged grant, and the latest 50 role
+        changes from the moderation log, newest first. Everyone else gets the
+        uniform 404.
+      responses:
+        "200":
+          description: The staff list.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ModStaff' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/ModRateLimited' }
+    post:
+      operationId: modGrantModerator
+      description: >-
+        Admins only. Makes the active member with this handle a moderator and
+        records grant_moderator in the moderation log. Needs a passkey
+        verification within 5 minutes. The admin role is not granted here (CLI
+        only). Problems: handle_unknown (422), already_staff (409).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ModGrantIn' }
+      responses:
+        "204": { description: Granted. }
+        "400": { $ref: '_common.yaml#/components/responses/Problem' }
+        "401": { $ref: '#/components/responses/ModStepUp' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409": { $ref: '_common.yaml#/components/responses/Problem' }
+        "422": { $ref: '_common.yaml#/components/responses/Problem' }
+        "429": { $ref: '#/components/responses/ModRateLimited' }
+  /mod/roles/{ref}/revoke:
+    parameters:
+      - { name: ref, in: path, required: true, schema: { type: string, maxLength: 256 } }
+    post:
+      operationId: modRevokeModerator
+      description: >-
+        Admins only. Makes the moderator (the ref from GET /mod/roles) a member
+        again, releases their claims on queue items and records
+        revoke_moderator in the moderation log. Needs a passkey verification
+        within 5 minutes. Problems: admin_role (admins change only through the
+        CLI), not_moderator (409).
+      responses:
+        "204": { description: Revoked. }
+        "401": { $ref: '#/components/responses/ModStepUp' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409": { $ref: '_common.yaml#/components/responses/Problem' }
         "429": { $ref: '#/components/responses/ModRateLimited' }
   /csp-report:
     post:
@@ -173,6 +310,27 @@ components:
         reason:
           type: string
           description: spam, bot, harassment, csam, illegal, impersonation, misleading_preview, ban_evasion, other.
+    ModConfirmIn:
+      type: object
+      additionalProperties: false
+      properties:
+        intent: { type: string, maxLength: 256 }
+        assertion: { type: object, additionalProperties: true, description: The WebAuthn get assertion over the ModAction draft. }
+    ModCSAMReportIn:
+      type: object
+      required: [report_ref]
+      additionalProperties: false
+      properties:
+        report_ref: { type: string, maxLength: 128 }
+    ModQuarantineIn:
+      type: object
+      required: [subject_item]
+      additionalProperties: false
+      properties:
+        subject_item: { type: string, maxLength: 256 }
+        reason:
+          type: string
+          description: A moderation reason; defaults to the item's.
     ModQueuePage:
       type: object
       required: [items]
@@ -197,6 +355,40 @@ components:
           type: array
           items: { $ref: '_common.yaml#/components/schemas/LogItem' }
         next: { type: string }
+    ModGrantIn:
+      type: object
+      required: [handle]
+      additionalProperties: false
+      properties:
+        handle: { type: string, maxLength: 64 }
+    ModStaff:
+      type: object
+      required: [members, changes]
+      properties:
+        members:
+          type: array
+          items: { $ref: '#/components/schemas/ModStaffMember' }
+        changes:
+          type: array
+          items: { $ref: '#/components/schemas/ModRoleChange' }
+    ModStaffMember:
+      type: object
+      required: [ref, handle, role]
+      properties:
+        ref: { type: string }
+        handle: { type: string }
+        display_name: { type: string }
+        role: { type: string, enum: [moderator, admin] }
+        since: { type: string, format: date-time }
+        me: { type: boolean }
+    ModRoleChange:
+      type: object
+      required: [action, handle, by_handle, at]
+      properties:
+        action: { type: string, enum: [grant_moderator, revoke_moderator, grant_admin] }
+        handle: { type: string }
+        by_handle: { type: string }
+        at: { type: string, format: date-time }
     ModCSPReports:
       type: array
       items:

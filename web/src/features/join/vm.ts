@@ -4,7 +4,7 @@ import { ApiError } from '../../api/errors';
 import { authErrorKey } from '../auth/vm';
 
 // Codes with join-specific wording (join:errors.<code>).
-const codes = new Set(['handle_invalid', 'handle_taken', 'display_name_invalid', 'tos_required', 'age_required']);
+const codes = new Set(['handle_invalid', 'handle_taken', 'display_name_invalid', 'tos_required', 'age_required', 'already_friends']);
 
 // joinErrorKey returns the catalog key for a failure of the join flow, or
 // undefined when nothing should be shown (a superseded passkey prompt).
@@ -23,3 +23,7 @@ export function browserLanguages(list: readonly string[]): string[] {
   }
   return out.length > 0 ? out : ['en'];
 }
+
+// SCAN_PATH opens the join page's scanner signed in (the friend upgrade offer;
+// the push of a friend_upgrade notification leads here too).
+export const SCAN_PATH = '/join?scan=1';

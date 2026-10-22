@@ -1,18 +1,11 @@
-// Explorer (Phase 1) tree layout (SCAFFOLD hand-off stub). Owner: P1-W09.
+// Explorer reply tree (§10.1.4): the connected canvas every format shares
+// (formats/tree/ConnectedTree.tsx), the focused post in Explorer's own post
+// layout. Owner: P1-W09.
 import type { TreeVM } from '../../vm/types';
+import { ConnectedTree } from '../tree/ConnectedTree';
 import type { TreeActions } from '../types';
 import { PostLayout } from './PostLayout';
 
 export function TreeLayout({ tree, actions }: { tree: TreeVM; actions: TreeActions }) {
-  return (
-    <div className="tree" data-format="explorer">
-      {tree.rows.map((row) => (
-        <section key={`${String(row.gen)}-${row.center}`} className="tree-row" data-gen={row.gen}>
-          {row.items.map((it) => (
-            <PostLayout key={it.post.ref} post={it.post} actions={actions} variant={row.gen === 0 ? 'focal' : 'tree'} />
-          ))}
-        </section>
-      ))}
-    </div>
-  );
+  return <ConnectedTree tree={tree} actions={actions} format="explorer" Post={PostLayout} />;
 }

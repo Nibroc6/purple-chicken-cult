@@ -15,7 +15,7 @@ import (
 )
 
 // Edit creates a new version of the caller's own post: same id, version + 1, a
-// fresh salt and a new Post record; parents are immutable. Mentions are rebuilt
+// fresh salt and a new Post record; parents and media are immutable. Mentions are rebuilt
 // (newly mentioned users are notified) and previews re-fetched. lang "" keeps
 // the current language.
 func (s *Service) Edit(ctx context.Context, p gate.Ref, body, lang string) (gate.PostView, error) {
@@ -59,12 +59,17 @@ func (s *Service) Edit(ctx context.Context, p gate.Ref, body, lang string) (gate
 		if err != nil {
 			return err
 		}
+		media, err := postMedia(ctx, tx, m.ID)
+		if err != nil {
+			return err
+		}
 		salt, err := newSalt()
 		if err != nil {
 			return err
 		}
 		// The record keeps the original created_at; the version row says when.
-		hash, err := s.signPost(ctx, tx, me.ExtID, next, salt, b, parents, noPreview)
+		// Media, like parents, is fixed at creation.
+		hash, err := s.signPost(ctx, tx, me.ExtID, next, salt, b, parents, media, noPreview)
 		if err != nil {
 			return err
 		}
@@ -128,6 +133,15 @@ func (s *Service) parentRecs(ctx context.Context, tx pgx.Tx, id core.PostID) ([]
 		out = append(out, parentRec{ID: pid, Kind: core.LinkKind(kind).String()}) //nolint:gosec // DB CHECK (0, 1)
 	}
 	return out, rows.Err()
+}
+
+// postMedia reads a post's attached media ids for its record (in ord order).
+func postMedia(ctx context.Context, tx pgx.Tx, id core.PostID) ([]uuid.UUID, error) {
+	rows, err := tx.Query(ctx, "SELECT media_id FROM post_media WHERE post_id = $1 ORDER BY ord", id)
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, pgx.RowTo[uuid.UUID])
 }
 
 // mentionedIn returns the users a post mentions now.

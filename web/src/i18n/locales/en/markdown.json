@@ -9,5 +9,8 @@
   },
   "preview": {
     "label": "Link preview from {host}"
+  },
+  "table": {
+    "label": "Table"
   }
 }

@@ -9,7 +9,12 @@
 //     at most 3, oldest edge first; Others = InNetwork − Names − the viewer.
 //   - ReplyCount = the number of visible ref children (no limit).
 //   - Thread = the position over the VISIBLE parts of a cont thread (1-based).
-//   - Previews (link_previews, read-only) only when status = ok ∧ now ≥ ready_at.
+//   - Previews (link_previews, read-only) only when status = ok ∧ now ≥ ready_at;
+//     a preview's image (image_media_id, written by gate/previews) through
+//     core.Media.Views.
+//   - Media: the post's post_media rows (in ord order) through core.Media.Views,
+//     which keeps only ready, live items and mints the viewer's refs; loaded
+//     with the body (never for tree overflow rows). Media off ⇒ none.
 //   - Mentions carry a Ref only if the viewer can see the target.
 //   - AudienceForced only on the author's own view.
 //
@@ -108,6 +113,9 @@ func (s *Service) Person(ctx context.Context, sr core.Search, u core.UserID) (ga
 			pv.Muted = true
 		}
 	}
+	if s.d.Marks != nil && s.d.Marks.Marked(ctx, v, u) {
+		pv.InvitedRemoved = true // steward: contract request p1-w06-1
+	}
 	if pv.Relation == "connected" {
 		if rs := s.d.Requests; rs != nil {
 			switch st := rs.RequestState(ctx, v, u); st {
@@ -180,9 +188,15 @@ func (s *Service) Posts(ctx context.Context, sr core.Search, ps []core.Checked, 
 		bodies = s.d.Posts.Bodies(ctx, ids)
 	}
 	liked := s.d.Engage.LikedByMe(ctx, v, ids)
-	previews, err := s.previews(ctx, ids)
+	previews, err := s.previews(ctx, sr, ids)
 	if err != nil {
 		return nil, err
+	}
+	var media map[core.PostID][]gate.MediaView
+	if o.WithBody {
+		if media, err = s.media(ctx, sr, ids); err != nil {
+			return nil, err
+		}
 	}
 	mi := s.d.Mentions
 
@@ -198,6 +212,7 @@ func (s *Service) Posts(ctx context.Context, sr core.Search, ps []core.Checked, 
 			RefPolicy: pm.RefPolicy.String(), Mine: pm.Author == v,
 			CanReference: s.d.Vis.CanReference(ctx, sr, pm, core.LinkRef),
 			Previews:     previews[pm.ID],
+			Media:        media[pm.ID],
 		}
 		if pv.Lang == "" {
 			pv.Lang = "und"
@@ -374,34 +389,103 @@ func (s *Service) mentions(_ context.Context, sr core.Search, targets map[int]co
 }
 
 // previews reads ready, successful link previews (link_previews is read-only
-// here; P0-W09 writes it). Without a database there are none.
-func (s *Service) previews(ctx context.Context, ids []core.PostID) (map[core.PostID][]gate.PreviewView, error) {
+// here; gate/previews writes it) with their images. Without a database there
+// are none.
+func (s *Service) previews(ctx context.Context, sr core.Search, ids []core.PostID) (map[core.PostID][]gate.PreviewView, error) {
 	out := map[core.PostID][]gate.PreviewView{}
 	if s.d.DB == nil || len(ids) == 0 {
 		return out, nil
 	}
-	rows, err := s.d.DB.Q().Query(ctx, `SELECT post_id, url_canon, site_host, COALESCE(title, ''), COALESCE(description, '')
-		FROM link_previews WHERE post_id = ANY($1) AND status = 1 AND ready_at <= $2 ORDER BY post_id, ord`,
+	rows, err := s.d.DB.Q().Query(ctx, `SELECT post_id, url_canon, site_host, COALESCE(title, ''), COALESCE(description, ''),
+		image_media_id FROM link_previews WHERE post_id = ANY($1) AND status = 1 AND ready_at <= $2 ORDER BY post_id, ord`,
 		ids, s.now())
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	type imageAt struct {
+		post core.PostID
+		i    int
+		id   uuid.UUID
+	}
+	var images []imageAt
 	for rows.Next() {
 		var (
 			id                      core.PostID
 			raw, host, title, descr string
+			img                     *uuid.UUID
 		)
-		if err := rows.Scan(&id, &raw, &host, &title, &descr); err != nil {
+		if err := rows.Scan(&id, &raw, &host, &title, &descr, &img); err != nil {
+			rows.Close()
 			return nil, err
 		}
 		pv := gate.PreviewView{URL: raw, Host: host, HostUnicode: host, Lookalike: true, Title: title, Description: descr}
 		if u, err := url.Parse(raw); err == nil && u.Hostname() != "" {
 			pv.HostUnicode, pv.Lookalike = urlx.DisplayHost(u)
 		}
+		if img != nil {
+			images = append(images, imageAt{post: id, i: len(out[id]), id: *img})
+		}
 		out[id] = append(out[id], pv)
 	}
-	return out, rows.Err()
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if s.d.Media == nil {
+		return out, nil
+	}
+	for _, im := range images {
+		mv, err := s.d.Media.Views(ctx, sr, []uuid.UUID{im.id})
+		if err != nil {
+			return nil, err
+		}
+		if len(mv) == 1 {
+			out[im.post][im.i].Image = &mv[0]
+		}
+	}
+	return out, nil
+}
+
+// media renders the attached media of each post (post_media, written by
+// gate/posts) through core.Media.Views. Without a database or media there is
+// none.
+func (s *Service) media(ctx context.Context, sr core.Search, ids []core.PostID) (map[core.PostID][]gate.MediaView, error) {
+	out := map[core.PostID][]gate.MediaView{}
+	if s.d.DB == nil || s.d.Media == nil || len(ids) == 0 {
+		return out, nil
+	}
+	rows, err := s.d.DB.Q().Query(ctx, `SELECT post_id, media_id FROM post_media WHERE post_id = ANY($1)
+		ORDER BY post_id, ord`, ids)
+	if err != nil {
+		return nil, err
+	}
+	attached := map[core.PostID][]uuid.UUID{}
+	var order []core.PostID
+	for rows.Next() {
+		var p, m uuid.UUID
+		if err := rows.Scan(&p, &m); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		if _, ok := attached[p]; !ok {
+			order = append(order, p)
+		}
+		attached[p] = append(attached[p], m)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	for _, p := range order {
+		mv, err := s.d.Media.Views(ctx, sr, attached[p])
+		if err != nil {
+			return nil, err
+		}
+		if len(mv) > 0 {
+			out[p] = mv
+		}
+	}
+	return out, nil
 }
 
 // ---- excerpts ----

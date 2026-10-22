@@ -1,0 +1,16 @@
+# Cloudflare Worker for the media origin (deploy/runbooks/media.md).
+# Copy to wrangler.toml, fill in the names, then:
+#   wrangler secret put MEDIA_URL_KEY   # 64 hex chars, see the runbook
+#   wrangler deploy
+name = "pcc-media"
+main = "media-worker.js"
+compatibility_date = "2026-09-01"
+workers_dev = false            # no *.workers.dev URL
+routes = [{ pattern = "media.pcc.example/m/*", zone_name = "pcc.example" }]
+
+[[r2_buckets]]
+binding = "MEDIA"
+bucket_name = "pcc-media"      # PRIVATE bucket; r2.dev public access stays OFF
+
+[vars]
+CORP = "same-site"             # media host must be a subdomain of the app's site

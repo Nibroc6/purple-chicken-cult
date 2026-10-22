@@ -1,27 +1,29 @@
 // Settings → Passkeys (§17.2, D27): list, add (fresh step-up, never twice on
-// one authenticator) and remove (fresh step-up, never the last; it signs out
-// every session that passkey started). Owner: P0-W01 → P1-W07.
+// one authenticator) and remove (never the last; it signs out every session
+// that passkey started). From Phase 1 a session started with a passkey
+// co-signs both changes with an existing passkey (passkeyFlow.ts).
+// Owner: P0-W01 → P1-W07.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router';
 import { Loading } from '../../app/Loading';
 import { sessionKey, useSession } from '../../app/session';
-import { withStepUp } from '../stepup/store';
-import { addPasskeyBegin, addPasskeyFinish, listPasskeys, logout, removePasskey } from './api';
-import { authErrorKey, toPasskeyVM, type PasskeyVM } from './vm';
-import { createPasskey } from './webauthn';
+import { listPasskeys, logout } from './api';
+import { addPasskey, removeKey } from './passkeyFlow';
+import { authError, toPasskeyVM, type PasskeyVM } from './vm';
 import './auth.css';
+import { InfoTip } from '../../lib/InfoTip';
 
 export const passkeysKey = ['auth', 'passkeys'] as const;
 
 function ErrorLine({ err }: { err: unknown }) {
   const { t } = useTranslation(['auth', 'errors']);
-  const key = err ? authErrorKey(err) : undefined;
-  if (!key) return null;
+  const msg = err ? authError(err) : undefined;
+  if (!msg) return null;
   return (
     <p className="auth-error" role="alert">
-      {t(key as 'errors:unknown')}
+      {t(msg.key as 'errors:unknown', msg.params)}
     </p>
   );
 }
@@ -63,14 +65,8 @@ function Passkeys() {
   const list = useQuery({ queryKey: passkeysKey, queryFn: async () => (await listPasskeys()).map(toPasskeyVM) });
 
   const add = useMutation({
-    mutationFn: async () => {
-      // The whole add flow is retried after a step-up, never finish alone: a
-      // session holds one ceremony, which the step-up replaces (begin again).
-      await withStepUp(async () => {
-        const options = await addPasskeyBegin();
-        const credential = await createPasskey(options);
-        await addPasskeyFinish(credential, name);
-      });
+    mutationFn: async (onPhone: boolean) => {
+      await addPasskey(name, t('cosign.addSummary', { name: name.trim() || t('passkeys.unnamed') }), onPhone);
     },
     onMutate: () => {
       setNotice(undefined);
@@ -84,7 +80,9 @@ function Passkeys() {
 
   const remove = useMutation({
     mutationFn: async (p: PasskeyVM) => {
-      await withStepUp(() => removePasskey(p.id));
+      // A session started with a passkey lists that passkey as current.
+      const mustCosign = (list.data ?? []).some((x) => x.current);
+      await removeKey(p.id, mustCosign, t('cosign.removeSummary', { name: p.name || t('passkeys.unnamed') }));
       return p;
     },
     onMutate: () => {
@@ -138,7 +136,7 @@ function Passkeys() {
         className="auth-form"
         onSubmit={(e) => {
           e.preventDefault();
-          add.mutate();
+          add.mutate(false);
         }}
       >
         <h2>{t('passkeys.addTitle')}</h2>
@@ -158,9 +156,20 @@ function Passkeys() {
         </div>
         <div className="auth-actions">
           <button type="submit" className="primary" data-testid="passkey-add" disabled={add.isPending}>
-            {add.isPending ? t('passkeys.adding') : t('passkeys.add')}
+            {add.isPending && !add.variables ? t('passkeys.adding') : t('passkeys.add')}
+          </button>
+          <button
+            type="button"
+            data-testid="passkey-add-phone"
+            disabled={add.isPending}
+            onClick={() => {
+              add.mutate(true);
+            }}
+          >
+            {add.isPending && add.variables ? t('passkeys.adding') : t('passkeys.addPhone')}
           </button>
         </div>
+        <p className="muted">{t('passkeys.addPhoneHint')}</p>
         <ErrorLine err={add.error} />
       </form>
       {notice ? (
@@ -207,7 +216,10 @@ export default function PasskeysPage() {
       <p>
         <Link to="/settings">{t('common:nav.settings')}</Link>
       </p>
-      <p>{t('passkeys.intro')}</p>
+      <p>
+        {t('passkeys.intro')}
+        <InfoTip>{t('passkeys.introTip')}</InfoTip>
+      </p>
       <Passkeys />
     </section>
   );

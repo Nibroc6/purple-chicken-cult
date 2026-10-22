@@ -1,0 +1,13 @@
+{
+  "users": [
+    { "handle": "mia", "name": "Mia", "age": "2160h" },
+    { "handle": "noa", "name": "Noa", "age": "2160h" },
+    { "handle": "pia", "name": "Pia", "age": "2160h" },
+    { "handle": "quin", "name": "Quin", "age": "2160h" }
+  ],
+  "friends": [
+    { "a": "mia", "b": "noa", "age": "720h" },
+    { "a": "mia", "b": "pia", "level": "friend_plus", "age": "720h" },
+    { "a": "noa", "b": "quin", "age": "720h" }
+  ]
+}

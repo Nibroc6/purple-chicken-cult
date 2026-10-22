@@ -1,13 +1,13 @@
 // Package scan is the pre-storage CSAM scanner abstraction (ARCHITECTURE §6.1).
 // Drivers: "photodna" (PhotoDNA Cloud Matching API), "dev" (SHA-256 blocklist,
-// constructible only when cfg.DevLike()), "none" (reports disabled). There is no
-// "cloudflare" driver: Cloudflare's tool scans after storage.
+// constructible only when cfg.DevLike()), "none" (reports disabled), "unscanned"
+// (never matches; only with PCC_ALLOW_UNSCANNED_MEDIA=1). There is no "cloudflare"
+// driver: Cloudflare's tool scans after storage.
 //
 // A scanner error or timeout must reject the upload (fail closed): callers write
 // nothing to any store unless Scan returned a non-matching Verdict and nil error.
 //
-// Owner: P1-W04 (the scaffold ships the dev and none drivers; photodna is a
-// fail-closed stub).
+// Owner: P1-W04.
 package scan
 
 import (
@@ -37,7 +37,6 @@ type Scanner interface {
 // Errors.
 var (
 	ErrDisabled = errors.New("scan: scanner disabled")
-	ErrNotReady = errors.New("scan: scanner not implemented")
 	ErrDevOnly  = errors.New("scan: the dev scanner is only available in dev/test")
 )
 
@@ -60,9 +59,26 @@ func New(c *config.Config) (Scanner, error) {
 		if c.Scanner.PhotoDNAKey == "" || c.Scanner.PhotoDNAURL == "" {
 			return None{}, ErrDisabled
 		}
-		return &PhotoDNA{key: c.Scanner.PhotoDNAKey, url: c.Scanner.PhotoDNAURL}, nil
+		return NewPhotoDNA(c.Scanner.PhotoDNAURL, c.Scanner.PhotoDNAKey), nil
+	case config.ScannerUnscanned:
+		if !c.UnscannedMedia() {
+			return None{}, ErrDisabled
+		}
+		return Unscanned{}, nil
 	}
 	return None{}, nil
+}
+
+// Unscanned is the operator-chosen no-scan driver: every image passes. Matches can
+// only come from outside the app (Cloudflare's CSAM tool email, a user report).
+type Unscanned struct{}
+
+// Name identifies the driver.
+func (Unscanned) Name() string { return config.ScannerUnscanned }
+
+// Scan never matches.
+func (Unscanned) Scan(ctx context.Context, _ []byte, _ string) (Verdict, error) {
+	return Verdict{}, ctx.Err()
 }
 
 // None is the disabled scanner: every scan fails, so nothing is ever stored.
@@ -115,20 +131,8 @@ func (d *Dev) Scan(ctx context.Context, img []byte, _ string) (Verdict, error) {
 		return Verdict{}, err
 	}
 	h := sha256.Sum256(img)
-	if d.block[hex.EncodeToString(h[:])] {
-		return Verdict{Match: true, Info: map[string]string{"driver": "dev", "list": "blocklist"}}, nil
+	if sum := hex.EncodeToString(h[:]); d.block[sum] {
+		return Verdict{Match: true, Info: map[string]string{"driver": "dev", "list": "blocklist", "sha256": sum}}, nil
 	}
 	return Verdict{}, nil
-}
-
-// PhotoDNA is the PhotoDNA Cloud Matching API client.
-// Scaffold: not implemented, so it fails closed (uploads are rejected).
-type PhotoDNA struct{ key, url string }
-
-// Name identifies the driver.
-func (p *PhotoDNA) Name() string { return config.ScannerPhotoDNA }
-
-// Scan fails closed until P1-W04 implements the API call.
-func (p *PhotoDNA) Scan(context.Context, []byte, string) (Verdict, error) {
-	return Verdict{}, ErrNotReady
 }

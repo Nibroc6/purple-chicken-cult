@@ -7,6 +7,7 @@ import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../../api/errors';
 import { makeQueryClient } from '../../app/App';
+import { useSession } from '../../app/session';
 import { i18n } from '../../i18n/setup';
 import { StepUpModal } from '../stepup/StepUpModal';
 import EnrollPage from './EnrollPage';
@@ -22,6 +23,9 @@ const wa = vi.hoisted(() => ({
   startRegistration: vi.fn(),
   cancelCeremony: vi.fn(),
 }));
+
+const cosign = vi.hoisted(() => ({ requestCosign: vi.fn() }));
+vi.mock('../cosign', () => ({ requestCosign: cosign.requestCosign }));
 
 vi.mock('@simplewebauthn/browser', () => ({
   browserSupportsWebAuthn: () => wa.supported,
@@ -102,6 +106,7 @@ beforeEach(() => {
   wa.startAuthentication.mockReset().mockResolvedValue(assertion);
   wa.startRegistration.mockReset().mockResolvedValue(attestation);
   wa.cancelCeremony.mockReset();
+  cosign.requestCosign.mockReset().mockResolvedValue({ intent: 'intent-1', assertion: { id: 'cred' } });
 });
 
 afterEach(() => {
@@ -141,6 +146,10 @@ describe('webauthn wrapper', () => {
     expect(wa.startAuthentication).toHaveBeenCalledWith({ optionsJSON: loginOptions.publicKey, useBrowserAutofill: true });
     await expect(createPasskey(createOptions)).resolves.toBe(attestation);
     expect(wa.startRegistration).toHaveBeenCalledWith({ optionsJSON: createOptions.publicKey });
+    await expect(createPasskey(createOptions, true)).resolves.toBe(attestation);
+    expect(wa.startRegistration).toHaveBeenLastCalledWith({
+      optionsJSON: { ...createOptions.publicKey, hints: ['hybrid'], authenticatorSelection: { authenticatorAttachment: 'cross-platform' } },
+    });
 
     const cases: [unknown, string][] = [
       [Object.assign(new Error('x'), { name: 'NotAllowedError' }), 'cancelled'],
@@ -245,13 +254,13 @@ describe('EnrollPage', () => {
     fireEvent.click(create);
     expect(await screen.findByTestId('second-add')).toBeTruthy();
     const finish = calls.find((c) => c.path === '/enroll/finish');
-    expect(finish?.body).toEqual({ credential: attestation, remove_old: false, tos_version: 3, age_attested: true });
+    expect(finish?.body).toEqual({ credential: attestation, tos_version: 3, age_attested: true });
     expect(finish?.csrf).toBe('csrf-enroll');
     fireEvent.click(screen.getByTestId('second-done'));
     expect(await screen.findByText('home')).toBeTruthy();
   });
 
-  it('recovers an account, offering to remove the old passkeys', async () => {
+  it('recovers an account, keeping the old passkeys', async () => {
     globalThis.history.replaceState(null, '', `/enroll#${token}`);
     const calls = stubAPI(signedOut, (c) => {
       if (c.path === '/enroll/begin') {
@@ -269,17 +278,70 @@ describe('EnrollPage', () => {
     });
     renderAt('/enroll', <EnrollPage />);
     expect(await screen.findByText(/Old phone/)).toBeTruthy();
-    expect(screen.getByLabelText<HTMLInputElement>(i18n.t('auth:enroll.removeOld')).checked).toBe(true);
+    expect(screen.getByText(i18n.t('auth:enroll.keepOld'))).toBeTruthy();
+    expect(screen.queryByRole('checkbox')).toBeNull();
     fireEvent.click(screen.getByTestId('enroll-create'));
     fireEvent.click(await screen.findByTestId('second-add'));
     expect(await screen.findByText(i18n.t('auth:second.added'))).toBeTruthy();
     expect(calls.find((c) => c.path === '/enroll/finish')?.body).toEqual({
       credential: attestation,
-      remove_old: true,
       tos_version: 0,
       age_attested: false,
     });
     expect(calls.find((c) => c.path === '/auth/passkeys/finish')?.body).toEqual({ credential: attestation, name: '' });
+  });
+
+  it('waits for the first session answer before the enrollment session exists (fresh-browser CSRF race)', async () => {
+    // A fresh browser: the shell's first /api/session goes out without a cookie
+    // and is answered late, after the page could already have begun.
+    let answerSession: () => void = () => undefined;
+    const calls: Call[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (req: Request) => {
+        const path = new URL(req.url).pathname.replace(/^\/api/, '');
+        const text = await req.text();
+        calls.push({ method: req.method, path, body: text ? (JSON.parse(text) as unknown) : undefined, csrf: req.headers.get('X-PCC-CSRF') });
+        if (path === '/session') {
+          await new Promise<void>((r) => {
+            answerSession = r;
+          });
+          return json(200, signedOut);
+        }
+        if (path === '/enroll/begin') return json(200, { options: createOptions, purpose: 'genesis', csrf: 'csrf-enroll', tos_version: 1, min_age: 16 });
+        if (path === '/enroll/finish') return json(200, { ...signedIn, csrf: 'csrf-new' });
+        return json(404, { error: 'not_found' });
+      }),
+    );
+    globalThis.history.replaceState(null, '', '/enroll#AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-abcd');
+    function Shell() {
+      useSession();
+      return null;
+    }
+    renderAt(
+      '/enroll',
+      <>
+        <Shell />
+        <EnrollPage />
+      </>,
+    );
+    await waitFor(() => {
+      expect(calls.some((c) => c.path === '/session')).toBe(true);
+    });
+    expect(calls.some((c) => c.path === '/enroll/begin')).toBe(false);
+    answerSession();
+    fireEvent.click(await screen.findByRole('checkbox', { name: /terms/i }));
+    fireEvent.click(screen.getAllByRole('checkbox')[1] as HTMLElement);
+    fireEvent.click(screen.getByTestId('enroll-create'));
+    await waitFor(() => {
+      expect(calls.some((c) => c.path === '/enroll/finish')).toBe(true);
+    });
+    // Every request after the enrollment session exists carries its CSRF token.
+    const after = calls.slice(calls.findIndex((c) => c.path === '/enroll/begin') + 1).filter((c) => c.method === 'POST');
+    expect(after.map((c) => [c.path, c.csrf])).toEqual([
+      ['/enroll/begin', 'csrf-enroll'],
+      ['/enroll/finish', 'csrf-enroll'],
+    ]);
   });
 
   it('rejects a missing or dead link', async () => {
@@ -303,11 +365,12 @@ describe('PasskeysPage', () => {
     expect(screen.getByText(i18n.t('auth:passkeys.current'))).toBeTruthy();
   });
 
-  it('removes a passkey after a step-up and retries the request', async () => {
+  it('removes a passkey after a step-up in a session not started with a passkey', async () => {
     vi.spyOn(globalThis, 'confirm').mockReturnValue(true);
     let fresh = false;
+    const plain = two.map((p) => ({ ...p, current: false }));
     const calls = stubAPI(signedIn, (c) => {
-      if (c.path === '/auth/passkeys') return json(200, { items: fresh ? one : two });
+      if (c.path === '/auth/passkeys') return json(200, { items: fresh ? plain.slice(0, 1) : plain });
       if (c.path === '/auth/passkeys/r2' && c.method === 'DELETE') {
         if (!fresh) return json(401, { error: 'step_up_required' });
         return json(204, null);
@@ -328,6 +391,65 @@ describe('PasskeysPage', () => {
     expect(calls.filter((c) => c.method === 'DELETE')).toHaveLength(2);
     expect(calls.find((c) => c.path === '/auth/stepup/finish')?.body).toEqual({ credential: assertion });
     expect(screen.queryByTestId('stepup-verify')).toBeNull();
+    expect(cosign.requestCosign).not.toHaveBeenCalled();
+  });
+
+  it('co-signs a removal with an existing passkey in a passkey session', async () => {
+    vi.spyOn(globalThis, 'confirm').mockReturnValue(true);
+    let removed = false;
+    const calls = stubAPI(signedIn, (c) => {
+      if (c.path === '/auth/passkeys') return json(200, { items: removed ? one : two });
+      if (c.path === '/auth/passkeys/r2' && c.method === 'DELETE') {
+        removed = true;
+        return json(204, null);
+      }
+      return undefined;
+    });
+    renderAt('/settings/passkeys', <PasskeysPage />);
+    const buttons = await screen.findAllByTestId('passkey-remove');
+    fireEvent.click(buttons[1] as HTMLElement);
+    expect(await screen.findByText(i18n.t('auth:passkeys.removed'))).toBeTruthy();
+    expect(cosign.requestCosign).toHaveBeenCalledWith({
+      purpose: 'passkey_remove',
+      target: 'r2',
+      summary: i18n.t('auth:cosign.removeSummary', { name: i18n.t('auth:passkeys.unnamed') }),
+    });
+    expect(calls.find((c) => c.method === 'DELETE')?.body).toEqual({ intent: 'intent-1', assertion: { id: 'cred' } });
+    expect(screen.queryByTestId('stepup-verify')).toBeNull();
+  });
+
+  it('cancelling the co-signature removes nothing and shows no error', async () => {
+    vi.spyOn(globalThis, 'confirm').mockReturnValue(true);
+    cosign.requestCosign.mockResolvedValue(null);
+    const calls = stubAPI(signedIn, (c) => (c.path === '/auth/passkeys' ? json(200, { items: two }) : undefined));
+    renderAt('/settings/passkeys', <PasskeysPage />);
+    fireEvent.click((await screen.findAllByTestId('passkey-remove'))[1] as HTMLElement);
+    await waitFor(() => {
+      expect(cosign.requestCosign).toHaveBeenCalled();
+    });
+    expect(calls.some((c) => c.method === 'DELETE')).toBe(false);
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('a parked new passkey is stored once an existing one co-signs it', async () => {
+    const calls = stubAPI(signedIn, (c) => {
+      if (c.path === '/auth/passkeys') return json(200, { items: one });
+      if (c.path === '/auth/passkeys/begin') return json(200, { options: createOptions });
+      if (c.path === '/auth/passkeys/finish') {
+        return (c.body as { intent?: string }).intent ? json(204, null) : json(202, { cosign: 'passkey_add' });
+      }
+      return undefined;
+    });
+    renderAt('/settings/passkeys', <PasskeysPage />);
+    fireEvent.change(await screen.findByLabelText(i18n.t('auth:passkeys.nameLabel')), { target: { value: 'Phone' } });
+    fireEvent.click(screen.getByTestId('passkey-add'));
+    expect(await screen.findByText(i18n.t('auth:passkeys.added'))).toBeTruthy();
+    expect(cosign.requestCosign).toHaveBeenCalledWith({ purpose: 'passkey_add', summary: i18n.t('auth:cosign.addSummary', { name: 'Phone' }) });
+    const finishes = calls.filter((c) => c.path === '/auth/passkeys/finish');
+    expect(finishes.map((c) => c.body)).toEqual([
+      { credential: attestation, name: 'Phone' },
+      { intent: 'intent-1', assertion: { id: 'cred' } },
+    ]);
   });
 
   it('adds a passkey and explains why the same device is refused', async () => {
@@ -345,6 +467,22 @@ describe('PasskeysPage', () => {
     wa.startRegistration.mockRejectedValueOnce(Object.assign(new Error('x'), { name: 'InvalidStateError' }));
     fireEvent.click(screen.getByTestId('passkey-add'));
     expect((await screen.findByRole('alert')).textContent).toBe(i18n.t('auth:passkey.exists'));
+  });
+
+  it('adds a passkey on a phone through the hybrid QR flow', async () => {
+    const calls = stubAPI(signedIn, (c) => {
+      if (c.path === '/auth/passkeys') return json(200, { items: one });
+      if (c.path === '/auth/passkeys/begin') return json(200, { options: createOptions });
+      if (c.path === '/auth/passkeys/finish') return json(204, null);
+      return undefined;
+    });
+    renderAt('/settings/passkeys', <PasskeysPage />);
+    fireEvent.change(await screen.findByLabelText(i18n.t('auth:passkeys.nameLabel')), { target: { value: 'Phone' } });
+    fireEvent.click(screen.getByTestId('passkey-add-phone'));
+    expect(await screen.findByText(i18n.t('auth:passkeys.added'))).toBeTruthy();
+    const optionsJSON = (wa.startRegistration.mock.calls[0]?.[0] as { optionsJSON: { hints?: string[] } }).optionsJSON;
+    expect(optionsJSON.hints).toEqual(['hybrid']);
+    expect(calls.find((c) => c.path === '/auth/passkeys/finish')?.body).toEqual({ credential: attestation, name: 'Phone' });
   });
 
   it('restarts the whole add flow when finish asks for a step-up', async () => {

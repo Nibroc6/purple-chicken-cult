@@ -1,0 +1,68 @@
+{
+  "title": "How it works",
+  "lead": "A small social network where everyone was invited in person. Here is what that means for you.",
+  "contents": "On this page",
+  "terms": "Terms of service",
+  "sections": {
+    "joining": {
+      "title": "Joining and invites",
+      "p1": "There is no sign-up form. A member uses a feather to show an invite code on their phone, you scan it with yours, and you create a passkey to sign in. No password, no email.",
+      "p2": "Your profile always shows who invited you, and theirs shows who invited them. That's what keeps fake accounts traceable to a real person.",
+      "p3": "Once your probation ends you earn one invite a day and can save up to three (the first members can save five). If most of your connections are inside your inviter's group, invites come more slowly. Showing your code also uses a feather, whether or not anyone joins: you have 20, and a used one comes back every 72 minutes."
+    },
+    "handshake": {
+      "title": "The in-person handshake",
+      "p1": "Invites and new friendships happen face to face. One phone shows a moving code; the other scans it, you both check that a short number matches, and the scanning phone plays a short sound.",
+      "p2": "The sound has two layers: a jingle you can hear and a high tone most people can't. If the other phone hears the high tone, you're verified in person. If it only hears the jingle, it still works, but as a step down (see below). Quiet mode plays only the high tone.",
+      "p3": "Nothing is recorded or uploaded. Each phone decodes the sound itself and forgets it. You can test your phones on the sound check page."
+    },
+    "connections": {
+      "title": "Friends and acquaintances",
+      "p1": "A friend is someone you were verified with in person. An acquaintance is someone you connected with another way: a request to someone you came across here, or a handshake that only heard the jingle.",
+      "p2": "Both kinds count as a direct connection for your feed. Friends matter more: they count toward ending probation, they can help you recover your account, and you can limit a post to friends only.",
+      "p3": "To become friends, meet up and do the handshake: show your invite code, and they scan it while signed in. That also turns an acquaintance into a friend. Either of you can remove a connection at any time; the other person isn't told."
+    },
+    "probation": {
+      "title": "Probation for new accounts",
+      "p1": "New accounts start on probation. It ends after 30 days, once you also have three friends outside your own invite tree (people you didn't invite, directly or through someone else).",
+      "p2": "While on probation, your posts reach only your direct connections, you can't invite new people (you can still become friends in person), you can send five connection requests a day, and your likes don't affect what others see first.",
+      "p3": "Only you, the person who invited you and moderators can see that you're on probation. The invite page shows what's left."
+    },
+    "distance": {
+      "title": "Distance: how your feed is built",
+      "p1": "Your feed shows posts from everyone you have a path to, however far away, and nobody you don't. Distance is the number of steps between you: your connections are 1 step, their connections are 2, and so on.",
+      "p2": "Closer always comes first: every unseen post from 1 step away, then 2 steps, and so on. Within each step you choose the order: Latest, Balanced or Top. Each post shows the chain of people connecting you to its author.",
+      "p3": "Posts from accounts younger than about two months that are 3 or more steps away are folded together, so a new account can't flood distant feeds.",
+      "p4": "When you post you can limit who sees it: friends only, within 1, 2 or 3 steps, or everyone connected (the default)."
+    },
+    "privacy": {
+      "title": "Privacy",
+      "p1": "Nothing is public: no public profiles, posts, search or username lookup. You only ever see the part of the network you're connected to, and people outside it can't tell you exist.",
+      "p2": "A chain always names your own connection and the author. People in between are named only if they allow it; otherwise you see a count. Like counts include only people within 2 steps of you, and only your own connections who allow it are named.",
+      "p3": "You choose in privacy settings whether your name shows in chains and on likes, and whether you can be suggested to friends of friends.",
+      "p4": "Your posts are never sold, licensed or used to train AI. You can export everything you're part of, signed so anyone can check it, and delete your account at any time."
+    },
+    "pace": {
+      "title": "Human pace and rate limits",
+      "p1": "Every post, like and request has to be your own deliberate action. There are no bots, scheduled posts or auto-replies.",
+      "p2": "To keep it that way there are limits a person rarely reaches: 10 posts an hour and 30 a day, 100 likes an hour, 20 connection requests a day, and a couple of seconds between actions. Reading is limited per day too, at about what a person reads.",
+      "p3": "If you hit a limit, the app tells you when you can try again. If a session looks automated, you're asked to confirm with your passkey. Nothing is blocked, and we only count page loads and whether you use a keyboard, touch or pointer, never what you read or type."
+    },
+    "safety": {
+      "title": "Keeping your account safe",
+      "p1": "Add a passkey on a second device so losing one phone doesn't lock you out. Your connections are told when your passkeys change.",
+      "p2": "If you lose every passkey, two of your friends can recover your account in person. After the second one approves, there's a 24-hour wait during which your signed-in devices can cancel it."
+    },
+    "moderation": {
+      "title": "Reports and moderation",
+      "p1": "You can report posts, people and misleading link previews. Reports go to moderators only, and the person you report never learns who reported them.",
+      "p2": "When a moderator confirms action against someone, the person who invited them is told. A public moderation log lists every action, naming only people you're connected to."
+    }
+  },
+  "links": {
+    "soundCheck": "Sound check",
+    "privacy": "Privacy settings",
+    "modLog": "Moderation log"
+  },
+  "home": "Back to the start page"
+}

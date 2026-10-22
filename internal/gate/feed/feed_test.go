@@ -558,7 +558,7 @@ func TestSessionsPerViewer(t *testing.T) {
 func TestPresets(t *testing.T) {
 	e := newEnv(t)
 	e.post("bob", "b1")
-	for _, p := range []string{"top", "chronological", "Latest"} {
+	for _, p := range []string{"chronological", "Latest"} {
 		_, err := e.f.Page(e.as("alice"), p, "")
 		wantProblem(t, err, feed.CodePresetUnavailable, gate.StatusUnprocessable)
 	}
@@ -576,6 +576,15 @@ func TestPresets(t *testing.T) {
 	p := e.page("alice", "balanced", "")
 	if p.Preset != "balanced" || e.met.Get(feed.MetricPresetSwitch, "balanced") != 1 {
 		t.Fatalf("explicit preset %s %v", p.Preset, e.met.Counts)
+	}
+	// Top (P1) is served, explicitly or as the saved preset.
+	if p := e.page("alice", "top", ""); p.Preset != "top" || e.met.Get(feed.MetricPresetSwitch, "top") != 1 {
+		t.Fatalf("top %s %v", p.Preset, e.met.Counts)
+	}
+	e.exec("UPDATE users SET rank_preset = 2 WHERE id = $1", int64(e.id("alice")))
+	e.reloadUsers()
+	if p := e.page("alice", "", ""); p.Preset != "top" {
+		t.Fatalf("saved top %s", p.Preset)
 	}
 	// A cursor keeps its session's preset.
 	for i := 0; i < 21; i++ {
@@ -683,6 +692,14 @@ func TestWhy(t *testing.T) {
 	why, err = e.f.Why(e.as("alice"), e.ref("alice", b))
 	if err != nil || why.Tier != 1 || why.ShiftMinutes != -6*60 || !slices.Contains(why.Reasons, rank.ReasonReplyPenalty) {
 		t.Fatalf("why reply %+v %v", why, err)
+	}
+	// Top (λ = 1): the same post, twice the shift; the reply, twice the penalty.
+	bal := why
+	e.exec("UPDATE users SET rank_preset = 2 WHERE id = $1", int64(e.id("alice")))
+	e.reloadUsers()
+	why, _ = e.f.Why(e.as("alice"), e.ref("alice", b))
+	if why.Preset != "top" || why.ShiftMinutes != 2*bal.ShiftMinutes {
+		t.Fatalf("why top reply %+v, balanced %+v", why, bal)
 	}
 	e.exec("UPDATE users SET rank_preset = 0 WHERE id = $1", int64(e.id("alice")))
 	e.reloadUsers()

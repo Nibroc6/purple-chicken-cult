@@ -1,8 +1,86 @@
 # OpenAPI fragment of the media module (plan §5.3). Owner: P1-W04.
 # Paths are relative to /api. Schemas: module-prefixed names in this file, or
 # $ref: '_common.yaml#/components/schemas/X'. Validated on its own by apitest.
+# The dev/test media origin GET /m/{key} sits outside /api and is not described
+# here (prod: the Cloudflare Worker); it answers the image, 403 or 404.
 openapi: 3.0.3
 info:
   title: pcc internal API (media)
   version: "0"
-paths: {}
+paths:
+  /media:
+    post:
+      operationId: mediaUpload
+      summary: Upload one image (scanned before anything is stored; WebP variants)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/MediaUploadIn' }
+      responses:
+        "201":
+          description: The stored image (fetch its URL separately)
+          content:
+            application/json:
+              schema: { $ref: '_common.yaml#/components/schemas/MediaView' }
+        "400": { $ref: '_common.yaml#/components/responses/Problem' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409": { $ref: '#/components/responses/MediaDisabled' }
+        "422":
+          description: media_too_large, media_type, media_rejected (a refused image, the scanner unavailable, or an account on hold) or alt_too_long
+          content:
+            application/json:
+              schema: { $ref: '_common.yaml#/components/schemas/Error' }
+        "429": { $ref: '#/components/responses/MediaRateLimited' }
+  /media/{ref}/url:
+    get:
+      operationId: mediaURL
+      summary: A signed per-viewer URL for one variant (about one hour); original charges media_full
+      parameters:
+        - { name: ref, in: path, required: true, schema: { type: string } }
+        - name: variant
+          in: query
+          required: true
+          schema: { type: string, enum: [thumb, display, original] }
+      responses:
+        "200":
+          description: The signed URL and when it expires
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MediaURL' }
+        "400": { $ref: '_common.yaml#/components/responses/Problem' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409": { $ref: '#/components/responses/MediaDisabled' }
+        "429": { $ref: '#/components/responses/MediaRateLimited' }
+components:
+  responses:
+    MediaDisabled:
+      description: '{"error":"feature_disabled","feature":"media"} — media fails closed without a real scanner and stores'
+      content:
+        application/json:
+          schema: { $ref: '_common.yaml#/components/schemas/Error' }
+    MediaRateLimited:
+      description: rate_limited (media 50/day; media_full for originals).
+      content:
+        application/json:
+          schema: { $ref: '_common.yaml#/components/schemas/Error' }
+  schemas:
+    MediaUploadIn:
+      type: object
+      required: [file]
+      properties:
+        file:
+          type: string
+          format: binary
+          description: JPEG, PNG, WebP or GIF (first frame), at most 15 MiB, 12,000 px per side and 40 MP
+        alt:
+          type: string
+          maxLength: 1000
+          description: Alternative text
+    MediaURL:
+      type: object
+      additionalProperties: false
+      required: [url, expires_at]
+      properties:
+        url: { type: string, description: 'MediaBase/<key>?e=<unix>&v=<viewer tag>&s=<signature>' }
+        expires_at: { type: string, format: date-time }

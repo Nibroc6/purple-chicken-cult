@@ -1,0 +1,30 @@
+{
+  "users": [
+    { "handle": "alice", "name": "Alice", "preset": "latest" },
+    { "handle": "bob", "name": "Bob", "invited_by": "alice", "preset": "latest" },
+    { "handle": "carol", "name": "Carol", "preset": "latest" },
+    { "handle": "xavier", "name": "Xavier", "preset": "latest" },
+    { "handle": "ola", "name": "Ola", "preset": "latest" },
+    { "handle": "root", "name": "Root", "invited_by": "alice", "preset": "latest" },
+    { "handle": "kid1", "name": "Kid One", "invited_by": "root", "preset": "latest" },
+    { "handle": "kid2", "name": "Kid Two", "invited_by": "root", "preset": "latest" },
+    { "handle": "kid3", "name": "Kid Three", "invited_by": "root", "preset": "latest" },
+    { "handle": "kid4", "name": "Kid Four", "invited_by": "root", "preset": "latest" },
+    { "handle": "grand", "name": "Grandkid", "invited_by": "kid4", "preset": "latest" },
+    { "handle": "sib", "name": "Sibling", "invited_by": "alice", "preset": "latest" },
+    { "handle": "mo1", "name": "Moderator One", "role": "moderator", "preset": "latest" },
+    { "handle": "mo2", "name": "Moderator Two", "role": "moderator", "preset": "latest" }
+  ],
+  "friends": [
+    { "a": "alice", "b": "bob" },
+    { "a": "bob", "b": "carol" },
+    { "a": "carol", "b": "alice" },
+    { "a": "carol", "b": "kid1" },
+    { "a": "carol", "b": "kid2" },
+    { "a": "carol", "b": "kid3" },
+    { "a": "carol", "b": "kid4" },
+    { "a": "kid4", "b": "grand" },
+    { "a": "carol", "b": "root" },
+    { "a": "carol", "b": "sib" }
+  ]
+}

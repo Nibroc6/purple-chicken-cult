@@ -11,8 +11,9 @@ import { useNavigate } from 'react-router';
 import { Loading } from '../../app/Loading';
 import { sessionKey } from '../../app/session';
 import { enrollBegin, enrollFinish, type EnrollStart } from './api';
+import { settledSession } from './passkeyFlow';
 import { SecondPasskeyPrompt } from './SecondPasskeyPrompt';
-import { authErrorKey, readFragmentToken, toPasskeyVM } from './vm';
+import { authError, readFragmentToken, toPasskeyVM, type ErrorMsg } from './vm';
 import { createPasskey } from './webauthn';
 import './auth.css';
 
@@ -29,7 +30,11 @@ export default function EnrollPage() {
   useEffect(() => {
     if (!begun.current) {
       token.current = readFragmentToken(globalThis.location, globalThis.history);
-      begun.current = token.current ? enrollBegin(token.current) : Promise.reject(new Error('no token'));
+      const tok = token.current;
+      // The app's first session request must settle before the enrollment
+      // session exists, or its cookie-less answer wipes that session's CSRF
+      // token (passkeyFlow.ts settledSession).
+      begun.current = tok ? settledSession(qc).then(() => enrollBegin(tok)) : Promise.reject(new Error('no token'));
     }
     let live = true;
     begun.current.then(
@@ -43,7 +48,7 @@ export default function EnrollPage() {
     return () => {
       live = false;
     };
-  }, []);
+  }, [qc]);
 
   if (state.kind === 'checking') return <Loading />;
   return (
@@ -88,9 +93,8 @@ function EnrollForm({
   const genesis = start.purpose === 'genesis';
   const [tos, setTos] = useState(false);
   const [age, setAge] = useState(false);
-  const [removeOld, setRemoveOld] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | undefined>();
+  const [err, setErr] = useState<ErrorMsg | undefined>();
   const existing = start.existing.map(toPasskeyVM);
   const ready = !genesis || (tos && age);
 
@@ -102,12 +106,12 @@ function EnrollForm({
       const { options } = await enrollBegin(token);
       const credential = await createPasskey(options);
       const sv = await enrollFinish(
-        genesis ? { credential, tosVersion: start.tosVersion, ageAttested: age } : { credential, removeOld },
+        genesis ? { credential, tosVersion: start.tosVersion, ageAttested: age } : { credential },
       );
       onSession(sv);
       onEnrolled();
     } catch (e) {
-      setErr(authErrorKey(e));
+      setErr(authError(e));
       setBusy(false);
     }
   };
@@ -135,6 +139,12 @@ function EnrollForm({
             />
             {t('enroll.tos', { version: start.tosVersion })}
           </label>
+          {/* A new tab: this page cannot be reloaded (the token left the URL). */}
+          <p className="auth-terms-link">
+            <a href="/terms" target="_blank" rel="noopener" data-testid="enroll-terms">
+              {t('enroll.readTerms')}
+            </a>
+          </p>
           <label className="auth-choice">
             <input
               type="checkbox"
@@ -158,22 +168,12 @@ function EnrollForm({
               </li>
             ))}
           </ul>
-          <label className="auth-choice">
-            <input
-              type="checkbox"
-              name="remove_old"
-              checked={removeOld}
-              onChange={(e) => {
-                setRemoveOld(e.target.checked);
-              }}
-            />
-            {t('enroll.removeOld')}
-          </label>
+          <p className="muted">{t('enroll.keepOld')}</p>
         </fieldset>
       )}
       {err ? (
         <p className="auth-error" role="alert">
-          {t(err as 'errors:unknown')}
+          {t(err.key as 'errors:unknown', err.params)}
         </p>
       ) : null}
       <div className="auth-actions">

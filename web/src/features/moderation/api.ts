@@ -6,6 +6,11 @@ import type { components } from '../../api/schema.gen';
 export type ModItem = components['schemas']['ModItem'];
 export type BlameItem = components['schemas']['BlameItem'];
 export type LogItem = components['schemas']['LogItem'];
+export type ModPending = components['schemas']['ModPending'];
+export type CSAMHold = components['schemas']['CSAMHoldView'];
+export type Staff = components['schemas']['ModStaff'];
+export type StaffMember = components['schemas']['ModStaffMember'];
+export type RoleChange = components['schemas']['ModRoleChange'];
 export interface Page<T> {
   items: T[];
   next?: string;
@@ -13,6 +18,22 @@ export interface Page<T> {
 
 export const targetKinds = ['post', 'person', 'inviter', 'preview'] as const;
 export type TargetKind = (typeof targetKinds)[number];
+
+// reportParam is the search parameter of the report modal: ?report=<kind>:<ref>.
+export const reportParam = 'report';
+
+export function reportValue(kind: TargetKind, ref: string): string {
+  return `${kind}:${ref}`;
+}
+
+// parseReport reads ?report=<kind>:<ref> (undefined when it is not one).
+export function parseReport(v: string | null): { kind: TargetKind; ref: string } | undefined {
+  const i = v?.indexOf(':') ?? -1;
+  if (!v || i < 0) return undefined;
+  const kind = v.slice(0, i);
+  const ref = v.slice(i + 1);
+  return isTargetKind(kind) && isRef(ref) ? { kind, ref } : undefined;
+}
 
 // The closed reason codes (server CHECKs; plan §3.2). Members report with
 // reportReasons; moderators resolve with modReasons (adds ban_evasion).
@@ -79,8 +100,89 @@ export async function resolveItem(id: string, action: Action, reason: ModReason)
   if (!res.response.ok) throw new ApiError(res.response.status, res.error);
 }
 
-export async function confirmItem(id: string): Promise<void> {
-  const res = await api.POST('/mod/items/{id}/confirm', { params: { path: { id } } });
+// Cosig is the second moderator's co-signature of the ModAction record (the
+// co-sign dialog's result).
+export interface Cosig {
+  intent: string;
+  assertion: Record<string, unknown>;
+}
+
+// confirmItem confirms the two-person action pending on an item; a passkey
+// session sends its co-signature, a session without one (test hooks) nothing.
+export async function confirmItem(id: string, cosig?: Cosig): Promise<void> {
+  const res = await api.POST('/mod/items/{id}/confirm', { params: { path: { id } }, ...(cosig ? { body: cosig } : {}) });
+  if (!res.response.ok) throw new ApiError(res.response.status, res.error);
+}
+
+export async function claimItem(id: string): Promise<void> {
+  const res = await api.POST('/mod/items/{id}/claim', { params: { path: { id } } });
+  if (!res.response.ok) throw new ApiError(res.response.status, res.error);
+}
+
+// startCSAMReport starts the two-person csam_report action with the
+// CyberTipline report reference.
+export async function startCSAMReport(id: string, reportRef: string): Promise<void> {
+  const res = await api.POST('/mod/items/{id}/csam-report', { params: { path: { id } }, body: { report_ref: reportRef } });
+  if (!res.response.ok) throw new ApiError(res.response.status, res.error);
+}
+
+// startQuarantine starts the two-person quarantine of the subtree the item's
+// subject belongs to.
+export async function startQuarantine(id: string): Promise<void> {
+  const res = await api.POST('/mod/quarantine', { body: { subject_item: id } });
+  if (!res.response.ok) throw new ApiError(res.response.status, res.error);
+}
+
+// sessionCosigns reports whether this session signed in with a passkey: its
+// confirmations are then co-signed (a session without one — test hooks only —
+// is not asked).
+export async function sessionCosigns(): Promise<boolean> {
+  try {
+    return unwrap(await api.GET('/auth/passkeys')).items.some((p) => p.current);
+  } catch {
+    return false;
+  }
+}
+
+// reportRefOK mirrors the server's CyberTipline reference rule.
+export function reportRefOK(s: string): boolean {
+  return /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/.test(s);
+}
+
+// The two-person actions a queue item can wait on.
+export const pendingActions = ['suspend_user', 'dismiss', 'quarantine_subtree', 'csam_report'] as const;
+export type PendingAction = (typeof pendingActions)[number];
+
+// actionsFor lists the actions the resolve form offers for an item:
+// remove_post only where there is a post.
+export function actionsFor(it: ModItem): Action[] {
+  const s = it.summary ?? {};
+  const post = it.post !== undefined || (s.kind_post ?? 0) > 0 || (s.kind_preview ?? 0) > 0 || (it.source === 'csam' && (s.preview ?? 0) > 0);
+  return actions.filter((a) => a !== 'remove_post' || post);
+}
+
+// canQuarantine: the subject's invite subtree has enough confirmed-bad accounts.
+export function canQuarantine(it: ModItem): boolean {
+  const n = it.summary?.subtree_confirmed;
+  const k = it.summary?.quarantine_k;
+  return n !== undefined && k !== undefined && k > 0 && n >= k;
+}
+
+// fetchStaff lists the moderators and admins and the latest role changes
+// (admins only; everyone else gets the uniform 404).
+export async function fetchStaff(): Promise<Staff> {
+  return unwrap(await api.GET('/mod/roles'));
+}
+
+// grantModerator makes the member with handle a moderator (fresh step-up).
+export async function grantModerator(handle: string): Promise<void> {
+  const res = await api.POST('/mod/roles', { body: { handle } });
+  if (!res.response.ok) throw new ApiError(res.response.status, res.error);
+}
+
+// revokeModerator makes the moderator ref a member again (fresh step-up).
+export async function revokeModerator(ref: string): Promise<void> {
+  const res = await api.POST('/mod/roles/{ref}/revoke', { params: { path: { ref } } });
   if (!res.response.ok) throw new ApiError(res.response.status, res.error);
 }
 
@@ -98,6 +200,14 @@ const codes = new Set([
   'second_moderator_required',
   'action_expired',
   'subject_inactive',
+  'item_claimed',
+  'quarantine_threshold',
+  'quarantine_active',
+  'csam_already_reported',
+  'handle_unknown',
+  'already_staff',
+  'admin_role',
+  'not_moderator',
 ]);
 
 export function moderationErrorKey(err: unknown): string {
