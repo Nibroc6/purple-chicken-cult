@@ -55,9 +55,18 @@
     background-color var(--ease),
     color var(--ease);
 }
-.subnav a:hover {
-  color: var(--color-text);
-  background: var(--color-hover);
+@media (hover: hover) {
+  .subnav a:hover {
+    color: var(--color-text);
+    background: var(--color-hover);
+  }
+}
+/* Touch screens: 44px tabs (styles/controls.css), the label centred in them. */
+@media (pointer: coarse) {
+  .subnav a {
+    display: flex;
+    align-items: center;
+  }
 }
 .subnav a[aria-current='page'] {
   color: var(--color-on-accent);
