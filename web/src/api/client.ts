@@ -63,10 +63,13 @@ const middleware: Middleware = {
 // reach the screen; longer ones are shown with their {seconds}.
 export const QUIET_WAIT_S = 2;
 
-// sendPaced sends req, and once more after a short rate-limit wait.
+// sendPaced sends req, and once more after a short rate-limit wait. The body
+// is read once into a buffer (not a cloned stream) so both sends carry it as
+// a plain body.
 async function sendPaced(req: Request): Promise<Response> {
-  const again = req.clone();
-  const res = await globalThis.fetch(req); // resolved per call (tests stub fetch)
+  const sent = req.body ? await req.arrayBuffer() : undefined;
+  const make = () => (sent === undefined ? req : new Request(req, { body: sent }));
+  const res = await globalThis.fetch(make()); // resolved per call (tests stub fetch)
   if (res.status !== 429) return res;
   const body = (await res
     .clone()
@@ -75,7 +78,7 @@ async function sendPaced(req: Request): Promise<Response> {
   const wait = body.retry_after_s;
   if (typeof wait !== 'number' || wait > QUIET_WAIT_S) return res;
   await new Promise((r) => setTimeout(r, wait * 1000 + 100));
-  return globalThis.fetch(again);
+  return globalThis.fetch(make());
 }
 
 export const api = createClient<paths>({

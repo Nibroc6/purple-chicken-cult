@@ -1,13 +1,15 @@
 // Toggle coalescing for like and save (rate limiting is elastic on the server,
-// and the client keeps fast toggling from reaching it at all). Each post's
-// toggle waits a moment before it is sent; clicks in that moment or while a
-// request is in flight only move the wanted state, and a toggle that ends where
-// the server already is sends nothing. A short rate limit (retry_after_s ≤ 5)
-// is waited out once instead of shown. Owner: P1-W08.
+// where turning a toggle back is free). A post's toggle is sent at once; clicks
+// while its request is in flight only move the wanted state, so a burst sends
+// at most one more request, and a burst that ends where the server already is
+// sends nothing more. A short rate limit (retry_after_s ≤ 5) is waited out
+// once instead of shown. Owner: P1-W08.
 import { ApiError } from '../../api/errors';
 
-// SETTLE_MS is how long a toggle waits for the next click before it is sent.
-export const SETTLE_MS = 300;
+// SETTLE_MS is how long a toggle waits for another click in the same task
+// before it is sent. It stays 0: a later send would leave the screen ahead of
+// the server for longer than the request itself.
+export const SETTLE_MS = 0;
 
 // MAX_WAIT_S is the longest rate-limit hint waited out quietly.
 const MAX_WAIT_S = 5;

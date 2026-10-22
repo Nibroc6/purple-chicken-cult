@@ -14,7 +14,6 @@ import { LikeSummary } from './EngageBar';
 import { LikesModal } from './LikesModal';
 import LikesPage from './LikesPage';
 import { resetEngageStore } from './store';
-import { SETTLE_MS } from './toggles';
 import { applyLikes, usePostActions } from './usePostActions';
 import { optimistic, patchLikes, patchSaved, toLikesVM } from './vm';
 
@@ -340,8 +339,12 @@ describe('likes page and post actions', () => {
     expect(screen.getByTestId('engage-error').textContent).toBe(tr('errors:rate_limited', { seconds: 30 }));
   });
 
-  it('sends nothing for a quick save and unsave', async () => {
-    const calls = stubAPI((c) => (c.method === 'GET' && c.path === '/posts/p1' ? json(200, postJSON({ mine: false })) : json(204, null)));
+  it('takes a quick save and unsave without an error', async () => {
+    const calls = stubAPI((c) => {
+      if (c.method === 'GET' && c.path === '/posts/p1') return json(200, postJSON({ mine: false }));
+      if (c.path === '/posts/p1/like') return json(200, { likes: { in_network: c.method === 'PUT' ? 1 : 0, others: 0, by_me: c.method === 'PUT' } });
+      return json(204, null);
+    });
     renderAt('/p/p1/likes');
     const pressed = (id: string, on: boolean) =>
       waitFor(() => {
@@ -355,10 +358,15 @@ describe('likes page and post actions', () => {
     await pressed('engage-like', true);
     fireEvent.click(screen.getByTestId('engage-like'));
     await pressed('engage-like', false);
-    await new Promise((r) => setTimeout(r, 2 * SETTLE_MS));
+    // Each toggle went out and came back; nothing was refused or rolled back.
+    const sent = (path: string) => calls.filter((c) => c.path === path).map((c) => c.method);
+    await waitFor(() => {
+      expect(sent('/posts/p1/save')).toEqual(['PUT', 'DELETE']);
+      expect(sent('/posts/p1/like')).toEqual(['PUT', 'DELETE']);
+    });
+    await new Promise((r) => setTimeout(r, 50));
     expect(screen.getByTestId('engage-save').getAttribute('aria-pressed')).toBe('false');
     expect(screen.getByTestId('engage-like').getAttribute('aria-pressed')).toBe('false');
-    expect(calls.filter((c) => c.method !== 'GET')).toEqual([]);
     expect(screen.queryByTestId('engage-error')).toBeNull();
   });
 
