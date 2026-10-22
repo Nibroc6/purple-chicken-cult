@@ -70,16 +70,17 @@ describe('Chain', () => {
     return s;
   };
   it('names the first hop and the author, collapses the hidden middle', () => {
-    expect(text(chain({ dist: 1 }))).toBe('you → @dave');
-    expect(text(chain({ dist: 3, firstHop: { ref: bob, handle: 'bob' }, hiddenMiddle: 1 }))).toBe('you → @bob → 1 other → @dave');
+    expect(text(chain({ dist: 1 }))).toBe('you → @dave acquaintance 1 step');
+    expect(text(chain({ dist: 1, firstHopPlus: true }))).toBe('you → @dave friend 1 step');
+    expect(text(chain({ dist: 3, firstHop: { ref: bob, handle: 'bob' }, hiddenMiddle: 1 }))).toBe('you → @bob acquaintance → 1 other → @dave 3 steps');
     expect(
-      text(chain({ dist: 4, firstHop: { ref: bob, handle: 'bob' }, middle: [{ ref: asRef('c'), handle: 'carol' }], hiddenMiddle: 2 })),
-    ).toBe('you → @bob → @carol → 2 others → @dave');
+      text(chain({ dist: 4, firstHop: { ref: bob, handle: 'bob' }, middle: [{ ref: asRef('c'), handle: 'carol' }], hiddenMiddle: 2, firstHopPlus: true })),
+    ).toBe('you → @bob friend → @carol → 2 others → @dave 4 steps');
     expect(text(chain({ dist: 0 }))).toBe('You');
   });
   it('is a labelled group and never a link', () => {
     render(<Chain chain={chain({ dist: 2, firstHop: { ref: bob, handle: 'bob' } })} author={{ ref: dave, handle: 'dave' }} />);
-    const c = screen.getByRole('group', { name: tr('integrity:chain.label') });
+    const c = screen.getByRole('group', { name: `${tr('integrity:chain.label')}, ${tr('integrity:chain.steps', { count: 2 })}` });
     expect(c.querySelector('a')).toBeNull();
     expect(c.dataset.dist).toBe('2');
   });
@@ -123,7 +124,7 @@ describe('WhyButton', () => {
     expect(screen.getByTestId('integrity-why-loading')).toBeTruthy();
     const body = await screen.findByTestId('integrity-why-body');
     expect(within(body).getByTestId('integrity-why-tier').textContent).toBe(tr('integrity:why.tier', { tier: 3 }));
-    expect(within(body).getByTestId('integrity-why-chain').textContent).toBe(`you → @bob → 1 other → ${tr('integrity:why.author')}`);
+    expect(within(body).getByTestId('integrity-why-chain').textContent).toBe(`you → @bob acquaintance → 1 other → ${tr('integrity:why.author')} 3 steps`);
     expect(within(body).getByTestId('integrity-why-preset').textContent).toBe(tr('integrity:why.preset', { preset: 'balanced' }));
     expect(within(body).getByTestId('integrity-why-shift').textContent).toBe(
       tr('integrity:why.shift', { dir: 'up', unit: 'h', minutes: 150, hours: 3 }),

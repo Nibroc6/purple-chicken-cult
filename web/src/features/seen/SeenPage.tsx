@@ -3,7 +3,6 @@
 // seen-tracked again (that would reorder the list). Owner: P0-W06 → P1-W08.
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router';
 import { Loading } from '../../app/Loading';
 import { errorKey } from '../../api/errors';
 import { usePostActions } from '../engage/usePostActions';
@@ -11,6 +10,7 @@ import { PostCard } from '../post/PostCard';
 import { fetchRecent, recentKey } from './api';
 import './seen.css';
 import { InfoTip } from '../../lib/InfoTip';
+import { PostListsNav } from '../../app/PostListsNav';
 
 export default function SeenPage() {
   const { t } = useTranslation(['seen', 'errors']);
@@ -26,9 +26,10 @@ export default function SeenPage() {
   return (
     <section className="page seen-page">
       <h1>{t('page.title')}</h1>
+      <PostListsNav />
       <p className="muted">
         {t('page.intro')}
-        <InfoTip>{t('page.introTip')}</InfoTip> <Link to="/saves">{t('page.saves')}</Link>
+        <InfoTip>{t('page.introTip')}</InfoTip>
       </p>
       {q.isPending ? <Loading /> : null}
       {q.error ? (

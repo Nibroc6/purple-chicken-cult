@@ -38,6 +38,8 @@ const seven = [
   'integrity-edited',
   'integrity-report',
 ] as const;
+// Post cards carry all but the inviter label (it is in the connection modal).
+const onCards = seven.filter((id) => id !== 'integrity-inviter-label');
 
 // legibility: font size and text contrast against the element's own opaque
 // background (integrity elements paint one), else the nearest painted one.
@@ -177,7 +179,7 @@ test('every preset keeps the integrity elements legible on a feed card', async (
     const card = page.locator(`[data-testid="feed-post"][data-ref="${post.ref}"]`);
     await expect(card).toBeVisible();
     const scope = (id: string) => (id === 'integrity-tier-header' ? page.getByTestId('feed-tier').first() : card);
-    for (const id of seven) {
+    for (const id of onCards) {
       const el = scope(id).getByTestId(id).first();
       await expect(el, `${p.id}: ${id}`).toBeVisible();
       const m = await legibility(el);
@@ -197,7 +199,7 @@ test('Explorer: feed cards with a tree thumbnail, the tree as a canvas with the 
   await page.goto('/');
   await expect(page.getByTestId('feed-layout')).toHaveAttribute('data-format', 'explorer');
   const card = page.locator(`[data-testid="explorer-card"][data-ref="${root.ref}"]`);
-  for (const id of seven.slice(1)) await expect(card.getByTestId(id).first(), id).toBeAttached();
+  for (const id of onCards.slice(1)) await expect(card.getByTestId(id).first(), id).toBeAttached();
   const thumb = card.getByTestId('explorer-thumb');
   await expect(thumb).toHaveAttribute('data-replies', String(root.reply_count));
   await thumb.click();
@@ -210,7 +212,7 @@ test('Explorer: feed cards with a tree thumbnail, the tree as a canvas with the 
   // The post in focus carries its integrity elements (the edited mark of an
   // unedited post stays in the DOM, hidden).
   const focal = page.getByTestId('tree-focus');
-  for (const id of seven.slice(1)) {
+  for (const id of onCards.slice(1)) {
     const el = focal.getByTestId(id).first();
     if (id === 'integrity-edited') await expect(el, id).toBeAttached();
     else await expect(el, id).toBeVisible();

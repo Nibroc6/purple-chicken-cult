@@ -1,0 +1,79 @@
+/* SubNav: a scrollable row of tabs (logical properties only). */
+.subnav {
+  min-inline-size: 0;
+  margin-block: 0 var(--space-4);
+}
+.subnav ul {
+  display: flex;
+  gap: var(--space-1);
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  margin: 0;
+  padding: var(--space-1);
+  overflow-x: auto;
+  list-style: none;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: calc(var(--radius) + var(--space-1));
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+}
+/* A fade at the edge where more tabs are scrolled out of view. */
+.subnav[data-more-end] ul {
+  mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent);
+}
+.subnav[data-more-start] ul {
+  mask-image: linear-gradient(to left, #000 calc(100% - 2.5rem), transparent);
+}
+.subnav[data-more-end] ul:dir(rtl) {
+  mask-image: linear-gradient(to left, #000 calc(100% - 2.5rem), transparent);
+}
+.subnav[data-more-start] ul:dir(rtl) {
+  mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent);
+}
+.subnav[data-more-start][data-more-end] ul,
+.subnav[data-more-start][data-more-end] ul:dir(rtl) {
+  mask-image: linear-gradient(to right, transparent, #000 2.5rem, #000 calc(100% - 2.5rem), transparent);
+}
+.subnav ul::-webkit-scrollbar {
+  display: none;
+}
+.subnav li {
+  flex: none;
+}
+.subnav a {
+  display: block;
+  padding-block: var(--space-2);
+  padding-inline: var(--space-3);
+  border-radius: var(--radius);
+  color: var(--color-muted);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  white-space: nowrap;
+  text-decoration: none;
+  transition:
+    background-color var(--ease),
+    color var(--ease);
+}
+@media (hover: hover) {
+  .subnav a:hover {
+    color: var(--color-text);
+    background: var(--color-hover);
+  }
+}
+/* Touch screens: 44px tabs (styles/controls.css), the label centred in them. */
+@media (pointer: coarse) {
+  .subnav a {
+    display: flex;
+    align-items: center;
+  }
+}
+.subnav a[aria-current='page'] {
+  color: var(--color-on-accent);
+  background: var(--color-accent);
+  font-weight: 600;
+}
+.subnav a:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--color-text);
+}

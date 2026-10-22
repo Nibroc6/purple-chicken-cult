@@ -9,7 +9,7 @@ import { resetEngageStore } from '../../../features/engage/store';
 import { setHidden } from '../../../features/engage/store';
 import { clearURLs } from '../../../features/media/urls';
 import { i18n } from '../../../i18n/setup';
-import { integrityTestIds } from '../../../integrity/types';
+import { postIntegrityTestIds } from '../../../integrity/types';
 import { postVM } from '../../../test/fixtures';
 import { asRef, type FeedPageVM, type PostVM } from '../../../vm/types';
 import type { FormatModule, PostActions } from '../../types';
@@ -123,7 +123,7 @@ describe.each([
   it('renders every integrity element', () => {
     show();
     expect(screen.getByTestId('feed-layout').dataset.format).toBe(id);
-    for (const tid of integrityTestIds) expect(screen.getAllByTestId(tid).length).toBeGreaterThan(0);
+    for (const tid of postIntegrityTestIds) expect(screen.getAllByTestId(tid).length).toBeGreaterThan(0);
   });
 
   it('takes tier headers only from the markers, with catalog text', () => {
@@ -225,7 +225,7 @@ describe.each([
     const { container } = render(<f.PostLayout post={p('solo')} actions={actions()} variant="tree" />);
     expect(container.querySelector('[data-seen-ref]')).toBeNull();
     expect(container.querySelector('a[href="/people/u1"]')).toBeTruthy();
-    for (const tid of integrityTestIds.filter((x) => x !== 'integrity-tier-header')) {
+    for (const tid of postIntegrityTestIds.filter((x) => x !== 'integrity-tier-header')) {
       expect(screen.getAllByTestId(tid).length).toBeGreaterThan(0);
     }
   });

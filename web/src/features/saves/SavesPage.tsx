@@ -9,6 +9,7 @@ import { errorKey } from '../../api/errors';
 import { usePostActions } from '../engage/usePostActions';
 import { PostCard } from '../post/PostCard';
 import { fetchSaves, savesKey } from './api';
+import { PostListsNav } from '../../app/PostListsNav';
 import './saves.css';
 
 export default function SavesPage() {
@@ -26,6 +27,7 @@ export default function SavesPage() {
   return (
     <section className="page saves-page">
       <h1>{t('page.title')}</h1>
+      <PostListsNav />
       <p className="muted">{t('page.intro')}</p>
       {q.isPending ? <Loading /> : null}
       {q.error ? (

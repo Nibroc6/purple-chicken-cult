@@ -43,7 +43,7 @@ test("tier 1 for a friend, tier 2 with the chain for a friend of a friend, nothi
   await page.getByTestId("composer-publish").click();
   await expect(page.getByTestId("composer-published")).toBeVisible();
 
-  // bob: tier 1, chain "you → @alice", the genesis inviter label.
+  // bob: tier 1, chain "you → @alice"; the inviter label is not on the card.
   await signInPage(page, origin, "bob");
   await page.goto("/");
   const forBob = cardOf(page, "Alice shares her garden plan");
@@ -54,10 +54,7 @@ test("tier 1 for a friend, tier 2 with the chain for a friend of a friend, nothi
   await expect(forBob.getByTestId("integrity-chain")).not.toContainText(
     at("bob"),
   );
-  await expect(forBob.getByTestId("integrity-inviter-label")).toHaveAttribute(
-    "data-kind",
-    "genesis",
-  );
+  await expect(forBob.getByTestId("integrity-inviter-label")).toHaveCount(0);
 
   // carol: tier 2 under its own header, the chain names bob as the first hop.
   const carol = await signInPage(page, origin, "carol");
@@ -78,6 +75,21 @@ test("tier 1 for a friend, tier 2 with the chain for a friend of a friend, nothi
   const post = await carol.feedPost("Alice shares her garden plan");
   expect(post.tier).toBe(2);
   expect(post.author.chain?.first_hop?.handle).toBe("bob");
+
+  // The chain opens "how you're connected": you, bob, alice, two steps, and
+  // alice's inviter label.
+  await forCarol.getByTestId("integrity-chain-open").click();
+  const via = page.getByTestId("via-modal");
+  await expect(via).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`\\?via=${post.ref}$`));
+  await expect(via.getByTestId("via-body")).toHaveAttribute("data-dist", "2");
+  await expect(via.locator('[data-testid="via-path"] li')).toHaveCount(3);
+  await expect(via.getByTestId("integrity-inviter-label")).toHaveAttribute(
+    "data-kind",
+    "genesis",
+  );
+  await page.keyboard.press("Escape");
+  await expect(via).toHaveCount(0);
 
   // xavier: another component — nothing in the feed, and alice's post (by
   // carol's ref or by a guess) answers exactly like garbage.

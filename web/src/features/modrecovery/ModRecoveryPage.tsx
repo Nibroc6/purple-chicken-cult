@@ -12,6 +12,7 @@ import { sessionCosigns } from '../settings/api';
 import { approveRecovery, isRef, openRecovery, recoveryErrorKey, recoveryLink } from './api';
 import '../settings/settings.css';
 import { InfoTip } from '../../lib/InfoTip';
+import { ModNav } from '../moderation/ModNav';
 
 function ErrorLine({ err }: { err: unknown }) {
   const { t } = useTranslation(['modrecovery', 'errors']);
@@ -126,6 +127,7 @@ export default function ModRecoveryPage() {
   return (
     <section className="page">
       <h1>{t('page.title')}</h1>
+      <ModNav />
       {moderator ? <RecoverySteps /> : <p className="muted">{t('page.membersOnly')}</p>}
     </section>
   );

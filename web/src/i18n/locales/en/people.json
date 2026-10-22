@@ -1,7 +1,11 @@
 {
   "handle": "@{handle}",
   "nav": {
-    "label": "Chickens"
+    "label": "Chickens",
+    "friends": "Acquaintances",
+    "requests": "Requests",
+    "suggestions": "Suggestions",
+    "blocks": "Blocked"
   },
   "person": {
     "title": "Person",
@@ -17,7 +21,6 @@
     "hiddenVia": "You hide the paths through @{handle}: you stay acquainted and still see their posts."
   },
   "friends": {
-    "title": "Acquaintances",
     "empty": "No acquaintances yet.",
     "emptyTip": "Connections start in person, with an invite, or with a request to someone you've come across here.",
     "more": "Show more"
@@ -76,6 +79,19 @@
     "accept": "Accept @{handle} as an acquaintance",
     "unfriend": "Remove @{handle} from your acquaintances",
     "block": "Block @{handle}"
+  },
+  "via": {
+    "title": "How you're connected",
+    "steps": "{dist, plural, one {@{handle} is your direct connection.} other {@{handle} is # steps from you.}}",
+    "you": "You",
+    "tie": "{tie, select, friend {your friend} other {your acquaintance}}",
+    "named": "named because both sides allow it",
+    "hidden": "{count, plural, one {someone who keeps their name out of chains} other {# people who keep their names out of chains}}",
+    "author": "wrote this post",
+    "explain": "The first step and the author are always named. People in between are named only when they allow it in their privacy settings.",
+    "invitedBy": "Invited by",
+    "person": "Open @{handle}'s page",
+    "missing": "This post does not exist, or you cannot see it."
   },
   "posts": {
     "title": "Posts",
