@@ -217,6 +217,41 @@ describe('compose page', () => {
     expect((calls.find((c) => c.method === 'POST')?.body as { parents: unknown }).parents).toEqual([{ ref: 'par', kind: 'ref' }]);
   });
 
+  it('replies to several posts at once: from the address, adds one by link, takes one out', async () => {
+    const calls = stubAPI((c) => {
+      const m = /^\/posts\/(\w+)$/.exec(c.path);
+      if (c.method === 'GET' && m?.[1]) {
+        return json(200, postJSON({ ref: m[1], mine: false, author: { ...postJSON().author, handle: `h${m[1]}` } }));
+      }
+      if (c.method === 'POST' && c.path === '/posts') return json(201, postJSON());
+      return undefined;
+    });
+    renderAt('/compose?parent=a1&parent=b2&parent=a1&kind=ref');
+    await waitFor(() => {
+      expect(screen.getAllByTestId('composer-parent')).toHaveLength(2);
+    });
+    expect(screen.getByText(tr('composer:parent.refMany', { count: 2 }))).toBeTruthy();
+    // A pasted link adds a third; that is the most a post can reply to.
+    fireEvent.change(screen.getByTestId('composer-add-parent'), { target: { value: 'not a link!' } });
+    fireEvent.click(screen.getByTestId('composer-add-parent-button'));
+    expect(screen.getByTestId('composer-add-parent-bad')).toBeTruthy();
+    fireEvent.change(screen.getByTestId('composer-add-parent'), { target: { value: 'https://pcc.example/p/c3?x=1' } });
+    fireEvent.click(screen.getByTestId('composer-add-parent-button'));
+    await waitFor(() => {
+      expect(screen.getAllByTestId('composer-parent')).toHaveLength(3);
+    });
+    expect(screen.getByTestId('composer-parent-max')).toBeTruthy();
+    fireEvent.click(screen.getAllByTestId('composer-parent-remove')[1] as HTMLElement);
+    expect(screen.getAllByTestId('composer-parent')).toHaveLength(2);
+    fireEvent.change(screen.getByTestId('composer-body'), { target: { value: 'a reply to two' } });
+    fireEvent.click(screen.getByTestId('composer-publish'));
+    await screen.findByTestId('composer-published');
+    expect((calls.find((c) => c.method === 'POST')?.body as { parents: unknown }).parents).toEqual([
+      { ref: 'a1', kind: 'ref' },
+      { ref: 'c3', kind: 'ref' },
+    ]);
+  });
+
   it('refuses replies the parent does not accept and unknown parents', async () => {
     stubAPI((c) =>
       c.path === '/posts/slip' ? json(200, postJSON({ ref: 'slip', mine: false, can_reference: false, ref_policy: 'nobody' })) : undefined,

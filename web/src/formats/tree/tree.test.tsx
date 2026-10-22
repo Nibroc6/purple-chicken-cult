@@ -138,6 +138,37 @@ describe('canvas layout', () => {
     ]);
   });
 
+  it('puts a reply to several posts one row below its lowest parent, joined to every parent', () => {
+    // c2 replies to the focal post and to c1; g2 replies to c2 (and so moves down with it).
+    const tv = tree({
+      rows: [
+        row(0, 'this_post', 'f', [item('f')]),
+        row(1, 'replies', 'f', [item('c1'), item('c2', { alsoParents: [asRef('c1')] }), item('c3')]),
+        row(2, 'replies_to_replies', 'c1', [item('g1'), item('c2', { shownAbove: true })]),
+        row(3, 'replies_to_replies', 'c2', [item('g2')]),
+      ],
+    });
+    const l = layoutTree(tv, (r) => (r.gen === 2 ? asRef('c2') : undefined));
+    const at = (ref: string) => l.byRef.get(asRef(ref));
+    expect(at('c1')?.y).toBe(ROW_H);
+    expect(at('c2')?.y).toBe(2 * ROW_H);
+    expect(at('g1')?.y).toBe(2 * ROW_H);
+    expect(at('c2')?.x).not.toBe(at('g1')?.x);
+    expect(at('g2')?.y).toBe(3 * ROW_H);
+    // c3 closes the gap c2 left in its row.
+    expect(at('c3')?.x).toBe(NODE_W + GAP_X);
+    const e = l.edges.map((x) => `${x.from}>${x.to}:${x.kind}`);
+    expect(e).toEqual(expect.arrayContaining(['f>c2:reply', 'c1>c2:also', 'c1>g1:reply']));
+    expect(e.filter((x) => x.endsWith('>c2:above'))).toHaveLength(0);
+    expect(l.nodes.filter((n) => n.ref === asRef('c2'))).toHaveLength(1);
+  });
+
+  it('routes a line across several rows down a lane between the cards', () => {
+    const d = route({ x: 0, y: 0 }, { x: 0, y: 2 * ROW_H }, 'also');
+    expect(d).toContain(`L ${String((NODE_W + GAP_X) / 2)}`);
+    expect(d.endsWith(`L 0 ${String(2 * ROW_H - NODE_H / 2)}`)).toBe(true);
+  });
+
   it('routes edges as family-tree elbows', () => {
     const a = { x: 0, y: 0 };
     expect(route(a, { x: 0, y: ROW_H }, 'reply')).toBe(`M 0 ${String(NODE_H / 2)} V ${String(ROW_H - NODE_H / 2)}`);

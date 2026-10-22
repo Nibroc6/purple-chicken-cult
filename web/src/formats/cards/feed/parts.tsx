@@ -15,6 +15,7 @@ import { createContext, useContext, useId, useState, type ReactNode } from 'reac
 import { useTranslation } from 'react-i18next';
 import { Link, useInRouterContext } from 'react-router';
 import { formatDateTime, formatRelative } from '../../../lib/time';
+import { ReplyPick } from '../../../features/composer';
 import { MediaImage } from '../../../features/media';
 import { LinkPreviews, Markdown } from '../../../markdown';
 import type { ContextVM, FeedItemVM, FeedPageVM, MarkdownDoc, MediaVM, PostVM, PreviewVM, Ref } from '../../../vm/types';
@@ -159,8 +160,8 @@ export function MediaList({ media, variant }: { media: readonly MediaVM[]; varia
   );
 }
 
-// PostLinks: reply (when the reader may reference the post) and the family tree
-// with its visible reply count.
+// PostLinks: reply and add to a reply to several posts (when the reader may
+// reference the post), and the family tree with its visible reply count.
 export function PostLinks({ post, actions }: { post: PostVM; actions: PostActions }) {
   const { t } = useTranslation('feed');
   return (
@@ -176,6 +177,7 @@ export function PostLinks({ post, actions }: { post: PostVM; actions: PostAction
           {t('post.reply')}
         </button>
       ) : null}
+      {post.canReference ? <ReplyPick post={post} /> : null}
       <button
         type="button"
         data-testid="feed-tree"

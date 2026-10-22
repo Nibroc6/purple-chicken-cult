@@ -11,6 +11,7 @@ import { useNavigate } from 'react-router';
 import type { PostActions } from '../../formats/types';
 import type { ReportTarget } from '../../integrity/types';
 import type { LikesVM, PostVM, Ref } from '../../vm/types';
+import { clearPicks, composeURL, getPicks } from '../composer';
 import { savesKey } from '../saves/api';
 import { queueSeen } from '../seen/tracker';
 import { hidePost, likesKey, setLike, setSave, showLess } from './api';
@@ -116,7 +117,10 @@ export function usePostActions(): PostActions {
         queueSeen(ref);
       },
       reply: (ref: Ref) => {
-        void navigate(`/compose?${new URLSearchParams({ parent: ref, kind: 'ref' }).toString()}`);
+        // A reply takes the posts already picked for it along.
+        const url = composeURL([...getPicks().map((p) => p.ref), ref]);
+        clearPicks();
+        void navigate(url);
       },
       openTree: (ref: Ref) => {
         void navigate(`/p/${ref}`);
