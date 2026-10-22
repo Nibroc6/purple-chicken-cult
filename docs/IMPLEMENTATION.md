@@ -2121,7 +2121,7 @@ func (s *Service) DetachAll(ctx context.Context, parent gate.Ref) error
 Order (plan §0.8): the write was already charged by `apix`; resolve every parent ref
 (`ErrNotFound` if it does not open or `CheckPost` fails); then Problems: `body_empty`,
 `body_too_long` (>20,000 code points), `lang_invalid`, `too_many_parents` (>3),
-`duplicate_parent`, `cont_not_own`, `cont_taken`, `ref_not_allowed`, `ref_cap` (>2 refs to
+`duplicate_parent`, `cont_not_own`, `cont_taken`, `ref_not_allowed`, `ref_cap` (>4 refs to
 the same post per rolling 24 h), `too_many_parts`. **Shadow links:** if the parent's author
 has blocked the child's author (`Graph.Blocks(parentAuthor, childAuthor)`), the link is
 accepted and stored `shadow=true`: no notification, no credit, visible only to the child's
@@ -2338,7 +2338,7 @@ then 1/28.8 min, `report` 20 then 1/72 min, `settings` (/me/settings, theme, pus
 10 min is free for `like`, `save` and `social` (`ChargeToggle`, before any ref resolves).
 Strict kinds keep windowed counters and the min spacing — `friend_request` 20/day (5
 probation), `account` (passkeys/recovery/export/delete) 50/day, `friend_upgrade` 10/h &
-30/day, and `invite_handshake` a build-up limit: 20 attempts, one back every 72 min, shown as `BudgetView.attempts` on the invite page; min spacing 2 s between writes of one strict kind (not for a step class `s` — a request the client sends on its own to carry on a write already begun: ceremony finishes, step-up, `/cosign`, and every handshake request after the opening — which counts toward the caps only; `invite_handshake` steps are not charged at all, so its cap counts handshakes opened). `reference` (2 per
+30/day, and `invite_handshake` a build-up limit: 20 attempts, one back every 72 min, shown as `BudgetView.attempts` on the invite page; min spacing 2 s between writes of one strict kind (not for a step class `s` — a request the client sends on its own to carry on a write already begun: ceremony finishes, step-up, `/cosign`, and every handshake request after the opening — which counts toward the caps only; `invite_handshake` steps are not charged at all, so its cap counts handshakes opened). `reference` (4 per
 parent per 24 h) is enforced in posts after ref resolution — it is a Problem about the
 caller's own repeated action on a post it can already see. Anonymous: 30/min per /24 (v4) or
 /56 (v6) for login/join/enroll/csp-report. **Every charge happens in `apix.Route` before the

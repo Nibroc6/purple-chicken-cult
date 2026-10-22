@@ -729,7 +729,7 @@ post's "family tree".
     **accepted but stored as a shadow link**. Only the child's author sees the link, so
     the block is never revealed. The parent's author is never notified, and the link
     gives the parent no upward credit.
-  - **Daily cap:** an author can reference the same post at most 2 times per day.
+  - **Daily cap:** an author can reference the same post at most 4 times per day.
   - **Detach:** a parent's author can **detach** any child. The link then disappears
     everywhere, but the child post stays.
   - **No borrowed ranking:** a reply gains nothing from a popular parent, and replies

@@ -248,7 +248,7 @@ components:
           schema: { $ref: '_common.yaml#/components/schemas/Error' }
     PostsConflict:
       description: >-
-        cont_taken (the post already has a continuation), ref_cap (a third reference
+        cont_taken (the post already has a continuation), ref_cap (a fifth reference
         to the same post within 24 hours), or feature_disabled (media is turned off).
       content:
         application/json:

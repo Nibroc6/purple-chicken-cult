@@ -651,7 +651,7 @@ func TestHidesAndMutesFilterRows(t *testing.T) {
 	root := e.post("bob", "root")
 	var franKids []core.PostID
 	for i := 0; i < tree.RowPage+2; i++ {
-		e.advance(13 * time.Hour) // at most two references of one post a day (ref_cap)
+		e.advance(13 * time.Hour) // at most four references of one post a day (ref_cap)
 		franKids = append(franKids, e.post("fran", fmt.Sprintf("f%d", i), root))
 	}
 	b1 := e.post("bob", "b1", root)
