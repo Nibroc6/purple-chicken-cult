@@ -19,7 +19,7 @@
   "attempts": {
     "left": "Feathers: {count, number} of {cap, number} left",
     "next": "Next feather in {time}",
-    "hint": "Showing your code uses a feather, even if nobody joins. Used feathers grow back one at a time."
+    "hint": "Showing your code uses a feather, even if nobody joins. Used feathers come back one at a time."
   },
   "countdown": {
     "days": "{d, plural, one {# day} other {# days}} {h, plural, one {# hour} other {# hours}}",
