@@ -3,7 +3,7 @@
 // Labels live in the common namespace. i18n-dynamic: common:nav.
 export interface MainNavEntry {
   to: string;
-  label: 'nav.feed' | 'nav.compose' | 'nav.invite' | 'nav.people' | 'nav.saves' | 'nav.seen' | 'nav.notifications' | 'nav.moderation' | 'nav.settings';
+  label: 'nav.feed' | 'nav.compose' | 'nav.invite' | 'nav.people' | 'nav.saves' | 'nav.seen' | 'nav.notifications' | 'nav.moderation' | 'nav.settings' | 'nav.about';
   // A short glyph shown when the sidebar is collapsed (decorative).
   icon: string;
   // The feature nav badges render next to this entry (e.g. the unread count).
@@ -22,4 +22,5 @@ export const mainNav: MainNavEntry[] = [
   { to: '/notifications', label: 'nav.notifications', icon: '♪', badges: true },
   { to: '/mod', label: 'nav.moderation', icon: '⚑', moderator: true },
   { to: '/settings', label: 'nav.settings', icon: '⚙' },
+  { to: '/about', label: 'nav.about', icon: '?' },
 ];

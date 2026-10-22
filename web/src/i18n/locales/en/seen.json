@@ -1,8 +1,9 @@
 {
   "page": {
     "title": "Recently seen",
-    "intro": "Posts you scrolled past in the last 14 days, most recent first.",
-    "empty": "Nothing here yet. Posts you see in your feed show up here for 14 days.",
+    "intro": "Posts you scrolled past.",
+    "introTip": "Everything you saw in your feed in the last 14 days, most recent first.",
+    "empty": "Nothing here yet.",
     "more": "Load more",
     "open": "Open",
     "saves": "Saved posts"

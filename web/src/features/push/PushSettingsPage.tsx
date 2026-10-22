@@ -12,6 +12,7 @@ import { Loading } from '../../app/Loading';
 import { fetchKey, fetchState, removeSubscription, saveSubscription, type DeviceSubscription } from './api';
 import { getDevicePush, PushUnavailable } from './device';
 import './push.css';
+import { InfoTip } from '../../lib/InfoTip';
 
 const pushCodes = new Set(['push_endpoint_invalid', 'push_keys_invalid', 'feature_disabled', 'rate_limited']);
 
@@ -204,7 +205,10 @@ export default function PushSettingsPage() {
       <p>
         <Link to="/settings">{t('settings:index.title')}</Link>
       </p>
-      <p>{t('push:page.intro')}</p>
+      <p>
+        {t('push:page.intro')}
+        <InfoTip>{t('push:page.introTip')}</InfoTip>
+      </p>
       {body}
     </section>
   );

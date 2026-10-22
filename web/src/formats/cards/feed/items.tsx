@@ -4,6 +4,7 @@ import { useId, useState, type ComponentType } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { PostVM } from '../../../vm/types';
 import type { PostActions } from '../../types';
+import { InfoTip } from '../../../lib/InfoTip';
 
 type PartLayout = ComponentType<{
   post: PostVM;
@@ -58,8 +59,10 @@ export function CollapsedGroup({ count, token, onExpand }: { count: number; toke
   const { t } = useTranslation('feed');
   return (
     <div className="feed-collapsed" data-testid="feed-collapsed" data-count={count}>
-      <p>{t('collapsed.summary', { count })}</p>
-      <p className="muted">{t('collapsed.explain')}</p>
+      <p>
+        {t('collapsed.summary', { count })}
+        <InfoTip label={t('collapsed.explainLabel')}>{t('collapsed.explain')}</InfoTip>
+      </p>
       <button
         type="button"
         data-testid="feed-expand"

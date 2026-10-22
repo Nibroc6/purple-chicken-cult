@@ -32,6 +32,7 @@ export const namespaces = [
   'explorer',
   'recovery',
   'saves',
+  'about',
 ] as const;
 
 export type Namespace = (typeof namespaces)[number];

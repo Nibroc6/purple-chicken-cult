@@ -15,6 +15,7 @@ import { fetchNotifications, markRead, setPostMute } from './api';
 import { setUnread } from './unread';
 import { messageArgs, type NotificationVM } from './vm';
 import './notifications.css';
+import { InfoTip } from '../../lib/InfoTip';
 
 export const notificationsKey = ['notifications'] as const;
 
@@ -68,6 +69,7 @@ export default function NotificationsPage() {
       {q.isSuccess && items.length === 0 ? (
         <p className="muted" data-testid="notifications-empty">
           {t('page.empty')}
+          <InfoTip>{t('page.emptyTip')}</InfoTip>
         </p>
       ) : null}
       <ol className="notifications-list" data-testid="notifications-list">

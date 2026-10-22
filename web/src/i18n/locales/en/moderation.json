@@ -56,7 +56,8 @@
   },
   "blame": {
     "title": "Blame inbox",
-    "intro": "When a moderator confirms action against someone you invited, it shows up here. Who reported it is never shown.",
+    "intro": "Moderator actions against people you invited.",
+    "introTip": "Only actions a moderator confirmed show up here. Who reported it is never shown.",
     "empty": "Nothing here. Nobody you invited has had a moderator act on them.",
     "more": "Show older",
     "item": "{action, select, remove_post {A moderator removed a post by @{handle}, whom you invited.} suspend_user {A moderator suspended @{handle}, whom you invited.} other {A moderator took action on @{handle}, whom you invited.}}",
@@ -67,7 +68,8 @@
   "queue": {
     "title": "Moderation queue",
     "membersOnly": "Only moderators can see this page.",
-    "intro": "Reports, held images and automated signals, most urgent first. Suspending an account, reporting held images, releasing a hold and quarantining an invite tree need a second moderator within 24 hours.",
+    "intro": "Reports, held images and signals, most urgent first.",
+    "introTip": "Suspending an account, reporting held images, releasing a hold and quarantining an invite tree need a second moderator within 24 hours.",
     "empty": "Nothing to review.",
     "more": "Show more",
     "urgent": "Urgent",
@@ -92,7 +94,8 @@
   },
   "log": {
     "title": "Moderation log",
-    "intro": "Every confirmed removal and suspension, and every change of moderators, by day. People you are connected to are named; everyone else has a stand-in name.",
+    "intro": "Confirmed removals, suspensions and moderator changes, by day.",
+    "introTip": "People you're connected to are named; everyone else has a stand-in name.",
     "empty": "No moderator actions yet.",
     "day": "Day",
     "action": "Action",

@@ -38,6 +38,7 @@ import {
 import { CameraError, startScanner } from './scanner';
 import { browserLanguages, joinErrorKey } from './vm';
 import './join.css';
+import { InfoTip } from '../../lib/InfoTip';
 
 type Step =
   | { kind: 'intro' }
@@ -602,7 +603,10 @@ function SignupCeremony({
   return (
     <div className="join-ceremony" data-testid="join-ceremony">
       <h2>{t('ceremony.title')}</h2>
-      <p>{t('ceremony.body')}</p>
+      <p>
+        {t('ceremony.body')}
+        <InfoTip>{t('ceremony.bodyTip')}</InfoTip>
+      </p>
       {records.map((r) => (
         <RecordView key={r.rawKind} record={r} />
       ))}

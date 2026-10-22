@@ -15,6 +15,7 @@
     "notifications": "Notifications",
     "moderation": "Moderation",
     "settings": "Settings",
+    "about": "How it works",
     "menu": "Menu",
     "close": "Close menu",
     "collapse": "Collapse sidebar",
@@ -34,6 +35,9 @@
   "error": {
     "title": "Something went wrong",
     "retry": "Try again"
+  },
+  "infotip": {
+    "label": "More about this"
   },
   "settingsNav": {
     "label": "Settings sections",
