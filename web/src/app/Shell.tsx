@@ -4,13 +4,14 @@
 // a top header instead (display settings, <html data-nav="header">); the
 // layouts are one markup restyled by CSS. The sidebar keeps the .shell-header
 // and .nav-list classes so themes that style those still reach it.
-import { Suspense, useEffect, useId, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { NavLink, Outlet, useLocation } from 'react-router';
 import { loadCollapsed, saveCollapsed } from '../lib/navLayout';
 import { featureSlots } from './featureSlots';
 import { Loading } from './Loading';
 import { mainNav } from './mainNav';
+import { usePageTitle } from './pageTitle';
 import { useSession } from './session';
 
 const navBadges = featureSlots.flatMap((s) => (s.navBadge ? [s.navBadge] : []));
@@ -25,6 +26,9 @@ export function Shell() {
   const role = session.data?.me?.role;
   const moderator = role === 'moderator' || role === 'admin';
   const navId = useId();
+  const main = useRef<HTMLElement>(null);
+  const format = useCallback((page: string) => t('app.pageTitle', { page }), [t]);
+  usePageTitle(main, t('app.name'), format);
   const [collapsed, setCollapsed] = useState(loadCollapsed);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const menuButton = useRef<HTMLButtonElement>(null);
@@ -136,7 +140,7 @@ export function Shell() {
         />
       ) : null}
       <div className="shell-body" inert={drawerOpen}>
-        <main id="main" className="shell-main">
+        <main id="main" className="shell-main" ref={main}>
           <Suspense fallback={<Loading />}>
             <Outlet />
           </Suspense>

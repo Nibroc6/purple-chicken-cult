@@ -1,6 +1,7 @@
 {
   "app": {
-    "name": "Purple Chicken Cult"
+    "name": "Purple Chicken Cult",
+    "pageTitle": "{page} | Purple Chicken Cult"
   },
   "nav": {
     "label": "Main",

@@ -227,6 +227,15 @@ func (s *Service) Budget(ctx context.Context) (gate.BudgetView, error) {
 		return gate.BudgetView{}, err
 	}
 	out := gate.BudgetView{Available: b.available(), Cap: b.cap, PausedUntil: b.paused, Revoked: b.revoked}
+	if s.d.Limits != nil {
+		a, ok, err := s.d.Limits.WriteAllowance(ctx, v, core.WriteKind("invite_handshake"))
+		if err != nil {
+			return gate.BudgetView{}, err
+		}
+		if ok {
+			out.Attempts = &gate.AllowanceView{Available: a.Available, Cap: a.Cap, NextAt: a.NextAt}
+		}
+	}
 	if !b.probation && !b.revoked && b.paused == nil {
 		out.NextAt = b.nextAt
 	}

@@ -31,9 +31,10 @@ const JoinSigHeader = "X-PCC-Join-Sig"
 var (
 	rGraph = apix.Read("graph_read")
 	wI     = apix.Write("invite_handshake")
-	// The client sends the ephemeral key, the sound reports and the
-	// co-signature on its own as the handshake goes on, right after opening it
-	// or each other: steps, without the minimum spacing.
+	// Everything after opening a handshake (the ephemeral key, the confirm or
+	// cancel, the sound reports, the co-signature) is a step of that one
+	// invite: no minimum spacing, and only the opening counts toward the
+	// daily cap (limits.Policy.FreeSteps).
 	sI    = apix.Step("invite_handshake")
 	aJoin = apix.Anon("join")
 )
@@ -151,13 +152,13 @@ func Register(r chi.Router, d *api.Deps) {
 		}
 		return apix.JSON(w, http.StatusOK, PeerOut{EV: ev})
 	})
-	apix.Route(r, http.MethodPost, "/invites/handshakes/{hs}/confirm", wI, func(w http.ResponseWriter, r *http.Request) error {
+	apix.Route(r, http.MethodPost, "/invites/handshakes/{hs}/confirm", sI, func(w http.ResponseWriter, r *http.Request) error {
 		if err := inv.Confirm(r.Context(), hs(r)); err != nil {
 			return err
 		}
 		return apix.NoContent(w)
 	})
-	apix.Route(r, http.MethodDelete, "/invites/handshakes/{hs}", wI, func(w http.ResponseWriter, r *http.Request) error {
+	apix.Route(r, http.MethodDelete, "/invites/handshakes/{hs}", sI, func(w http.ResponseWriter, r *http.Request) error {
 		if err := inv.Cancel(r.Context(), hs(r)); err != nil {
 			return err
 		}

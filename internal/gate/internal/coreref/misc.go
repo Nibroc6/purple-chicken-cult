@@ -105,6 +105,11 @@ func (PassLimiter) ChargeRead(context.Context, core.Viewer, core.ReadClass) erro
 // ChargeWrite always succeeds.
 func (PassLimiter) ChargeWrite(context.Context, core.Viewer, core.WriteKind, int) error { return nil }
 
+// WriteAllowance reports no build-up limits.
+func (PassLimiter) WriteAllowance(context.Context, core.Viewer, core.WriteKind) (core.Allowance, bool, error) {
+	return core.Allowance{}, false, nil
+}
+
 // ChargeAnon always succeeds.
 func (PassLimiter) ChargeAnon(netip.Prefix, string) error { return nil }
 
