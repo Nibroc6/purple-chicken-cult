@@ -30,6 +30,8 @@ const (
 	KindCred      Kind = 6
 	KindHandshake Kind = 7
 	KindModItem   Kind = 8
+	KindConv      Kind = 9  // a direct-message conversation (gate/dm)
+	KindMessage   Kind = 10 // one direct message
 )
 
 // KeySize is the AES-SIV key size (two AES-256 keys).

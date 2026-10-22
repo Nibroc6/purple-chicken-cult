@@ -1,0 +1,388 @@
+# OpenAPI fragment of the direct-messages module (gate/dm). Owner: direct
+# messages (contract request dm-1). Paths are relative to /api. Validated on
+# its own by apitest.
+#
+# A conversation ref opens only for its members and invitees: anything else
+# (garbage, another viewer's ref, a conversation the caller left) is the
+# uniform 404, charged exactly like a valid ref. People refs must name the
+# caller's own direct connections (acquaintances or friends): someone the
+# caller can see but is not connected to is the problem not_connected, anyone
+# else the 404. A shared post is rendered for each viewer from their own
+# horizon; who cannot already see it gets {unavailable: true} and nothing else.
+openapi: 3.0.3
+info:
+  title: pcc internal API (messages)
+  version: "0"
+paths:
+  /messages:
+    get:
+      operationId: listConversations
+      parameters:
+        - { name: cursor, in: query, required: false, schema: { type: string, maxLength: 256 } }
+      responses:
+        "200":
+          description: The caller's conversations and group invitations, most recently active first.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MessagesConversationsPage' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/MessagesRateLimited' }
+  /messages/unread:
+    get:
+      operationId: getMessagesUnread
+      responses:
+        "200":
+          description: Conversations with unread messages (muted ones excepted) plus pending invitations.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MessagesUnreadOut' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/MessagesRateLimited' }
+  /messages/direct:
+    post:
+      operationId: openDirectConversation
+      description: >-
+        Opens the 1:1 conversation with one of the caller's direct connections,
+        creating it on first use.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MessagesDirectIn' }
+      responses:
+        "200":
+          description: The conversation.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConversationView' }
+        "400": { $ref: '#/components/responses/MessagesProblem' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409": { $ref: '#/components/responses/MessagesProblem' }
+        "422": { $ref: '#/components/responses/MessagesProblem' }
+        "429": { $ref: '#/components/responses/MessagesRateLimited' }
+  /messages/groups:
+    post:
+      operationId: createGroupConversation
+      description: >-
+        Starts a group chat and invites the given direct connections (at most
+        31 others). Problems: members_empty, too_many_members, title_too_long,
+        not_connected, probation.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MessagesGroupIn' }
+      responses:
+        "200":
+          description: The new group.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConversationView' }
+        "400": { $ref: '#/components/responses/MessagesProblem' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409": { $ref: '#/components/responses/MessagesProblem' }
+        "422": { $ref: '#/components/responses/MessagesProblem' }
+        "429": { $ref: '#/components/responses/MessagesRateLimited' }
+  /messages/{ref}:
+    parameters:
+      - { name: ref, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
+    get:
+      operationId: getConversation
+      responses:
+        "200":
+          description: The conversation as the caller sees it.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConversationView' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/MessagesRateLimited' }
+    patch:
+      operationId: renameConversation
+      description: Renames a group ("" = untitled). Problems not_group, title_too_long, not_joined.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MessagesRenameIn' }
+      responses:
+        "200":
+          description: The renamed group.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConversationView' }
+        "400": { $ref: '#/components/responses/MessagesProblem' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409": { $ref: '#/components/responses/MessagesProblem' }
+        "422": { $ref: '#/components/responses/MessagesProblem' }
+        "429": { $ref: '#/components/responses/MessagesRateLimited' }
+    delete:
+      operationId: leaveConversation
+      description: >-
+        Leaves a group or declines an invitation; for a 1:1 conversation,
+        clears its history for the caller and takes it off their list until a
+        new message arrives.
+      responses:
+        "204": { description: Done. }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/MessagesRateLimited' }
+  /messages/{ref}/join:
+    parameters:
+      - { name: ref, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
+    post:
+      operationId: joinConversation
+      description: Accepts a group invitation (idempotent).
+      responses:
+        "200":
+          description: The group.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConversationView' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/MessagesRateLimited' }
+  /messages/{ref}/members:
+    parameters:
+      - { name: ref, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
+    post:
+      operationId: inviteToConversation
+      description: >-
+        Invites more of the caller's direct connections to a group. Problems:
+        not_joined, not_group, too_many_members, not_connected, probation.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MessagesInviteIn' }
+      responses:
+        "200":
+          description: The group.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConversationView' }
+        "400": { $ref: '#/components/responses/MessagesProblem' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409": { $ref: '#/components/responses/MessagesProblem' }
+        "422": { $ref: '#/components/responses/MessagesProblem' }
+        "429": { $ref: '#/components/responses/MessagesRateLimited' }
+  /messages/{ref}/members/{id}:
+    parameters:
+      - { name: ref, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
+      - { name: id, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
+    delete:
+      operationId: removeFromConversation
+      description: Removes a member or invitee from a group (admins only). Problems not_group, not_admin, remove_self.
+      responses:
+        "204": { description: Removed. }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409": { $ref: '#/components/responses/MessagesProblem' }
+        "422": { $ref: '#/components/responses/MessagesProblem' }
+        "429": { $ref: '#/components/responses/MessagesRateLimited' }
+  /messages/{ref}/mute:
+    parameters:
+      - { name: ref, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
+    put:
+      operationId: muteConversation
+      description: No pushes and no unread badge for this conversation (idempotent).
+      responses:
+        "204": { description: Muted. }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409": { $ref: '#/components/responses/MessagesProblem' }
+        "429": { $ref: '#/components/responses/MessagesRateLimited' }
+    delete:
+      operationId: unmuteConversation
+      responses:
+        "204": { description: Not muted. }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409": { $ref: '#/components/responses/MessagesProblem' }
+        "429": { $ref: '#/components/responses/MessagesRateLimited' }
+  /messages/{ref}/messages:
+    parameters:
+      - { name: ref, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
+    get:
+      operationId: listMessages
+      description: >-
+        Messages newest first; cursor is the next value of the previous page.
+        Messages from people the caller blocked are left out. Problem
+        not_joined for an invitation.
+      parameters:
+        - { name: cursor, in: query, required: false, schema: { type: string, maxLength: 256 } }
+      responses:
+        "200":
+          description: A page of messages.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MessagesPage' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409": { $ref: '#/components/responses/MessagesProblem' }
+        "429": { $ref: '#/components/responses/MessagesRateLimited' }
+    post:
+      operationId: sendMessage
+      description: >-
+        Sends a message: a body (at most 2000 code points), a post the caller
+        can see, or both. Problems: body_empty, body_too_long, not_joined,
+        not_connected.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MessagesSendIn' }
+      responses:
+        "201":
+          description: The message as the caller sees it.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MessageView' }
+        "400": { $ref: '#/components/responses/MessagesProblem' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409": { $ref: '#/components/responses/MessagesProblem' }
+        "422": { $ref: '#/components/responses/MessagesProblem' }
+        "429": { $ref: '#/components/responses/MessagesRateLimited' }
+  /messages/{ref}/messages/{id}:
+    parameters:
+      - { name: ref, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
+      - { name: id, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
+    delete:
+      operationId: deleteMessage
+      description: Erases one of the caller's own messages (it reads "deleted" for everyone).
+      responses:
+        "204": { description: Deleted. }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409": { $ref: '#/components/responses/MessagesProblem' }
+        "429": { $ref: '#/components/responses/MessagesRateLimited' }
+  /messages/{ref}/read:
+    parameters:
+      - { name: ref, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
+    post:
+      operationId: markMessagesRead
+      description: Moves the caller's own read position (never back; no read receipts).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MessagesReadIn' }
+      responses:
+        "204": { description: Done. }
+        "400": { $ref: '#/components/responses/MessagesProblem' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409": { $ref: '#/components/responses/MessagesProblem' }
+components:
+  schemas:
+    ConvMember:
+      type: object
+      required: [ref, handle, display_name]
+      properties:
+        ref: { $ref: '_common.yaml#/components/schemas/Ref' }
+        handle: { type: string }
+        display_name: { type: string }
+        admin: { type: boolean }
+        relation: { type: string, enum: [friend, friend_plus] }
+    MessagePreview:
+      type: object
+      required: [kind, from_me, at]
+      properties:
+        kind: { type: string, enum: [text, post, event, deleted] }
+        excerpt: { type: string }
+        event: { type: string, enum: [created, joined, left, removed, renamed] }
+        from_me: { type: boolean }
+        from: { type: string }
+        at: { type: string, format: date-time }
+    ConversationView:
+      type: object
+      required: [ref, kind, state, members, member_count, can_send, unread, updated_at]
+      properties:
+        ref: { $ref: '_common.yaml#/components/schemas/Ref' }
+        kind: { type: string, enum: [direct, group] }
+        state: { type: string, enum: [member, invited] }
+        title: { type: string }
+        members: { type: array, items: { $ref: '#/components/schemas/ConvMember' } }
+        member_count: { type: integer, minimum: 0 }
+        invited_by: { $ref: '#/components/schemas/ConvMember' }
+        admin: { type: boolean }
+        can_send: { type: boolean }
+        muted: { type: boolean }
+        unread: { type: integer, minimum: 0 }
+        last: { $ref: '#/components/schemas/MessagePreview' }
+        updated_at: { type: string, format: date-time }
+    SharedPostView:
+      type: object
+      properties:
+        post: { $ref: '_common.yaml#/components/schemas/PostView' }
+        unavailable: { type: boolean }
+    MessageView:
+      type: object
+      required: [ref, kind, mine, at]
+      properties:
+        ref: { $ref: '_common.yaml#/components/schemas/Ref' }
+        kind: { type: string, enum: [text, event, deleted] }
+        mine: { type: boolean }
+        from: { $ref: '#/components/schemas/ConvMember' }
+        body: { type: string }
+        post: { $ref: '#/components/schemas/SharedPostView' }
+        event: { type: string, enum: [created, joined, left, removed, renamed] }
+        subject: { $ref: '#/components/schemas/ConvMember' }
+        at: { type: string, format: date-time }
+    MessagesPage:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/MessageView' } }
+        next: { type: string }
+    MessagesConversationsPage:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/ConversationView' } }
+        next: { type: string }
+    MessagesUnreadOut:
+      type: object
+      required: [unread]
+      properties:
+        unread: { type: integer, minimum: 0 }
+    MessagesDirectIn:
+      type: object
+      required: [to]
+      additionalProperties: false
+      properties:
+        to: { $ref: '_common.yaml#/components/schemas/Ref' }
+    MessagesGroupIn:
+      type: object
+      required: [members]
+      additionalProperties: false
+      properties:
+        title: { type: string, maxLength: 400 }
+        members: { type: array, maxItems: 64, items: { $ref: '_common.yaml#/components/schemas/Ref' } }
+    MessagesRenameIn:
+      type: object
+      required: [title]
+      additionalProperties: false
+      properties:
+        title: { type: string, maxLength: 400 }
+    MessagesInviteIn:
+      type: object
+      required: [people]
+      additionalProperties: false
+      properties:
+        people: { type: array, maxItems: 64, items: { $ref: '_common.yaml#/components/schemas/Ref' } }
+    MessagesSendIn:
+      type: object
+      required: [body]
+      additionalProperties: false
+      properties:
+        body: { type: string, maxLength: 20000 }
+        post: { type: string, maxLength: 256 }
+    MessagesReadIn:
+      type: object
+      required: [up_to]
+      additionalProperties: false
+      properties:
+        up_to: { type: string, maxLength: 256 }
+  responses:
+    MessagesProblem:
+      description: A problem with the caller's own input (see each operation).
+      content:
+        application/json:
+          schema: { $ref: '_common.yaml#/components/schemas/Error' }
+    MessagesRateLimited:
+      description: rate_limited.
+      content:
+        application/json:
+          schema: { $ref: '_common.yaml#/components/schemas/Error' }

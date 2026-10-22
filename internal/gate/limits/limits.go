@@ -56,6 +56,9 @@ const (
 	ReadGraph     core.ReadClass = "graph_read"
 	ReadPost      core.ReadClass = "post_read"
 	ReadMediaFull core.ReadClass = "media_full" // P1
+	// ReadMessages reads conversations and messages (gate/dm); an open chat
+	// refetches on every new message, hence the larger budget.
+	ReadMessages core.ReadClass = "messages"
 )
 
 // Write kinds (plan §5.1).
@@ -78,6 +81,10 @@ const (
 	// subscriptions): split from account so they are elastic while sign-in,
 	// recovery, export and deletion stay strict.
 	WriteSettings core.WriteKind = "settings"
+	// WriteMessage sends a direct message or shares a post into one (gate/dm);
+	// WriteMessageGroup creates a group chat or invites people to one.
+	WriteMessage      core.WriteKind = "message"
+	WriteMessageGroup core.WriteKind = "message_group"
 )
 
 // Window lengths.
@@ -152,13 +159,14 @@ func DefaultPolicy() Policy {
 	return Policy{
 		Reads: map[string]int{
 			string(ReadFeedPage): 400, string(ReadTreeView): 400, string(ReadPost): 1500,
-			string(ReadGraph): 200, string(ReadMediaFull): 60,
+			string(ReadGraph): 200, string(ReadMediaFull): 60, string(ReadMessages): 5000,
 		},
 		// The strict kinds keep windowed counters.
 		Writes: map[string][]Cap{
-			string(WriteFriendReq): {{Day, 20}},
-			string(WriteAccount):   {{Day, 50}},
-			string(WriteUpgrade):   {{Hour, 10}, {Day, 30}},
+			string(WriteFriendReq):    {{Day, 20}},
+			string(WriteAccount):      {{Day, 50}},
+			string(WriteUpgrade):      {{Hour, 10}, {Day, 30}},
+			string(WriteMessageGroup): {{Day, 30}},
 		},
 		// Build-up buckets: Cap at once, then one back every Every. The
 		// everyday kinds burst up to their old cap and refill at its pace,
@@ -174,6 +182,8 @@ func DefaultPolicy() Policy {
 			string(WriteMedia):    {Cap: 50, Every: Day / 50},    // 50 a day
 			string(WriteReport):   {Cap: 20, Every: Day / 20},    // 20 a day
 			string(WriteSettings): {Cap: 30, Every: 2 * time.Minute},
+			// Chat is bursty: 120 messages at once, one more every 30 s.
+			string(WriteMessage): {Cap: 120, Every: 30 * time.Second},
 		},
 		ProbationFriendRequests: 5,
 		Spacing:                 2 * time.Second,

@@ -110,6 +110,7 @@ func (s *Service) initPush() error {
 			return s.deliver(ctx, j)
 		})
 	}
+	s.initPushText()
 	if s.d.Bus != nil {
 		core.Subscribe(s.d.Bus, func(e core.SessionEnded) { s.sessionEnded(e.User, e.Session) })
 	}

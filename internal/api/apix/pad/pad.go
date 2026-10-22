@@ -101,6 +101,8 @@ var RequestRefs = map[string]bool{
 	"POST /recovery/claim":       true, // payload
 	"POST /recovery/sessions":    true, // friend
 	"POST /me/delete":            true, // intent (P1 co-signed deletion; steward: contract request p1-w10-1)
+	"POST /messages/direct":      true, // to (contract request dm-1)
+	"POST /messages/groups":      true, // members (contract request dm-1)
 }
 
 // deep reports whether pattern is a deep-tier feed or tree route.
