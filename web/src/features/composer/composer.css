@@ -72,3 +72,27 @@
   gap: var(--space-1);
   justify-items: start;
 }
+
+/* A reply to several posts (P1): each parent with a way to take it out, and
+   a field to add another from a pasted link. */
+.composer-parents {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.composer-parents > p {
+  margin: 0;
+}
+.composer-add-parent {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+.composer-add-parent .post-error {
+  flex-basis: 100%;
+  margin: 0;
+}
+.composer-parent > button {
+  align-self: flex-start;
+}

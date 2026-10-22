@@ -4,7 +4,7 @@
 // There is no public API, no bearer token and no CORS (§16.1).
 import createClient, { type Middleware } from 'openapi-fetch';
 import type { paths } from './schema.gen';
-import { ApiError } from './errors';
+import { ApiError, NetworkError } from './errors';
 
 let csrf: string | undefined;
 
@@ -60,7 +60,12 @@ const middleware: Middleware = {
 export const api = createClient<paths>({
   baseUrl: `${globalThis.location.origin}/api`,
   credentials: 'same-origin',
-  fetch: (req: Request) => globalThis.fetch(req), // resolved per call (tests stub fetch)
+  // Resolved per call (tests stub fetch); a request that never got an answer
+  // is a NetworkError, so only it reads as "offline".
+  fetch: (req: Request) =>
+    globalThis.fetch(req).catch((err: unknown) => {
+      throw new NetworkError(err);
+    }),
 });
 api.use(middleware);
 

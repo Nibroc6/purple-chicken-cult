@@ -30,10 +30,32 @@ export class ApiError extends Error {
   }
 }
 
+// NetworkError is a request that never reached the server (the API client
+// wraps fetch's own failure in it).
+export class NetworkError extends Error {
+  constructor(cause: unknown) {
+    super('network', { cause });
+    this.name = 'NetworkError';
+  }
+}
+
+// isStaleBuild: a page's code could not be loaded, as when the app was
+// redeployed while the tab still runs the old build (its chunks are gone).
+export function isStaleBuild(err: unknown): boolean {
+  return (
+    err instanceof Error &&
+    /dynamically imported module|Importing a module script failed|Unable to preload CSS/i.test(err.message)
+  );
+}
+
 // errorKey returns the catalog key for an error: "<ns>:errors.<code>" when the
-// feature namespace defines it, else "errors:<code>".
+// feature namespace defines it, else "errors:<code>". Only a request that
+// failed on the network, or a browser that says it is offline, reads as
+// offline; any other error (a bug in a page included) is "unknown".
 export function errorKey(err: unknown): string {
   if (err instanceof ApiError) return `errors:${err.code}`;
-  if (err instanceof TypeError) return 'errors:network';
+  if (isStaleBuild(err)) return 'errors:updated';
+  if (err instanceof NetworkError) return 'errors:network';
+  if (typeof navigator !== 'undefined' && !navigator.onLine) return 'errors:network';
   return 'errors:unknown';
 }
