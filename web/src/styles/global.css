@@ -368,6 +368,10 @@ a {
   display: none;
 }
 @media (max-width: 47.99rem) {
+  .shell {
+    /* The sticky top bar's height: sticky things on the page stop below it. */
+    --shell-top: calc(2.5rem + var(--space-2) + max(var(--space-2), env(safe-area-inset-top)) + 1px);
+  }
   .shell[data-signed-in='true'] {
     --tabbar-height: calc(3.5rem + env(safe-area-inset-bottom));
   }
@@ -489,7 +493,7 @@ a {
   }
   /* Tier headers stick below the top bar, not under it. */
   .shell .tier-header {
-    inset-block-start: calc(2.5rem + 2 * var(--space-2) + 1px + env(safe-area-inset-top));
+    inset-block-start: var(--shell-top);
     z-index: 5;
   }
 }
