@@ -415,7 +415,7 @@ describe('likes page and post actions', () => {
     expect(await screen.findByText(tr('common:notFound.title'))).toBeTruthy();
   });
 
-  it('navigates for reply, tree and report, and queues seen posts', () => {
+  it('navigates for reply and tree, opens the report modal, and queues seen posts', () => {
     let actions: ReturnType<typeof usePostActions> | undefined;
     function Probe() {
       actions = usePostActions();
@@ -445,6 +445,6 @@ describe('likes page and post actions', () => {
     act(() => {
       actions?.report({ kind: 'post', ref: asRef('p9') });
     });
-    expect(at()).toBe('/report?kind=post&ref=p9');
+    expect(at()).toBe('/p/p9?report=post%3Ap9');
   });
 });
