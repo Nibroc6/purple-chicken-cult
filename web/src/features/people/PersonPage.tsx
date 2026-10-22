@@ -1,5 +1,6 @@
 // A person's page: who they are to you, how you are connected, who invited
-// them, the friendship actions and (P1) the friend+ upgrade in person.
+// them, the friendship actions, (P1) the friend+ upgrade in person and their
+// post history.
 // Owner: P0-W03 → P1-W03.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useId, useState } from 'react';
@@ -11,6 +12,7 @@ import { ApiError } from '../../api/errors';
 import { asRef } from '../../vm/types';
 import { HandshakeHost, type OpenedVM } from '../invites';
 import { fetchPerson, openUpgrade } from './api';
+import { PersonPosts } from './PersonPosts';
 import { ErrorText, PeopleNav, PersonActions, PersonCard, ReportPerson, peopleKey } from './shared';
 import { canUpgrade, type PeopleVM } from './vm';
 
@@ -51,6 +53,7 @@ export default function PersonPage() {
             </PersonCard>
           </ul>
           {q.data.relation !== 'self' ? <Upgrade key={q.data.ref} person={q.data} /> : null}
+          {q.data.blocked ? null : <PersonPosts key={q.data.ref} person={q.data} />}
         </>
       )}
     </section>

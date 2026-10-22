@@ -112,6 +112,31 @@ func (p *MemPosts) WindowScan(fn func(core.PostMeta) bool) {
 	}
 }
 
+// ByAuthor returns author's live posts after after, in the requested order.
+func (p *MemPosts) ByAuthor(_ context.Context, author core.UserID, after *core.PostMeta, oldestFirst bool, limit int) ([]core.PostMeta, error) {
+	p.mu.RLock()
+	var out []core.PostMeta
+	for _, m := range p.metas {
+		if m.Author == author && !m.Deleted && (after == nil || core.PostsBefore(*after, m, oldestFirst)) {
+			out = append(out, m)
+		}
+	}
+	p.mu.RUnlock()
+	slices.SortFunc(out, func(a, b core.PostMeta) int {
+		if core.PostsBefore(a, b, oldestFirst) {
+			return -1
+		}
+		if core.PostsBefore(b, a, oldestFirst) {
+			return 1
+		}
+		return 0
+	})
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
+}
+
 // WindowSize is the number of window posts.
 func (p *MemPosts) WindowSize() int { return len(p.window(nil)) }
 

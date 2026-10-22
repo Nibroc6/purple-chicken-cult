@@ -232,6 +232,11 @@ type PostIndex interface {
 	RecentLen(author UserID) int
 	WindowScan(fn func(PostMeta) bool) // newest first over all window posts (time scan)
 	WindowSize() int
+	// ByAuthor returns up to limit of author's live posts in their whole
+	// history (not just the window), newest first (created_at desc, id asc) or
+	// oldest first (the reverse), strictly after the post at after (nil: from
+	// the start). RAW: callers check visibility.
+	ByAuthor(ctx context.Context, author UserID, after *PostMeta, oldestFirst bool, limit int) ([]PostMeta, error)
 	Children(ctx context.Context, parent PostID, fn func(LinkMeta) bool) // newest first, ALL links; RAW (archtest A10)
 	Parents(ctx context.Context, child PostID) []LinkMeta                // RAW (archtest A10)
 	Bodies(ctx context.Context, ids []PostID) map[PostID]string

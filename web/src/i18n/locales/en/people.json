@@ -76,5 +76,16 @@
     "accept": "Accept @{handle} as an acquaintance",
     "unfriend": "Remove @{handle} from your acquaintances",
     "block": "Block @{handle}"
+  },
+  "posts": {
+    "title": "Posts",
+    "orderLabel": "Order",
+    "order": {
+      "newest": "Newest first",
+      "oldest": "Oldest first"
+    },
+    "empty": "Nothing from @{handle} here yet.",
+    "open": "Open",
+    "more": "Show more"
   }
 }
