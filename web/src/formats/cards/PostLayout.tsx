@@ -53,7 +53,7 @@ export function PostLayout({ post, actions, variant, part }: CardProps) {
           <span className="post-handle">{t('post.handle', { handle: post.author.handle })}</span>
         </PersonLink>
         <InviterLabel inviter={post.author.inviter} invitee={post.author.ref} onReport={actions.report} />
-        <Chain chain={post.author.chain} author={post.author} />
+        <Chain chain={post.author.chain} author={post.author} post={post.ref} />
         <span className="post-head-end">
           <PostTime at={post.createdAt} />
           {post.thread ? (

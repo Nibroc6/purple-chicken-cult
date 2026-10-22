@@ -51,7 +51,7 @@ export function PostLayout({
           {post.author.displayName ? <span className="post-name muted" data-user-content=""> {post.author.displayName}</span> : null}
         </PersonLink>
         <InviterLabel inviter={post.author.inviter} invitee={post.author.ref} onReport={actions.report} />
-        <Chain chain={post.author.chain} author={post.author} />
+        <Chain chain={post.author.chain} author={post.author} post={post.ref} />
         <PostTime at={post.createdAt} />
         {post.thread ? (
           <span className="post-thread muted" data-testid="feed-thread-pos">

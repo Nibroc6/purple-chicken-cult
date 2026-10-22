@@ -12,6 +12,8 @@ export interface TierHeaderProps {
 export interface ChainProps {
   chain: ChainVM;
   author: { ref: Ref; handle: string };
+  // post: given, the chain opens the "how you're connected" modal for it.
+  post?: Ref;
 }
 export interface InviterLabelProps {
   inviter: InviterVM;

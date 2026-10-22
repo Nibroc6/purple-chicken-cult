@@ -70,3 +70,60 @@
   min-block-size: 44px;
   margin-block-end: var(--space-2);
 }
+
+/* "How you're connected": the chain as a vertical path. */
+.via-steps {
+  font-weight: 600;
+}
+.via-path {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+.via-step {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding-inline-start: var(--space-6);
+}
+.via-step::before {
+  content: '';
+  position: absolute;
+  inset-inline-start: var(--space-1);
+  inset-block-start: 0.35em;
+  inline-size: 12px;
+  block-size: 12px;
+  border-radius: 999px;
+  border: 2px solid var(--color-integrity-text);
+  background: var(--color-integrity-bg);
+}
+.via-step:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  inset-inline-start: calc(var(--space-1) + 5px);
+  inset-block-start: calc(0.35em + 14px);
+  block-size: calc(100% - 4px);
+  border-inline-start: 2px solid var(--color-integrity-text);
+}
+.via-step[data-kind='hidden']::before {
+  border-style: dashed;
+}
+.via-step[data-kind='hidden']:not(:last-child)::after,
+.via-step:has(+ .via-step[data-kind='hidden'])::after {
+  border-inline-start-style: dashed;
+}
+.via-step[data-kind='you']::before,
+.via-step[data-kind='author']::before {
+  background: var(--color-integrity-text);
+}
+.via-node {
+  font-weight: 600;
+}
+.via-heading {
+  font-size: 1rem;
+  margin-block: var(--space-4) var(--space-2);
+}
