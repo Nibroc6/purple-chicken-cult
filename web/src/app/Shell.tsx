@@ -117,7 +117,24 @@ export function Shell() {
                   <li key={e.to}>
                     <NavLink to={e.to} end={e.to === '/'} title={collapsed ? t(e.label) : undefined}>
                       <span className="nav-icon" aria-hidden="true">
-                        {e.icon}
+                        {e.paths ? (
+                          <svg
+                            viewBox="0 0 24 24"
+                            width="1em"
+                            height="1em"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            {e.paths.map((d) => (
+                              <path key={d} d={d} />
+                            ))}
+                          </svg>
+                        ) : (
+                          e.icon
+                        )}
                       </span>
                       <span className="nav-label">{t(e.label)}</span>
                       {e.badges ? navBadges.map((Badge, i) => <Badge key={i} />) : null}
