@@ -1,13 +1,14 @@
 {
   "app": {
-    "name": "Purple Chicken Cult"
+    "name": "Purple Chicken Cult",
+    "pageTitle": "{page} | Purple Chicken Cult"
   },
   "nav": {
     "label": "Main",
     "skip": "Skip to content",
     "feed": "Feed",
     "compose": "New post",
-    "invite": "Invite",
+    "invite": "Meet in person",
     "people": "People",
     "saves": "Saved",
     "seen": "Seen",
@@ -27,6 +28,9 @@
     "body": "This page does not exist, or you cannot see it."
   },
   "loading": "Loading…",
+  "modal": {
+    "close": "Close"
+  },
   "error": {
     "title": "Something went wrong",
     "retry": "Try again"

@@ -1,7 +1,7 @@
 // Every planned route renders its (placeholder) page through the shell, and
 // unknown routes render the client not-found page.
 import { QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider, type RouteObject } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { i18n } from '../i18n/setup';
@@ -64,5 +64,13 @@ describe('routes', () => {
   it('renders the not-found page for unknown routes', async () => {
     renderAt('/no/such/page');
     expect(await screen.findByRole('heading', { name: i18n.t('common:notFound.title') })).toBeTruthy();
+  });
+
+  it('titles the tab after the page heading', async () => {
+    renderAt('/no/such/page');
+    await screen.findByRole('heading', { name: i18n.t('common:notFound.title') });
+    await waitFor(() => {
+      expect(document.title).toBe(`${i18n.t('common:notFound.title')} | Purple Chicken Cult`);
+    });
   });
 });

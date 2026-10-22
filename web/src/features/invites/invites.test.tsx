@@ -11,7 +11,7 @@ import type { DecodeReport, HandshakeAudio } from '../handshake-audio';
 import { b64url, ephemeral, fromB64url, parseFrame, renderFrame } from './handshake';
 import InvitePage from './InvitePage';
 import InviteesPage from './InviteesPage';
-import { canOpen, countdown, invitesErrorKey, joinURL, passed, toBudgetVM, toInviteeVM, toStatusVM } from './vm';
+import { canInvite, canShowCode, countdown, invitesErrorKey, joinURL, passed, toBudgetVM, toInviteeVM, toStatusVM } from './vm';
 
 const qr = vi.hoisted(() => ({ toCanvas: vi.fn((_c: unknown, _p: string, _o: unknown) => Promise.resolve()) }));
 vi.mock('qrcode', () => ({ default: { toCanvas: qr.toCanvas } }));
@@ -122,16 +122,20 @@ describe('invites view-models', () => {
   it('maps budgets and knows when a code can be shown', () => {
     const b = toBudgetVM({ available: 2, cap: 3, next_at: '2026-01-02T00:00:00Z' });
     expect(b).toEqual({ available: 2, cap: 3, nextAt: new Date('2026-01-02T00:00:00Z'), revoked: false });
-    expect(canOpen(b)).toBe(true);
-    expect(canOpen({ ...b, available: 0 })).toBe(false);
+    expect(canInvite(b)).toBe(true);
+    expect(canInvite({ ...b, available: 0 })).toBe(false);
+    expect(canShowCode(b)).toBe(true);
+    expect(canShowCode({ ...b, available: 0 })).toBe(true);
+    expect(canShowCode({ ...b, attempts: { available: 0, cap: 20 } })).toBe(false);
+    expect(canShowCode({ ...b, attempts: { available: 1, cap: 20 } })).toBe(true);
     const p = toBudgetVM({
       available: 0,
       cap: 3,
       probation: { until: '2026-01-08T00:00:00Z', need_outside_friends: 2, friend_plus: true },
     });
     expect(p.probation).toEqual({ until: new Date('2026-01-08T00:00:00Z'), needOutsideFriends: 2, friendPlus: true });
-    expect(canOpen({ ...p, available: 1 })).toBe(false);
-    expect(canOpen(toBudgetVM({ available: 1, cap: 3, revoked: true }))).toBe(false);
+    expect(canInvite({ ...p, available: 1 })).toBe(false);
+    expect(canInvite(toBudgetVM({ available: 1, cap: 3, revoked: true }))).toBe(false);
   });
 
   it('maps invitees, keeping the probation date only while on probation', () => {
@@ -177,7 +181,21 @@ describe('invite page', () => {
     expect(screen.getByTestId<HTMLButtonElement>('invite-open').disabled).toBe(false);
   });
 
-  it('shows what is left of probation and offers no code', async () => {
+  it('labels the code attempts and offers no code once they are used up', async () => {
+    const next = new Date(Date.now() + 40 * 60_000);
+    stubAPI((c) =>
+      c.path === '/invites/budget'
+        ? json(200, { available: 2, cap: 5, attempts: { available: 0, cap: 20, next_at: next.toISOString() } })
+        : undefined,
+    );
+    renderAt('/invite', <InvitePage />);
+    expect(await screen.findByText(tr('invites:attempts.left', { count: 0, cap: 20 }))).toBeTruthy();
+    expect(screen.getByTestId('invite-attempts-next')).toBeTruthy();
+    expect(screen.getByText(tr('invites:attempts.hint'))).toBeTruthy();
+    expect(screen.getByTestId<HTMLButtonElement>('invite-open').disabled).toBe(true);
+  });
+
+  it('shows what is left of probation and offers a connect-only code', async () => {
     const until = new Date(Date.now() + 4 * 86400_000 + 3600_000 + 30_000);
     stubAPI((c) =>
       c.path === '/invites/budget'
@@ -193,7 +211,9 @@ describe('invite page', () => {
     expect(screen.getByTestId('invite-probation-time').textContent).toContain(
       tr('invites:countdown.days', { d: 4, h: 1 }),
     );
-    expect(screen.getByTestId<HTMLButtonElement>('invite-open').disabled).toBe(true);
+    // The code still opens: on probation it only connects people signed in.
+    expect(screen.getByTestId<HTMLButtonElement>('invite-open').disabled).toBe(false);
+    expect(screen.getByText(tr('invites:open.connectOnly'))).toBeTruthy();
   });
 
   it('opens a handshake, renders frames from the key, confirms, listens, reports and co-signs', async () => {

@@ -2,8 +2,8 @@
   "page": {
     "title": "Join with an in-person invite",
     "intro": "Someone you know invites you in person: scan the code on their screen.",
-    "friendTitle": "Become friend+ in person",
-    "friendIntro": "To become friend+ with a friend, scan the code on their screen."
+    "friendTitle": "Become friends in person",
+    "friendIntro": "Scan the code on their screen. You become friends once you've both signed."
   },
   "signedIn": "You already have an account.",
   "home": "Go to your feed",
@@ -13,13 +13,13 @@
     "videoLabel": "Camera preview",
     "noCamera": "We couldn't use your camera. Allow camera access and try again.",
     "bad": "That code didn't work. Ask them to show a fresh one.",
-    "startFriend": "Scan a friend's code"
+    "startFriend": "Scan their code"
   },
   "sas": {
     "title": "Your code",
     "body": "Show this number to the person inviting you. They confirm that it matches theirs.",
     "waiting": "Waiting for them to confirm…",
-    "bodyFriend": "Show this number to your friend. They confirm that it matches theirs."
+    "bodyFriend": "Show this number to them. They confirm that it matches theirs."
   },
   "ended": {
     "cancelled": "The invite was cancelled. If the numbers didn't match, scan a fresh code.",
@@ -40,14 +40,15 @@
   },
   "done": {
     "title": "Welcome!",
-    "invitedBy": "You were invited by {handle}. You're now friends."
+    "invitedBy": "You were invited by {handle}, and you're now connected."
   },
   "errors": {
     "handle_invalid": "Usernames are 3 to 20 letters, digits or underscores, and some are reserved.",
     "handle_taken": "That username is taken. Try another one.",
     "display_name_invalid": "That display name can't be used.",
     "tos_required": "Accept the terms of service to continue.",
-    "age_required": "Confirm your age to continue."
+    "age_required": "Confirm your age to continue.",
+    "already_friends": "You two are already friends."
   },
   "sound": {
     "title": "Play the handshake sound",
@@ -77,12 +78,15 @@
     "restart": "Start over"
   },
   "upgrade": {
-    "title": "Sign the friend+ record",
-    "summary": "You and your friend become friend+.",
+    "title": "Sign the friendship record",
+    "summary": "You two become friends.",
     "sign": "Sign with passkey",
-    "waiting": "Signed. Waiting for your friend…",
-    "done": "Done! You're now friend+.",
-    "friends": "Your friends"
+    "waiting": "Signed. Waiting for them…",
+    "done": "Done! You're now friends.",
+    "friends": "Your acquaintances",
+    "titleAccepted": "Sign the acquaintance record",
+    "summaryAccepted": "You two become acquaintances.",
+    "doneAcquaintances": "Done! You're now acquaintances. Meet again with sound to become friends."
   },
   "recovery": {
     "done": "Done. Continue on the recovery page."

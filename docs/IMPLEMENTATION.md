@@ -812,7 +812,7 @@ CREATE TABLE account_stubs (                                   -- moderators onl
 CREATE TABLE recovery_requests (
   id               uuid        PRIMARY KEY,
   user_id          bigint      NOT NULL REFERENCES users(id),
-  kind             smallint    NOT NULL,                      -- 0 manual (two moderators, P0), 1 guardians (two friend+, P1)
+  kind             smallint    NOT NULL,                      -- 0 manual (two moderators, P0), 1 guardians (friend+, guardians_needed of them, P1)
   state            smallint    NOT NULL DEFAULT 0,            -- 0 open, 1 approved (holding), 2 released, 3 cancelled, 4 expired
   created_at       timestamptz NOT NULL DEFAULT now(),
   release_at       timestamptz,                               -- approval + 24 h hold (P0 manual AND P1 guardians; security #14)
@@ -1959,7 +1959,7 @@ func (s *Service) RemovePasskey(ctx context.Context, id gate.Ref) error         
 func (s *Service) EnrollBegin(ctx context.Context, token string) (EnrollView, error)    // token from the URL FRAGMENT (POSTed by the SPA);
                                                                                         // binds the token to this session; EnrollView{Options; Purpose;
                                                                                         // ExistingPasskeys []PasskeyView /* recovery: shown with a "remove old" option */}
-func (s *Service) EnrollFinish(ctx context.Context, body []byte, removeOld bool, tosVersion int, ageAttested bool) (sessToken string, err error)
+func (s *Service) EnrollFinish(ctx context.Context, body []byte, tosVersion int, ageAttested bool) (sessToken string, err error) // recovery keeps the old passkeys
 //   marks the token used atomically; recovery: revokes all sessions, optionally removes old passkeys, notifies friends;
 //   genesis: records ToS + age attestation (Problems tos_required, age_required)
 func (s *Service) SeedGenesis(ctx context.Context, handle, name string) (enrollURL string, err error) // CLI; URL uses "#<token>"
@@ -2332,7 +2332,7 @@ Defaults (configurable): reads/day — `feed_page` 400, `tree_view` 400, `post_r
 `graph_read` 200, P1 `media_full` 60; writes — `post` 30/day & 10/h, `like` 100/h,
 `friend_request` 20/day (5 probation), `report` 20/day, `social` (block/mute/detach/hide/
 show-less/notify-mute/ref-policy) 200/day, `account` (passkeys/settings/export/delete) 50/day,
-`invite_handshake` 10/day; min spacing 2 s between writes of one kind (not for a step class `s` — a request the client sends on its own to carry on a write already begun: ceremony finishes, step-up, `/cosign`, handshake `epub`/`report`/`cosign` — which counts toward the caps only). `reference` (2 per
+`invite_handshake` a build-up limit (`Policy.Refills`, table `rate_buckets`): 20 attempts, one back every 72 min, shown as `BudgetView.attempts` on the invite page; min spacing 2 s between writes of one kind (not for a step class `s` — a request the client sends on its own to carry on a write already begun: ceremony finishes, step-up, `/cosign`, and every handshake request after the opening — which counts toward the caps only; `invite_handshake` steps are not charged at all, so its cap counts handshakes opened). `reference` (2 per
 parent per 24 h) is enforced in posts after ref resolution — it is a Problem about the
 caller's own repeated action on a post it can already see. Anonymous: 30/min per /24 (v4) or
 /56 (v6) for login/join/enroll/csp-report. **Every charge happens in `apix.Route` before the
@@ -2541,7 +2541,7 @@ automatically, listed here for review). `P1` marks Phase 1 additions.
 | POST `/api/auth/passkeys/finish` | Wa | `{credential, name}` | 204 · `step_up_required` |
 | DELETE `/api/auth/passkeys/{id}` ⏱ | Wa | — | 204 · `last_passkey` · `step_up_required` |
 | POST `/api/enroll/begin` | anon | `{token}` (from the `#fragment`) | `{options, purpose, existing_passkeys?}` (token invalid ⇒ 404) |
-| POST `/api/enroll/finish` | anon | `{credential, remove_old?, tos_version?, age_attested?}` | `SessionView` + cookie |
+| POST `/api/enroll/finish` | anon | `{credential, tos_version?, age_attested?}` (`remove_old` is ignored) | `SessionView` + cookie |
 | P1 POST `/api/auth/dbsc/register` | anon | DBSC JWT (header `Sec-Session-Response`) | 200 + session config JSON per DBSC spec |
 | P1 POST `/api/auth/dbsc/refresh` | anon | DBSC JWT | 200 + new short-lived bound cookie |
 

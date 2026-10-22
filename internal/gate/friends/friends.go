@@ -224,8 +224,9 @@ func (s *Service) q(tx store.Q) store.Q {
 	return s.d.DB.Q()
 }
 
-// Create records the edge a–b (both directions) and its create event. The
-// caller has signed the Friendship record; a duplicate is Problem already_friends.
+// Create records the edge a–b (both directions) and its create event, and
+// settles any open request between the two. The caller has signed the
+// Friendship record; a duplicate is Problem already_friends.
 func (s *Service) Create(ctx context.Context, tx store.Q, a, b core.UserID, lvl core.EdgeLevel, recordHash []byte) error {
 	if a == b || a == 0 || b == 0 {
 		return gate.ErrNotFound
@@ -240,6 +241,13 @@ func (s *Service) Create(ctx context.Context, tx store.Q, a, b core.UserID, lvl 
 	}
 	if tag.RowsAffected() != 2 {
 		return gate.NewProblem(gate.StatusConflict, "already_friends")
+	}
+	// A request either way is settled by the edge (an in-person friend
+	// handshake can overtake one).
+	if _, err := tx.Exec(ctx, `UPDATE friend_requests SET state = $3, decided_at = $4, draft = NULL, draft_assertion = NULL
+		WHERE ((from_id = $1 AND to_id = $2) OR (from_id = $2 AND to_id = $1)) AND state IN ($5, $6)`,
+		int64(a), int64(b), reqAccepted, now, reqPending, reqDeclined); err != nil {
+		return err
 	}
 	return s.edgeEvent(ctx, tx, a, b, edgeEventCreate, now, recordHash)
 }

@@ -119,7 +119,9 @@ func TestDefaults(t *testing.T) {
 		"post": {{Window: limits.Hour, Max: 10}, {Window: limits.Day, Max: 30}}, "like": {{Window: limits.Hour, Max: 100}},
 		"friend_request": {{Window: limits.Day, Max: 20}}, "report": {{Window: limits.Day, Max: 20}},
 		"social": {{Window: limits.Day, Max: 200}}, "account": {{Window: limits.Day, Max: 50}},
-		"invite_handshake": {{Window: limits.Day, Max: 10}},
+	}
+	if r := p.Refills["invite_handshake"]; r.Cap != 20 || r.Every != 72*time.Minute || p.Writes["invite_handshake"] != nil {
+		t.Fatalf("invite_handshake refill %+v, caps %v", r, p.Writes["invite_handshake"])
 	}
 	for k, caps := range want {
 		got := p.Writes[k]
@@ -225,6 +227,60 @@ func TestStepSkipsSpacing(t *testing.T) {
 	e.advance(500 * time.Millisecond)
 	if got := retryOf(t, e.l.ChargeRequest(ctx, write)); got != 1500*time.Millisecond {
 		t.Fatalf("spacing retry %v", got)
+	}
+}
+
+// invite_handshake is a build-up limit: 20 attempts, one back every 72 min,
+// and its steps are free (only opening a handshake counts).
+func TestInviteAttemptsBuildUp(t *testing.T) {
+	e := newEnv(t)
+	ctx := e.as("alice")
+	v := e.viewer("alice")
+	step := gate.Class{Kind: gate.ClassStep, Name: string(limits.WriteInvite)}
+	for i := 0; i < 30; i++ {
+		if err := e.l.ChargeRequest(ctx, step); err != nil {
+			t.Fatalf("step %d: %v", i, err)
+		}
+	}
+	allow := func() core.Allowance {
+		t.Helper()
+		a, ok, err := e.l.WriteAllowance(e.ctx, v, limits.WriteInvite)
+		if err != nil || !ok {
+			t.Fatalf("allowance: %v %v", ok, err)
+		}
+		return a
+	}
+	if a := allow(); a.Available != 20 || a.Cap != 20 || a.NextAt != nil {
+		t.Fatalf("fresh %+v", a)
+	}
+	open := gate.Class{Kind: gate.ClassWrite, Name: string(limits.WriteInvite)}
+	for i := 0; i < 20; i++ {
+		if err := e.l.ChargeRequest(ctx, open); err != nil {
+			t.Fatalf("open %d: %v", i, err)
+		}
+	}
+	a := allow()
+	if a.Available != 0 || a.NextAt == nil || !a.NextAt.Equal(e.d.Clock.Now().Add(72*time.Minute)) {
+		t.Fatalf("spent %+v", a)
+	}
+	if got := retryOf(t, e.l.ChargeRequest(ctx, open)); got != 72*time.Minute {
+		t.Fatalf("retry %v", got)
+	}
+	// A refused attempt takes nothing; one builds up after 72 min.
+	e.advance(72 * time.Minute)
+	if a := allow(); a.Available != 1 || a.NextAt == nil || !a.NextAt.Equal(e.d.Clock.Now().Add(72*time.Minute)) {
+		t.Fatalf("after 72 min %+v", a)
+	}
+	if err := e.l.ChargeRequest(ctx, open); err != nil {
+		t.Fatal(err)
+	}
+	e.advance(30 * time.Minute)
+	if a := allow(); a.Available != 0 || !a.NextAt.Equal(e.d.Clock.Now().Add(42*time.Minute)) {
+		t.Fatalf("part way %+v", a)
+	}
+	e.advance(limits.Day)
+	if a := allow(); a.Available != 20 || a.NextAt != nil {
+		t.Fatalf("refilled %+v", a)
 	}
 }
 

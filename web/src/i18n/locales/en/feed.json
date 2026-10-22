@@ -22,7 +22,7 @@
     "handle": "@{handle}",
     "links": "Open",
     "reply": "Reply",
-    "tree": "{count, plural, =0 {Family tree} one {# reply} other {# replies}}"
+    "tree": "{count, plural, =0 {Reply tree} one {# reply} other {# replies}}"
   },
   "context": {
     "label": "Replying to",

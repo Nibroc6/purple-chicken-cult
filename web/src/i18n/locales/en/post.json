@@ -15,15 +15,15 @@
   },
   "audience": {
     "connected": "Everyone connected to you",
-    "d1": "Friends only",
+    "d1": "Acquaintances only",
     "d2": "Within 2 steps",
     "d3": "Within 3 steps",
-    "friend_plus": "Friend+ only (people you met in person)"
+    "friend_plus": "Friends only (people you met in person)"
   },
   "policy": {
     "anyone": "Anyone who can see it",
     "two_hops": "People within 2 steps",
-    "friends": "Friends only",
+    "friends": "Acquaintances only",
     "nobody": "Nobody (replies off)"
   },
   "thread": {

@@ -352,3 +352,69 @@ a {
 .why::before {
   content: 'ⓘ';
 }
+
+/* The shared modal (app/Modal.tsx): a centred card, a full-screen sheet on phones. */
+.modal {
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+  inline-size: min(32rem, calc(100% - 2 * var(--space-4)));
+  max-block-size: calc(100% - 2 * var(--space-6));
+  overscroll-behavior: contain;
+}
+
+.modal::backdrop {
+  background: rgb(0 0 0 / 45%);
+}
+
+.modal-body {
+  padding: var(--space-4);
+  overflow-wrap: anywhere;
+}
+
+.modal-header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-block-end: var(--space-3);
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.modal-close {
+  min-inline-size: 2.75rem;
+  min-block-size: 2.75rem;
+  font-size: 1.5rem;
+  line-height: 1;
+  background: none;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  border-radius: var(--radius);
+}
+
+.modal-close:hover {
+  background: var(--color-bg);
+}
+
+:root:has(.modal[open]) {
+  overflow: hidden;
+}
+
+@media (max-width: 40rem) {
+  .modal {
+    inline-size: 100%;
+    max-inline-size: 100%;
+    block-size: 100%;
+    max-block-size: 100%;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+  }
+}

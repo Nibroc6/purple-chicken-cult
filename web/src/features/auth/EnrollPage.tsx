@@ -93,7 +93,6 @@ function EnrollForm({
   const genesis = start.purpose === 'genesis';
   const [tos, setTos] = useState(false);
   const [age, setAge] = useState(false);
-  const [removeOld, setRemoveOld] = useState(true);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<ErrorMsg | undefined>();
   const existing = start.existing.map(toPasskeyVM);
@@ -107,7 +106,7 @@ function EnrollForm({
       const { options } = await enrollBegin(token);
       const credential = await createPasskey(options);
       const sv = await enrollFinish(
-        genesis ? { credential, tosVersion: start.tosVersion, ageAttested: age } : { credential, removeOld },
+        genesis ? { credential, tosVersion: start.tosVersion, ageAttested: age } : { credential },
       );
       onSession(sv);
       onEnrolled();
@@ -169,17 +168,7 @@ function EnrollForm({
               </li>
             ))}
           </ul>
-          <label className="auth-choice">
-            <input
-              type="checkbox"
-              name="remove_old"
-              checked={removeOld}
-              onChange={(e) => {
-                setRemoveOld(e.target.checked);
-              }}
-            />
-            {t('enroll.removeOld')}
-          </label>
+          <p className="muted">{t('enroll.keepOld')}</p>
         </fieldset>
       )}
       {err ? (

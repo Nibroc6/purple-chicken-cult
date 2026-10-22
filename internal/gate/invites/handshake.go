@@ -50,8 +50,14 @@ import (
 //     that the claiming device scans; it is never Verified.
 //  5. The outcome (Verified ⇒ friend+, Accepted ⇒ friend, Retry) decides what
 //     follows: an invite issues the signup token bound to E_v (register.go), an
-//     upgrade drafts the friend+ Friendship both sides co-sign (cosign.go), a
-//     recovery reports its result to the account module (handshakes.go).
+//     upgrade or a connect drafts the Friendship both sides co-sign
+//     (cosign.go), a recovery reports its result to the account module
+//     (handshakes.go).
+//
+// One code, two uses: an invite code scanned by a guest session signs a new
+// account up; scanned by someone signed in, it becomes a connect between two
+// existing accounts (or an upgrade, if they are already plain friends) at
+// claim time. A connect creates the friendship and never spends an invite.
 //
 // Every failure the other device can cause is the uniform not-found.
 
@@ -69,6 +75,7 @@ const (
 	kindInvite   int16 = 0
 	kindUpgrade  int16 = 1
 	kindRecovery int16 = 2
+	kindConnect  int16 = 3 // an invite code claimed by a signed-in account (claim.go)
 
 	stOpen      int16 = 0
 	stClaimed   int16 = 1
@@ -104,6 +111,8 @@ func kindName(k int16) string {
 		return "upgrade"
 	case kindRecovery:
 		return "recovery"
+	case kindConnect:
+		return "connect"
 	}
 	return "invite"
 }
@@ -240,7 +249,7 @@ type hsRow struct {
 	id         uuid.UUID
 	kind       int16
 	initiator  core.UserID
-	peer       core.UserID // upgrade: the friend; recovery: the account (0 for invites)
+	peer       core.UserID // upgrade, connect: the other account; recovery: the account (0 for invites)
 	secret     []byte
 	state      int16
 	createdAt  time.Time
@@ -301,6 +310,10 @@ func (h hsRow) live(now time.Time) int16 {
 	return h.state
 }
 
+// signedInPeer reports whether the claiming device is the peer's own
+// signed-in session (upgrades and connects).
+func (h hsRow) signedInPeer() bool { return h.kind == kindUpgrade || h.kind == kindConnect }
+
 // passed reports whether the handshake's outcome lets its kind continue.
 func (h hsRow) passed() bool {
 	if h.kind == kindUpgrade {
@@ -314,7 +327,7 @@ func (h hsRow) passed() bool {
 // protocol state.
 type StatusView struct {
 	gate.HandshakeStatus
-	Kind  string `json:"kind"`  // invite | upgrade | recovery
+	Kind  string `json:"kind"`  // invite | upgrade | connect | recovery
 	Mode  string `json:"mode"`  // qr_audio | dual_qr
 	Quiet bool   `json:"quiet"` // the jingle is off (ultrasonic only)
 	// Attempt counts the sound (or dual-QR) attempts so far; AttemptsLeft is
@@ -332,7 +345,7 @@ type StatusView struct {
 	Sign       string `json:"sign,omitempty"`
 	PeerSigned bool   `json:"peer_signed,omitempty"`
 	// HS is the viewer's own ref to the handshake (join side, signed-in peer of
-	// an upgrade: for POST /invites/handshakes/{hs}/cosign).
+	// an upgrade or a connect: for POST /invites/handshakes/{hs}/cosign).
 	HS gate.Ref `json:"hs,omitempty"`
 	// SignupToken (join side, invites): issued once the outcome passed, bound to
 	// E_v; register/begin needs it.
@@ -385,7 +398,7 @@ func (s *Service) status(h hsRow, v core.Viewer, join bool, now time.Time) Statu
 		out.Sign = signState(len(sg.Initiator) > 0, false)
 	case h.kind == kindInvite && join:
 		out.PeerSigned = len(sg.Initiator) > 0
-	case h.kind == kindUpgrade:
+	case h.signedInPeer():
 		mine, theirs := sg.Initiator, sg.Peer
 		if join {
 			mine, theirs = sg.Peer, sg.Initiator
@@ -421,7 +434,10 @@ func (s *Service) own(ctx context.Context, q store.Q, v core.Viewer, ref gate.Re
 
 // Open opens an invite handshake. Phase 1 modes are "qr_audio" (the default)
 // and "dual_qr" (accessibility, Accepted at most); quiet turns the jingle off.
-// Opening a new invite handshake cancels the viewer's unfinished ones.
+// Opening a new invite handshake cancels the viewer's unfinished ones. The
+// code always works for a signed-in friend (a connect); whether a guest can
+// sign up with it (probation, budget, pause) is checked again at the claim,
+// and the view's Invite says how it stands now.
 func (s *Service) Open(ctx context.Context, mode string, quiet bool) (gate.HandshakeView, error) {
 	v, err := core.RequireUser(ctx)
 	if err != nil {
@@ -441,10 +457,18 @@ func (s *Service) Open(ctx context.Context, mode string, quiet bool) (gate.Hands
 		return gate.HandshakeView{}, err
 	}
 	now := s.d.Clock.Now()
-	if err := s.canInvite(ctx, s.d.DB.Q(), meta, now); err != nil {
+	if meta.Status != core.StatusActive {
+		return gate.HandshakeView{}, gate.ErrNotFound
+	}
+	if err := s.belowCap(ctx, v.ID); err != nil {
 		return gate.HandshakeView{}, err
 	}
-	return s.openKind(ctx, v.ID, 0, kindInvite, m, quiet, now)
+	hv, err := s.openKind(ctx, v.ID, 0, kindInvite, m, quiet, now)
+	if err != nil {
+		return gate.HandshakeView{}, err
+	}
+	hv.Invite = s.canInvite(ctx, s.d.DB.Q(), meta, now) == nil
+	return hv, nil
 }
 
 // openKind creates a handshake of kind (cancelling the initiator's unfinished
@@ -503,7 +527,12 @@ func (s *Service) canInvite(ctx context.Context, q store.Q, m core.UserMeta, now
 	if b.available() < 1 {
 		return gate.NewProblem(gate.StatusConflict, "no_invites")
 	}
-	edges, pending, err := s.d.Edges.Count(ctx, m.ID)
+	return s.belowCap(ctx, m.ID)
+}
+
+// belowCap checks that u can take one more friendship.
+func (s *Service) belowCap(ctx context.Context, u core.UserID) error {
+	edges, pending, err := s.d.Edges.Count(ctx, u)
 	if err != nil {
 		return err
 	}
@@ -641,7 +670,7 @@ func (s *Service) liveEvent(h hsRow, state string) {
 		return
 	}
 	s.d.Notify.Live(h.initiator, liveTopic, map[string]any{"hs": s.d.Refs.Handshake(h.initiator, h.id), "state": state})
-	if h.kind == kindUpgrade && h.peer != 0 {
+	if h.signedInPeer() && h.peer != 0 {
 		s.d.Notify.Live(h.peer, liveTopic, map[string]any{"hs": s.d.Refs.Handshake(h.peer, h.id), "state": state})
 	}
 }

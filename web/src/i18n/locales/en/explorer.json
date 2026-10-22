@@ -18,7 +18,7 @@
     "moreLabel": "{count, plural, one {Load # more post here} other {Load # more posts here}}"
   },
   "thumb": {
-    "label": "Open the family tree: {parents, plural, =0 {no earlier posts} one {replies to # post} other {replies to # posts}}, {replies, plural, =0 {no replies} one {# reply} other {# replies}}",
+    "label": "Open the reply tree: {parents, plural, =0 {no earlier posts} one {replies to # post} other {replies to # posts}}, {replies, plural, =0 {no replies} one {# reply} other {# replies}}",
     "more": "+"
   }
 }

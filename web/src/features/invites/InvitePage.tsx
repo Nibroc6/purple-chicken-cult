@@ -2,7 +2,9 @@
 // countdown to the next one, or during probation a countdown to the end of its
 // time part plus the outside friends still needed; then the handshake (the
 // rotating QR code, the SAS check, the sound or the dual QR, the co-signature)
-// in HandshakeHost. Owner: P0-W04 → P1-W02.
+// in HandshakeHost. One code, two uses: someone new signs up with it (while
+// the budget allows), someone signed in becomes a friend (always).
+// Owner: P0-W04 → P1-W02.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -12,7 +14,7 @@ import { formatDateTime } from '../../lib/time';
 import { fetchBudget, openHandshake, type HandshakeMode, type OpenedVM } from './api';
 import { HandshakeHost } from './HandshakeHost';
 import { ErrorText, invitesKey, useNow } from './shared';
-import { canOpen, countdown, type BudgetVM } from './vm';
+import { canInvite, canShowCode, countdown, type BudgetVM } from './vm';
 
 export default function InvitePage() {
   const { t } = useTranslation('invites');
@@ -26,12 +28,19 @@ export default function InvitePage() {
     onSuccess: (o) => {
       setOpened(o);
     },
+    // Opening uses an attempt (or was refused for want of one): show the count.
+    onSettled: () => qc.invalidateQueries({ queryKey: [...invitesKey, 'budget'] }),
   });
   return (
     <section className="page invites-page">
       <h1>{t('page.title')}</h1>
       <p>{t('page.intro')}</p>
       {budget.isPending ? <Loading /> : budget.error ? <ErrorText err={budget.error} /> : <Budget b={budget.data} />}
+      {opened && !opened.invite ? (
+        <p className="muted" data-testid="invite-connect-only">
+          {t('open.connectOnly')}
+        </p>
+      ) : null}
       {opened ? (
         <HandshakeHost
           key={opened.hs}
@@ -90,7 +99,7 @@ export default function InvitePage() {
             <button
               type="button"
               data-testid="invite-open"
-              disabled={!budget.data || !canOpen(budget.data) || open.isPending}
+              disabled={!budget.data || !canShowCode(budget.data) || open.isPending}
               onClick={() => {
                 open.mutate();
               }}
@@ -98,6 +107,7 @@ export default function InvitePage() {
               {open.isPending ? t('open.working') : t('open.button')}
             </button>
           </div>
+          {budget.data && !canInvite(budget.data) ? <p className="muted">{t('open.connectOnly')}</p> : null}
         </>
       )}
       <ErrorText err={open.error} />
@@ -144,6 +154,7 @@ function Budget({ b }: { b: BudgetVM }) {
               : t('budget.probationFriends', { count: b.probation.needOutsideFriends })}
           </p>
         ) : null}
+        <Attempts b={b} remaining={remaining} />
       </div>
     );
   }
@@ -157,6 +168,22 @@ function Budget({ b }: { b: BudgetVM }) {
       ) : (
         <p className="muted">{t('budget.full')}</p>
       )}
+      <Attempts b={b} remaining={remaining} />
+    </div>
+  );
+}
+
+// Attempts shows the code attempts (they also limit codes that only connect).
+function Attempts({ b, remaining }: { b: BudgetVM; remaining: (target: Date) => string }) {
+  const { t } = useTranslation('invites');
+  if (!b.attempts) return null;
+  return (
+    <div className="invites-attempts" data-testid="invite-attempts">
+      <p data-testid="invite-attempts-left">{t('attempts.left', { count: b.attempts.available, cap: b.attempts.cap })}</p>
+      {b.attempts.nextAt ? (
+        <p data-testid="invite-attempts-next">{t('attempts.next', { time: remaining(b.attempts.nextAt) })}</p>
+      ) : null}
+      <p className="muted">{t('attempts.hint')}</p>
     </div>
   );
 }
