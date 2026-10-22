@@ -10,9 +10,9 @@
 // (P1; uploaded as soon as picked, attached at publish; a thread attaches them
 // to its first part; the picker hides itself when media is turned off). Owner: P0-W05 → P1-W12.
 import { useMutation, useQueries, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useSearchParams } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useMe } from '../../app/session';
 import type { Audience, PostVM, Ref, RefPolicy } from '../../vm/types';
 import { addOwnPosts } from '../feed/vm';
@@ -22,6 +22,7 @@ import { defaultLang, detectLang } from '../post/lang';
 import { AudienceSelect, AutoLang, Counter, ErrorText, PolicySelect, PostPreview } from '../post/shared';
 import { codePoints, defaultAudience, HARD_LIMIT, hasAudienceLimit, MAX_MEDIA, MAX_PARENTS, MAX_PARTS, SOFT_LIMIT } from '../post/vm';
 import { REF, refFromLink } from './picks';
+import { clearDraft, loadDraft, saveDraft } from './savedDraft';
 import { joinParts, splitThread } from './split';
 import './composer.css';
 
@@ -54,7 +55,7 @@ export default function ComposePage() {
           }}
         />
       ) : me ? (
-        <Composer key={round} initialParents={parents} me={me} onPublished={setPublished} />
+        <Composer key={round} query={params.toString()} initialParents={parents} me={me} onPublished={setPublished} />
       ) : null}
     </section>
   );
@@ -65,24 +66,34 @@ interface MeLike {
 }
 
 function Composer({
+  query,
   initialParents,
   me,
   onPublished,
 }: {
+  query: string;
   initialParents: ParentIn[];
   me: MeLike;
   onPublished: (p: PostVM[]) => void;
 }) {
   const { t } = useTranslation('composer');
   const qc = useQueryClient();
-  const [parents, setParents] = useState(initialParents);
-  const [body, setBody] = useState('');
-  const [parts, setParts] = useState<string[] | null>(null);
-  const [chosenLang, setLang] = useState<string | null>(null);
-  const [audience, setAudience] = useState<Audience>(defaultAudience);
-  const [policy, setPolicy] = useState<RefPolicy>(me.settings.slippery_default ? 'nobody' : 'anyone');
-  const [noPreview, setNoPreview] = useState(false);
+  const navigate = useNavigate();
+  // A reply left to read a post it replies to comes back as it was (its
+  // pictures excepted: their uploads end with the page).
+  const keep = initialParents.length > 0;
+  const [saved] = useState(() => (keep ? loadDraft(query) : {}));
+  const [parents, setParents] = useState(saved.parents ?? initialParents);
+  const [body, setBody] = useState(saved.body ?? '');
+  const [parts, setParts] = useState<string[] | null>(saved.parts ?? null);
+  const [chosenLang, setLang] = useState<string | null>(saved.lang ?? null);
+  const [audience, setAudience] = useState<Audience>(saved.audience ?? defaultAudience);
+  const [policy, setPolicy] = useState<RefPolicy>(saved.policy ?? (me.settings.slippery_default ? 'nobody' : 'anyone'));
+  const [noPreview, setNoPreview] = useState(saved.noPreview ?? false);
   const pics = useDraftMedia();
+  useEffect(() => {
+    if (keep) saveDraft(query, { parents, body, parts, lang: chosenLang, audience, policy, noPreview });
+  }, [keep, query, parents, body, parts, chosenLang, audience, policy, noPreview]);
   const pqs = useQueries({
     queries: parents.map((p) => ({
       queryKey: [...postKey, p.ref],
@@ -116,6 +127,7 @@ function Composer({
       pics.commit(); // the uploads now belong to the post
       addOwnPosts(qc, ps); // D16: shown on top of the feed
       await qc.invalidateQueries({ queryKey: postKey });
+      clearDraft(query);
       onPublished(ps);
     },
   });
@@ -144,6 +156,9 @@ function Composer({
               post={pqs[i]?.data}
               missing={pqs[i]?.isError === true}
               many={parents.length > 1}
+              onOpen={(ref) => {
+                void navigate(`/p/${ref}`);
+              }}
               onRemove={
                 parents.length > 1
                   ? () => {
@@ -270,12 +285,14 @@ function ParentContext({
   post,
   missing,
   many,
+  onOpen,
   onRemove,
 }: {
   parent: ParentIn;
   post: PostVM | undefined;
   missing: boolean;
   many: boolean;
+  onOpen: (ref: PostVM['ref']) => void;
   onRemove?: (() => void) | undefined;
 }) {
   const { t } = useTranslation('composer');
@@ -298,7 +315,7 @@ function ParentContext({
   return (
     <div className="composer-parent" data-testid="composer-parent" data-ref={parent.ref}>
       {many ? null : <p className="muted">{t(`parent.${parent.kind}` as 'parent.ref', { handle: post.author.handle })}</p>}
-      <PostPreview post={post} />
+      <PostPreview post={post} onOpen={onOpen} />
       {!canAttach(post, parent.kind) ? (
         <p className="post-error" role="alert" data-testid="composer-parent-closed">
           {t(parent.kind === 'cont' ? 'parent.notOwn' : 'parent.closed')}

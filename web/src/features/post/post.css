@@ -81,6 +81,18 @@
   background: var(--color-surface);
 }
 
+.post-preview[data-open-card]:hover {
+  border-color: color-mix(in srgb, var(--color-accent) 30%, var(--color-border));
+}
+.post-preview-link {
+  color: inherit;
+  text-decoration: none;
+}
+.post-preview-link:hover,
+.post-preview-link:focus-visible {
+  text-decoration: underline;
+}
+
 .post-preview-head,
 .post-preview-meta,
 .post-links {

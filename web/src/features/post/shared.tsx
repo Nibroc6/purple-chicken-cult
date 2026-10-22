@@ -4,6 +4,8 @@
 import { errorText } from '../../api/errors';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router';
+import { openCardProps, postPath } from '../../formats/cards/feed/parts';
 import { AudienceBadge, EditedMark } from '../../integrity';
 import { Markdown } from '../../markdown';
 import { MediaImage } from '../media';
@@ -165,12 +167,21 @@ export function PolicySelect({ value, onChange, id }: { value: RefPolicy; onChan
 // badge and edited mark (integrity elements), visible context rows and its
 // pictures as thumbs.
 // i18n-dynamic: post:context.
-export function PostPreview({ post }: { post: PostVM }) {
+// With onOpen, clicking the preview opens the post (as a feed card does) and
+// the handle is a link to it, the keyboard path.
+export function PostPreview({ post, onOpen }: { post: PostVM; onOpen?: (ref: PostVM['ref']) => void }) {
   const { t } = useTranslation('post');
+  const handle = t('handle', { handle: post.author.handle });
   return (
-    <article className="post-preview" data-testid="post-preview">
+    <article className="post-preview" data-testid="post-preview" {...(onOpen ? openCardProps(post.ref, onOpen) : {})}>
       <header className="post-preview-head">
-        <span className="post-handle">{t('handle', { handle: post.author.handle })}</span>
+        {onOpen ? (
+          <Link to={postPath(post.ref)} className="post-handle post-preview-link" data-testid="post-preview-open">
+            {handle}
+          </Link>
+        ) : (
+          <span className="post-handle">{handle}</span>
+        )}
         {post.thread ? (
           <span className="muted" data-testid="post-thread">
             {t('thread.position', { index: post.thread.index, total: post.thread.total })}
