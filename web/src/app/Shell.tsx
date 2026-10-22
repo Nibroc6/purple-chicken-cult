@@ -1,9 +1,10 @@
 // App shell (SCAFFOLD): header navigation, the routed page, and feature slots.
-import { Suspense } from 'react';
+import { Suspense, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { NavLink, Outlet } from 'react-router';
 import { featureSlots } from './featureSlots';
 import { Loading } from './Loading';
+import { usePageTitle } from './pageTitle';
 import { useSession } from './session';
 
 const navBadges = featureSlots.flatMap((s) => (s.navBadge ? [s.navBadge] : []));
@@ -13,6 +14,9 @@ export function Shell() {
   const { t } = useTranslation('common');
   const session = useSession();
   const signedIn = session.data?.authenticated === true;
+  const main = useRef<HTMLElement>(null);
+  const format = useCallback((page: string) => t('app.pageTitle', { page }), [t]);
+  usePageTitle(main, t('app.name'), format);
   return (
     <div className="shell">
       <a className="skip-link" href="#main">
@@ -52,7 +56,7 @@ export function Shell() {
           </nav>
         ) : null}
       </header>
-      <main id="main" className="shell-main">
+      <main id="main" className="shell-main" ref={main}>
         <Suspense fallback={<Loading />}>
           <Outlet />
         </Suspense>
