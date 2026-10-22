@@ -23,11 +23,29 @@ env:
   PCC_REQUIRE_DB: "1"
 
 jobs:
-  check:
+  # The checks run as parallel jobs (lint, go-test, web, e2e shards); the e2e suite
+  # is split across shards, each with its own Postgres, database and server.
+  lint:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version: "1.27.x"
+          cache: true
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          version: v2.14.0
+      - name: go vet
+        run: go vet ./...
+
+  go-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     services:
-      postgres:
+      postgres: &postgres
         image: postgres:18
         env:
           POSTGRES_USER: pcc
@@ -37,6 +55,40 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U pcc -d pcc_test"
           --health-interval 2s --health-timeout 3s --health-retries 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version: "1.27.x"
+          cache: false
+      # Own cache key: -race objects differ from the plain builds the other jobs save.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-race-${{ runner.os }}-${{ hashFiles('go.sum') }}
+          restore-keys: go-race-${{ runner.os }}-
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: postgres for tests (no fsync)
+        run: &pgfast |
+          docker exec ${{ job.services.postgres.id }} psql -U pcc -d pcc_test -qc \
+            "ALTER SYSTEM SET fsync = off; ALTER SYSTEM SET synchronous_commit = off; ALTER SYSTEM SET full_page_writes = off;"
+          docker exec ${{ job.services.postgres.id }} psql -U pcc -d pcc_test -qc "SELECT pg_reload_conf();"
+      - name: npm ci
+        run: npm ci --prefix web
+      - name: generate
+        run: bash scripts/gen.sh
+      - name: go test (race)
+        run: go test -race -count=1 -p 4 ./...
+
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
@@ -52,14 +104,6 @@ jobs:
         run: npm ci --prefix web
       - name: generate
         run: bash scripts/gen.sh
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
-        with:
-          version: v2.14.0
-      - name: go vet
-        run: go vet ./...
-      - name: go test (race)
-        run: go test -race -count=1 -p 4 ./...
       - name: ownership self-test
         run: node scripts/ownership.mjs selftest
       - name: web lint / typecheck / unit
@@ -69,17 +113,54 @@ jobs:
           npm --prefix web test
       - name: build
         run: bash scripts/build.sh
+
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5]
+    services:
+      postgres: *postgres
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version: "1.27.x"
+          cache: true
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: postgres for tests (no fsync)
+        run: *pgfast
+      - name: npm ci
+        run: npm ci --prefix web
       - name: playwright browsers
         run: npx --prefix web playwright install --with-deps chromium
-      - name: e2e
-        run: bash scripts/e2e.sh
+      # scripts/e2e.sh builds the SPA (running gen) and the binary itself.
+      - name: e2e (shard ${{ matrix.shard }}/5)
+        run: bash scripts/e2e.sh --shard=${{ matrix.shard }}/5
       - name: playwright report
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.shard }}
           path: web/playwright-report
           retention-days: 7
+
+  # Keeps the single "check" status the branch rules may require.
+  check:
+    if: always()
+    needs: [lint, go-test, web, e2e]
+    runs-on: ubuntu-latest
+    steps:
+      - name: all checks passed
+        run: |
+          [ "${{ needs.lint.result }}" = success ] && [ "${{ needs.go-test.result }}" = success ] \
+            && [ "${{ needs.web.result }}" = success ] && [ "${{ needs.e2e.result }}" = success ]
 
   perf:
     if: github.event_name == 'schedule' || contains(github.event.head_commit.message, '[perf]')
