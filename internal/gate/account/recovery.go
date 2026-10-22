@@ -88,9 +88,11 @@ func (s *Service) RecoveryRequest(ctx context.Context, subject gate.Ref) (gate.R
 			}
 			return err
 		}
-		_, err := tx.Exec(ctx, `INSERT INTO recovery_approvals (request_id, approver_id, role, at, auth_at)
-			VALUES ($1, $2, $3, $4, $5)`, id, int64(v.ID), roleModerator, now, v.AuthAt)
-		return err
+		if _, err := tx.Exec(ctx, `INSERT INTO recovery_approvals (request_id, approver_id, role, at, auth_at)
+			VALUES ($1, $2, $3, $4, $5)`, id, int64(v.ID), roleModerator, now, v.AuthAt); err != nil {
+			return err
+		}
+		return s.notifyOwner(ctx, tx, target, ownerStarted)
 	})
 	if err != nil {
 		return "", err
@@ -113,6 +115,18 @@ type recoveryRow struct {
 	first, second core.UserID
 	firstAuth     *time.Time
 	approvals     int
+	approvers     []core.UserID // oldest first
+	needed        int           // guardians a guardian request needs
+}
+
+// approved reports whether u already approved r.
+func (r recoveryRow) approved(u core.UserID) bool {
+	for _, a := range r.approvers {
+		if a == u {
+			return true
+		}
+	}
+	return false
 }
 
 // subjectLive share-locks the subject's users row and answers ErrNotFound when
@@ -170,14 +184,15 @@ func loadAny(ctx context.Context, q store.Q, id uuid.UUID, lock bool) (recoveryR
 	if err != nil {
 		return r, err
 	}
-	sql := `SELECT user_id, kind, state, created_at, release_at, enrollment_token, revoke_old, handshake, vouched_at
-		FROM recovery_requests WHERE id = $1`
+	sql := `SELECT user_id, kind, state, created_at, release_at, enrollment_token, revoke_old, handshake, vouched_at,
+		guardians_needed FROM recovery_requests WHERE id = $1`
 	if lock {
-		sql = `SELECT user_id, kind, state, created_at, release_at, enrollment_token, revoke_old, handshake, vouched_at
-		FROM recovery_requests WHERE id = $1 FOR UPDATE`
+		sql = `SELECT user_id, kind, state, created_at, release_at, enrollment_token, revoke_old, handshake, vouched_at,
+		guardians_needed FROM recovery_requests WHERE id = $1 FOR UPDATE`
 	}
+	var needed int16
 	err = q.QueryRow(ctx, sql, id).Scan(&user, &r.kind, &r.state, &r.createdAt, &r.releaseAt, &r.tokenHash, &r.revokeOld,
-		&r.handshake, &r.vouchedAt)
+		&r.handshake, &r.vouchedAt, &needed)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return r, gate.ErrNotFound
 	}
@@ -185,6 +200,7 @@ func loadAny(ctx context.Context, q store.Q, id uuid.UUID, lock bool) (recoveryR
 		return r, err
 	}
 	r.user = core.UserID(user)
+	r.needed = int(needed)
 	r.tokenIssued = r.tokenHash != nil
 	role := roleModerator
 	if r.kind == kindGuardian {
@@ -208,6 +224,7 @@ func loadAny(ctx context.Context, q store.Q, id uuid.UUID, lock bool) (recoveryR
 		case 1:
 			r.second = core.UserID(a)
 		}
+		r.approvers = append(r.approvers, core.UserID(a))
 		r.approvals++
 	}
 	return r, rows.Err()
@@ -382,19 +399,43 @@ func (s *Service) RecoveryCancel(ctx context.Context) error {
 	}
 	now := s.d.Clock.Now()
 	return s.d.DB.Tx(ctx, func(tx pgx.Tx) error {
-		_, err := s.cancelRecoveries(ctx, tx, v.ID, now)
+		_, err := s.cancelRecoveries(ctx, tx, v.ID, now, time.Time{})
 		return err
 	})
 }
 
+// PasskeyLogin is the passkey veto (core.RecoveryGuard, §10.3): user signed
+// in with a passkey created at credCreated, so every live recovery of user
+// opened once that passkey existed is cancelled. Someone who still holds a
+// passkey of the account has not lost it; a recovery that races the login is
+// either cancelled here or (enrolled first) leaves the old passkeys in place,
+// which can then remove the recovered one.
+func (s *Service) PasskeyLogin(ctx context.Context, user core.UserID, credCreated time.Time) error {
+	now := s.d.Clock.Now()
+	return s.d.DB.Tx(ctx, func(tx pgx.Tx) error {
+		// The lock order Delete uses: the users row first.
+		if err := subjectLive(ctx, tx, user); err != nil {
+			if errors.Is(err, gate.ErrNotFound) {
+				return nil
+			}
+			return err
+		}
+		_, err := s.cancelRecoveries(ctx, tx, user, now, credCreated)
+		return err
+	})
+}
+
+var _ core.RecoveryGuard = (*Service)(nil)
+
 // cancelRecoveries cancels every live recovery of user (open, holding, or
-// released within the link window) and voids any enrollment token already
-// issued for them. Used by RecoveryCancel and Delete. It reports whether
-// anything was cancelled.
-func (s *Service) cancelRecoveries(ctx context.Context, tx store.Q, user core.UserID, now time.Time) (bool, error) {
+// released within the link window) opened no earlier than openedAfter (zero:
+// any) and
+// voids any enrollment token already issued for them. Used by RecoveryCancel,
+// PasskeyLogin and Delete. It reports whether anything was cancelled.
+func (s *Service) cancelRecoveries(ctx context.Context, tx store.Q, user core.UserID, now, openedAfter time.Time) (bool, error) {
 	rows, err := tx.Query(ctx, `UPDATE recovery_requests SET state = $2
-		WHERE user_id = $1 AND (state IN (0, 1) OR (state = 2 AND release_at > $3))
-		RETURNING enrollment_token`, int64(user), stateCancelled, now.Add(-LinkFor))
+		WHERE user_id = $1 AND (state IN (0, 1) OR (state = 2 AND release_at > $3)) AND created_at >= $4
+		RETURNING enrollment_token`, int64(user), stateCancelled, now.Add(-LinkFor), openedAfter)
 	if err != nil {
 		return false, err
 	}

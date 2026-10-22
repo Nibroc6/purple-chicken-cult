@@ -892,7 +892,17 @@ Rendering rules:
 ### 10.3 Account recovery
 - **Phase 0:** multiple passkeys (encouraged at signup), plus a manual process that needs
   two moderators. Email is optional.
-- **Phase 1:** recovery confirmed by **2 friend+ contacts**.
+- **Phase 1:** recovery confirmed by **friend+ guardians**: one vouches in person, the
+  others approve with a passkey. The number needed grows with the account's friend+
+  count: `max(2, ceil(log2 n))`, at most 5 (1–4 friends: 2, 5–8: 3, 9–16: 4, 17+: 5),
+  fixed when the recovery opens. Then a 24 h hold.
+- **The owner can always veto.** The account itself is told (in-app and Web Push) when a
+  recovery is vouched for and again when it starts holding. Cancel works from any signed-in
+  session, and **signing in with any passkey the account already had cancels the
+  recovery**, until the new passkey is enrolled.
+- **Recovery never removes the old passkeys.** A passkey enrolled through recovery cannot
+  remove the account's older passkeys for 7 days, while the old ones can remove it. Someone
+  who took an account over this way cannot lock its owner out.
 - **Phase 3:** device keys with N-of-M friend+ guardians.
 - **Notifications:** friends are told about every recovery or passkey change.
 

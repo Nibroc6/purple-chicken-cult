@@ -112,7 +112,7 @@ func (e *env) enroll(handle string) *member {
 	enrollCtx := m.guestCtx()
 	resp, err := m.auth.Create(ev.Options)
 	e.must(err)
-	sess, _, err := e.a.Auth.EnrollFinish(enrollCtx, resp, false, e.d.Cfg.TOSVersion, true)
+	sess, _, err := e.a.Auth.EnrollFinish(enrollCtx, resp, e.d.Cfg.TOSVersion, true)
 	e.must(err)
 	m.cookie = sess
 	id, ok := e.a.Users.ByHandle(e.ctx, handle)
