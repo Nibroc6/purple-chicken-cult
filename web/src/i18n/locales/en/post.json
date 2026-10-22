@@ -81,7 +81,7 @@
     "cont_not_own": "You can only continue your own posts.",
     "cont_taken": "That post already has a continuation.",
     "ref_not_allowed": "Its author turned replies off for you.",
-    "ref_cap": "You already replied to that post twice today.",
+    "ref_cap": "You've already replied to that post 4 times in the last 24 hours.",
     "too_many_parts": "A thread can have at most 25 parts.",
     "cont_not_detachable": "Continuations of your own thread can't be detached.",
     "too_many_media": "A post can have at most 4 pictures."

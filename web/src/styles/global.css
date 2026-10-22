@@ -293,10 +293,10 @@ a {
   .shell {
     grid-template-columns: minmax(0, 1fr);
   }
+  /* The top bar scrolls away with the page (the tab bar stays pinned). */
   .shell .sidebar,
   :root[data-nav='header'] .shell .sidebar {
-    position: sticky;
-    inset-block-start: 0;
+    position: relative;
     z-index: 30;
     flex-direction: row;
     align-items: center;
@@ -369,8 +369,9 @@ a {
 }
 @media (max-width: 47.99rem) {
   .shell {
-    /* The sticky top bar's height: sticky things on the page stop below it. */
-    --shell-top: calc(2.5rem + var(--space-2) + max(var(--space-2), env(safe-area-inset-top)) + 1px);
+    /* Where sticky things on the page stop: the top bar scrolls away, so
+       just clear of the notch. */
+    --shell-top: env(safe-area-inset-top);
   }
   .shell[data-signed-in='true'] {
     --tabbar-height: calc(3.5rem + env(safe-area-inset-bottom));

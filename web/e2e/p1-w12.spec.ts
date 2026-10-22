@@ -156,20 +156,21 @@ test('pictures attach in the composer, follow the post to friends, and its frien
   await signIn(page, 'mia');
   await page.goto(`${origin}/compose`);
   await page.getByTestId('composer-body').fill('Two pictures from the walk');
-  await page.getByTestId('media-file').setInputFiles([file(1), file(2)]);
-  await page.getByTestId('media-alt').first().fill('a striped pattern');
   const uploads: MediaJSON[] = [];
   page.on('response', async (r) => {
     if (r.url().endsWith('/api/media') && r.request().method() === 'POST' && r.status() === 201) {
       uploads.push((await r.json()) as MediaJSON);
     }
   });
-  await page.getByTestId('media-upload').click();
-  await expect(page.getByTestId('composer-media-item')).toHaveCount(2);
-  await loaded(page, '[data-testid=composer-media]', 'thumb');
-  // The second picture is removed again; the first is posted.
-  await page.getByTestId('composer-media-remove').nth(1).click();
-  await expect(page.getByTestId('composer-media-item')).toHaveCount(1);
+  // Pictures upload as soon as they are picked; there is no upload button.
+  await page.getByTestId('media-file').setInputFiles([file(1), file(2)]);
+  await page.getByTestId('media-alt').first().fill('a striped pattern');
+  await expect(page.locator('[data-testid=media-item][data-status=ready]')).toHaveCount(2);
+  // The second picture is removed again (its upload is discarded); the first is posted.
+  const discarded = page.waitForResponse((r) => r.url().includes('/api/media/') && r.request().method() === 'DELETE');
+  await page.getByTestId('media-remove').nth(1).click();
+  expect((await discarded).status()).toBe(204);
+  await expect(page.getByTestId('media-item')).toHaveCount(1);
   const created = page.waitForResponse((r) => r.url().endsWith('/api/posts') && r.request().method() === 'POST');
   await page.getByTestId('composer-publish').click();
   const res = await created;

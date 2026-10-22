@@ -15,7 +15,9 @@
   "noPreview": "Don't show link previews",
   "publish": {
     "one": "Publish",
-    "thread": "Publish the thread ({count, plural, one {# part} other {# parts}})"
+    "thread": "Publish the thread ({count, plural, one {# part} other {# parts}})",
+    "waiting": "Waiting for pictures…",
+    "mediaFailed": "Remove the pictures that could not be uploaded, then publish."
   },
   "parent": {
     "ref": "Replying to @{handle}",
@@ -38,10 +40,6 @@
     "open": "Open it",
     "manage": "Edit or delete",
     "again": "Write another post"
-  },
-  "media": {
-    "attached": "{count, plural, one {# picture attached} other {# pictures attached}}",
-    "remove": "Remove"
   },
   "picks": {
     "pick": "Add to a reply to several posts",

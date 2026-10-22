@@ -3,7 +3,7 @@
 // the page's query (its parents); cleared on publish. Storage can be missing
 // or full: then nothing is kept.
 import type { ParentIn } from '../post/api';
-import type { Audience, MediaVM, RefPolicy } from '../../vm/types';
+import type { Audience, RefPolicy } from '../../vm/types';
 
 export interface SavedDraft {
   parents: ParentIn[];
@@ -13,7 +13,6 @@ export interface SavedDraft {
   audience: Audience;
   policy: RefPolicy;
   noPreview: boolean;
-  media: MediaVM[];
 }
 
 const key = (query: string) => `pcc:compose:${query}`;
@@ -29,7 +28,7 @@ export function loadDraft(query: string): Partial<SavedDraft> {
 
 export function saveDraft(query: string, d: SavedDraft): void {
   try {
-    if (d.body === '' && d.parts === null && d.media.length === 0) sessionStorage.removeItem(key(query));
+    if (d.body === '' && d.parts === null) sessionStorage.removeItem(key(query));
     else sessionStorage.setItem(key(query), JSON.stringify(d));
   } catch {
     // Not kept.

@@ -498,8 +498,8 @@ func TestCosignedDelete(t *testing.T) {
 func TestCosignedManualApproval(t *testing.T) {
 	e := newEnv(t)
 	alice := e.w.User("alice")
-	mod1 := e.moderator("mod1")
-	mod2 := e.enroll("mod2")
+	mod1 := e.moderator("keeper1")
+	mod2 := e.enroll("keeper2")
 	e.exec("UPDATE users SET role = 1 WHERE id = $1", int64(mod2.id))
 	e.a.Users.Invalidate(mod2.id)
 	id, err := e.a.Account.RecoveryRequest(e.fresh(mod1), e.d.Refs.ModUser(mod1, alice))

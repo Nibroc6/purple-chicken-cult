@@ -24,5 +24,6 @@ export interface MediaImageProps {
 export { MediaPicker } from './MediaPicker';
 export { useUpload } from './useUpload';
 export { MediaImage } from './MediaImage';
+export { DraftMediaPicker, useDraftMedia, type DraftMedia } from './DraftMedia';
 
 export type { Ref };

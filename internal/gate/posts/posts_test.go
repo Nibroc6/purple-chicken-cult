@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -340,19 +341,25 @@ func TestParentProblems(t *testing.T) {
 	e.post("bob", "my own slippery post", ref(sl.Ref))
 }
 
-// Acceptance: a third reference of the same post within 24 h ⇒ ref_cap.
+// Acceptance: a fifth reference of the same post within 24 h ⇒ ref_cap.
 func TestRefCap(t *testing.T) {
 	e := newEnv(t)
 	p := e.post("bob", "popular")
 	r := e.ref("alice", e.pid("bob", p))
-	e.post("alice", "one", ref(r))
-	e.advance(time.Hour)
-	e.post("alice", "two", ref(r))
-	_, err := e.p.Create(e.as("alice"), posts.Draft{Body: "three", Lang: "en", Parents: []posts.ParentIn{ref(r)}})
+	if posts.RefCapPerDay != 4 {
+		t.Fatalf("cap %d, want 4 a day", posts.RefCapPerDay)
+	}
+	for i := range posts.RefCapPerDay {
+		if i > 0 {
+			e.advance(time.Hour)
+		}
+		e.post("alice", fmt.Sprintf("reply %d", i+1), ref(r))
+	}
+	_, err := e.p.Create(e.as("alice"), posts.Draft{Body: "one too many", Lang: "en", Parents: []posts.ParentIn{ref(r)}})
 	wantProblem(t, err, "ref_cap")
 	e.post("carol", "someone else", ref(e.ref("carol", e.pid("bob", p))))
-	e.advance(23*time.Hour + time.Second)
-	e.post("alice", "three, a day later", ref(r))
+	e.advance(21*time.Hour + time.Second) // the first reply is now more than 24 h old
+	e.post("alice", "again, a day later", ref(r))
 }
 
 // Concurrent references by one author never exceed the cap.

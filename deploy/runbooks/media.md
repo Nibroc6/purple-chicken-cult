@@ -101,8 +101,12 @@ registers no `/m/` route.
 
 ## Deletion and CDN purge
 
-Deleting a post or an account, or leaving an upload unattached for 24 h, marks its media
-deleted (unservable at once). The `media.process` job (every 10 min, and right after each
+The composer uploads a picture as soon as it is picked and sends its alt text at publish
+(`PATCH /api/media/{ref}`); removing it from the draft or leaving the composer discards it
+(`DELETE /api/media/{ref}`). Both are free steps of the media write class.
+
+Deleting a post or an account, discarding a draft upload, or leaving an upload unattached
+for 2 h, marks its media deleted (unservable at once). The `media.process` job (every 10 min, and right after each
 deletion) deletes the blobs and purges `<PCC_MEDIA_BASE_URL>/<key>` from the edge with
 `PCC_CDN_PURGE=cloudflare`, `PCC_CDN_ZONE_ID`, `PCC_CDN_API_TOKEN` (token permission: Zone ›
 Cache Purge on the media zone only). Without purge configured, prod logs a WARN at start and
