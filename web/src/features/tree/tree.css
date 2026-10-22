@@ -1,11 +1,59 @@
-/* Family-tree page (P0-W08). Logical properties only; the rows themselves are
-   styled by the format (formats/cards/tree, formats/compact/tree). */
-.tree-page {
+/* Reply-tree page (P0-W08 → P1-W09). The map fills the whole screen beside
+   the sidebar (below the top bar in the header layout and on phones), with
+   its controls and the focused post floating on it (formats/tree). Logical
+   properties only. */
+.shell:has(.tree-page) {
+  block-size: 100dvh;
+  min-block-size: 0;
+  align-items: stretch;
+  grid-template-rows: minmax(0, 1fr);
+}
+:root[data-nav='header'] .shell:has(.tree-page),
+.shell[data-signed-in='false']:has(.tree-page) {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+@media (max-width: 47.99rem) {
+  .shell:has(.tree-page) {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+}
+.shell-body:has(.tree-page) {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  min-block-size: 0;
+}
+.shell-main:has(.tree-page) {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  max-inline-size: none;
+  padding: 0;
 }
 
+.tree-page {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  block-size: 100%;
+}
+.tree-page > .tree {
+  flex: 1 1 auto;
+  min-block-size: 0;
+}
+
+.tree-error {
+  padding: var(--space-4);
+}
 .tree-error p {
   margin-block: 0 var(--space-2);
+}
+
+/* Where the secondary links are a page footer (signed out, the header
+   layout), they stay as one slim row under the map. */
+.shell-body:has(.tree-page) .site-footer {
+  flex: none;
+  margin-block-start: 0;
+  padding-block: var(--space-2);
+}
+.shell-body:has(.tree-page) .site-footer .link-list {
+  flex-direction: row;
 }

@@ -364,7 +364,7 @@ export function Canvas({
 
   return (
     <div className="explorer-canvas" data-testid="explorer-canvas" data-zoom={view.k.toFixed(2)}>
-      <div className="explorer-toolbar" role="group" aria-label={t('canvas.tools')}>
+      <div className="explorer-toolbar tree-overlay" role="group" aria-label={t('canvas.tools')}>
         <button
           type="button"
           data-testid="explorer-zoom-out"
@@ -440,7 +440,7 @@ export function Canvas({
           />
         ) : null}
       </div>
-      <p id={hint} className="muted explorer-hint">
+      <p id={hint} className="explorer-hint visually-hidden">
         {t('canvas.hint')}
       </p>
     </div>

@@ -2,12 +2,13 @@
 // pannable, zoomable canvas (canvas/Canvas.tsx), every post a card joined to
 // its parents and replies by family-tree lines, the focal post highlighted in
 // the middle. Clicking a post brings it into focus (the tree reopens around
-// it). The focused post is shown in full under the map, in the format's own
+// it). The focused post is shown in full on a card floating over the map
+// (a bottom sheet on phones) that folds down to its bar, in the format's own
 // post layout, with all its integrity elements and actions; keyboard and
 // screen-reader users reach every other post as a button on the map.
 // Every format's TreeLayout renders it with its own post layout.
 // Owner: P0-W08 → P1-W09.
-import { useMemo, type ComponentType } from 'react';
+import { useId, useMemo, useState, type ComponentType } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { PostVM, TreeVM } from '../../vm/types';
 import type { FormatId, PostActions, TreeActions } from '../types';
@@ -41,6 +42,9 @@ export function ConnectedTree({
   Post: PostComponent;
 }) {
   const { t } = useTranslation('tree');
+  const uid = useId().replace(/:/g, '');
+  // The focused post's card folds down to its bar to free the map.
+  const [open, setOpen] = useState(true);
   // Each row hangs from its first post (the server's best-ranked one).
   const layout = useMemo(() => layoutTree(tree, () => undefined), [tree]);
   const focal = tree.rows.flatMap((r) => r.items).find((i) => i.post.ref === tree.focal && !i.shownAbove)?.post;
@@ -64,11 +68,33 @@ export function ConnectedTree({
         }}
       />
       {focal ? (
-        <section className="tree-focus" data-testid="tree-focus" data-ref={focal.ref} aria-labelledby="tree-focus-title">
-          <h2 id="tree-focus-title" className="visually-hidden">
-            {t('focus.title')}
-          </h2>
-          <Post post={focal} actions={actions} variant="focal" />
+        <section
+          className="tree-focus tree-overlay"
+          data-testid="tree-focus"
+          data-ref={focal.ref}
+          data-open={open}
+          aria-labelledby={`${uid}-title`}
+        >
+          <div className="tree-focus-bar">
+            <h2 id={`${uid}-title`} className="tree-focus-title">
+              {t('focus.title')}
+            </h2>
+            <button
+              type="button"
+              className="tree-focus-toggle"
+              data-testid="tree-focus-toggle"
+              aria-expanded={open}
+              aria-controls={`${uid}-body`}
+              onClick={() => {
+                setOpen((o) => !o);
+              }}
+            >
+              {open ? t('focus.hide') : t('focus.show')}
+            </button>
+          </div>
+          <div id={`${uid}-body`} className="tree-focus-body">
+            <Post post={focal} actions={actions} variant="focal" />
+          </div>
         </section>
       ) : null}
     </div>
