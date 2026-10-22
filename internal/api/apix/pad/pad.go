@@ -87,6 +87,7 @@ var RequestRefs = map[string]bool{
 	"POST /posts/thread":         true, // parents
 	"POST /seen":                 true, // posts
 	"POST /reports":              true, // target.ref
+	"PUT /me/theme":              true, // images[].ref (contract request p1-w09-3)
 	"POST /notifications/read":   true, // up_to
 	"POST /cosign":               true, // target
 	"POST /enroll/begin":         true, // the enrollment token

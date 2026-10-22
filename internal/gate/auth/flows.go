@@ -110,6 +110,22 @@ func (s *Service) LoginFinish(ctx context.Context, body []byte) (string, gate.Se
 	}
 	use := assertionResult{user: owner.id, credID: cred.ID, signCount: cred.Authenticator.SignCount,
 		backup: parsed.Response.AuthenticatorData.Flags.HasBackupState(), parsed: parsed}
+	// The passkey veto (§10.3): signing in with a passkey older than a pending
+	// recovery cancels it, before the session exists. Its own transaction, so
+	// no credential row is locked while it voids enrollment tokens.
+	if s.d.Recovery != nil {
+		var created time.Time
+		if err := s.d.DB.Q().QueryRow(ctx, "SELECT created_at FROM webauthn_credentials WHERE id = $1 AND user_id = $2",
+			cred.ID, int64(owner.id)).Scan(&created); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return "", gate.SessionView{}, gate.ErrNotFound
+			}
+			return "", gate.SessionView{}, err
+		}
+		if err := s.d.Recovery.PasskeyLogin(ctx, owner.id, created); err != nil {
+			return "", gate.SessionView{}, err
+		}
+	}
 	var tok string
 	err = s.d.DB.Tx(ctx, func(tx pgx.Tx) error {
 		// Credential row locked from here to commit (see recordUse).
@@ -329,6 +345,9 @@ func (s *Service) RemovePasskey(ctx context.Context, id gate.Ref, intent gate.Re
 		if target == nil {
 			return gate.ErrNotFound
 		}
+		if recoveryLocked(creds, v.Credential, *target, s.d.Clock.Now()) {
+			return gate.NewProblem(gate.StatusConflict, "recovery_lock")
+		}
 		if len(creds) < 2 {
 			return gate.NewProblem(gate.StatusConflict, "last_passkey")
 		}
@@ -509,9 +528,11 @@ func (s *Service) bindEnrollment(ctx context.Context, tx pgx.Tx, t tokenRow, vie
 // EnrollFinish registers the enrollment passkey from the bound session, marks
 // the token used atomically and returns a NEW user session. Genesis records the
 // terms version and the age attestation (Problems tos_required, age_required);
-// recovery ends every session of the account, optionally removes the old
-// passkeys and notifies friends.
-func (s *Service) EnrollFinish(ctx context.Context, body []byte, removeOld bool, tosVersion int, ageAttested bool) (string, gate.SessionView, error) {
+// recovery ends every session of the account and notifies friends. Recovery
+// never removes the old passkeys (§10.3): an owner whose account was taken
+// over this way can still sign in, and the recovered passkey may not remove
+// them for RecoveryLockFor (RemovePasskey).
+func (s *Service) EnrollFinish(ctx context.Context, body []byte, tosVersion int, ageAttested bool) (string, gate.SessionView, error) {
 	si, ok := sessFrom(ctx)
 	if !ok || si.kind != core.SessEnrollment {
 		return "", gate.SessionView{}, gate.ErrNotFound
@@ -563,16 +584,11 @@ func (s *Service) EnrollFinish(ctx context.Context, body []byte, removeOld bool,
 				return err
 			}
 		case purposeRecovery:
-			// Lock (or remove) the old credentials BEFORE ending the sessions: a
-			// login racing with an old passkey holds its credential row lock
-			// (recordUse) until it commits, so either it commits first and its
-			// new session is visible to the DELETE below, or it waits and then
-			// finds the credential gone (removeOld) or logs in after recovery.
-			if removeOld {
-				if err := s.removeAll(ctx, tx, t.user, now); err != nil {
-					return err
-				}
-			} else if _, err := s.credentials(ctx, tx, t.user, true); err != nil {
+			// Lock the old credentials BEFORE ending the sessions: a login racing
+			// with an old passkey holds its credential row lock (recordUse) until
+			// it commits, so either it commits first and its new session is
+			// visible to the DELETE below, or it waits and logs in after recovery.
+			if _, err := s.credentials(ctx, tx, t.user, true); err != nil {
 				return err
 			}
 			if ended, err = endSessions(ctx, tx, sqlEndUser, int64(t.user)); err != nil {
@@ -581,6 +597,11 @@ func (s *Service) EnrollFinish(ctx context.Context, body []byte, removeOld bool,
 		}
 		if err := s.bindCredential(ctx, tx, t.user, cred, ""); err != nil {
 			return err
+		}
+		if t.purpose == purposeRecovery {
+			if _, err := tx.Exec(ctx, "UPDATE webauthn_credentials SET recovered_at = $2 WHERE id = $1", cred.ID, now); err != nil {
+				return err
+			}
 		}
 		if _, err := tx.Exec(ctx, "DELETE FROM sessions WHERE id_hash = $1", si.idHash[:]); err != nil {
 			return err
@@ -602,19 +623,16 @@ func (s *Service) EnrollFinish(ctx context.Context, body []byte, removeOld bool,
 	return tok, sv, err
 }
 
-// removeAll deletes every credential of user, signing a remove record for each.
-func (s *Service) removeAll(ctx context.Context, tx store.Q, user core.UserID, at time.Time) error {
-	creds, err := s.credentials(ctx, tx, user, true)
-	if err != nil {
-		return err
-	}
+// recoveryLocked reports whether a session signed in with credential own may
+// not remove target: own was enrolled through recovery less than
+// RecoveryLockFor ago and target is older than it. Someone who took the
+// account over through recovery cannot lock its owner out, while the owner's
+// own passkeys can still remove the recovered one.
+func recoveryLocked(creds []storedCred, own []byte, target storedCred, now time.Time) bool {
 	for _, c := range creds {
-		if _, err := tx.Exec(ctx, "DELETE FROM webauthn_credentials WHERE id = $1", c.id); err != nil {
-			return err
-		}
-		if err := s.signChange(ctx, tx, user, opRemove, c.id, c.publicKey, c.alg, at); err != nil {
-			return err
+		if bytes.Equal(c.id, own) {
+			return c.recoveredAt != nil && now.Before(c.recoveredAt.Add(RecoveryLockFor)) && target.createdAt.Before(*c.recoveredAt)
 		}
 	}
-	return nil
+	return false
 }

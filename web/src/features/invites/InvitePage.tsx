@@ -14,7 +14,7 @@ import { formatDateTime } from '../../lib/time';
 import { fetchBudget, openHandshake, type HandshakeMode, type OpenedVM } from './api';
 import { HandshakeHost } from './HandshakeHost';
 import { ErrorText, invitesKey, useNow } from './shared';
-import { canInvite, countdown, type BudgetVM } from './vm';
+import { canInvite, canShowCode, countdown, type BudgetVM } from './vm';
 
 export default function InvitePage() {
   const { t } = useTranslation('invites');
@@ -28,6 +28,8 @@ export default function InvitePage() {
     onSuccess: (o) => {
       setOpened(o);
     },
+    // Opening uses an attempt (or was refused for want of one): show the count.
+    onSettled: () => qc.invalidateQueries({ queryKey: [...invitesKey, 'budget'] }),
   });
   return (
     <section className="page invites-page">
@@ -97,7 +99,7 @@ export default function InvitePage() {
             <button
               type="button"
               data-testid="invite-open"
-              disabled={!budget.data || open.isPending}
+              disabled={!budget.data || !canShowCode(budget.data) || open.isPending}
               onClick={() => {
                 open.mutate();
               }}
@@ -152,6 +154,7 @@ function Budget({ b }: { b: BudgetVM }) {
               : t('budget.probationFriends', { count: b.probation.needOutsideFriends })}
           </p>
         ) : null}
+        <Attempts b={b} remaining={remaining} />
       </div>
     );
   }
@@ -165,6 +168,22 @@ function Budget({ b }: { b: BudgetVM }) {
       ) : (
         <p className="muted">{t('budget.full')}</p>
       )}
+      <Attempts b={b} remaining={remaining} />
+    </div>
+  );
+}
+
+// Attempts shows the code attempts (they also limit codes that only connect).
+function Attempts({ b, remaining }: { b: BudgetVM; remaining: (target: Date) => string }) {
+  const { t } = useTranslation('invites');
+  if (!b.attempts) return null;
+  return (
+    <div className="invites-attempts" data-testid="invite-attempts">
+      <p data-testid="invite-attempts-left">{t('attempts.left', { count: b.attempts.available, cap: b.attempts.cap })}</p>
+      {b.attempts.nextAt ? (
+        <p data-testid="invite-attempts-next">{t('attempts.next', { time: remaining(b.attempts.nextAt) })}</p>
+      ) : null}
+      <p className="muted">{t('attempts.hint')}</p>
     </div>
   );
 }

@@ -15,6 +15,11 @@
     "revoked": "You can no longer invite people.",
     "probationFriendsPlus": "{count, plural, one {# more friend} other {# more friends}} outside your invite tree (met in person)"
   },
+  "attempts": {
+    "left": "Code attempts: {count, number} of {cap, number} left",
+    "next": "One more attempt in {time}",
+    "hint": "Showing a code uses an attempt, even if nobody joins. Used attempts come back one at a time."
+  },
   "countdown": {
     "days": "{d, plural, one {# day} other {# days}} {h, plural, one {# hour} other {# hours}}",
     "hours": "{h, plural, one {# hour} other {# hours}} {m, plural, one {# minute} other {# minutes}}",

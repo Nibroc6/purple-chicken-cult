@@ -247,6 +247,17 @@ type BudgetView struct {
 	Probation   *ProbationView `json:"probation,omitempty"`
 	PausedUntil *time.Time     `json:"paused_until,omitempty"`
 	Revoked     bool           `json:"revoked,omitempty"`
+	// Attempts is the build-up limit on opening handshakes (shown next to the
+	// budget, so a refused attempt is never a surprise).
+	Attempts *AllowanceView `json:"attempts,omitempty"`
+}
+
+// AllowanceView is what is left of a build-up limit: available of cap now,
+// and when the next one builds up (absent while full).
+type AllowanceView struct {
+	Available int        `json:"available"`
+	Cap       int        `json:"cap"`
+	NextAt    *time.Time `json:"next_at,omitempty"`
 }
 
 // ProbationView shows what is left of the caller's probation.

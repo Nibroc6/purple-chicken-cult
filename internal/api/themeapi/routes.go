@@ -1,5 +1,6 @@
-// Package themeapi serves /api/me/theme (plan §5.3): the caller's own
-// token-only theme (§15.2 A), validated by gate/themes.
+// Package themeapi serves /api/me/theme (plan §5.3): the caller's own theme
+// (§15.2 A: tokens, and optionally theme CSS with its images), validated by
+// gate/themes.
 //
 // Owner: P1-W09.
 package themeapi
@@ -17,10 +18,16 @@ import (
 
 var wAccount = apix.Write("account")
 
-// ThemeIn is the body of PUT /api/me/theme.
+// ThemeIn is the body of PUT /api/me/theme. CSS and Images are the optional
+// advanced mode (theme CSS and the uploads it names).
 type ThemeIn struct {
-	Tokens json.RawMessage `json:"tokens"`
+	Tokens json.RawMessage  `json:"tokens"`
+	CSS    string           `json:"css,omitempty"`
+	Images []themes.ImageIn `json:"images,omitempty"`
 }
+
+// maxBody fits the tokens, the largest theme CSS and its image refs.
+const maxBody = themes.MaxTokens + themes.MaxSheet + 8<<10
 
 // ThemeOut answers GET and PUT /api/me/theme; Theme is absent for the default.
 type ThemeOut struct {
@@ -39,11 +46,11 @@ func Register(r chi.Router, d *api.Deps) {
 		return apix.JSON(w, http.StatusOK, ThemeOut{Theme: v})
 	})
 	apix.Route(r, http.MethodPut, "/me/theme", wAccount, func(w http.ResponseWriter, r *http.Request) error {
-		in, err := apix.Decode[ThemeIn](r, 4<<10)
+		in, err := apix.Decode[ThemeIn](r, maxBody)
 		if err != nil {
 			return err
 		}
-		v, err := ts.Set(r.Context(), in.Tokens)
+		v, err := ts.Set(r.Context(), themes.Theme{Tokens: in.Tokens, CSS: in.CSS, Images: in.Images})
 		if err != nil {
 			return err
 		}

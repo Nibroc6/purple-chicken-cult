@@ -20,10 +20,19 @@ type deletePayload struct {
 }
 
 // Notification kinds: friends are told about deletions and recoveries, the
-// account's other guardians about a recovery waiting for their approval.
+// account's other guardians about a recovery waiting for their approval, and
+// the account itself about any recovery of it (account_recovery).
 const (
 	notifyFriendSecurity   = "friend_security"
 	notifyRecoveryApproval = "recovery_approval"
+	notifyAccountRecovery  = "account_recovery"
+)
+
+// account_recovery reasons: a recovery of the account started (vouched for in
+// person, or opened by a moderator), or it was approved and is holding.
+const (
+	ownerStarted = "recovery_started"
+	ownerPending = "recovery_pending"
 )
 
 // Delete deletes the viewer's account (fresh step-up; confirmHandle must name
@@ -77,7 +86,7 @@ func (s *Service) Delete(ctx context.Context, confirmHandle string, c *Cosig) er
 		}
 		// Every live recovery ends, including a released one whose link may
 		// already be out: its enrollment token is voided too.
-		if _, err := s.cancelRecoveries(ctx, tx, v.ID, now); err != nil {
+		if _, err := s.cancelRecoveries(ctx, tx, v.ID, now, time.Time{}); err != nil {
 			return err
 		}
 		if err := s.d.Passkeys.RevokeAll(ctx, tx, v.ID); err != nil {
