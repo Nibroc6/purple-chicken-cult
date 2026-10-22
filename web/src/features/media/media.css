@@ -1,6 +1,9 @@
 /* Media feature (P1-W04). Logical properties only. */
 .media-picker {
   display: grid;
+  /* One column that never grows past the card: the file input's own width
+     (with a long file name) would otherwise widen the page on phones. */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-3);
 }
 
@@ -17,6 +20,7 @@
   margin: 0;
   padding: 0;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-3);
 }
 
@@ -30,9 +34,16 @@
   display: grid;
   gap: var(--space-2);
   flex: 1;
+  /* Shrink below the text area's default 20-column width on phones. */
+  min-inline-size: 0;
+}
+
+.media-item-body textarea {
+  inline-size: 100%;
 }
 
 .media-preview {
+  flex: none;
   inline-size: 6rem;
   block-size: 6rem;
   object-fit: cover;

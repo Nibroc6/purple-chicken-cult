@@ -30,8 +30,48 @@
   padding: var(--space-2);
 }
 .explorer-toolbar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
   min-block-size: 24px;
   min-inline-size: 24px;
+}
+.explorer-zoom-group {
+  display: contents;
+}
+/* Phones: pinch zooms, so the toolbar is two round icon buttons in the
+   corner (their labels stay for screen readers), clear of the notch now
+   that the map has no top bar. Load-earlier/later buttons keep their text. */
+@media (max-width: 47.99rem) {
+  .explorer-zoom-group {
+    display: none;
+  }
+  .explorer-toolbar {
+    inset-block-start: max(var(--space-3), env(safe-area-inset-top));
+    inset-inline-start: auto;
+    inset-inline-end: var(--space-3);
+    gap: var(--space-1);
+    padding: var(--space-1);
+    border-radius: 999px;
+  }
+  .explorer-toolbar .explorer-tool {
+    inline-size: 2.75rem;
+    block-size: 2.75rem;
+    padding: 0;
+    border-color: transparent;
+    border-radius: 999px;
+    background: transparent;
+    font-size: 1.05rem;
+  }
+  .explorer-tool-label {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 }
 .explorer-stage {
   position: absolute;

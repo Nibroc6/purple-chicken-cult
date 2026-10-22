@@ -12,9 +12,18 @@
 .shell[data-signed-in='false']:has(.tree-page) {
   grid-template-rows: auto minmax(0, 1fr);
 }
+/* Phones: the map takes the whole screen above the tab bar, with no top
+   bar. The header stays, empty, for the drawer the tab bar's menu opens. */
 @media (max-width: 47.99rem) {
   .shell:has(.tree-page) {
     grid-template-rows: auto minmax(0, 1fr);
+  }
+  .shell:has(.tree-page) .sidebar-head {
+    display: none;
+  }
+  .shell:has(.tree-page) .sidebar {
+    padding: 0;
+    border: 0;
   }
 }
 .shell-body:has(.tree-page) {
