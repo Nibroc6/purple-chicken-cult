@@ -13,6 +13,8 @@ export function Shell() {
   const { t } = useTranslation('common');
   const session = useSession();
   const signedIn = session.data?.authenticated === true;
+  const role = session.data?.me?.role;
+  const moderator = role === 'moderator' || role === 'admin';
   return (
     <div className="shell">
       <a className="skip-link" href="#main">
@@ -38,6 +40,12 @@ export function Shell() {
                 <NavLink to="/friends">{t('nav.friends')}</NavLink>
               </li>
               <li>
+                <NavLink to="/saves">{t('nav.saves')}</NavLink>
+              </li>
+              <li>
+                <NavLink to="/seen">{t('nav.seen')}</NavLink>
+              </li>
+              <li>
                 <NavLink to="/notifications">
                   {t('nav.notifications')}
                   {navBadges.map((Badge, i) => (
@@ -45,6 +53,11 @@ export function Shell() {
                   ))}
                 </NavLink>
               </li>
+              {moderator ? (
+                <li>
+                  <NavLink to="/mod">{t('nav.moderation')}</NavLink>
+                </li>
+              ) : null}
               <li>
                 <NavLink to="/settings">{t('nav.settings')}</NavLink>
               </li>
