@@ -1,0 +1,57 @@
+/* InfoTip (lib/InfoTip.tsx). Logical properties only. */
+.infotip {
+  position: relative;
+  display: inline-block;
+  vertical-align: middle;
+}
+.infotip-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 24px;
+  min-block-size: 24px;
+  margin-inline-start: var(--space-1);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-muted);
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+.infotip-button::before {
+  content: 'ⓘ';
+}
+.infotip-button:hover,
+.infotip-button[aria-expanded='true'] {
+  color: var(--color-accent);
+}
+.infotip-button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+.infotip-bubble {
+  position: absolute;
+  z-index: 20;
+  inset-block-start: calc(100% + var(--space-1));
+  inset-inline-start: 0;
+  translate: var(--infotip-shift, 0px) 0;
+  inline-size: max-content;
+  max-inline-size: min(20rem, calc(100vw - 16px));
+  padding-block: var(--space-2);
+  padding-inline: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.15);
+  font-size: 0.875rem;
+  font-weight: normal;
+  line-height: 1.4;
+  text-align: start;
+  white-space: normal;
+}
+.infotip-bubble:empty {
+  display: none;
+}

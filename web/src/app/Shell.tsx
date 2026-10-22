@@ -57,6 +57,18 @@ export function Shell() {
           <Outlet />
         </Suspense>
       </main>
+      <footer className="shell-footer">
+        <nav aria-label={t('footer.label')}>
+          <ul className="nav-list">
+            <li>
+              <NavLink to="/about">{t('footer.about')}</NavLink>
+            </li>
+            <li>
+              <NavLink to="/terms">{t('footer.terms')}</NavLink>
+            </li>
+          </ul>
+        </nav>
+      </footer>
       {globals.map((G, i) => (
         <G key={i} />
       ))}

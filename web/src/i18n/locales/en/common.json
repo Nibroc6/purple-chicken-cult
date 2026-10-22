@@ -23,6 +23,14 @@
     "title": "Something went wrong",
     "retry": "Try again"
   },
+  "footer": {
+    "label": "Site",
+    "about": "How it works",
+    "terms": "Terms"
+  },
+  "infotip": {
+    "label": "More about this"
+  },
   "settingsNav": {
     "label": "Settings sections",
     "display": "Display",
