@@ -149,7 +149,6 @@ export function MediaPicker(props: MediaPickerProps) {
           {pending ? t('picker.uploading') : t('picker.upload', { count: items.length })}
         </button>
       ) : null}
-      <p className="media-note">{t('picker.note')}</p>
     </div>
   );
 }

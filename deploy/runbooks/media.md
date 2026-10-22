@@ -22,6 +22,17 @@ other value) refuses to start: Cloudflare's CSAM tool scans after storage. The `
 scanner (SHA-256 list in `testdata/scan/blocklist.txt`, synthetic test patterns only)
 exists only in dev and test.
 
+### Unscanned mode (operator's choice)
+
+`PCC_SCANNER=unscanned` **and** `PCC_ALLOW_UNSCANNED_MEDIA=1` turn media on with no
+pre-storage CSAM scan; every other requirement above still applies. Each start logs `media
+enabled without a CSAM scanner` at WARN. US law does not require scanning (18 U.S.C.
+§ 2258A(f)), but nothing in the app will catch known CSAM: the only detection is
+Cloudflare's CSAM Scanning Tool on the media zone (Caching > Configuration > CSAM Scanning
+Tool, notification email set) and user reports. Its matches arrive as a daily email and
+are handled by hand (csam.md, "Matches found outside the app"). `unscanned` without the
+allow flag keeps media off. Switching to `photodna` later needs only the scanner settings.
+
 A scanner error or timeout (15 s) rejects the upload (`media_rejected`) and stores
 nothing. If PhotoDNA is down, uploads fail; nothing is queued for a later scan.
 

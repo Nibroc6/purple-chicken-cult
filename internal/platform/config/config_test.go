@@ -101,7 +101,7 @@ func TestDevLoopback(t *testing.T) {
 
 // TestMediaFailClosedMatrix: Env × Scanner × Blob × Evidence ⇒ MediaEnabled.
 func TestMediaFailClosedMatrix(t *testing.T) {
-	scanners := []string{"photodna", "dev", "none"}
+	scanners := []string{"photodna", "dev", "none", "unscanned", "unscanned+allow"}
 	blobs := []string{"none", "fs", "fs+allow", "s3"}
 	evidence := []string{"none", "set"}
 	for _, e := range []string{"dev", "test", "prod"} {
@@ -113,7 +113,10 @@ func TestMediaFailClosedMatrix(t *testing.T) {
 					if e != "prod" {
 						m["PCC_ORIGIN"] = "http://localhost:5173"
 					}
-					m["PCC_SCANNER"] = sc
+					m["PCC_SCANNER"] = strings.TrimSuffix(sc, "+allow")
+					if sc == "unscanned+allow" {
+						m["PCC_ALLOW_UNSCANNED_MEDIA"] = "1"
+					}
 					if sc == "photodna" {
 						m["PCC_PHOTODNA_KEY"], m["PCC_PHOTODNA_URL"] = "k", "https://photodna.example"
 					}
@@ -147,9 +150,9 @@ func TestMediaFailClosedMatrix(t *testing.T) {
 					want := false
 					blobOK := bl != "none"
 					if e == "prod" {
-						want = sc == "photodna" && ev == "set" && (bl == "s3" || bl == "fs+allow")
+						want = (sc == "photodna" || sc == "unscanned+allow") && ev == "set" && (bl == "s3" || bl == "fs+allow")
 					} else {
-						want = (sc == "photodna" || sc == "dev") && blobOK && ev == "set"
+						want = (sc == "photodna" || sc == "dev" || sc == "unscanned+allow") && blobOK && ev == "set"
 					}
 					if got := c.MediaEnabled(); got != want {
 						t.Errorf("%s: MediaEnabled=%v want %v", name, got, want)
