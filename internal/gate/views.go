@@ -273,6 +273,9 @@ type HandshakeView struct {
 	Mode       string `json:"mode"` // "qr" | "qr_audio" | "dual_qr"
 	FrameTTLms int    `json:"frame_ttl_ms"`
 	FrameKey   string `json:"frame_key,omitempty"` // P1: base64url key for client-rendered 250 ms frames
+	// Invite (invite codes): a guest can sign up with this code now. Without
+	// it the code only connects a signed-in friend.
+	Invite bool `json:"invite,omitempty"`
 }
 
 // HandshakeStatus is the state of a handshake for either side.

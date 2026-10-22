@@ -39,6 +39,9 @@ export interface OpenedVM {
   mode: HandshakeMode;
   frameKey: string;
   frameTTLms: number;
+  // invite: a guest can sign up with this code now (invite codes only);
+  // without it the code only connects someone already signed in.
+  invite: boolean;
 }
 
 // toOpenedVM maps a HandshakeView (POST /invites/handshakes, or another
@@ -49,6 +52,7 @@ export function toOpenedVM(hv: HandshakeView): OpenedVM {
     mode: hv.mode === 'dual_qr' ? 'dual_qr' : 'qr_audio',
     frameKey: hv.frame_key ?? '',
     frameTTLms: hv.frame_ttl_ms,
+    invite: hv.invite === true,
   };
 }
 

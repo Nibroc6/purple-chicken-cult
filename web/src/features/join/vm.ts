@@ -4,7 +4,7 @@ import { ApiError } from '../../api/errors';
 import { authErrorKey } from '../auth/vm';
 
 // Codes with join-specific wording (join:errors.<code>).
-const codes = new Set(['handle_invalid', 'handle_taken', 'display_name_invalid', 'tos_required', 'age_required']);
+const codes = new Set(['handle_invalid', 'handle_taken', 'display_name_invalid', 'tos_required', 'age_required', 'already_friends']);
 
 // joinErrorKey returns the catalog key for a failure of the join flow, or
 // undefined when nothing should be shown (a superseded passkey prompt).

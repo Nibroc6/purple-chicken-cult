@@ -1,10 +1,10 @@
 {
   "recover": {
     "title": "Recover your account",
-    "intro": "Lost every passkey? Your friend+ friends can get you back in: two of them, or more if you have many.",
-    "step1": "Meet one of your friend+ friends. On their phone they open Settings → Recovery and start a recovery for you.",
+    "intro": "Lost every passkey? Your friends (people you met in person) can get you back in: two of them, or more if you have many.",
+    "step1": "Meet one of your friends. On their phone they open Settings → Recovery and start a recovery for you.",
     "step2": "Scan the code on their screen with this device, check the 6-digit code with them and play the sound.",
-    "step3": "More friend+ friends approve (two in all, up to five if you have many friends). After 24 hours, during which your signed-in devices or any of your old passkeys can still cancel, you create a new passkey here.",
+    "step3": "More of your friends approve (two in all, up to five if you have many friends). After 24 hours, during which your signed-in devices or any of your old passkeys can still cancel, you create a new passkey here.",
     "scan": "Scan your friend's code",
     "scanHint": "Point the camera at the code on your friend's screen.",
     "handshakeCancelled": "Your friend cancelled the code.",
@@ -14,7 +14,7 @@
     "enroll": "Create your new passkey",
     "state": {
       "claimed": "Finish the check with your friend: the codes must match and the sound must play.",
-      "approving": "Your friend vouched for you. {approvals, number} of {needed, number} friend+ friends have approved; the others approve in their settings.",
+      "approving": "Your friend vouched for you. {approvals, number} of {needed, number} friends have approved; the others approve in their settings.",
       "holding": "Approved. You can create a new passkey from {at}. Until then your signed-in devices can cancel it. Keep this page or come back later on this device.",
       "released": "Your recovery is ready. Every old session has been signed out.",
       "cancelled": "This recovery was cancelled.",
@@ -27,7 +27,7 @@
   "approve": {
     "title": "Waiting for your approval",
     "none": "No friend needs your approval right now.",
-    "item": "{name} is recovering their account. Another friend+ friend checked it was them in person. {approvals, number} of {needed, number} friends have approved so far. Approve by {at}.",
+    "item": "{name} is recovering their account. Another of their friends checked it was them in person. {approvals, number} of {needed, number} friends have approved so far. Approve by {at}.",
     "warning": "Only approve if you know they really lost their passkeys: the recovery gives a new device full access to their account.",
     "button": "Approve recovery",
     "summary": "Approve the account recovery of {handle}",
@@ -35,15 +35,15 @@
   },
   "help": {
     "title": "Help a friend recover",
-    "intro": "Only for a friend+ friend who is with you in person and has lost every passkey. Other friend+ friends of theirs must approve afterwards.",
-    "none": "You have no friend+ friends yet.",
+    "intro": "Only for a friend who is with you in person and has lost every passkey. Other friends of theirs must approve afterwards.",
+    "none": "You have no friends yet. Friends are people you met in person.",
     "start": "Start recovery",
     "scan": "Let {handle} scan this code with their device.",
     "close": "Close"
   },
   "errors": {
     "recovery_exists": "A recovery of this account is already under way.",
-    "second_guardian_required": "You already approved this recovery. A different friend+ friend has to approve it.",
+    "second_guardian_required": "You already approved this recovery. A different friend has to approve it.",
     "recovery_expired": "This recovery waited too long for approval and has expired."
   }
 }

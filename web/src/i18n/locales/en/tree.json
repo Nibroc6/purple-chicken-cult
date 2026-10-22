@@ -30,7 +30,7 @@
     "alsoLabel": "Other posts this replies to",
     "center": "Show its replies"
   },
-  "divider": "{tier, select, 0 {Your posts} 1 {Friends} 2 {Friends of friends} other {{tier} steps away}}",
+  "divider": "{tier, select, 0 {Your posts} 1 {Acquaintances} 2 {Acquaintances of acquaintances} other {{tier} steps away}}",
   "edge": {
     "earlier": "Load earlier",
     "later": "Load later"

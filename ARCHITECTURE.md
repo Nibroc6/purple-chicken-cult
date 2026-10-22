@@ -29,6 +29,12 @@ parts are hard, and be precise about **what each mechanism actually guarantees**
 
 > Changes from v1–v3 and v4 are summarized in §20.
 
+> **Vocabulary.** The app calls a plain connection an **acquaintance** and an in-person
+> verified one (friend+) a **friend**. This document, the code and the signed records
+> keep the original level names: `friend` is an acquaintance, `friend+` is a friend, and
+> "friends" in the graph sense (1st degree, friend cap, friend requests) means
+> acquaintances of either level. Only user-facing text uses the new words.
+
 ---
 
 ## 1. Big picture
@@ -177,6 +183,8 @@ Report      { reporter, target, reason, at }
 - **An invite creates two records:** the permanent `Invite` and a `Friendship`. From
   Phase 1 that friendship starts as friend+, since an in-person handshake is exactly
   what friend+ means.
+- **The same code connects existing accounts** (§7 "One code, two uses"): a signed-in
+  scan creates only a co-signed `Friendship`, no `Invite`.
 - **Unfriending revokes the `Friendship`, never the `Invite`.** Unfriending is like
   blocking, except the person isn't removed from your indirect paths.
 - **Everyone who can see a user sees that user's inviter label** ("invited by @bob"),
@@ -570,6 +578,17 @@ retry prompt.
 | **Accepted** | QR plus jingle | Invite valid. The friendship starts as plain friend, and a later verified handshake upgrades it |
 | **Retry** | Anything less | No token. The app shows the volume prompt or the quiet-mode suggestion |
 
+- **One code, two uses.** The inviter's screen shows a single code. A guest session that
+  scans it signs up (an invite: needs the inviter's budget, checked when the guest
+  claims). A **signed-in** account that scans it turns the handshake into a *connect*:
+  - strangers: Verified makes friend+, Accepted makes friend; both sides co-sign the
+    `Friendship` with a passkey, and no invite is spent (so it works on probation too);
+  - plain friends: it becomes a friend+ upgrade (Verified only);
+  - friend+ already: `already_friends`; a block either way, an inactive account or a
+    full friend list: the uniform not-found.
+
+  This is the in-person route of §10.5, and how new accounts earn the friend+ edges
+  outside their subtree that end probation (§8).
 - **Stored results.** The `Invite` and `Friendship` records keep which channels passed
   and the timings, bucketed, in the `handshake` field. That's all.
 - **How the score is used:**
@@ -596,6 +615,8 @@ many phones could build 2ⁿ accounts in n days at "1 invite per 24h". So:
 ### Invite budget
 - **Probation:** no invites for 30 days. Probation lasts until the account also has ≥3
   friend+ edges to people **outside its own invite subtree**, whichever comes later.
+  Those edges come from in-person connects (§7): the invite code still opens on
+  probation, it just can't sign anyone up.
   - *Phase 0:* 7 days, plus ≥3 ordinary edges outside the subtree.
 - **After probation:** a token bucket of +1 invite per day, capped at 3. Genesis users get
   a cap of 5.
@@ -919,7 +940,8 @@ Rendering rules:
 ### 10.5 Discovery (horizon-safe)
 - No global search, no public profiles, and no handle lookup.
 - **Ways to connect:**
-  1. **In person** (the primary route).
+  1. **In person** (the primary route): scan someone's invite code while signed in
+     (§7 "One code, two uses").
   2. **People you may know:** 2nd-degree candidates with ≥2 mutual friends, through
      edges at least 7 days old. Only a count of mutual friends is shown, and anyone can
      opt out of being suggested.

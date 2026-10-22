@@ -14,7 +14,7 @@
     },
     "tiers": {
       "title": "Closest first.",
-      "body": "Posts from friends come first, then friends of friends, and so on. No ads, no boosted strangers."
+      "body": "Posts from acquaintances come first, then their acquaintances, and so on. No ads, no boosted strangers."
     },
     "private": {
       "title": "Nothing is public.",

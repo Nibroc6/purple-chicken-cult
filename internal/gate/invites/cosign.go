@@ -23,7 +23,10 @@ import (
 //     the record.
 //   - friend_upgrade: after a Verified upgrade handshake both friends sign the
 //     friend+ Friendship record; the second signature writes it and promotes
-//     the edge (Edges.Upgrade).
+//     the edge (Edges.Upgrade). A connect (an invite code a signed-in account
+//     scanned) uses the same purpose for its new Friendship (friend+ when
+//     Verified, friend when Accepted); the second signature creates the edge
+//     (Edges.Create).
 //
 // The client opens the intent with POST /api/cosign {purpose, target: hs} and
 // sends {intent, assertion} to POST /api/invites/handshakes/{hs}/cosign.
@@ -56,7 +59,7 @@ func (s *Service) registerPurposes() {
 	s.d.CosignPurposes.RegisterPurpose(PurposeFriendUpgrade, core.RecFriendship,
 		func(ctx context.Context, v core.Viewer, target gate.Ref) (any, error) {
 			h, p, err := s.drafted(ctx, s.d.DB.Q(), v, target, false)
-			if err != nil || h.kind != kindUpgrade {
+			if err != nil || !h.signedInPeer() {
 				return nil, gate.ErrNotFound
 			}
 			return *p.Friendship, nil
@@ -64,8 +67,8 @@ func (s *Service) registerPurposes() {
 }
 
 // party loads the handshake ref names for v when v is a party that co-signs
-// it: the initiator of an invite or an upgrade, or the friend of an upgrade
-// (the peer's session claimed it).
+// it: the initiator of an invite, an upgrade or a connect, or the other
+// account of an upgrade or a connect (the peer's session claimed it).
 func (s *Service) party(ctx context.Context, q store.Q, v core.Viewer, ref gate.Ref, lock bool) (hsRow, bool, error) {
 	if v.Kind != core.SessUser || v.ID == 0 {
 		return hsRow{}, false, gate.ErrNotFound
@@ -74,9 +77,9 @@ func (s *Service) party(ctx context.Context, q store.Q, v core.Viewer, ref gate.
 	if !ok {
 		return hsRow{}, false, gate.ErrNotFound
 	}
-	sql := selectHS + "WHERE id = $1 AND kind IN (0, 1)"
+	sql := selectHS + "WHERE id = $1 AND kind IN (0, 1, 3)"
 	if lock {
-		sql = selectHS + "WHERE id = $1 AND kind IN (0, 1) FOR UPDATE"
+		sql = selectHS + "WHERE id = $1 AND kind IN (0, 1, 3) FOR UPDATE"
 	}
 	h, err := scanHS(q.QueryRow(ctx, sql, id))
 	if err != nil {
@@ -85,7 +88,7 @@ func (s *Service) party(ctx context.Context, q store.Q, v core.Viewer, ref gate.
 	switch {
 	case h.initiator == v.ID:
 		return h, false, nil
-	case h.kind == kindUpgrade && h.peer == v.ID && string(h.claimed) == string(v.Session[:]):
+	case h.signedInPeer() && h.peer == v.ID && string(h.claimed) == string(v.Session[:]):
 		return h, true, nil
 	}
 	return hsRow{}, false, gate.ErrNotFound
@@ -111,18 +114,20 @@ type CosignIn struct {
 }
 
 // Cosign verifies the viewer's co-signature of the handshake's drafted record
-// (the Invite for an inviter, the friend+ Friendship for either friend of an
-// upgrade) in a transaction that consumes the intent. The second signature of
-// an upgrade writes the record and promotes the edge.
+// (the Invite for an inviter, the Friendship for either side of an upgrade or
+// a connect) in a transaction that consumes the intent. The second signature
+// of an upgrade writes the record and promotes the edge; of a connect, writes
+// it and creates the edge.
 func (s *Service) Cosign(ctx context.Context, ref gate.Ref, in CosignIn) error {
 	v, err := core.RequireUser(ctx)
 	if err != nil {
 		return err
 	}
 	var (
-		h    hsRow
-		done bool
-		now  time.Time
+		h     hsRow
+		done  bool
+		now   time.Time
+		level core.EdgeLevel
 	)
 	err = s.d.DB.Tx(ctx, func(tx pgx.Tx) error {
 		var (
@@ -172,9 +177,13 @@ func (s *Service) Cosign(ctx context.Context, ref gate.Ref, in CosignIn) error {
 		if _, err := tx.Exec(ctx, "UPDATE handshake_sessions SET assertions = $2 WHERE id = $1", h.id, raw); err != nil {
 			return err
 		}
-		if h.kind == kindUpgrade && len(sg.Initiator) > 0 && len(sg.Peer) > 0 {
+		if h.signedInPeer() && len(sg.Initiator) > 0 && len(sg.Peer) > 0 {
 			now = s.d.Clock.Now()
 			done = true
+			if h.kind == kindConnect {
+				level, _ = levelOf(h.outcome)
+				return s.completeConnect(ctx, tx, h, p, sg, level, now)
+			}
 			return s.completeUpgrade(ctx, tx, h, p, sg, now)
 		}
 		return nil
@@ -183,7 +192,12 @@ func (s *Service) Cosign(ctx context.Context, ref gate.Ref, in CosignIn) error {
 		return err
 	}
 	if done {
-		s.upgraded(h.initiator, h.peer, now)
+		if h.kind == kindConnect {
+			s.d.Graph.AddEdge(h.initiator, h.peer, level, now)
+			s.d.Bus.Publish(core.EdgeAdded{A: h.initiator, B: h.peer, Level: level, At: now})
+		} else {
+			s.upgraded(h.initiator, h.peer, now)
+		}
 		s.liveEvent(h, "done")
 		return nil
 	}
@@ -191,7 +205,8 @@ func (s *Service) Cosign(ctx context.Context, ref gate.Ref, in CosignIn) error {
 	return nil
 }
 
-// upgradeDraft drafts the friend+ Friendship of a Verified upgrade handshake.
+// upgradeDraft drafts the Friendship of a passed upgrade or connect handshake:
+// friend+ when Verified (always, for an upgrade), friend when Accepted.
 func (s *Service) upgradeDraft(ctx context.Context, h hsRow, now time.Time) ([]byte, error) {
 	ma, err := s.d.Users.Get(ctx, h.initiator)
 	if err != nil {
@@ -203,7 +218,8 @@ func (s *Service) upgradeDraft(ctx context.Context, h hsRow, now time.Time) ([]b
 	}
 	a, b := ordered(ma.ExtID, mb.ExtID)
 	info := infoOf(h)
-	return json.Marshal(pending{Friendship: &friendshipBody{A: a, B: b, Level: "friend+", CreatedAt: sigs.T(now),
+	_, level := levelOf(h.outcome)
+	return json.Marshal(pending{Friendship: &friendshipBody{A: a, B: b, Level: level, CreatedAt: sigs.T(now),
 		Handshake: &info}})
 }
 
@@ -218,6 +234,32 @@ func (s *Service) completeUpgrade(ctx context.Context, tx pgx.Tx, h hsRow, p pen
 		return err
 	}
 	if err := s.d.Edges.Upgrade(ctx, tx, h.initiator, h.peer, hash); err != nil {
+		return err
+	}
+	_, err = tx.Exec(ctx, `UPDATE handshake_sessions SET state = $2, completed_at = $3, pending = NULL, assertions = NULL
+		WHERE id = $1`, h.id, stDone, now)
+	return err
+}
+
+// completeConnect writes the co-signed Friendship of a connect and creates the
+// edge (Edges.Create also settles any request between the two).
+func (s *Service) completeConnect(ctx context.Context, tx pgx.Tx, h hsRow, p pending, sg signatures, level core.EdgeLevel, now time.Time) error {
+	if _, ok := s.d.Graph.Level(h.initiator, h.peer); ok ||
+		s.d.Graph.Blocks(h.initiator, h.peer) || s.d.Graph.Blocks(h.peer, h.initiator) {
+		return gate.ErrNotFound // befriended or blocked meanwhile
+	}
+	if err := s.belowCap(ctx, h.initiator); err != nil {
+		return err
+	}
+	if err := s.belowCap(ctx, h.peer); err != nil {
+		return err
+	}
+	hash, err := s.d.Signer.Sign(ctx, tx, core.RecFriendship, h.initiator, *p.Friendship,
+		[]core.UserID{h.initiator, h.peer}, sg.Initiator[0], sg.Peer[0])
+	if err != nil {
+		return err
+	}
+	if err := s.d.Edges.Create(ctx, tx, h.initiator, h.peer, level, hash); err != nil {
 		return err
 	}
 	_, err = tx.Exec(ctx, `UPDATE handshake_sessions SET state = $2, completed_at = $3, pending = NULL, assertions = NULL

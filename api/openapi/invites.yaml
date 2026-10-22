@@ -40,7 +40,11 @@ paths:
         the two-layer sound; quiet turns the jingle off) or "dual_qr" (accessibility, at
         most Accepted). The Phase 0 mode "qr" is mode_unsupported. Cancels the caller's
         unfinished invite handshakes. The answer carries the frame key the device renders
-        the 250 ms frames with.
+        the 250 ms frames with. One code, two uses: a guest who scans it signs up (only
+        while the caller can invite: "invite" says whether that holds now, and a guest's
+        claim checks it again); a signed-in account that scans it becomes the caller's
+        friend (a connect, which spends no invite). So the code opens on probation and
+        without budget too; only friend_cap stops it.
       requestBody:
         required: true
         content:
@@ -54,7 +58,7 @@ paths:
               schema: { $ref: '_common.yaml#/components/schemas/HandshakeView' }
         "400": { $ref: '_common.yaml#/components/responses/Problem' }
         "404": { $ref: '_common.yaml#/components/responses/NotFound' }
-        "409": { $ref: '#/components/responses/InvitesCannotInvite' }
+        "409": { $ref: '_common.yaml#/components/responses/Problem' }
         "422": { $ref: '_common.yaml#/components/responses/Problem' }
         "429": { $ref: '#/components/responses/InvitesRateLimited' }
   /invites/handshakes/{hs}:
@@ -170,9 +174,9 @@ paths:
       operationId: handshakeCosign
       description: >-
         The caller's co-signature of the handshake's drafted record: the Invite (inviter,
-        purpose invite_inviter) or the friend+ Friendship of a Verified upgrade (either
-        friend, purpose friend_upgrade), with the intent from POST /api/cosign. The second
-        signature of an upgrade promotes the friendship.
+        purpose invite_inviter) or the Friendship of a Verified upgrade or a passed connect
+        (either side, purpose friend_upgrade), with the intent from POST /api/cosign. The
+        second signature of an upgrade promotes the friendship; of a connect, creates it.
       requestBody:
         required: true
         content:
@@ -209,9 +213,12 @@ paths:
       description: >-
         Binds a scanned frame to the caller's session (an invite: a guest session; a
         friend+ upgrade: the friend's own signed-in session) with the device's ephemeral
-        key E_v, its separate signing key and a proof signed with it. Every failure (stale
-        or forged frame, no E_v or proof, taken or finished handshake, wrong session) is
-        the uniform 404.
+        key E_v, its separate signing key and a proof signed with it. An invite code
+        claimed by a signed-in account turns into a connect (strangers: Verified makes
+        friend+, Accepted friend) or, between plain friends, an upgrade; friends+ already
+        get 409 already_friends. Every other failure (stale or forged frame, no E_v or
+        proof, taken or finished handshake, wrong session, an inviter who cannot invite
+        now, a block) is the uniform 404.
       requestBody:
         required: true
         content:
@@ -221,6 +228,7 @@ paths:
         "204": { description: Claimed. }
         "400": { $ref: '_common.yaml#/components/responses/Problem' }
         "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409": { $ref: '_common.yaml#/components/responses/Problem' }
         "429": { $ref: '#/components/responses/InvitesRateLimited' }
   /join/status:
     get:
@@ -394,7 +402,7 @@ components:
         - type: object
           required: [kind, mode, quiet, attempt, attempts_left]
           properties:
-            kind: { type: string, enum: [invite, upgrade, recovery] }
+            kind: { type: string, enum: [invite, upgrade, connect, recovery] }
             mode: { type: string, enum: [qr, qr_audio, dual_qr] }
             quiet: { type: boolean }
             attempt: { type: integer }
@@ -502,13 +510,6 @@ components:
       properties:
         assertion: { type: object, additionalProperties: true }
   responses:
-    InvitesCannotInvite:
-      description: >-
-        on_probation, no_invites (the budget is empty), invites_paused (quarantine or
-        revoked) or friend_cap (the caller's own friends plus outgoing requests reached 1,000).
-      content:
-        application/json:
-          schema: { $ref: '_common.yaml#/components/schemas/Error' }
     InvitesStepUp:
       description: step_up_required (the session must verify with a passkey first).
       content:
