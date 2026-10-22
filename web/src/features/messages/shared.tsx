@@ -5,6 +5,7 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import { useId, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
+import { errorText } from '../../api/errors';
 import type { PostVM, Ref } from '../../vm/types';
 import { fetchFriends } from '../people/api';
 import { PostPreview } from '../post/shared';
@@ -16,7 +17,7 @@ export function ErrorText({ err }: { err: unknown }) {
   if (!err) return null;
   return (
     <p className="messages-error" role="alert" data-testid="messages-error">
-      {t(messageErrorKey(err) as 'errors:unknown')}
+      {errorText(t, err, messageErrorKey)}
     </p>
   );
 }

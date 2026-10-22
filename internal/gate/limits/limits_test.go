@@ -110,7 +110,7 @@ func TestReadBudgetPerUTCDay(t *testing.T) {
 
 func TestDefaults(t *testing.T) {
 	p := limits.DefaultPolicy()
-	for c, want := range map[string]int{"feed_page": 400, "tree_view": 400, "post_read": 1500, "graph_read": 200, "media_full": 60} {
+	for c, want := range map[string]int{"feed_page": 400, "tree_view": 400, "post_read": 1500, "graph_read": 200, "media_full": 60, "messages": 5000} {
 		if p.Reads[c] != want {
 			t.Errorf("%s = %d, want %d", c, p.Reads[c], want)
 		}
@@ -118,6 +118,7 @@ func TestDefaults(t *testing.T) {
 	want := map[string][]limits.Cap{
 		"friend_request": {{Window: limits.Day, Max: 20}}, "account": {{Window: limits.Day, Max: 50}},
 		"friend_upgrade": {{Window: limits.Hour, Max: 10}, {Window: limits.Day, Max: 30}},
+		"message_group":  {{Window: limits.Day, Max: 30}},
 	}
 	refills := map[string]limits.Refill{
 		"invite_handshake": {Cap: 20, Every: 72 * time.Minute},
@@ -128,6 +129,7 @@ func TestDefaults(t *testing.T) {
 		"media":            {Cap: 50, Every: 1728 * time.Second},
 		"report":           {Cap: 20, Every: 72 * time.Minute},
 		"settings":         {Cap: 30, Every: 2 * time.Minute},
+		"message":          {Cap: 120, Every: 30 * time.Second},
 	}
 	if len(p.Refills) != len(refills) {
 		t.Fatalf("refills %v", p.Refills)
