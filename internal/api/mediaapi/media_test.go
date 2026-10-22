@@ -201,3 +201,36 @@ func TestDisabled(t *testing.T) {
 		t.Fatalf("disabled %d %q", rec.Code, rec.Body)
 	}
 }
+
+// A draft upload: PATCH sets its alt text, DELETE discards it; neither counts
+// against the media budget's spacing (free steps).
+func TestAltAndDiscard(t *testing.T) {
+	f := newFixture(t)
+	f.login(t, "alice")
+	rec := f.upload(t, pngOf(20, 20, 3), "")
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("upload %d %s", rec.Code, rec.Body)
+	}
+	var mv gate.MediaView
+	if err := json.Unmarshal(rec.Body.Bytes(), &mv); err != nil {
+		t.Fatal(err)
+	}
+	path := "/api/media/" + string(mv.Ref)
+	rec = f.h.Do(http.MethodPatch, path, map[string]string{"alt": "a pattern"})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("patch %d %s", rec.Code, rec.Body)
+	}
+	var got gate.MediaView
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil || got.Alt != "a pattern" || got.Ref != mv.Ref {
+		t.Fatalf("patched %s", rec.Body)
+	}
+	if rec := f.h.Do(http.MethodDelete, path, nil); rec.Code != http.StatusNoContent {
+		t.Fatalf("delete %d %s", rec.Code, rec.Body)
+	}
+	if rec := f.h.Do(http.MethodDelete, path, nil); rec.Code != http.StatusNotFound {
+		t.Fatalf("second delete %d", rec.Code)
+	}
+	if rec := f.h.Do(http.MethodPatch, path, map[string]string{"alt": "x"}); rec.Code != http.StatusNotFound {
+		t.Fatalf("patch discarded %d", rec.Code)
+	}
+}

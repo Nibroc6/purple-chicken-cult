@@ -30,6 +30,7 @@ var (
 	wU   = apix.Write("friend_upgrade")
 	wV   = apix.Write("save")
 	wM   = apix.Write("media")
+	sM   = apix.Step("media")
 )
 
 func e(mod string, phase int, method, pattern string, c apix.Class) Entry {
@@ -184,6 +185,8 @@ var Catalogue = []Entry{
 	// mediaapi (P1-W04)
 	e("mediaapi", 1, "POST", "/media", wM),
 	e("mediaapi", 1, "GET", "/media/{ref}/url", rR),
+	e("mediaapi", 1, "PATCH", "/media/{ref}", sM),
+	e("mediaapi", 1, "DELETE", "/media/{ref}", sM),
 
 	// signalsapi (P1-W07)
 	e("signalsapi", 1, "POST", "/signals", free),

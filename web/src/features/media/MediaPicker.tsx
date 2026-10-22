@@ -5,8 +5,8 @@
 // media is turned off (feature_disabled).
 import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ApiError } from '../../api/errors';
 import type { MediaVM } from '../../vm/types';
+import { errorCode, type ErrCode } from './errors';
 import type { MediaPickerProps } from './index';
 import { useUpload } from './useUpload';
 import { ACCEPT, MAX_ALT } from './vm';
@@ -20,17 +20,7 @@ interface Item {
   error?: ErrCode;
 }
 
-const CODES = ['media_too_large', 'media_type', 'media_rejected', 'alt_too_long', 'rate_limited'] as const;
-type ErrCode = (typeof CODES)[number] | 'other';
-
 let nextID = 1;
-
-// errorCode maps an upload failure to its catalog key.
-// i18n-dynamic: media:errors.
-function errorCode(err: unknown): ErrCode {
-  if (err instanceof ApiError) return CODES.find((c) => c === err.code) ?? 'other';
-  return 'other';
-}
 
 export function MediaPicker(props: MediaPickerProps) {
   const { max } = props;

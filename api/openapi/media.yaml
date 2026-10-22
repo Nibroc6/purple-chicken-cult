@@ -32,6 +32,40 @@ paths:
             application/json:
               schema: { $ref: '_common.yaml#/components/schemas/Error' }
         "429": { $ref: '#/components/responses/MediaRateLimited' }
+  /media/{ref}:
+    patch:
+      operationId: mediaSetAlt
+      summary: Replace the alt text of one of the viewer's own uploads not yet attached to a post (a free step of the upload)
+      parameters:
+        - { name: ref, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MediaAltIn' }
+      responses:
+        "200":
+          description: The upload with its new alt text
+          content:
+            application/json:
+              schema: { $ref: '_common.yaml#/components/schemas/MediaView' }
+        "400": { $ref: '_common.yaml#/components/responses/Problem' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409": { $ref: '#/components/responses/MediaDisabled' }
+        "422":
+          description: alt_too_long
+          content:
+            application/json:
+              schema: { $ref: '_common.yaml#/components/schemas/Error' }
+    delete:
+      operationId: mediaDiscard
+      summary: Delete one of the viewer's own uploads not yet attached to a post (a picture removed from a draft); a free step of the upload
+      parameters:
+        - { name: ref, in: path, required: true, schema: { type: string } }
+      responses:
+        "204": { description: Deleted; its blobs are purged by the next media.process run }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409": { $ref: '#/components/responses/MediaDisabled' }
   /media/{ref}/url:
     get:
       operationId: mediaURL
@@ -77,6 +111,15 @@ components:
           type: string
           maxLength: 1000
           description: Alternative text
+    MediaAltIn:
+      type: object
+      additionalProperties: false
+      required: [alt]
+      properties:
+        alt:
+          type: string
+          maxLength: 1000
+          description: Alternative text ("" clears it)
     MediaURL:
       type: object
       additionalProperties: false

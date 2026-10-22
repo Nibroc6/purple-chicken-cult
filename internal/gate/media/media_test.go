@@ -743,7 +743,7 @@ func TestDeletionPurges(t *testing.T) {
 			t.Fatalf("purge URL %s", u)
 		}
 	}
-	// The unattached upload is swept after a day.
+	// The unattached upload is swept after OrphanTTL.
 	if err := e.m.Process(e.ctx, "", 0); err != nil {
 		t.Fatal(err)
 	}
@@ -809,5 +809,58 @@ func TestViewsSkipsUnready(t *testing.T) {
 	_, _ = e.d.DB.Q().Exec(e.ctx, `UPDATE media SET deleted_at = now() WHERE id = $1`, id)
 	if vs, _ := e.m.Views(e.ctx, sr, []uuid.UUID{id}); len(vs) != 0 {
 		t.Fatal("deleted media must not render")
+	}
+}
+
+// ---- draft uploads: alt text after upload, discard ----
+
+func TestSetAltAndDiscard(t *testing.T) {
+	e := newEnv(t)
+	mv := e.mustUpload("alice", pngOf(30, 20, 5))
+	got, err := e.m.SetAlt(e.as("alice"), mv.Ref, "  a red\nsquare ")
+	if err != nil || got.Alt != "a red square" || got.Ref != mv.Ref || got.W != 30 || got.H != 20 {
+		t.Fatalf("set alt: %+v %v", got, err)
+	}
+	if e.count(`SELECT count(*) FROM media WHERE alt = 'a red square'`) != 1 {
+		t.Fatal("alt not stored")
+	}
+	if _, err := e.m.SetAlt(e.as("alice"), mv.Ref, strings.Repeat("x", media.MaxAltRunes+1)); err == nil {
+		t.Fatal("alt over the limit must be refused")
+	}
+	// Another user cannot touch alice's upload, with her ref or their own.
+	bobRef := e.d.Refs.Media(e.w.ID("bob"), e.id("alice", mv.Ref))
+	for _, r := range []gate.Ref{mv.Ref, bobRef} {
+		if _, err := e.m.SetAlt(e.as("bob"), r, "x"); !errors.Is(err, gate.ErrNotFound) {
+			t.Fatalf("bob set alt: %v", err)
+		}
+		if err := e.m.Discard(e.as("bob"), r); !errors.Is(err, gate.ErrNotFound) {
+			t.Fatalf("bob discard: %v", err)
+		}
+	}
+	// Once attached, the upload is the post's: no alt change, no discard.
+	e.attach("alice", "pic", mv.Ref)
+	if _, err := e.m.SetAlt(e.as("alice"), mv.Ref, "x"); !errors.Is(err, gate.ErrNotFound) {
+		t.Fatalf("attached set alt: %v", err)
+	}
+	if err := e.m.Discard(e.as("alice"), mv.Ref); !errors.Is(err, gate.ErrNotFound) {
+		t.Fatalf("attached discard: %v", err)
+	}
+	// A draft upload is discarded and its blobs purged by the queued run.
+	d := e.mustUpload("alice", pngOf(25, 25, 6))
+	before := len(e.blobs.Keys())
+	if err := e.m.Discard(e.as("alice"), d.Ref); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.m.Discard(e.as("alice"), d.Ref); !errors.Is(err, gate.ErrNotFound) {
+		t.Fatalf("second discard: %v", err)
+	}
+	if err := e.d.Jobs.Drain(e.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(e.blobs.Keys()) != before-3 {
+		t.Fatalf("blobs %d, want %d", len(e.blobs.Keys()), before-3)
+	}
+	if _, err := e.m.Attach(e.ctx, e.d.DB.Q(), e.w.ID("alice"), []gate.Ref{d.Ref}); !errors.Is(err, gate.ErrNotFound) {
+		t.Fatalf("a discarded upload must not attach: %v", err)
 	}
 }

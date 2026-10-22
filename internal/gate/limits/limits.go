@@ -150,7 +150,7 @@ func DefaultPolicy() Policy {
 		Refills:                 map[string]Refill{string(WriteInvite): {Cap: 20, Every: Day / 20}},
 		ProbationFriendRequests: 5,
 		Spacing:                 2 * time.Second,
-		FreeSteps:               map[string]bool{string(WriteInvite): true},
+		FreeSteps:               map[string]bool{string(WriteInvite): true, string(WriteMedia): true},
 		// 30/min per prefix for login, enroll and CSP reports. The join flow polls
 		// /join/status every 1.5 s while the invitee waits for the SAS, so join
 		// gets room for that plus the claim and the two registration calls.
