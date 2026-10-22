@@ -4,8 +4,9 @@
 // own keys and claims the code), show the 6-digit code the initiator confirms,
 // play the handshake sound (or, without sound, scan the second code), and then:
 // an invitee accepts the terms, picks a username, creates a passkey and signs
-// the Invite and Friendship records with it (the signup ceremony); a friend
-// co-signs the friend+ record. Scan, Waiting, Sound and Dual are exported for
+// the Invite and Friendship records with it (the signup ceremony); someone
+// signed in co-signs the Friendship (a connect: the same invite code, scanned
+// signed in; or a friend+ upgrade). Scan, Waiting, Sound and Dual are exported for
 // the recovering device of a guardian recovery (features/recovery, steward:
 // contract request p1-w10-1). Owner: P0-W04 → P1-W02.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -21,7 +22,7 @@ import { RecordView, requestCosign, toRecordVMs } from '../cosign';
 import { cosignHandshake } from '../invites/api';
 import { handshakeAudio } from '../invites/audio';
 import { ClaimDevice, isDualFrame, isFrame } from '../invites/handshake';
-import { passed, type StatusVM } from '../invites/vm';
+import { mustVerify, passed, signedInPeer, type HandshakeOutcome, type StatusVM } from '../invites/vm';
 import {
   audioStart,
   claim,
@@ -44,10 +45,10 @@ type Step =
   | { kind: 'claimed' }
   | { kind: 'sound'; st: StatusVM }
   | { kind: 'form' }
-  | { kind: 'upgrade' }
+  | { kind: 'upgrade'; outcome?: HandshakeOutcome }
   | { kind: 'ended'; reason: 'cancelled' | 'expired' }
   | { kind: 'done'; inviter: string | undefined }
-  | { kind: 'friendPlus' }
+  | { kind: 'friendPlus'; outcome?: HandshakeOutcome; connect: boolean }
   | { kind: 'recovered' };
 
 export default function JoinPage() {
@@ -77,7 +78,7 @@ export default function JoinPage() {
 
   // passedTo moves on once the handshake's outcome passed.
   const passedTo = (st: StatusVM) => {
-    if (st.kind === 'upgrade') setStep({ kind: 'upgrade' });
+    if (signedInPeer(st.kind)) setStep({ kind: 'upgrade', ...(st.kind === 'connect' && st.outcome ? { outcome: st.outcome } : {}) });
     else if (st.kind === 'recovery') setStep({ kind: 'recovered' });
     else setStep({ kind: 'form' });
   };
@@ -120,7 +121,7 @@ export default function JoinPage() {
         <Waiting
           dev={d}
           onConfirmed={(st) => {
-            if (passed(st) && !(st.kind === 'upgrade' && st.outcome !== 'verified')) passedTo(st);
+            if (passed(st) && !mustVerify(st)) passedTo(st);
             else setStep({ kind: 'sound', st });
           }}
           onEnded={(reason) => {
@@ -147,8 +148,9 @@ export default function JoinPage() {
       {step.kind === 'upgrade' && d ? (
         <UpgradeSign
           dev={d}
+          outcome={step.outcome}
           onDone={() => {
-            setStep({ kind: 'friendPlus' });
+            setStep({ kind: 'friendPlus', connect: step.outcome !== undefined, ...(step.outcome ? { outcome: step.outcome } : {}) });
           }}
         />
       ) : null}
@@ -177,7 +179,7 @@ export default function JoinPage() {
       {step.kind === 'friendPlus' ? (
         <>
           <p role="status" data-testid="join-friend-plus">
-            {t('upgrade.done')}
+            {step.connect && step.outcome === 'accepted' ? t('upgrade.doneAcquaintances') : t('upgrade.done')}
           </p>
           <Link to="/friends">{t('upgrade.friends')}</Link>
         </>
@@ -211,7 +213,7 @@ export function Scan({
 }) {
   const { t } = useTranslation('join');
   const video = useRef<HTMLVideoElement>(null);
-  const [problem, setProblem] = useState<'camera' | 'bad' | undefined>();
+  const [problem, setProblem] = useState<'camera' | 'bad' | 'already' | undefined>();
   const cb = useRef({ accept, onFrame, onDone });
   useEffect(() => {
     cb.current = { accept, onFrame, onDone };
@@ -232,9 +234,9 @@ export function Scan({
           stop?.();
           cb.current.onDone();
         },
-        () => {
+        (e: unknown) => {
           busy = false;
-          if (live) setProblem('bad');
+          if (live) setProblem(e instanceof ApiError && e.code === 'already_friends' ? 'already' : 'bad');
         },
       );
     };
@@ -261,7 +263,7 @@ export function Scan({
       <video ref={video} className="join-video" aria-label={t('scan.videoLabel')} data-testid="join-video" />
       {problem ? (
         <p className="join-error" role="alert">
-          {problem === 'camera' ? t('scan.noCamera') : t('scan.bad')}
+          {problem === 'camera' ? t('scan.noCamera') : problem === 'already' ? t('errors.already_friends') : t('scan.bad')}
         </p>
       ) : null}
     </div>
@@ -305,7 +307,7 @@ export function Waiting({
       ) : (
         <Loading />
       )}
-      <p>{st?.kind === 'upgrade' ? t('sas.bodyFriend') : t('sas.body')}</p>
+      <p>{signedInPeer(st?.kind) ? t('sas.bodyFriend') : t('sas.body')}</p>
       <p className="muted" role="status">
         {t('sas.waiting')}
       </p>
@@ -323,7 +325,6 @@ export function Sound({ dev, first, onPassed }: { dev: ClaimDevice; first: Statu
   const [st, setSt] = useState<StatusVM>(first);
   const [phase, setPhase] = useState<'ready' | 'playing' | 'waiting'>('ready');
   const [err, setErr] = useState<string | undefined>();
-  const kind = st.kind;
   const play = async () => {
     setErr(undefined);
     try {
@@ -338,7 +339,7 @@ export function Sound({ dev, first, onPassed }: { dev: ClaimDevice; first: Statu
         if (now.attempt === attempt && !now.playing && now.outcome) {
           setSt(now);
           setPhase('ready');
-          if (passed(now) && !(kind === 'upgrade' && now.outcome !== 'verified')) onPassed(now);
+          if (passed(now) && !mustVerify(now)) onPassed(now);
           return;
         }
         await sleep(500);
@@ -633,15 +634,17 @@ function SignupCeremony({
   );
 }
 
-// UpgradeSign co-signs the friend+ Friendship of a Verified upgrade.
-function UpgradeSign({ dev, onDone }: { dev: ClaimDevice; onDone: () => void }) {
+// UpgradeSign co-signs the Friendship of a Verified upgrade or of a passed
+// connect (outcome set: Verified makes friends, Accepted acquaintances).
+function UpgradeSign({ dev, outcome, onDone }: { dev: ClaimDevice; outcome?: HandshakeOutcome; onDone: () => void }) {
   const { t } = useTranslation(['join', 'errors']);
   const q = useJoinStatus(dev, 1000);
   const st = q.data;
   const asked = useRef(false);
   const sign = useMutation({
     mutationFn: async (hs: string) => {
-      const r = await requestCosign({ purpose: 'friend_upgrade', target: hs, summary: t('upgrade.summary') });
+      const summary = outcome === 'accepted' ? t('upgrade.summaryAccepted') : t('upgrade.summary');
+      const r = await requestCosign({ purpose: 'friend_upgrade', target: hs, summary });
       if (!r) return;
       await cosignHandshake(hs, r.intent, r.assertion);
       await q.refetch();
@@ -660,7 +663,7 @@ function UpgradeSign({ dev, onDone }: { dev: ClaimDevice; onDone: () => void }) 
   }, [st, sign]);
   return (
     <div className="join-sound">
-      <h2>{t('upgrade.title')}</h2>
+      <h2>{outcome === 'accepted' ? t('upgrade.titleAccepted') : t('upgrade.title')}</h2>
       {st?.sign === 'waiting' ? (
         <p role="status">{t('upgrade.waiting')}</p>
       ) : st?.hs ? (

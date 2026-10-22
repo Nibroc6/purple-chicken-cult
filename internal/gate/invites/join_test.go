@@ -212,9 +212,14 @@ func TestVerifiedInviteEndToEnd(t *testing.T) {
 	_, err = e.s.Invitees(e.ctx)
 	wantNotFound(t, err, "anonymous invitees")
 
-	// The new account is on probation under the Phase 1 rule: no handshakes.
-	_, err = e.s.Open(e.as(nb), "qr_audio", false)
-	wantProblem(t, err, "on_probation")
+	// The new account is on probation under the Phase 1 rule: its code only
+	// connects signed-in friends; a guest cannot claim it.
+	hv, err = e.s.Open(e.as(nb), "qr_audio", false)
+	e.must(err)
+	if hv.Invite {
+		t.Fatal("a code opened on probation signs nobody up")
+	}
+	wantNotFound(t, e.guest().claim(e.started(e.as(nb), hv).payload), "guest claim of a probation code")
 	b, err := e.s.Budget(e.as(nb))
 	e.must(err)
 	if b.Available != 0 || b.Probation == nil || b.Probation.NeedOutsideFriends != 2 || !b.Probation.FriendPlus {

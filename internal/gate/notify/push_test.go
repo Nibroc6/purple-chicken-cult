@@ -205,14 +205,14 @@ func TestPushTextInRecipientLocaleEnXA(t *testing.T) {
 		t.Fatalf("pushes %+v", got)
 	}
 	title := got[0].Title
-	if !strings.HasPrefix(title, "[@bob ") || !strings.HasSuffix(title, "]") || !strings.Contains(title, "šêñŧ ýôû à ƒŕîêñð ŕêǫûêšŧ") {
+	if !strings.HasPrefix(title, "[@bob ") || !strings.HasSuffix(title, "]") || !strings.Contains(title, "šêñŧ ýôû àñ àçǫûàîñŧàñçê ŕêǫûêšŧ") {
 		t.Fatalf("en-XA text from the catalog: %q", title)
 	}
 	// Another locale without a catalog falls back to en.
 	e.setLocale("alice", "fi")
 	e.notify(core.Event{To: e.id("alice"), Kind: notify.KindRequestAccepted, SubjectUser: e.id("bob")})
 	e.drain()
-	if got := e.messages(sub); len(got) != 2 || got[1].Title != "@bob accepted your friend request" {
+	if got := e.messages(sub); len(got) != 2 || got[1].Title != "@bob accepted your acquaintance request" {
 		t.Fatalf("fi falls back to en: %+v", got)
 	}
 }
@@ -227,7 +227,7 @@ func TestHideContentSendsOnlyTheGenericText(t *testing.T) {
 	if len(h) != 1 || string(h[0].Plaintext) != `{"v":1,"title":"New activity","tag":"activity","url":"/notifications"}` {
 		t.Fatalf("hidden payload: %+v", h)
 	}
-	if s := e.messages(shown); len(s) != 1 || s[0].Title != "@bob sent you a friend request" {
+	if s := e.messages(shown); len(s) != 1 || s[0].Title != "@bob sent you an acquaintance request" {
 		t.Fatalf("shown payload: %+v", s)
 	}
 	if st, err := e.n.SubscriptionState(e.as("alice"), hidden.Endpoint); err != nil || !st.Subscribed || !st.HideContent {
@@ -292,7 +292,7 @@ func TestResubscribingAnotherAccountsEndpointMovesIt(t *testing.T) {
 	e.notify(core.Event{To: e.id("carol"), Kind: notify.KindFriendRequest, SubjectUser: e.id("dave")})
 	e.drain()
 	got := e.messages(sub)
-	if len(got) != 1 || got[0].Title != "@dave sent you a friend request" {
+	if len(got) != 1 || got[0].Title != "@dave sent you an acquaintance request" {
 		t.Fatalf("endpoint received %+v", got)
 	}
 }
@@ -345,14 +345,14 @@ func TestSubjectsOutOfHorizonAreNotPushed(t *testing.T) {
 	e.notify(core.Event{To: e.id("alice"), Kind: notify.KindFriendRequest, SubjectUser: e.id("bob")})
 	e.unfriend("alice", "bob") // bob leaves alice's horizon before delivery
 	e.drain()
-	if got := e.messages(sub); len(got) != 1 || got[0].Title != "@xavier sent you a friend request" {
+	if got := e.messages(sub); len(got) != 1 || got[0].Title != "@xavier sent you an acquaintance request" {
 		t.Fatalf("pushes %+v", got)
 	}
 	// An optional person who is out of reach gives the anonymous text.
 	e.notify(core.Event{To: e.id("alice"), Kind: notify.KindFriendSecurity, SubjectUser: e.id("dave")})
 	e.drain()
 	got := e.messages(sub)
-	if len(got) != 2 || got[1].Title != "A friend changed their sign-in keys" {
+	if len(got) != 2 || got[1].Title != "An acquaintance changed their sign-in keys" {
 		t.Fatalf("anonymous variant: %+v", got)
 	}
 }

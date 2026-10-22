@@ -1,6 +1,8 @@
 // The initiator's side of an in-person handshake (§7, plan P1-W02): invites
 // (InvitePage) and the friend+ upgrades and recovery handshakes other features
-// open (they render <HandshakeHost opened={toOpenedVM(view)} />).
+// open (they render <HandshakeHost opened={toOpenedVM(view)} />). An invite
+// code that someone signed in scans turns into a connect (kind "connect", or
+// "upgrade" between acquaintances) and ends in a friendship both sign.
 //
 // The device makes its ephemeral key and posts E_i, syncs its frame counter to
 // the server's frame and then renders a new QR frame every 250 ms from the
@@ -40,7 +42,7 @@ import {
   type Ephemeral,
 } from './handshake';
 import { ErrorText, invitesKey } from './shared';
-import { isLive, joinURL, passed, type StatusVM } from './vm';
+import { isLive, joinURL, mustVerify, passed, signedInPeer, type HandshakeOutcome, type StatusVM } from './vm';
 
 // LISTEN_MS bounds one listen; the device keeps listening while the handshake waits for sound.
 const LISTEN_MS = 15_000;
@@ -117,6 +119,10 @@ export function HandshakeHost({ opened, onDone, onAgain }: { opened: OpenedVM; o
   const confirmed = state === 'confirmed';
   const k = useKmac(opened, dev, state === 'claimed' || confirmed);
   const kind = st?.kind ?? 'invite';
+  // The done status no longer carries the outcome; the last one seen decides
+  // whether the new edge is a friend (Verified) or an acquaintance.
+  const [outcome, setOutcome] = useState<HandshakeOutcome | undefined>();
+  if (st?.outcome && st.outcome !== outcome) setOutcome(st.outcome);
 
   return (
     <div className="invites-handshake" data-testid="invite-handshake" data-state={state} data-kind={kind}>
@@ -154,7 +160,15 @@ export function HandshakeHost({ opened, onDone, onAgain }: { opened: OpenedVM; o
       {confirmed && st ? <Confirmed opened={opened} st={st} dev={dev} kmac={k} onChange={refresh} /> : null}
       {state === 'done' ? (
         <p role="status" data-testid="invite-done">
-          {kind === 'upgrade' ? t('hs.doneUpgrade') : kind === 'recovery' ? t('hs.doneRecovery') : t('hs.done')}
+          {kind === 'recovery'
+            ? t('hs.doneRecovery')
+            : kind === 'invite'
+              ? outcome === 'accepted'
+                ? t('hs.doneAccepted')
+                : t('hs.done')
+              : kind === 'connect' && outcome === 'accepted'
+                ? t('hs.doneAcquaintances')
+                : t('hs.doneFriends')}
         </p>
       ) : null}
       {state === 'cancelled' || state === 'expired' ? (
@@ -244,7 +258,7 @@ function Confirmed({
   onChange: () => unknown;
 }) {
   const { t } = useTranslation('invites');
-  const ok = passed(st) && !(st.kind === 'upgrade' && st.outcome !== 'verified');
+  const ok = passed(st) && !mustVerify(st);
   return (
     <>
       {!ok && st.mode === 'dual_qr' && dev && k ? <DualFrames dev={dev} kmac={k} /> : null}
@@ -352,18 +366,23 @@ function DualFrames({ dev, kmac: k }: { dev: Device; kmac: Uint8Array }) {
   );
 }
 
-// Signing co-signs the drafted record (the Invite, or the friend+ Friendship
-// of an upgrade) once the server asks for it; the dialog opens by itself.
+// Signing co-signs the drafted record (the Invite, or the Friendship of an
+// upgrade or a connect) once the server asks for it; the dialog opens by itself.
 function Signing({ opened, st, onSigned }: { opened: OpenedVM; st: StatusVM; onSigned: () => unknown }) {
   const { t } = useTranslation('invites');
-  const purpose = st.kind === 'upgrade' ? 'friend_upgrade' : 'invite_inviter';
+  const friends = signedInPeer(st.kind);
+  const purpose = friends ? 'friend_upgrade' : 'invite_inviter';
+  const summary =
+    st.kind === 'connect'
+      ? st.outcome === 'verified'
+        ? t('sign.summaryConnect')
+        : t('sign.summaryConnectAccepted')
+      : friends
+        ? t('sign.summaryUpgrade')
+        : t('sign.summaryInvite');
   const sign = useMutation({
     mutationFn: async () => {
-      const r = await requestCosign({
-        purpose,
-        target: opened.hs,
-        summary: st.kind === 'upgrade' ? t('sign.summaryUpgrade') : t('sign.summaryInvite'),
-      });
+      const r = await requestCosign({ purpose, target: opened.hs, summary });
       if (!r) return false;
       await cosignHandshake(opened.hs, r.intent, r.assertion);
       return true;
@@ -381,7 +400,7 @@ function Signing({ opened, st, onSigned }: { opened: OpenedVM; st: StatusVM; onS
   if (st.sign === 'waiting') {
     return (
       <p role="status" data-testid="invite-sign-waiting">
-        {st.kind === 'upgrade' ? t('sign.waitingFriend') : t('sign.waitingInvitee')}
+        {friends ? t('sign.waitingFriend') : t('sign.waitingInvitee')}
       </p>
     );
   }
@@ -394,7 +413,7 @@ function Signing({ opened, st, onSigned }: { opened: OpenedVM; st: StatusVM; onS
   }
   return (
     <>
-      <p>{st.kind === 'upgrade' ? t('sign.askUpgrade') : t('sign.askInvite')}</p>
+      <p>{friends ? t('sign.askUpgrade') : t('sign.askInvite')}</p>
       <button
         type="button"
         data-testid="invite-sign"

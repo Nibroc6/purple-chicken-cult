@@ -298,6 +298,9 @@ components:
         mode: { type: string, enum: [qr, qr_audio, dual_qr] }
         frame_ttl_ms: { type: integer }
         frame_key: { type: string }
+        invite:
+          type: boolean
+          description: Invite codes only. A guest can sign up with this code now; without it the code only connects a signed-in friend.
     HandshakeStatus:
       type: object
       required: [state]

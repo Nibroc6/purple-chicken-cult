@@ -44,9 +44,22 @@ export function toBudgetVM(b: BudgetView): BudgetVM {
   };
 }
 
-// canOpen reports whether the inviter may show a code now.
-export function canOpen(b: BudgetVM): boolean {
+// canInvite reports whether a guest can sign up with the caller's code now
+// (the code itself always opens: it also connects someone signed in).
+export function canInvite(b: BudgetVM): boolean {
   return b.available > 0 && !b.probation && !b.pausedUntil && !b.revoked;
+}
+
+// signedInPeer reports whether the other device of a handshake is someone
+// signed in (a friend upgrade, or an invite code they scanned: a connect).
+export function signedInPeer(kind: HandshakeKind | undefined): boolean {
+  return kind === 'upgrade' || kind === 'connect';
+}
+
+// mustVerify reports whether a passed outcome still needs Verified (an
+// upgrade exists to be Verified; a connect is an acquaintance when Accepted).
+export function mustVerify(st: { kind: HandshakeKind; outcome?: HandshakeOutcome }): boolean {
+  return st.kind === 'upgrade' && st.outcome !== 'verified';
 }
 
 export interface InviteeVM {

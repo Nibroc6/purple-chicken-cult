@@ -68,11 +68,11 @@
     "title": "Privacy",
     "nameInChains": {
       "label": "Show my name in connection chains",
-      "help": "Otherwise people further away see “a friend of a friend”."
+      "help": "Otherwise people further away see “an acquaintance of an acquaintance”."
     },
     "suggestible": {
-      "label": "Suggest me to friends of friends",
-      "help": "Only people already connected to you through a friend can see the suggestion."
+      "label": "Suggest me to acquaintances of acquaintances",
+      "help": "Only people already connected to you through an acquaintance can see the suggestion."
     },
     "namedInLikes": {
       "label": "Show my name on posts I like",
@@ -93,7 +93,7 @@
   },
   "delete": {
     "title": "Delete your account",
-    "warning": "This removes all your posts and friendships and signs you out everywhere. It cannot be undone, and your handle can never be used again.",
+    "warning": "This removes all your posts, acquaintances and friends and signs you out everywhere. It cannot be undone, and your handle can never be used again.",
     "confirmLabel": "Type your handle ({handle}) to confirm",
     "button": "Delete my account",
     "working": "Deleting…",

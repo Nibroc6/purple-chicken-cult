@@ -245,7 +245,7 @@ describe('NotificationsPage', () => {
     expect(text(2)).toBe('and 2 others replied to your post');
     expect(text(3)).toBe('2 replies to your post from your network');
     expect(text(5)).toBe('removed a passkey from their account');
-    expect(text(6)).toBe('A friend deleted their account');
+    expect(text(6)).toBe('An acquaintance deleted their account');
     expect(text(8)).toBe('A moderator suspended someone you invited');
     expect(within(list[0] as HTMLElement).getByTestId('notification-person').getAttribute('href')).toBe('/people/r-carol');
     expect(within(list[0] as HTMLElement).getByTestId('notification-person').textContent).toBe('@carol');

@@ -138,8 +138,11 @@ func TestResetPutsUsersBackOnProbation(t *testing.T) {
 	if !e.onProbation(carol) {
 		t.Fatal("reset did not apply")
 	}
-	_, err := e.s.Open(e.as(carol), "qr_audio", false)
-	wantProblem(t, err, "on_probation")
+	hv, err := e.s.Open(e.as(carol), "qr_audio", false)
+	e.must(err)
+	if hv.Invite {
+		t.Fatal("a code opened on probation signs nobody up")
+	}
 	b, err := e.s.Budget(e.as(carol))
 	e.must(err)
 	if b.Probation == nil || !b.Probation.FriendPlus {

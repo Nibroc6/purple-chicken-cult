@@ -343,6 +343,44 @@ describe('join page', () => {
     expect(calls.find((c) => c.path === '/invites/handshakes/mine/cosign')?.body).toEqual({ intent: 'i-1', assertion: { id: 'a' } });
   });
 
+  it('lets a signed-in person scan an invite code and become an acquaintance (Accepted connect)', async () => {
+    let st: Record<string, unknown> = status({ kind: 'connect', state: 'confirmed' });
+    cam.frames = [FRAME];
+    fakeAudio();
+    cosign.request.mockResolvedValue({ intent: 'i-1', assertion: { id: 'a' } });
+    stubAPI({ authenticated: true, kind: 'user', csrf: 'x', me: { handle: 'bob' } }, (c) => {
+      if (c.path === '/join/claim') return json(204, null);
+      if (c.path === '/join/status') return json(200, st);
+      if (c.path === '/join/audio/start') {
+        st = status({ kind: 'connect', state: 'confirmed', attempt: 1, attempts_left: 4, outcome: 'accepted', sign: 'needed', hs: 'mine' });
+        return json(200, { play_at: new Date().toISOString(), attempt: 1 });
+      }
+      if (c.path === '/invites/handshakes/mine/cosign') {
+        st = status({ kind: 'connect', state: 'done', attempt: 1, attempts_left: 4 });
+        return json(204, null);
+      }
+      return undefined;
+    });
+    renderJoin();
+    fireEvent.click(await screen.findByTestId('join-scan-friend'));
+    fireEvent.click(await screen.findByTestId('join-play', {}, { timeout: 3000 }));
+    const done = await screen.findByTestId('join-friend-plus', {}, { timeout: 5000 });
+    expect(done.textContent).toBe(tr('join:upgrade.doneAcquaintances'));
+    expect(cosign.request).toHaveBeenCalledWith(
+      expect.objectContaining({ purpose: 'friend_upgrade', target: 'mine', summary: tr('join:upgrade.summaryAccepted') }),
+    );
+  });
+
+  it('says so when a friend scans the code again', async () => {
+    cam.frames = [FRAME];
+    stubAPI({ authenticated: true, kind: 'user', csrf: 'x', me: { handle: 'bob' } }, (c) =>
+      c.path === '/join/claim' ? json(409, { error: 'already_friends' }) : undefined,
+    );
+    renderJoin();
+    fireEvent.click(await screen.findByTestId('join-scan-friend'));
+    expect(await screen.findByText(tr('join:errors.already_friends'), {}, { timeout: 3000 })).toBeTruthy();
+  });
+
   it('scans the second code in dual-QR mode', async () => {
     let st: Record<string, unknown> = status({ state: 'confirmed', mode: 'dual_qr' });
     cam.frames = [FRAME, DUAL];
