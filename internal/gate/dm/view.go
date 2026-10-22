@@ -112,6 +112,13 @@ func (s *Service) preview(pp *people, v core.UserID, r *msgRow) *gate.MessagePre
 	switch {
 	case r.kind == msgEvent:
 		p.Kind, p.Event = "event", r.event
+		// An event's preview names who it is about (who joined, left or was removed).
+		if r.subject != 0 {
+			p.FromMe, p.From = r.subject == v, ""
+			if m := pp.member(r.subject, false); m != nil && !p.FromMe {
+				p.From = m.Handle
+			}
+		}
 	case r.deleted:
 		p.Kind = "deleted"
 	case r.body == "" && r.post != uuid.Nil:

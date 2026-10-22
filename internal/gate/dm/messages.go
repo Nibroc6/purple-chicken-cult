@@ -129,7 +129,7 @@ func (s *Service) messageViews(ctx context.Context, v core.UserID, c conv, ms []
 		switch {
 		case r.kind == msgEvent:
 			mv.Kind, mv.Event = "event", r.event
-			if r.subject != 0 {
+			if r.subject != 0 && r.subject != v {
 				mv.Subject = pp.member(r.subject, false)
 			}
 		case r.deleted:

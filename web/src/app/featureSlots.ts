@@ -23,6 +23,7 @@ import { slots as push } from '../features/push/slots';
 import { slots as media } from '../features/media/slots';
 import { slots as cosign } from '../features/cosign/slots';
 import { slots as handshakeAudio } from '../features/handshake-audio/slots';
+import { slots as messages } from '../features/messages/slots';
 
 export const featureSlots: FeatureSlots[] = [
   feed,
@@ -48,4 +49,5 @@ export const featureSlots: FeatureSlots[] = [
   media,
   cosign,
   handshakeAudio,
+  messages,
 ];

@@ -16,6 +16,8 @@ export interface PostActions {
   // save sets or clears the viewer's private save (P1-W08; saved_by_me is the state).
   save?: (post: Ref, on: boolean) => void;
   report: (target: ReportTarget) => void;
+  // share opens the share sheet: the post into one of the viewer's conversations (dm-1).
+  share?: (post: Ref) => void;
   markSeen?: (post: Ref) => void;
 }
 

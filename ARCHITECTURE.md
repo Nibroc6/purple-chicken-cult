@@ -906,7 +906,19 @@ Rendering rules:
   reads "You're caught up".
 - **Headers come from the API** (`tier_start` markers), never from post content, so
   every format and custom layout shows them and nobody can spoof them.
-- **DMs** between friends are a later addition.
+- **Direct messages (dm-1).** Private conversations and groups between Chickens with a
+  direct edge (an acquaintance or a friend); a block or an unfriend stops sending (the
+  same `not_connected` answer either way) and keeps the history readable. Groups are by
+  invitation from the inviter's own connections (≤ 32, invitations included); an invitee
+  sees only who invited them, the title and the count until they join; probation can
+  write 1:1 but not start groups or invite. A member's blocks hide the blocked person's
+  messages from them. **A shared post** is re-checked for every reader on every read:
+  anyone outside its audience gets a placeholder and nothing else about it, and list
+  previews never quote a post. No read receipts and no signatures; moderators see only a
+  reported message (the text kept with the report). Push says only who wrote, once per
+  unread stretch, and never when muted. Retention: a sender's delete erases the body;
+  `dm.purge` erases what every member has cleared; account deletion erases the
+  account's messages; an empty group is deleted.
 
 ### 10.2 Edits, deletion & export
 - **Edit:** the same post `id` with a new `version` (each version is signed), shown as

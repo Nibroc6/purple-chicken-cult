@@ -23,6 +23,7 @@ import { routes as push } from '../features/push/routes';
 import { routes as media } from '../features/media/routes';
 import { routes as cosign } from '../features/cosign/routes';
 import { routes as handshakeAudio } from '../features/handshake-audio/routes';
+import { routes as messages } from '../features/messages/routes';
 
 export const featureRoutes: RouteObject[] = [
   ...feed,
@@ -48,4 +49,5 @@ export const featureRoutes: RouteObject[] = [
   ...media,
   ...cosign,
   ...handshakeAudio,
+  ...messages,
 ];

@@ -16,7 +16,7 @@ export interface Page<T> {
   next?: string;
 }
 
-export const targetKinds = ['post', 'person', 'inviter', 'preview'] as const;
+export const targetKinds = ['post', 'person', 'inviter', 'preview', 'message'] as const;
 export type TargetKind = (typeof targetKinds)[number];
 
 // reportParam is the search parameter of the report modal: ?report=<kind>:<ref>.
@@ -51,7 +51,7 @@ export type ReportReason = (typeof reportReasons)[number];
 export const modReasons = [...reportReasons, 'ban_evasion'] as const;
 export type ModReason = (typeof modReasons)[number];
 
-export const actions = ['remove_post', 'suspend_user', 'dismiss'] as const;
+export const actions = ['remove_post', 'remove_message', 'suspend_user', 'dismiss'] as const;
 export type Action = (typeof actions)[number];
 
 // NoteMax bounds a report note in code points (server: 1,000).
@@ -154,11 +154,13 @@ export const pendingActions = ['suspend_user', 'dismiss', 'quarantine_subtree', 
 export type PendingAction = (typeof pendingActions)[number];
 
 // actionsFor lists the actions the resolve form offers for an item:
-// remove_post only where there is a post.
+// remove_post only where there is a post, remove_message only for a
+// reported message that is still there.
 export function actionsFor(it: ModItem): Action[] {
   const s = it.summary ?? {};
   const post = it.post !== undefined || (s.kind_post ?? 0) > 0 || (s.kind_preview ?? 0) > 0 || (it.source === 'csam' && (s.preview ?? 0) > 0);
-  return actions.filter((a) => a !== 'remove_post' || post);
+  const message = it.message !== undefined && !it.message.removed;
+  return actions.filter((a) => (a !== 'remove_post' || post) && (a !== 'remove_message' || message));
 }
 
 // canQuarantine: the subject's invite subtree has enough confirmed-bad accounts.

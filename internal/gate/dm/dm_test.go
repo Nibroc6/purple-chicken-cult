@@ -55,7 +55,9 @@ func (e *env) as(h string) context.Context {
 
 func (e *env) person(viewer, who string) gate.Ref { return e.d.Refs.User(e.id(viewer), e.id(who)) }
 
-func (e *env) post(viewer, label string) gate.Ref { return e.d.Refs.Post(e.id(viewer), e.w.PostID(label)) }
+func (e *env) post(viewer, label string) gate.Ref {
+	return e.d.Refs.Post(e.id(viewer), e.w.PostID(label))
+}
 
 // conv translates a conversation ref minted for one viewer into another's.
 func (e *env) conv(from gate.Ref, fromViewer, to string) gate.Ref {

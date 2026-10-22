@@ -20,6 +20,7 @@ import {
   faCircleInfo,
   faCircleMinus,
   faCircleQuestion,
+  faComments,
   faCrown,
   faDiamond,
   faEye,
@@ -30,6 +31,7 @@ import {
   faHeart as faHeartSolid,
   faHouse,
   faListUl,
+  faPaperPlane,
   faMinus,
   faPen,
   faPenToSquare,
@@ -55,6 +57,7 @@ const icons = {
   saves: faBookmark,
   seen: faEye,
   notifications: faBell,
+  messages: faComments,
   moderation: faFlag,
   settings: faGear,
   about: faCircleQuestion,
@@ -85,6 +88,9 @@ const icons = {
   // Adds the post to a reply to several posts (features/composer).
   'reply-pick': faReplyAll,
   replies: faComment,
+  // Shares a post into a conversation (features/messages).
+  share: faPaperPlane,
+  send: faPaperPlane,
   // Integrity elements (integrity/).
   tier: faDiamond,
   'tier-done': faCircleCheck,

@@ -1,0 +1,17 @@
+{
+  "users": [
+    { "handle": "alice", "name": "Alice" },
+    { "handle": "bob", "name": "Bob" },
+    { "handle": "carol", "name": "Carol" },
+    { "handle": "dave", "name": "Dave" }
+  ],
+  "friends": [
+    { "a": "alice", "b": "bob" },
+    { "a": "bob", "b": "carol" },
+    { "a": "alice", "b": "dave" }
+  ],
+  "posts": [
+    { "label": "carol-close", "author": "carol", "body": "Only for my direct friends", "audience": "d1", "age": "2h" },
+    { "label": "carol-open", "author": "carol", "body": "Carol's open post", "age": "1h" }
+  ]
+}

@@ -25,7 +25,7 @@ type MessagePreview struct {
 	Excerpt string    `json:"excerpt,omitempty"`
 	Event   string    `json:"event,omitempty"`
 	FromMe  bool      `json:"from_me"`
-	From    string    `json:"from,omitempty"` // the sender's handle (others' messages)
+	From    string    `json:"from,omitempty"` // the sender's handle (others' messages; for an event, who it is about)
 	At      time.Time `json:"at"`
 }
 
@@ -61,7 +61,7 @@ type MessageView struct {
 	Body    string          `json:"body,omitempty"`
 	Post    *SharedPostView `json:"post,omitempty"`
 	Event   string          `json:"event,omitempty"`   // created | joined | left | removed | renamed
-	Subject *ConvMember     `json:"subject,omitempty"` // who joined, left or was removed
+	Subject *ConvMember     `json:"subject,omitempty"` // who joined, left or was removed (nil: the viewer)
 	At      time.Time       `json:"at"`
 }
 
