@@ -1,4 +1,4 @@
-// /settings/hidden: what the viewer hid, with a way back. Chickens they see
+// /settings/hidden: what the viewer hid, with a way back. People they see
 // less of come first (Show normally clears the count; their posts stay
 // hidden), then the hidden posts they can still see, most recent first, each
 // with Unhide. Trial feedback: hides and show less had no undo.

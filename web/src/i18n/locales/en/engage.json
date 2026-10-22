@@ -29,7 +29,7 @@
     "title": "Hidden posts",
     "intro": "Posts you hid or asked to see less of. Undo something here and it comes back the next time your feed loads.",
     "less": {
-      "title": "Chickens you see less of",
+      "title": "People you see less of",
       "help": "Each Show less moves their posts further down your feed, up to three steps. Show normally puts them back.",
       "count": "{count, plural, one {Lowered once} other {Lowered # times}}",
       "reset": "Show normally",
