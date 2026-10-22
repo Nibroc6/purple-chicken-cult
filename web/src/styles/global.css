@@ -260,6 +260,8 @@ a {
   .sidebar-backdrop {
     position: fixed;
     inset: 0;
+    inline-size: 100%;
+    block-size: 100%;
     z-index: 25;
     padding: 0;
     border: none;
@@ -290,6 +292,10 @@ a {
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
+}
+
+.shell-body {
+  min-inline-size: 0;
 }
 
 .shell-main {

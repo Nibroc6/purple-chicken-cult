@@ -68,7 +68,7 @@ describe('shell navigation', () => {
     });
     fireEvent.click(menu);
     expect(menu.getAttribute('aria-expanded')).toBe('true');
-    expect(document.querySelector('main')?.hasAttribute('inert')).toBe(true);
+    expect(document.querySelector('.shell-body')?.hasAttribute('inert')).toBe(true);
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(menu.getAttribute('aria-expanded')).toBe('false');
     expect(document.activeElement).toBe(menu);

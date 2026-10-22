@@ -131,14 +131,16 @@ export function Shell() {
           }}
         />
       ) : null}
-      <main id="main" className="shell-main" inert={drawerOpen}>
-        <Suspense fallback={<Loading />}>
-          <Outlet />
-        </Suspense>
-      </main>
-      {globals.map((G, i) => (
-        <G key={i} />
-      ))}
+      <div className="shell-body" inert={drawerOpen}>
+        <main id="main" className="shell-main">
+          <Suspense fallback={<Loading />}>
+            <Outlet />
+          </Suspense>
+        </main>
+        {globals.map((G, i) => (
+          <G key={i} />
+        ))}
+      </div>
     </div>
   );
 }
