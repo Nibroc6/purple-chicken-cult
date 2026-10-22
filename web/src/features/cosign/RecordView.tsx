@@ -1,8 +1,25 @@
 // The record a passkey is about to sign, field by field, plus the exact JSON
-// (plan §6.4; ARCHITECTURE §3 Phase 1). Owner: P1-W01.
+// (plan §6.4; ARCHITECTURE §3 Phase 1). Most people never need it, so
+// AdvancedRecords folds the records into a closed "Advanced" disclosure.
+// Owner: P1-W01.
 import { useTranslation } from 'react-i18next';
 import { formatDateTime } from '../../lib/time';
 import type { RecordVM } from './vm';
+
+// AdvancedRecords shows records under a closed disclosure, with a note that
+// they hold only public IDs and times (no passkey, no secret code).
+export function AdvancedRecords({ records }: { records: RecordVM[] }) {
+  const { t } = useTranslation('cosign');
+  return (
+    <details className="cosign-advanced" data-testid="cosign-advanced">
+      <summary>{t('advanced.summary')}</summary>
+      <p className="muted">{t('advanced.note')}</p>
+      {records.map((r, i) => (
+        <RecordView key={i} record={r} />
+      ))}
+    </details>
+  );
+}
 
 export function RecordView({ record }: { record: RecordVM }) {
   const { t, i18n } = useTranslation('cosign');

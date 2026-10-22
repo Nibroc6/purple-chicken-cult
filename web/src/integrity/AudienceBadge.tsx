@@ -2,6 +2,7 @@
 // forced audience (probation, D6) is only ever sent to the author, who alone
 // sees the note; for everyone else a forced d1 is byte-identical to a chosen one.
 import { useTranslation } from 'react-i18next';
+import { Icon } from '../lib/Icon';
 import type { AudienceBadgeProps } from './types';
 import './integrity.css';
 
@@ -14,6 +15,7 @@ export function AudienceBadge({ audience, forced }: AudienceBadgeProps) {
       data-audience={audience}
       data-forced={forced ? 'true' : undefined}
     >
+      <Icon name="audience" />
       {t('audience.label', { audience })}
       {forced ? <span className="audience-forced">{t('audience.forced')}</span> : null}
     </span>

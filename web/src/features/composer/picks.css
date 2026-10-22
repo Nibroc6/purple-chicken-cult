@@ -40,9 +40,6 @@
   display: flex;
   gap: var(--space-2);
 }
-.reply-pick[aria-pressed='true'] {
-  font-weight: 600;
-}
 /* On the reply tree the focus card moves up out of the tray's way. */
 .shell:has(.reply-tray) .tree-focus {
   inset-block-end: calc(var(--space-3) + 4rem);

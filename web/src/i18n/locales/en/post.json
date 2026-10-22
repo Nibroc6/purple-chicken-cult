@@ -11,7 +11,10 @@
     "policy": "Who can reply with a post"
   },
   "lang": {
-    "und": "Mixed or unknown"
+    "und": "Mixed or unknown",
+    "detected": "Language: {name} (detected)",
+    "assumed": "Language: {name}",
+    "change": "Change"
   },
   "audience": {
     "connected": "Everyone connected to you",

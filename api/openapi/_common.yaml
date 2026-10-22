@@ -266,7 +266,7 @@ components:
         id: { $ref: '#/components/schemas/Ref' }
         kind:
           type: string
-          enum: [friend_request, request_accepted, post_referenced, mention, invitee_action, friend_security, invite_redeemed, recovery_approval, account_recovery]
+          enum: [friend_request, request_accepted, post_referenced, mention, invitee_action, friend_security, invite_redeemed, recovery_approval, account_recovery, friend_upgrade]
         count: { type: integer }
         person: { $ref: '#/components/schemas/ChainHop' }
         post: { $ref: '#/components/schemas/Ref' }

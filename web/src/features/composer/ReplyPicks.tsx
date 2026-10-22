@@ -4,6 +4,7 @@
 // Owner: P0-W05 → P1-W12.
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
+import { IconButton } from '../../lib/IconButton';
 import { MAX_PARENTS } from '../post/vm';
 import { clearPicks, composeURL, togglePick, usePicks } from './picks';
 import './picks.css';
@@ -17,17 +18,17 @@ export function ReplyPick({ post }: { post: { ref: string; author: { handle: str
   const picked = picks.some((p) => p.ref === post.ref);
   if (!picked && picks.length >= MAX_PARENTS) return null;
   return (
-    <button
-      type="button"
+    <IconButton
+      icon="reply-pick"
+      label={picked ? t('picks.picked') : t('picks.pick')}
       className="reply-pick"
       data-testid="reply-pick"
+      data-part="reply-pick"
       aria-pressed={picked}
       onClick={() => {
         togglePick({ ref: post.ref, handle: post.author.handle });
       }}
-    >
-      {picked ? t('picks.picked') : t('picks.pick')}
-    </button>
+    />
   );
 }
 

@@ -14,6 +14,7 @@
 import { createContext, useContext, useId, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useInRouterContext } from 'react-router';
+import { IconButton } from '../../../lib/IconButton';
 import { formatDateTime, formatRelative } from '../../../lib/time';
 import { ReplyPick } from '../../../features/composer';
 import { MediaImage } from '../../../features/media';
@@ -163,30 +164,32 @@ export function MediaList({ media, variant }: { media: readonly MediaVM[]; varia
 // PostLinks: reply and add to a reply to several posts (when the reader may
 // reference the post), and the family tree with its visible reply count.
 export function PostLinks({ post, actions }: { post: PostVM; actions: PostActions }) {
-  const { t } = useTranslation('feed');
+  const { t, i18n } = useTranslation('feed');
   return (
     <div className="post-links" role="group" aria-label={t('post.links')}>
       {post.canReference ? (
-        <button
-          type="button"
+        <IconButton
+          icon="reply"
+          label={t('post.reply')}
           data-testid="feed-reply"
+          data-part="reply"
           onClick={() => {
             actions.reply(post.ref);
           }}
-        >
-          {t('post.reply')}
-        </button>
+        />
       ) : null}
       {post.canReference ? <ReplyPick post={post} /> : null}
-      <button
-        type="button"
+      <IconButton
+        icon="replies"
+        label={t('post.tree', { count: post.replyCount })}
         data-testid="feed-tree"
+        data-part="tree"
         onClick={() => {
           actions.openTree(post.ref);
         }}
       >
-        {t('post.tree', { count: post.replyCount })}
-      </button>
+        {post.replyCount > 0 ? <span className="icon-button-count">{new Intl.NumberFormat(i18n.language).format(post.replyCount)}</span> : null}
+      </IconButton>
     </div>
   );
 }

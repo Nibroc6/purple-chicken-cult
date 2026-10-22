@@ -78,10 +78,10 @@ export function PostLayout({ post, actions, variant, part }: CardProps) {
         <ReportAction target={{ kind: 'post', ref: post.ref }} onReport={actions.report} />
       </footer>
       {part === 'context' ? null : (
-        <>
+        <div className="post-actions">
           <EngageBar post={post} actions={actions} />
           {hidden ? null : <PostLinks post={post} actions={actions} />}
-        </>
+        </div>
       )}
     </article>
   );

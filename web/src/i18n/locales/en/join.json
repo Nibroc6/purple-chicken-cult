@@ -56,13 +56,14 @@
     "bodyQuiet": "Hold your phone close to theirs and play the near-silent tone.",
     "play": "Play the sound",
     "again": "Play it again",
-    "playing": "Playing…",
+    "playing": "Playing the sound… keep your phone close to theirs.",
     "waiting": "Checking…",
     "retry": "That didn't work. Try again.",
     "retryVolume": "They couldn't hear it. Turn your volume up and play it again.",
     "retryJingle": "They couldn't hear the quiet tone. Ask them to switch the jingle on, then play it again.",
     "noAttempts": "No tries left. Ask for a new code.",
-    "failed": "The sound couldn't be played on this device."
+    "failed": "The sound couldn't be played on this device. Turn the volume up and try again.",
+    "blocked": "Your browser didn't let the sound start. Check your phone isn't muted or on silent, turn the volume up, then tap Play again."
   },
   "dual": {
     "title": "Scan their second code",
@@ -91,5 +92,10 @@
   },
   "recovery": {
     "done": "Done. Continue on the recovery page."
+  },
+  "toast": {
+    "body": "{handle} is showing you their code to become friends.",
+    "scan": "Scan their code",
+    "dismiss": "Not now"
   }
 }

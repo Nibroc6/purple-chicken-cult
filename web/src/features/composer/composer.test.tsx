@@ -135,7 +135,7 @@ describe('compose page', () => {
     const calls = stubAPI((c) => (c.method === 'POST' && c.path === '/posts' ? json(201, postJSON()) : undefined));
     renderAt('/compose');
     const box = await screen.findByTestId('composer-body');
-    expect((screen.getByTestId<HTMLSelectElement>('post-lang')).value).toBe('de');
+    expect(screen.getByTestId('post-lang-auto').dataset.lang).toBe('de');
     expect((screen.getByTestId<HTMLSelectElement>('post-policy')).value).toBe('anyone');
     fireEvent.change(box, { target: { value: '😀'.repeat(279) } });
     expect(screen.queryByTestId('composer-counter')).toBeNull();
@@ -156,12 +156,30 @@ describe('compose page', () => {
     expect((await screen.findByTestId<HTMLTextAreaElement>('composer-body')).value).toBe('');
   });
 
+  it('detects the language from the text, and a choice overrides it', async () => {
+    const calls = stubAPI((c) => (c.method === 'POST' && c.path === '/posts' ? json(201, postJSON()) : undefined));
+    renderAt('/compose');
+    const box = await screen.findByTestId('composer-body');
+    fireEvent.change(box, { target: { value: 'Les poules sont dans la cour et je suis très content' } });
+    expect(screen.getByTestId('post-lang-auto').dataset.lang).toBe('fr');
+    expect(screen.getByTestId('post-lang-auto').textContent).toContain(tr('post:lang.detected', { name: 'French' }));
+    fireEvent.click(screen.getByTestId('post-lang-change'));
+    const select = screen.getByTestId<HTMLSelectElement>('post-lang');
+    expect(select.value).toBe('fr');
+    fireEvent.change(select, { target: { value: 'it' } });
+    fireEvent.change(box, { target: { value: 'the chickens are out in the yard again' } });
+    expect(select.value).toBe('it');
+    fireEvent.click(screen.getByTestId('composer-publish'));
+    await screen.findByTestId('composer-published');
+    expect((calls.find((c) => c.method === 'POST')?.body as { lang: string }).lang).toBe('it');
+  });
+
   it('defaults to slippery when the settings say so', async () => {
     stubAPI(() => undefined, { slippery_default: true, languages: [] });
     renderAt('/compose');
     await screen.findByTestId('composer-body');
     expect((screen.getByTestId<HTMLSelectElement>('post-policy')).value).toBe('nobody');
-    expect((screen.getByTestId<HTMLSelectElement>('post-lang')).value).toBe('en');
+    expect(screen.getByTestId('post-lang-auto').dataset.lang).toBe('en');
   });
 
   it('splits into an editable thread and publishes it in one request', async () => {

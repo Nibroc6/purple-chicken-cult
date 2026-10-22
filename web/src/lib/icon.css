@@ -1,0 +1,16 @@
+/* Icon (lib/Icon.tsx). One em square in the current text colour, so it follows
+   the font size and every theme; forced colours keep it in CanvasText through
+   currentColor. Logical properties only. */
+.icon {
+  display: inline-block;
+  flex: none;
+  inline-size: 1em;
+  block-size: 1em;
+  vertical-align: -0.125em;
+  /* Clip to the box: at font-size 0 (a theme hiding a control's text) the
+     icon must vanish, not draw at its natural size. */
+  overflow: hidden;
+}
+.icon[data-directional='true']:dir(rtl) {
+  scale: -1 1;
+}

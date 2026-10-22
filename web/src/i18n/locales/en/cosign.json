@@ -1,8 +1,8 @@
 {
   "dialog": {
-    "title": "Sign this change with your passkey",
-    "body": "Your passkey signs exactly the record below. Anyone you share your export with can check later that you approved it.",
-    "loading": "Preparing the record…",
+    "title": "Confirm with your passkey",
+    "body": "Your passkey signs this change, so it's on record that you approved it.",
+    "loading": "Preparing…",
     "sign": "Sign with passkey",
     "working": "Waiting for your passkey…",
     "cancel": "Cancel"
@@ -49,5 +49,9 @@
     "run": "Sign a test record",
     "signed": "Your passkey signed the record.",
     "cancelled": "Nothing was signed."
+  },
+  "advanced": {
+    "summary": "Advanced: what your passkey signs",
+    "note": "The exact record your passkey signs. It holds public account IDs and times only: never your passkey or any secret code."
   }
 }

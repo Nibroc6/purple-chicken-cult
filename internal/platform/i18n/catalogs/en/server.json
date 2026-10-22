@@ -9,6 +9,7 @@
   "push.friend_security_anon": "An acquaintance changed their sign-in keys",
   "push.invite_redeemed": "{name} joined with your invite",
   "push.recovery_approval": "{name} asked you to help recover their account",
+  "push.friend_upgrade": "{name} is showing you their code: scan it to become friends",
   "push.recovery_approval_anon": "A friend asked you to help recover their account",
   "push.account_recovery": "Someone is recovering your account. If it isn't you, open the app and cancel it."
 }

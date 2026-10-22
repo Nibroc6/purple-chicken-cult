@@ -44,8 +44,8 @@
     "remove": "Remove"
   },
   "picks": {
-    "pick": "Add to a reply",
-    "picked": "In your reply ✓",
+    "pick": "Add to a reply to several posts",
+    "picked": "In your reply (take it out)",
     "label": "Your reply",
     "title": "{count, plural, one {Replying to # post} other {Replying to # posts}} (up to {max, number})",
     "handle": "@{handle}",

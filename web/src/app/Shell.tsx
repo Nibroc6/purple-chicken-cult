@@ -9,6 +9,7 @@
 import { Suspense, useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { NavLink, Outlet, useLocation } from 'react-router';
+import { Icon } from '../lib/Icon';
 import { loadCollapsed, saveCollapsed } from '../lib/navLayout';
 import { featureSlots } from './featureSlots';
 import { Loading } from './Loading';
@@ -18,8 +19,6 @@ import { useSession } from './session';
 
 const navBadges = featureSlots.flatMap((s) => (s.navBadge ? [s.navBadge] : []));
 const globals = featureSlots.flatMap((s) => s.global ?? []);
-// Decorative button glyphs (the buttons' names are the visually hidden labels).
-const glyph = { menu: '☰', close: '✕', collapse: '«', expand: '»' };
 
 export function Shell() {
   const { t } = useTranslation('common');
@@ -63,7 +62,7 @@ export function Shell() {
     <li key={e.to}>
       <NavLink to={e.to} end={e.to === '/'} title={collapsed ? t(e.label) : undefined}>
         <span className="nav-icon" aria-hidden="true">
-          {e.icon}
+          <Icon name={e.icon} />
         </span>
         <span className="nav-label">{t(e.label)}</span>
         {e.badges ? navBadges.map((Badge, i) => <Badge key={i} />) : null}
@@ -105,7 +104,7 @@ export function Shell() {
                   setDrawerOpen((o) => !o);
                 }}
               >
-                <span aria-hidden="true">{drawerOpen ? glyph.close : glyph.menu}</span>
+                <Icon name={drawerOpen ? 'close' : 'menu'} />
                 <span className="visually-hidden">{drawerOpen ? t('nav.close') : t('nav.menu')}</span>
               </button>
               <button
@@ -116,7 +115,7 @@ export function Shell() {
                 title={collapsed ? t('nav.expand') : t('nav.collapse')}
                 onClick={toggleCollapsed}
               >
-                <span aria-hidden="true">{collapsed ? glyph.expand : glyph.collapse}</span>
+                <Icon name={collapsed ? 'expand' : 'collapse'} />
                 <span className="visually-hidden">{collapsed ? t('nav.expand') : t('nav.collapse')}</span>
               </button>
             </>

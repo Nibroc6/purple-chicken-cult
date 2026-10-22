@@ -13,6 +13,8 @@ import type { HandshakeAudio, PlayBits } from '../handshake-audio';
 import { ephemeral, fromB64url, renderFrame } from '../invites/handshake';
 import { decodeFrame, isInviteFrame } from './decode';
 import JoinPage from './JoinPage';
+import { UpgradeToast } from './UpgradeToast';
+import { dispatch, resetSSE } from '../../api/sse';
 import { browserLanguages, joinErrorKey } from './vm';
 
 const FRAME_KEY = new Uint8Array(32).fill(3);
@@ -97,13 +99,13 @@ function stubAPI(session: unknown, handler: (c: Call) => Response | undefined): 
   return calls;
 }
 
-function renderJoin() {
+function renderJoin(at = '/join', extra?: React.ReactNode) {
   const router = createMemoryRouter(
     [
       { path: '/join', element: <JoinPage /> },
-      { path: '/', element: <p>home</p> },
+      { path: '/', element: <>{extra}<p>home</p></> },
     ],
-    { initialEntries: ['/join'] },
+    { initialEntries: [at] },
   );
   return render(
     <QueryClientProvider client={makeQueryClient()}>
@@ -429,5 +431,27 @@ describe('join page', () => {
       expect(screen.queryByTestId('join-scan')).toBeNull();
     });
     expect(screen.getByTestId('join-scan-friend')).toBeTruthy();
+  });
+
+  it('opens the scanner at once with ?scan=1', async () => {
+    cam.frames = [];
+    stubAPI({ authenticated: true, kind: 'user', csrf: 'x', me: { handle: 'bob' } }, () => undefined);
+    renderJoin('/join?scan=1');
+    expect(await screen.findByTestId('join-video', {}, { timeout: 3000 })).toBeTruthy();
+  });
+
+  it('offers the scanner when an acquaintance opens a friend upgrade', async () => {
+    cam.frames = [];
+    stubAPI({ authenticated: true, kind: 'user', csrf: 'x', me: { handle: 'bob' } }, () => undefined);
+    renderJoin('/', <UpgradeToast />);
+    expect(await screen.findByText('home')).toBeTruthy();
+    await waitFor(() => {
+      dispatch('friend_upgrade', { from: 'r1', handle: 'alice' });
+      expect(screen.getByTestId('upgrade-toast').textContent).toContain(tr('join:toast.body', { handle: '@alice' }));
+    });
+    fireEvent.click(screen.getByTestId('upgrade-toast-scan'));
+    expect(await screen.findByTestId('join-video', {}, { timeout: 3000 })).toBeTruthy();
+    expect(screen.queryByTestId('upgrade-toast')).toBeNull();
+    resetSSE();
   });
 });

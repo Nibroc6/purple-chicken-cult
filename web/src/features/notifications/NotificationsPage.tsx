@@ -17,6 +17,9 @@ import { messageArgs, type NotificationVM } from './vm';
 import './notifications.css';
 import { InfoTip } from '../../lib/InfoTip';
 
+// SCAN_PATH opens the scanner signed in (the join feature's ?scan=1).
+const SCAN_PATH = '/join?scan=1';
+
 export const notificationsKey = ['notifications'] as const;
 
 export default function NotificationsPage() {
@@ -123,6 +126,14 @@ function NotificationItem({ n }: { n: NotificationVM }) {
           </>
         ) : null}
         {n.kind === 'post_referenced' && n.post ? <MuteButton post={n.post} /> : null}
+        {n.kind === 'friend_upgrade' ? (
+          <>
+            {' '}
+            <Link to={SCAN_PATH} data-testid="notification-scan">
+              {t('item.scan')}
+            </Link>
+          </>
+        ) : null}
       </p>
     </li>
   );

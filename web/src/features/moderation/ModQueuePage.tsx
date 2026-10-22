@@ -73,7 +73,7 @@ function Queue() {
         {t('queue.intro')}
         <InfoTip>{t('queue.introTip')}</InfoTip>
       </p>
-      <ul className="link-list">
+      <ul className="link-list link-cards">
         <li>
           <Link to="/mod/log">{t('footer.log')}</Link>
         </li>
