@@ -165,7 +165,8 @@ test('rows around the focal post, ranked by tier, on one connected canvas', asyn
   // "+N more" counts the visible replies beyond the first page and loads them.
   const chip = page.getByTestId('explorer-more');
   await expect(chip).toHaveAttribute('data-count', '2');
-  // It sits at the end of the row, off screen: show the whole tree first.
+  // It sits at the end of the row, off screen: fold the focus card and show the whole tree first.
+  await page.getByTestId('tree-focus-toggle').click();
   await page.getByTestId('explorer-fit').click();
   const more = page.waitForResponse(isMore);
   await chip.click();
