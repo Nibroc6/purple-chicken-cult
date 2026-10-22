@@ -540,7 +540,7 @@ func TestPersonOtherComponent(t *testing.T) {
 	wantNotFound(t, e.f.Request(ctx, e.ref(alice, x)))
 	wantNotFound(t, e.f.Block(ctx, e.ref(alice, y)))
 	wantNotFound(t, e.f.Mute(ctx, e.ref(alice, y), true))
-	_, err = e.f.PersonPosts(ctx, e.ref(alice, x), "")
+	_, err = e.f.PersonPosts(ctx, e.ref(alice, x), "", "")
 	wantNotFound(t, err)
 	p, err := e.f.Person(ctx, e.ref(alice, bob))
 	e.must(err)

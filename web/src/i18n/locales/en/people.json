@@ -89,5 +89,16 @@
     "invitedBy": "Invited by",
     "person": "Open @{handle}'s page",
     "missing": "This post does not exist, or you cannot see it."
+  },
+  "posts": {
+    "title": "Posts",
+    "orderLabel": "Order",
+    "order": {
+      "newest": "Newest first",
+      "oldest": "Oldest first"
+    },
+    "empty": "Nothing from @{handle} here yet.",
+    "open": "Open",
+    "more": "Show more"
   }
 }

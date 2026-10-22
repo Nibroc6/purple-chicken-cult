@@ -1,12 +1,13 @@
 // The shell's navigation: every main entry is in the sidebar, the collapse
-// toggle is remembered per device, and the drawer closes on Escape.
+// toggle is remembered per device, the phone tab bar holds the main pages and
+// the menu, and the drawer closes on Escape.
 import { QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { i18n } from '../i18n/setup';
 import { makeQueryClient } from './App';
-import { mainNav, moreNav } from './mainNav';
+import { mainNav, moreNav, tabNav } from './mainNav';
 import { routes } from './routes';
 
 function renderSignedIn(role?: string, authenticated = true) {
@@ -75,6 +76,19 @@ describe('shell navigation', () => {
     const footer = await screen.findByTestId('site-footer');
     expect(hrefs(footer)).toEqual(['/about', '/terms']);
     expect(screen.queryByRole('navigation', { name: i18n.t('common:nav.label') })).toBeNull();
+  });
+
+  it('puts the main pages and the menu in the phone tab bar', async () => {
+    renderSignedIn();
+    const tabs = await screen.findByRole('navigation', { name: i18n.t('common:nav.tabs') });
+    expect(hrefs(tabs)).toEqual(tabNav.map((e) => e.to));
+    expect(tabs.querySelector('button[aria-controls]')?.textContent).toContain(i18n.t('common:nav.menu'));
+  });
+
+  it('has no tab bar when signed out', async () => {
+    renderSignedIn(undefined, false);
+    await screen.findByTestId('site-footer');
+    expect(screen.queryByRole('navigation', { name: i18n.t('common:nav.tabs') })).toBeNull();
   });
 
   it('remembers the collapsed sidebar', async () => {

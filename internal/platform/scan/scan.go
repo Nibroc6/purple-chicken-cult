@@ -1,7 +1,8 @@
 // Package scan is the pre-storage CSAM scanner abstraction (ARCHITECTURE §6.1).
 // Drivers: "photodna" (PhotoDNA Cloud Matching API), "dev" (SHA-256 blocklist,
-// constructible only when cfg.DevLike()), "none" (reports disabled). There is no
-// "cloudflare" driver: Cloudflare's tool scans after storage.
+// constructible only when cfg.DevLike()), "none" (reports disabled), "unscanned"
+// (never matches; only with PCC_ALLOW_UNSCANNED_MEDIA=1). There is no "cloudflare"
+// driver: Cloudflare's tool scans after storage.
 //
 // A scanner error or timeout must reject the upload (fail closed): callers write
 // nothing to any store unless Scan returned a non-matching Verdict and nil error.
@@ -59,8 +60,25 @@ func New(c *config.Config) (Scanner, error) {
 			return None{}, ErrDisabled
 		}
 		return NewPhotoDNA(c.Scanner.PhotoDNAURL, c.Scanner.PhotoDNAKey), nil
+	case config.ScannerUnscanned:
+		if !c.UnscannedMedia() {
+			return None{}, ErrDisabled
+		}
+		return Unscanned{}, nil
 	}
 	return None{}, nil
+}
+
+// Unscanned is the operator-chosen no-scan driver: every image passes. Matches can
+// only come from outside the app (Cloudflare's CSAM tool email, a user report).
+type Unscanned struct{}
+
+// Name identifies the driver.
+func (Unscanned) Name() string { return config.ScannerUnscanned }
+
+// Scan never matches.
+func (Unscanned) Scan(ctx context.Context, _ []byte, _ string) (Verdict, error) {
+	return Verdict{}, ctx.Err()
 }
 
 // None is the disabled scanner: every scan fails, so nothing is ever stored.

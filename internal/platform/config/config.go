@@ -44,10 +44,13 @@ const (
 
 // Scanner drivers. There is deliberately no "cloudflare" driver: Cloudflare's CSAM
 // tool scans at the CDN after storage and can never be the §6 pre-storage scanner.
+// "unscanned" stores images with no pre-storage scan; it turns media on only with
+// PCC_ALLOW_UNSCANNED_MEDIA=1 (operator's explicit choice, logged at WARN on start).
 const (
-	ScannerPhotoDNA = "photodna"
-	ScannerDev      = "dev"
-	ScannerNone     = "none"
+	ScannerPhotoDNA  = "photodna"
+	ScannerDev       = "dev"
+	ScannerNone      = "none"
+	ScannerUnscanned = "unscanned"
 )
 
 // BlobConfig configures an object store (PCC_BLOB_* or PCC_EVIDENCE_*).
@@ -75,9 +78,10 @@ func (b BlobConfig) Configured() bool {
 
 // ScannerConfig configures the pre-storage CSAM scanner.
 type ScannerConfig struct {
-	Driver      string // photodna | dev | none
-	PhotoDNAKey string
-	PhotoDNAURL string
+	Driver         string // photodna | dev | none | unscanned
+	PhotoDNAKey    string
+	PhotoDNAURL    string
+	AllowUnscanned bool // PCC_ALLOW_UNSCANNED_MEDIA
 }
 
 // CDN purge drivers (steward: contract request p1-w04-1).
@@ -235,9 +239,12 @@ func LoadFrom(get Getenv) (*Config, error) {
 	}
 	c.Scanner.Driver = str(get, "PCC_SCANNER", map[bool]string{true: ScannerDev, false: ScannerNone}[dev])
 	switch c.Scanner.Driver {
-	case ScannerPhotoDNA, ScannerDev, ScannerNone:
+	case ScannerPhotoDNA, ScannerDev, ScannerNone, ScannerUnscanned:
 	default:
-		return nil, fmt.Errorf("config: unknown PCC_SCANNER %q (photodna, dev or none)", c.Scanner.Driver)
+		return nil, fmt.Errorf("config: unknown PCC_SCANNER %q (photodna, dev, none or unscanned)", c.Scanner.Driver)
+	}
+	if c.Scanner.AllowUnscanned, err = boolean(get, "PCC_ALLOW_UNSCANNED_MEDIA", false); err != nil {
+		return nil, err
 	}
 	c.Scanner.PhotoDNAKey = get("PCC_PHOTODNA_KEY")
 	c.Scanner.PhotoDNAURL = get("PCC_PHOTODNA_URL")
@@ -385,17 +392,20 @@ func (c *Config) Validate() error {
 
 // MediaEnabled is the fail-closed media switch (D20).
 //
-//	prod: Scanner == photodna with its key and URL, Blob configured (s3, or fs with
+//	prod: Scanner == photodna with its key and URL (or unscanned with
+//	      PCC_ALLOW_UNSCANNED_MEDIA), Blob configured (s3, or fs with
 //	      PCC_ALLOW_FS_BLOB), EvidenceBlob configured and a media-URL key derivable.
-//	dev/test: a dev or configured photodna scanner plus configured blob + evidence stores.
+//	dev/test: a dev, allowed unscanned or configured photodna scanner plus
+//	      configured blob + evidence stores.
 //	Anything else ⇒ false; uploads then answer feature_disabled.
 func (c *Config) MediaEnabled() bool {
 	if len(c.MasterKey) != 32 {
 		return false
 	}
 	photodna := c.Scanner.Driver == ScannerPhotoDNA && c.Scanner.PhotoDNAKey != "" && c.Scanner.PhotoDNAURL != ""
+	scanner := photodna || c.UnscannedMedia()
 	if c.Prod() {
-		if !photodna || !c.EvidenceBlob.Configured() || !c.Blob.Configured() {
+		if !scanner || !c.EvidenceBlob.Configured() || !c.Blob.Configured() {
 			return false
 		}
 		if c.Blob.Driver == BlobFS && !c.AllowFSBlob {
@@ -407,9 +417,15 @@ func (c *Config) MediaEnabled() bool {
 		return c.MediaBaseURL != ""
 	}
 	if c.DevLike() {
-		return (photodna || c.Scanner.Driver == ScannerDev) && c.Blob.Configured() && c.EvidenceBlob.Configured()
+		return (scanner || c.Scanner.Driver == ScannerDev) && c.Blob.Configured() && c.EvidenceBlob.Configured()
 	}
 	return false
+}
+
+// UnscannedMedia reports PCC_SCANNER=unscanned with PCC_ALLOW_UNSCANNED_MEDIA=1:
+// images are stored with no pre-storage CSAM scan.
+func (c *Config) UnscannedMedia() bool {
+	return c.Scanner.Driver == ScannerUnscanned && c.Scanner.AllowUnscanned
 }
 
 // PushEnabled reports whether VAPID keys are present.

@@ -167,7 +167,8 @@ func Register(r chi.Router, d *api.Deps) {
 		return apix.JSON(w, http.StatusOK, p)
 	})
 	apix.Route(r, http.MethodGet, "/people/{ref}/posts", rPost, func(w http.ResponseWriter, r *http.Request) error {
-		page, err := f.PersonPosts(r.Context(), apix.Ref(r, "ref"), r.URL.Query().Get("cursor"))
+		q := r.URL.Query()
+		page, err := f.PersonPosts(r.Context(), apix.Ref(r, "ref"), q.Get("cursor"), q.Get("order"))
 		if err != nil {
 			return err
 		}

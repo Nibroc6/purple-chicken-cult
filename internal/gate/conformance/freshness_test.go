@@ -138,7 +138,7 @@ func TestFreshness(t *testing.T) {
 			}
 		}
 		for _, u := range m.Users {
-			pp, err := w.a.Friends.PersonPosts(ctx, w.userRef(V, u.Handle), "")
+			pp, err := w.a.Friends.PersonPosts(ctx, w.userRef(V, u.Handle), "", "")
 			if err != nil {
 				continue
 			}

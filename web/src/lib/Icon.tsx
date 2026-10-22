@@ -34,6 +34,7 @@ import {
   faPenToSquare,
   faPlus,
   faReply,
+  faReplyAll,
   faRotateLeft,
   faTriangleExclamation,
   faUserGroup,
@@ -79,6 +80,8 @@ const icons = {
   hide: faEyeSlash,
   'show-less': faCircleMinus,
   reply: faReply,
+  // Adds the post to a reply to several posts (features/composer).
+  'reply-pick': faReplyAll,
   replies: faComment,
   // Integrity elements (integrity/).
   tier: faDiamond,

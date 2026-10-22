@@ -115,6 +115,28 @@ func TestFailClosed(t *testing.T) {
 	}
 }
 
+func TestUnscannedNeedsOptIn(t *testing.T) {
+	s, err := New(&config.Config{Env: config.EnvProd, Scanner: config.ScannerConfig{Driver: config.ScannerUnscanned}})
+	if !errors.Is(err, ErrDisabled) {
+		t.Fatalf("unscanned without PCC_ALLOW_UNSCANNED_MEDIA must be disabled: %v", err)
+	}
+	if _, err := s.Scan(context.Background(), []byte("x"), "image/png"); err == nil {
+		t.Fatal("refused unscanned driver must fail every scan")
+	}
+	u, err := New(&config.Config{Env: config.EnvProd, Scanner: config.ScannerConfig{Driver: config.ScannerUnscanned, AllowUnscanned: true}})
+	if err != nil || u.Name() != "unscanned" {
+		t.Fatal(err)
+	}
+	if v, err := u.Scan(context.Background(), pattern(20, 20, 1), "image/png"); err != nil || v.Match {
+		t.Fatalf("unscanned must pass every image: %+v %v", v, err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := u.Scan(ctx, pattern(20, 20, 1), "image/png"); err == nil {
+		t.Fatal("a cancelled scan must fail")
+	}
+}
+
 type fakeDNA struct {
 	status int
 	body   string

@@ -3,11 +3,13 @@
 // audience and reference policy (slippery default from settings); language
 // detected from the text (else the first of the user's languages, then the UI
 // locale), with a picker to choose another, "und" available; replies
-// and continuations from ?parent=<ref>&kind=ref|cont, with a warning when the
-// parent's audience is limited; up to 4 pictures through the media picker
+// and continuations from ?parent=<ref>&kind=ref|cont, with a warning when a
+// parent's audience is limited; a reply to several posts (up to 3) from
+// repeated ?parent=, more added by pasting a post's link, any taken out; up to
+// 4 pictures through the media picker
 // (P1; a thread attaches them to its first part; the picker hides itself when
 // media is turned off). Owner: P0-W05 → P1-W12.
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueries, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router';
@@ -18,22 +20,25 @@ import { MediaImage, MediaPicker } from '../media';
 import { createPost, createThread, fetchPost, postKey, type DraftIn, type ParentIn } from '../post/api';
 import { defaultLang, detectLang } from '../post/lang';
 import { AudienceSelect, AutoLang, Counter, ErrorText, PolicySelect, PostPreview } from '../post/shared';
-import { codePoints, HARD_LIMIT, hasAudienceLimit, MAX_MEDIA, MAX_PARTS, SOFT_LIMIT } from '../post/vm';
+import { codePoints, HARD_LIMIT, hasAudienceLimit, MAX_MEDIA, MAX_PARENTS, MAX_PARTS, SOFT_LIMIT } from '../post/vm';
+import { REF, refFromLink } from './picks';
 import { joinParts, splitThread } from './split';
 import './composer.css';
 
 type Kind = ParentIn['kind'];
 
-function parentFromQuery(params: URLSearchParams): ParentIn | undefined {
-  const ref = params.get('parent') ?? '';
-  if (!/^[A-Za-z0-9_-]+$/.test(ref)) return undefined;
-  return { ref, kind: params.get('kind') === 'cont' ? 'cont' : 'ref' };
+// parentsFromQuery reads ?parent= (repeatable, up to MAX_PARENTS distinct
+// posts) and ?kind=; a continuation has exactly one parent.
+function parentsFromQuery(params: URLSearchParams): ParentIn[] {
+  const refs = [...new Set(params.getAll('parent').filter((r) => REF.test(r)))];
+  if (params.get('kind') === 'cont') return refs.length === 1 ? [{ ref: refs[0] ?? '', kind: 'cont' }] : [];
+  return refs.slice(0, MAX_PARENTS).map((ref) => ({ ref, kind: 'ref' }));
 }
 
 export default function ComposePage() {
   const { t } = useTranslation('composer');
   const [params] = useSearchParams();
-  const parent = parentFromQuery(params);
+  const parents = parentsFromQuery(params);
   const me = useMe();
   const [published, setPublished] = useState<PostVM[] | null>(null);
   const [round, setRound] = useState(0);
@@ -49,7 +54,7 @@ export default function ComposePage() {
           }}
         />
       ) : me ? (
-        <Composer key={round} parent={parent} me={me} onPublished={setPublished} />
+        <Composer key={round} initialParents={parents} me={me} onPublished={setPublished} />
       ) : null}
     </section>
   );
@@ -59,9 +64,18 @@ interface MeLike {
   settings: { languages: string[]; ui_locale: string; slippery_default: boolean };
 }
 
-function Composer({ parent, me, onPublished }: { parent?: ParentIn; me: MeLike; onPublished: (p: PostVM[]) => void }) {
+function Composer({
+  initialParents,
+  me,
+  onPublished,
+}: {
+  initialParents: ParentIn[];
+  me: MeLike;
+  onPublished: (p: PostVM[]) => void;
+}) {
   const { t } = useTranslation('composer');
   const qc = useQueryClient();
+  const [parents, setParents] = useState(initialParents);
   const [body, setBody] = useState('');
   const [parts, setParts] = useState<string[] | null>(null);
   const [chosenLang, setLang] = useState<string | null>(null);
@@ -69,14 +83,18 @@ function Composer({ parent, me, onPublished }: { parent?: ParentIn; me: MeLike; 
   const [policy, setPolicy] = useState<RefPolicy>(me.settings.slippery_default ? 'nobody' : 'anyone');
   const [noPreview, setNoPreview] = useState(false);
   const [media, setMedia] = useState<MediaVM[]>([]);
-  const pq = useQuery({
-    queryKey: [...postKey, parent?.ref ?? ''],
-    queryFn: () => fetchPost(parent?.ref ?? ''),
-    enabled: parent !== undefined,
-    retry: false,
+  const pqs = useQueries({
+    queries: parents.map((p) => ({
+      queryKey: [...postKey, p.ref],
+      queryFn: () => fetchPost(p.ref),
+      retry: false,
+    })),
   });
-  const parentPost = pq.data;
-  const blocked = parent !== undefined && (pq.isError || (parentPost !== undefined && !canAttach(parentPost, parent.kind)));
+  const blocked = parents.some((p, i) => {
+    const q = pqs[i];
+    return q?.isError === true || (q?.data !== undefined && !canAttach(q.data, p.kind));
+  });
+  const loading = pqs.some((q) => q.data === undefined && !q.isError);
   const detected = detectLang((parts ?? [body]).join('\n'), me.settings.languages);
   const lang = chosenLang ?? detected ?? defaultLang(me.settings.languages, me.settings.ui_locale);
   const draft = (): DraftIn => ({
@@ -85,7 +103,7 @@ function Composer({ parent, me, onPublished }: { parent?: ParentIn; me: MeLike; 
     audience,
     refPolicy: policy,
     noPreview,
-    parents: parent && parentPost ? [parent] : [],
+    parents,
     media: media.map((x) => x.ref),
   });
   const m = useMutation({
@@ -100,7 +118,7 @@ function Composer({ parent, me, onPublished }: { parent?: ParentIn; me: MeLike; 
   const texts = parts ?? [body];
   const ready =
     !blocked &&
-    !(parent && !parentPost) &&
+    !loading &&
     texts.length <= MAX_PARTS &&
     texts.every((p) => p.trim() !== '' && codePoints(p) <= HARD_LIMIT);
   return (
@@ -111,7 +129,35 @@ function Composer({ parent, me, onPublished }: { parent?: ParentIn; me: MeLike; 
         if (ready) m.mutate();
       }}
     >
-      {parent ? <ParentContext parent={parent} post={parentPost} missing={pq.isError} /> : null}
+      {parents.length > 0 ? (
+        <div className="composer-parents" data-testid="composer-parents" data-count={parents.length}>
+          {parents.length > 1 ? <p className="muted">{t('parent.refMany', { count: parents.length })}</p> : null}
+          {parents.map((p, i) => (
+            <ParentContext
+              key={p.ref}
+              parent={p}
+              post={pqs[i]?.data}
+              missing={pqs[i]?.isError === true}
+              many={parents.length > 1}
+              onRemove={
+                parents.length > 1
+                  ? () => {
+                      setParents(parents.filter((x) => x.ref !== p.ref));
+                    }
+                  : undefined
+              }
+            />
+          ))}
+        </div>
+      ) : null}
+      {parents.every((p) => p.kind === 'ref') && parents.length > 0 ? (
+        <AddParent
+          count={parents.length}
+          onAdd={(ref) => {
+            if (!parents.some((x) => x.ref === ref)) setParents([...parents, { ref, kind: 'ref' }]);
+          }}
+        />
+      ) : null}
       {parts ? (
         <ThreadEditor parts={parts} onChange={setParts} />
       ) : (
@@ -146,7 +192,9 @@ function Composer({ parent, me, onPublished }: { parent?: ParentIn; me: MeLike; 
         </>
       )}
       <MediaSection media={media} onChange={setMedia} />
-      <div className="composer-options">
+      <div className="composer-options" data-testid="composer-options">
+        <AudienceSelect id="composer-audience" value={audience} onChange={setAudience} />
+        <PolicySelect id="composer-policy" value={policy} onChange={setPolicy} />
         <AutoLang
           id="composer-lang"
           value={lang}
@@ -155,8 +203,6 @@ function Composer({ parent, me, onPublished }: { parent?: ParentIn; me: MeLike; 
           uiLocale={me.settings.ui_locale}
           onChange={setLang}
         />
-        <AudienceSelect id="composer-audience" value={audience} onChange={setAudience} />
-        <PolicySelect id="composer-policy" value={policy} onChange={setPolicy} />
         <label className="composer-check">
           <input
             type="checkbox"
@@ -238,19 +284,39 @@ function canAttach(p: PostVM, kind: Kind): boolean {
 }
 
 // i18n-dynamic: composer:parent.
-function ParentContext({ parent, post, missing }: { parent: ParentIn; post: PostVM | undefined; missing: boolean }) {
+function ParentContext({
+  parent,
+  post,
+  missing,
+  many,
+  onRemove,
+}: {
+  parent: ParentIn;
+  post: PostVM | undefined;
+  missing: boolean;
+  many: boolean;
+  onRemove?: (() => void) | undefined;
+}) {
   const { t } = useTranslation('composer');
+  const remove = onRemove ? (
+    <button type="button" data-testid="composer-parent-remove" onClick={onRemove}>
+      {post ? t('parent.remove', { handle: post.author.handle }) : t('parent.removeMissing')}
+    </button>
+  ) : null;
   if (missing) {
     return (
-      <p className="post-error" role="alert" data-testid="composer-parent-missing">
-        {t('parent.missing')}
-      </p>
+      <div className="composer-parent">
+        <p className="post-error" role="alert" data-testid="composer-parent-missing">
+          {t('parent.missing')}
+        </p>
+        {remove}
+      </div>
     );
   }
   if (!post) return null;
   return (
-    <div className="composer-parent" data-testid="composer-parent">
-      <p className="muted">{t(`parent.${parent.kind}` as 'parent.ref', { handle: post.author.handle })}</p>
+    <div className="composer-parent" data-testid="composer-parent" data-ref={parent.ref}>
+      {many ? null : <p className="muted">{t(`parent.${parent.kind}` as 'parent.ref', { handle: post.author.handle })}</p>}
       <PostPreview post={post} />
       {!canAttach(post, parent.kind) ? (
         <p className="post-error" role="alert" data-testid="composer-parent-closed">
@@ -259,6 +325,63 @@ function ParentContext({ parent, post, missing }: { parent: ParentIn; post: Post
       ) : parent.kind === 'ref' && hasAudienceLimit(post) ? (
         <p className="composer-warning" role="note" data-testid="composer-audience-warning">
           {t('parent.limited')}
+        </p>
+      ) : null}
+      {remove}
+    </div>
+  );
+}
+
+// AddParent adds another post to reply to, from a pasted link to it, while
+// fewer than MAX_PARENTS are chosen.
+function AddParent({ count, onAdd }: { count: number; onAdd: (ref: string) => void }) {
+  const { t } = useTranslation('composer');
+  const [text, setText] = useState('');
+  const [bad, setBad] = useState(false);
+  if (count >= MAX_PARENTS) {
+    return (
+      <p className="muted" data-testid="composer-parent-max">
+        {t('parent.max', { max: MAX_PARENTS })}
+      </p>
+    );
+  }
+  const add = () => {
+    const ref = refFromLink(text);
+    setBad(ref === undefined);
+    if (ref === undefined) return;
+    onAdd(ref);
+    setText('');
+  };
+  return (
+    <div className="composer-add-parent">
+      <label className="post-field" htmlFor="composer-add-parent">
+        <span>{t('parent.add')}</span>
+        <input
+          id="composer-add-parent"
+          data-testid="composer-add-parent"
+          type="text"
+          inputMode="url"
+          placeholder={t('parent.addHint')}
+          value={text}
+          aria-invalid={bad}
+          onChange={(e) => {
+            setText(e.target.value);
+            setBad(false);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              add();
+            }
+          }}
+        />
+      </label>
+      <button type="button" data-testid="composer-add-parent-button" disabled={text.trim() === ''} onClick={add}>
+        {t('parent.addButton')}
+      </button>
+      {bad ? (
+        <p className="post-error" role="alert" data-testid="composer-add-parent-bad">
+          {t('parent.badLink')}
         </p>
       ) : null}
     </div>

@@ -707,6 +707,9 @@ post's "family tree".
   An edit changes the body and media only. It keeps the same `id` and bumps `version`,
   so children keep pointing at it and readers see the latest version marked "edited".
   A reference creates a new post; an edit does not.
+- **Replying to several posts.** Any post's "add to a reply" collects up to 3 posts in a
+  tray that opens the composer with all of them; the composer also takes a pasted link to
+  another post, and any parent can be taken out before publishing.
 - **You can only reference what you can see.** Parents arrive as per-viewer refs (§13),
   and the gate accepts one only if the author can currently see that post. A bad ref
   gets the uniform not-found response, so referencing can't be used to probe for posts.
@@ -804,8 +807,10 @@ full, with its integrity elements and actions, under the map. The rows are:
    slide into place. A row is ranked as a snapshot, like a feed tier, so it never
    reshuffles while you look at it.
 4. **Each post appears once.** The focal post's extra visible parents join it with a
-   dashed "also" line. If a post would appear a second time, as in a diamond, its second
-   spot is a dashed line to the card it already has.
+   dashed "also" line. A reply to several posts on the map sits one row below the lowest
+   of them, with a line to each (the extra ones dashed); lines that cross rows run in the
+   lanes between cards. If a post would still appear a second time, its second spot is a
+   dashed line to the card it already has.
 5. **No section headers.** The lines show how posts relate; siblings hang from one shared
    line under their parent.
 6. **Loading.** The view opens with the focal post plus 2 rows above and 2 below. More

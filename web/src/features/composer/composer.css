@@ -6,12 +6,57 @@
   gap: var(--space-3);
 }
 
-.composer-options,
-.composer-actions,
+/* The post's settings: one card, a grid of equal columns that drops to a
+   single column on phones. The two selects share a row; the language line and
+   the link-preview switch take a full row each. */
+.composer-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  align-items: end;
+  gap: var(--space-3) var(--space-4);
+  padding: var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+.composer-options select {
+  inline-size: 100%;
+}
+.composer-options > .post-lang-auto,
+.composer-options > .composer-check {
+  grid-column: 1 / -1;
+}
+.composer-options > .post-lang-auto {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.composer-options > .post-lang-auto button {
+  padding-block: 0.25rem;
+  padding-inline: 0.625rem;
+  font-size: 0.875rem;
+}
+
+/* The counter sits under the box, at its end. */
+.composer > .post-counter {
+  align-self: flex-end;
+  margin-block-start: calc(-1 * var(--space-2));
+}
+
+/* Publish at the end of the row, the undo-split button before it. */
+.composer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-3);
+}
+
 .composer-split-offer {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
+  align-items: center;
   gap: var(--space-3);
 }
 
@@ -23,6 +68,9 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
+}
+.composer-check input {
+  margin: 0;
 }
 
 .composer-parent {
@@ -48,10 +96,14 @@
   padding-inline-start: var(--space-4);
 }
 
-/* Attached pictures (P1-W12). */
+/* Attached pictures (P1-W12): a card like the settings below it. */
 .composer-media {
   display: grid;
   gap: var(--space-2);
+  padding: var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
 }
 
 .composer-media p {
@@ -71,4 +123,28 @@
   display: grid;
   gap: var(--space-1);
   justify-items: start;
+}
+
+/* A reply to several posts (P1): each parent with a way to take it out, and
+   a field to add another from a pasted link. */
+.composer-parents {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.composer-parents > p {
+  margin: 0;
+}
+.composer-add-parent {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+.composer-add-parent .post-error {
+  flex-basis: 100%;
+  margin: 0;
+}
+.composer-parent > button {
+  align-self: flex-start;
 }

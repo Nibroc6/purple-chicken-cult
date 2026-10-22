@@ -104,9 +104,27 @@ export function EngageBar({ post, actions }: { post: PostVM; actions: PostAction
   const failed = useFailed(post.ref);
   if (hidden) {
     return (
-      <p className="engage-hidden muted" role="status" data-testid="engage-hidden" data-kind={hidden}>
-        {hidden === 'show_less' ? t('showLess.done', { handle: post.author.handle }) : t('hide.done')}
-      </p>
+      <div className="engage-hidden" data-testid="engage-hidden" data-kind={hidden}>
+        <p className="muted" role="status">
+          {hidden === 'show_less' ? t('showLess.done', { handle: post.author.handle }) : t('hide.done')}
+        </p>
+        {actions.unhide ? (
+          <button
+            type="button"
+            data-testid="engage-unhide"
+            onClick={() => {
+              actions.unhide?.(post.ref);
+            }}
+          >
+            {t('hide.undo')}
+          </button>
+        ) : null}
+        {failed ? (
+          <p className="engage-error" role="alert" data-testid="engage-error">
+            {t(errorKey(failed) as 'errors:unknown')}
+          </p>
+        ) : null}
+      </div>
     );
   }
   return (

@@ -184,15 +184,21 @@ paths:
       - { name: ref, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
     get:
       operationId: listPersonPosts
+      description: >-
+        The person's whole post history, filtered exactly like the feed (visibility, audience,
+        probation, blocks, hide-via, the caller's hides). No count; next is set only when another
+        visible post follows. A cursor carries its order. Problem codes (422): order_invalid.
       parameters:
-        - { name: cursor, in: query, required: false, schema: { type: string, maxLength: 256 } }
+        - { name: cursor, in: query, required: false, schema: { type: string, maxLength: 512 } }
+        - { name: order, in: query, required: false, schema: { type: string, enum: [newest, oldest], default: newest } }
       responses:
         "200":
-          description: The person's posts the caller can see, newest first.
+          description: The person's posts the caller can see, newest or oldest first.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/FriendsPostsPage' }
         "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "422": { $ref: '_common.yaml#/components/responses/Problem' }
         "429": { $ref: '#/components/responses/FriendsRateLimited' }
   /people/{ref}/hide-via:
     parameters:
