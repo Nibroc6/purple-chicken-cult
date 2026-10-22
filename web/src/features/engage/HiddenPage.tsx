@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { Loading } from '../../app/Loading';
+import { PostListsNav } from '../../app/PostListsNav';
 import { errorKey } from '../../api/errors';
 import { PostPreview } from '../post/shared';
 import { fetchHidden, fetchShowLess, hiddenKey, resetShowLess, unhidePost } from './api';
@@ -61,6 +62,7 @@ export default function HiddenPage() {
   return (
     <section className="page engage-page hidden-page">
       <h1>{t('hidden.title')}</h1>
+      <PostListsNav />
       <p className="muted">{t('hidden.intro')}</p>
       {less.isPending || posts.isPending ? <Loading /> : null}
       {error ? (

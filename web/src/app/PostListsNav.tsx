@@ -1,4 +1,4 @@
-// The user's own post lists (Saved, Seen) as tabs (SCAFFOLD); each list page
+// The user's own post lists (Saved, Seen, Hidden) as tabs (SCAFFOLD); each list page
 // renders it under its title. A new list page adds its entry here.
 import { useTranslation } from 'react-i18next';
 import { SubNav } from './SubNav';
@@ -11,6 +11,7 @@ export function PostListsNav() {
       items={[
         { to: '/saves', label: t('nav.saves') },
         { to: '/seen', label: t('nav.seen') },
+        { to: '/settings/hidden', label: t('settingsNav.hidden') },
       ]}
     />
   );
