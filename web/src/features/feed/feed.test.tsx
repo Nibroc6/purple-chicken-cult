@@ -209,11 +209,9 @@ describe('feed page', () => {
     fireEvent.click(screen.getByTestId('feed-more'));
     await screen.findByText('post b');
     expect(feedCalls(calls)).toEqual([{}, { cursor: 'next-1' }]);
-    // The tier continued on page 2 stays one section with one header.
-    const tiers = screen.getAllByTestId('feed-tier');
-    expect(tiers.map((t) => t.dataset.tier)).toEqual(['1', '3']);
-    expect(within(tiers[0] as HTMLElement).getAllByTestId('feed-post')).toHaveLength(2);
-    expect(screen.getAllByTestId('integrity-tier-header').at(-1)?.textContent).toBe(tr('integrity:tier.caughtUp'));
+    // Both pages form one list with no tier headers; only "caught up" is shown.
+    expect(screen.queryByTestId('feed-tier')).toBeNull();
+    expect(screen.getAllByTestId('integrity-tier-header').map((h) => h.textContent)).toEqual([tr('integrity:tier.caughtUp')]);
     expect(screen.queryByTestId('feed-more')).toBeNull();
   });
 
@@ -306,7 +304,7 @@ describe('feed page', () => {
     });
   });
 
-  it("shows the reader's just-published post on top, outside any tier (D16)", async () => {
+  it("shows the reader's just-published post on top (D16)", async () => {
     feedAPI();
     const qc = makeQueryClient();
     addOwnPosts(qc, [toPostVM({ ...post('mine', 1, 'my new post'), mine: true })]);
@@ -314,10 +312,7 @@ describe('feed page', () => {
     await screen.findByText('post a');
     const posts = screen.getAllByTestId('feed-post');
     expect(posts[0]?.textContent).toContain('my new post');
-    const tiers = screen.getAllByTestId('feed-tier');
-    expect(tiers.map((t) => t.dataset.tier)).toEqual(['0', '1']);
-    expect(within(tiers[0] as HTMLElement).queryByTestId('integrity-tier-header')).toBeNull();
-    expect(within(tiers[1] as HTMLElement).queryByText('my new post')).toBeNull();
+    expect(screen.getAllByText('my new post')).toHaveLength(1);
   });
 
   it('says so when there is nothing yet', async () => {

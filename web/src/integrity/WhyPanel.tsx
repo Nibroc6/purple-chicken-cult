@@ -70,7 +70,7 @@ export function WhyPanel({ id, loading, failed, why, onClose, onRetry }: WhyPane
       ) : null}
       {why ? (
         <div data-testid="integrity-why-body">
-          <p data-testid="integrity-why-tier">{t('why.tier', { tier: why.tier })}</p>
+          <p data-testid="integrity-why-tier">{t('why.tier', { tier: why.tier, tie: why.via.firstHopPlus ? 'friend' : 'acquaintance' })}</p>
           {why.tier > 0 ? <ChainLine chain={why.via} authorText={t('why.author')} testId="integrity-why-chain" /> : null}
           <p>
             {t('why.posted')}{' '}

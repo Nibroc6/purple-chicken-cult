@@ -17,9 +17,6 @@
   "newAbove": {
     "banner": "{count, plural, one {# new post above} other {# new posts above}}"
   },
-  "tier": {
-    "section": "Posts at one distance from you"
-  },
   "post": {
     "handle": "@{handle}",
     "links": "Open",

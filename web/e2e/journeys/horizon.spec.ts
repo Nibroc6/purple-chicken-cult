@@ -56,7 +56,7 @@ test("tier 1 for a friend, tier 2 with the chain for a friend of a friend, nothi
   );
   await expect(forBob.getByTestId("integrity-inviter-label")).toHaveCount(0);
 
-  // carol: tier 2 under its own header, the chain names bob as the first hop.
+  // carol: tier 2 (the feed shows no per-tier headers), the chain names bob as the first hop.
   const carol = await signInPage(page, origin, "carol");
   await page.goto("/");
   const forCarol = cardOf(page, "Alice shares her garden plan");
@@ -67,11 +67,9 @@ test("tier 1 for a friend, tier 2 with the chain for a friend of a friend, nothi
   await expect(forCarol.getByTestId("integrity-chain")).toContainText(
     at("alice"),
   );
-  const tier2 = page.locator('[data-testid="feed-tier"][data-tier="2"]');
   await expect(
-    tier2.getByTestId("integrity-tier-header").first(),
-  ).toBeVisible();
-  await expect(tier2).toContainText("Alice shares her garden plan");
+    page.locator('[data-testid="integrity-tier-header"][data-kind="start"]'),
+  ).toHaveCount(0);
   const post = await carol.feedPost("Alice shares her garden plan");
   expect(post.tier).toBe(2);
   expect(post.author.chain?.first_hop?.handle).toBe("bob");

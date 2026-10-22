@@ -10,7 +10,7 @@
 // - ContextRows, PersonLink, PostTime, PreviewList (with preview images),
 //   MediaList (P1: attached pictures; display size in the feed and the focal
 //   post, thumbs in tree rows), PostLinks.
-// - groupTiers: feed items (across pages) → tier sections for sticky headers.
+// - feedItems: feed items (across pages) → one list, tier markers dropped.
 import { createContext, useContext, useId, useState, type MouseEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useInRouterContext } from 'react-router';
@@ -242,48 +242,27 @@ export function PostLinks({ post, actions }: { post: PostVM; actions: PostAction
 
 // ---- feed structure ----
 
-export interface TierSection {
-  key: string;
-  tier: number; // 0 for items outside any tier (caught up)
-  start: boolean; // the API sent tier_start for it
-  items: FeedItemVM[]; // posts, threads, collapsed groups
-  end: boolean;
-}
-
-// groupTiers turns the items of every page into tier sections. Headers come
-// only from tier_start / tier_end / caught_up markers (§10.1.7), never from
-// post content; a tier continued on a later page stays one section.
-export function groupTiers(pages: FeedPageVM[]): { sections: TierSection[]; caughtUp: boolean } {
-  const sections: TierSection[] = [];
-  let cur: TierSection | undefined;
+// feedItems turns the items of every page into one list. The feed shows no
+// per-tier headers: tier_start / tier_end markers are dropped, and only the
+// final caught_up marker is kept (§10.1.7: never derived from post content).
+export function feedItems(pages: FeedPageVM[]): { items: FeedItemVM[]; caughtUp: boolean } {
+  const items: FeedItemVM[] = [];
   let caughtUp = false;
-  let n = 0;
   for (const p of pages) {
     for (const it of p.items) {
       switch (it.type) {
         case 'tier_start':
-          cur = { key: `t${String(n++)}`, tier: it.tier, start: true, items: [], end: false };
-          sections.push(cur);
-          break;
         case 'tier_end':
-          if (cur?.tier === it.tier) cur.end = true;
-          else sections.push({ key: `t${String(n++)}`, tier: it.tier, start: false, items: [], end: true });
-          cur = undefined;
           break;
         case 'caught_up':
           caughtUp = true;
-          cur = undefined;
           break;
         default:
-          if (!cur) {
-            cur = { key: `t${String(n++)}`, tier: 0, start: false, items: [], end: false };
-            sections.push(cur);
-          }
-          cur.items.push(it);
+          items.push(it);
       }
     }
   }
-  return { sections, caughtUp };
+  return { items, caughtUp };
 }
 
 // itemKey is a stable key for a feed item.

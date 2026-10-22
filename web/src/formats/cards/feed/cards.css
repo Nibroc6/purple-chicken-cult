@@ -11,15 +11,6 @@
   padding: 0;
 }
 
-/* Only the opening header of a tier sticks; the closing one scrolls away. */
-.feed-tier > .tier-header {
-  z-index: 1;
-}
-.feed-tier > .tier-header:not(:first-child) {
-  position: static;
-  font-weight: 400;
-}
-
 .post-card .post-author {
   display: flex;
   flex-wrap: wrap;

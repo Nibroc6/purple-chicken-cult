@@ -1,7 +1,7 @@
 // Cards and Compact feed and post layouts: every integrity element present,
 // tier headers only from the API's markers, the seen target on a card's own
 // post only (never context rows or earlier thread parts), folding by keyboard
-// and screen reader, collapsed groups, load more, hidden posts, tier sections.
+// and screen reader, collapsed groups, load more, hidden posts, one list without tier headers.
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -15,7 +15,7 @@ import { asRef, type FeedPageVM, type PostVM } from '../../../vm/types';
 import type { FormatModule, PostActions } from '../../types';
 import cards from '../index';
 import compact from '../../compact/index';
-import { groupTiers, shouldFold } from './parts';
+import { feedItems, shouldFold } from './parts';
 
 const tr = i18n.t.bind(i18n) as unknown as (k: string, o?: Record<string, unknown>) => string;
 
@@ -78,22 +78,11 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('tier sections', () => {
-  it('keep a tier continued on a later page in one section', () => {
-    const { sections, caughtUp } = groupTiers(pages());
+describe('feed items', () => {
+  it('flatten every page into one list, dropping tier markers', () => {
+    const { items, caughtUp } = feedItems(pages());
     expect(caughtUp).toBe(true);
-    expect(sections.map((s) => [s.tier, s.start, s.items.length, s.end])).toEqual([
-      [1, true, 3, true],
-      [3, true, 1, true],
-    ]);
-  });
-
-  it('put items before any marker in an unlabelled section', () => {
-    const { sections } = groupTiers([{ session: 's', preset: 'latest', items: [{ type: 'post', post: p('x') }, { type: 'tier_end', tier: 2 }] }]);
-    expect(sections.map((s) => [s.tier, s.start, s.end])).toEqual([
-      [0, false, false],
-      [2, false, true],
-    ]);
+    expect(items.map((it) => it.type)).toEqual(['post', 'thread', 'post', 'collapsed']);
   });
 
   it('fold feed cards, tree posts at their own limit and never the focal post', () => {
@@ -126,18 +115,12 @@ describe.each([
     for (const tid of postIntegrityTestIds) expect(screen.getAllByTestId(tid).length).toBeGreaterThan(0);
   });
 
-  it('takes tier headers only from the markers, with catalog text', () => {
+  it('shows one list with no tier headers, only the caught-up marker', () => {
     show();
     const headers = screen.getAllByTestId('integrity-tier-header');
-    // tier 1 start + end, tier 3 start + end, caught up: never one for the post saying "Friends of friends".
-    expect(headers.map((h) => h.textContent)).toEqual([
-      tr('integrity:tier.start', { tier: 1 }),
-      tr('integrity:tier.end', { tier: 1 }),
-      tr('integrity:tier.start', { tier: 3 }),
-      tr('integrity:tier.end', { tier: 3 }),
-      tr('integrity:tier.caughtUp'),
-    ]);
-    expect(screen.getAllByTestId('feed-tier').map((s) => s.dataset.tier)).toEqual(['1', '3']);
+    // never one per tier, and never one for the post saying "Friends of friends".
+    expect(headers.map((h) => h.textContent)).toEqual([tr('integrity:tier.caughtUp')]);
+    expect(screen.queryByTestId('feed-tier')).toBeNull();
   });
 
   it("puts the seen target on each card's own post only", () => {
