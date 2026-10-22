@@ -80,6 +80,19 @@
     "unfriend": "Remove @{handle} from your acquaintances",
     "block": "Block @{handle}"
   },
+  "via": {
+    "title": "How you're connected",
+    "steps": "{dist, plural, one {@{handle} is your direct connection.} other {@{handle} is # steps from you.}}",
+    "you": "You",
+    "tie": "{tie, select, friend {your friend} other {your acquaintance}}",
+    "named": "named because both sides allow it",
+    "hidden": "{count, plural, one {someone who keeps their name out of chains} other {# people who keep their names out of chains}}",
+    "author": "wrote this post",
+    "explain": "The first step and the author are always named. People in between are named only when they allow it in their privacy settings.",
+    "invitedBy": "Invited by",
+    "person": "Open @{handle}'s page",
+    "missing": "This post does not exist, or you cannot see it."
+  },
   "posts": {
     "title": "Posts",
     "orderLabel": "Order",

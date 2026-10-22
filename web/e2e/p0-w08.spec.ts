@@ -158,7 +158,7 @@ test('rows around the focal post, ranked by tier, on one connected canvas', asyn
   await expect(focusCard(page)).toHaveAttribute('data-ref', focal);
   await expect(focusCard(page).locator('.post-focal')).toBeVisible();
   await expect(page.getByText('Xavier is never shown')).toHaveCount(0);
-  for (const id of ['integrity-chain', 'integrity-inviter-label', 'integrity-why', 'integrity-audience', 'integrity-report']) {
+  for (const id of ['integrity-chain', 'integrity-why', 'integrity-audience', 'integrity-report']) {
     await expect(focusCard(page).getByTestId(id)).toBeVisible();
   }
 
@@ -326,7 +326,7 @@ test('the same canvas in Compact', async ({ page, request, baseURL }) => {
   await expect(page.getByTestId('tree-layout')).toHaveAttribute('data-format', 'compact');
   await expect(page.getByTestId('explorer-node')).toHaveCount(16);
   await expect(nodeOf(page, focal)).toHaveAttribute('data-focal', 'true');
-  for (const id of ['integrity-chain', 'integrity-inviter-label', 'integrity-why', 'integrity-audience', 'integrity-report']) {
+  for (const id of ['integrity-chain', 'integrity-why', 'integrity-audience', 'integrity-report']) {
     await expect(focusCard(page).getByTestId(id)).toBeVisible();
   }
 });

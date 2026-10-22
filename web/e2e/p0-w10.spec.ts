@@ -220,7 +220,7 @@ test('"why" opens from a feed card, loads once and closes with Escape; integrity
   await page.goto('/');
   const card = page.getByTestId('feed-post').first();
   await expect(card).toBeVisible();
-  for (const id of ['integrity-chain', 'integrity-inviter-label', 'integrity-audience', 'integrity-report']) {
+  for (const id of ['integrity-chain', 'integrity-audience', 'integrity-report']) {
     await expect(card.getByTestId(id)).toBeVisible();
     await expect(card.getByTestId(id).locator('a')).toHaveCount(0);
   }

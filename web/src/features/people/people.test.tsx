@@ -13,7 +13,10 @@ import FriendsPage from './FriendsPage';
 import PersonPage from './PersonPage';
 import RequestsPage from './RequestsPage';
 import SuggestionsPage from './SuggestionsPage';
+import { Chain } from '../../integrity';
 import { ReportModal } from '../moderation/ReportModal';
+import { postJSON } from '../post/testdata';
+import { ConnectionModal } from './ConnectionModal';
 import { canUpgrade, cosignPurpose, peopleErrorKey, primaryActions, secondaryActions, toPersonVM } from './vm';
 
 // The co-sign dialog is the cosign feature's; here it signs (or is cancelled) at once.
@@ -172,8 +175,8 @@ describe('people pages', () => {
       return undefined;
     });
     renderAt('/friends/requests', '/friends/requests', <RequestsPage />);
-    expect(await screen.findByText('@alice')).toBeTruthy();
-    expect(screen.getByText('@dan')).toBeTruthy();
+    expect((await screen.findAllByText('@alice')).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('@dan').length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: tr('people:action.withdraw') })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: tr('people:action.accept') }));
     await waitFor(() => {
@@ -351,5 +354,64 @@ describe('people pages', () => {
       expect(calls.some((c) => c.method === 'DELETE')).toBe(true);
     });
     expect(await screen.findByText(tr('people:blocks.empty'))).toBeTruthy();
+  });
+});
+
+describe('how you are connected', () => {
+  const via = { dist: 3, first_hop: { ref: 'r-bob', handle: 'bob' }, hidden_middle: 1, first_hop_plus: true };
+  function show(path: string) {
+    const router = createMemoryRouter(
+      [
+        {
+          path: '/',
+          element: (
+            <>
+              <Chain
+                chain={{ dist: 3, firstHop: { ref: asRef('r-bob'), handle: 'bob' }, middle: [], hiddenMiddle: 1, firstHopPlus: true }}
+                author={{ ref: asRef('u1'), handle: 'dave' }}
+                post={asRef('p1')}
+              />
+              <ConnectionModal />
+              <ReportModal />
+            </>
+          ),
+        },
+      ],
+      { initialEntries: [path] },
+    );
+    render(
+      <QueryClientProvider client={makeQueryClient()}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>,
+    );
+    return router;
+  }
+
+  it('opens from the chain: the path step by step, the steps, the inviter, and reporting the inviter', async () => {
+    stubAPI((c) =>
+      c.path === '/posts/p1'
+        ? json(200, postJSON({ mine: false, author: { ref: 'u1', handle: 'dave', display_name: '', inviter: { kind: 'user', handle: 'olga' }, chain: via } }))
+        : undefined,
+    );
+    const router = show('/');
+    fireEvent.click(screen.getByTestId('integrity-chain-open'));
+    expect(router.state.location.search).toBe('?via=p1');
+    const body = await screen.findByTestId('via-body');
+    expect(body.dataset.dist).toBe('3');
+    expect(screen.getByTestId('via-steps').textContent).toBe(tr('people:via.steps', { dist: 3, handle: 'dave' }));
+    const steps = [...screen.getByTestId('via-path').querySelectorAll('li')];
+    expect(steps.map((li) => li.dataset.kind)).toEqual(['you', 'hop', 'hidden', 'author']);
+    expect(steps[1]?.textContent).toContain(tr('people:via.tie', { tie: 'friend' }));
+    expect(steps[2]?.textContent).toContain(tr('people:via.hidden', { count: 1 }));
+    expect(screen.getAllByTestId('integrity-inviter-label').at(-1)?.textContent).toBe(tr('integrity:inviter.label', { kind: 'user', handle: 'olga' }));
+    fireEvent.click(screen.getByTestId('integrity-inviter-report'));
+    expect(await screen.findByTestId('report-modal')).toBeTruthy();
+    expect(router.state.location.search).toBe('?via=p1&report=inviter%3Au1');
+  });
+
+  it('says so when the post is not there', async () => {
+    stubAPI(() => undefined);
+    show('/?via=nope');
+    expect((await screen.findByTestId('via-error')).textContent).toBe(tr('people:via.missing'));
   });
 });

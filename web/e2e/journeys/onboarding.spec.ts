@@ -99,13 +99,18 @@ test('enroll, invite in person, post, reply, notify, like, export and verify', a
     await expect(published.getByTestId('integrity-audience')).toHaveAttribute('data-audience', 'd1');
     await expect(published.getByTestId('integrity-audience')).toHaveAttribute('data-forced', 'true');
 
-    // alice's feed: tier 1, the chain to @bob, bob's inviter label; she replies from the card.
+    // alice's feed: tier 1, the chain to @bob, bob's inviter label one tap
+    // away in "how you're connected"; she replies from the card.
     await page.goto('/');
     const card = page.locator('[data-testid="feed-post"]', { hasText: 'Hello, I just joined' });
     await expect(card).toHaveAttribute('data-tier', '1');
     await expect(page.getByTestId('integrity-tier-header').first()).toHaveAttribute('data-tier', '1');
     await expect(card.getByTestId('integrity-chain')).toContainText(at('bob'));
-    await expect(card.getByTestId('integrity-inviter-label')).toContainText(at('alice'));
+    await expect(card.getByTestId('integrity-inviter-label')).toHaveCount(0);
+    await card.getByTestId('integrity-chain-open').click();
+    await expect(page.getByTestId('via-modal').getByTestId('integrity-inviter-label')).toContainText(at('alice'));
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('via-modal')).toHaveCount(0);
     await expect(card.getByTestId('integrity-audience')).toHaveAttribute('data-audience', 'd1');
     await expect(card.getByTestId('integrity-audience')).not.toHaveAttribute('data-forced', 'true');
     await card.getByTestId('feed-reply').click();

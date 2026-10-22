@@ -305,7 +305,7 @@ test('why, folding by keyboard and the Compact format', async ({ page, request, 
   await expect(page.getByTestId('feed-layout')).toHaveAttribute('data-format', 'compact');
   await expect(page.getByTestId('integrity-tier-header').first()).toBeVisible();
   const card = page.locator('[data-seen-ref]').first();
-  for (const id of ['integrity-chain', 'integrity-inviter-label', 'integrity-why', 'integrity-audience', 'integrity-report']) {
+  for (const id of ['integrity-chain', 'integrity-why', 'integrity-audience', 'integrity-report']) {
     await expect(card.getByTestId(id)).toBeVisible();
   }
   await expect(card.getByTestId('integrity-edited')).toBeAttached();

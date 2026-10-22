@@ -1,12 +1,12 @@
 // Cards post layout (§10.1.7): an author row (display name with its @handle,
-// inviter label, chain, "why"), the visible context rows, the body (folded
+// the chain, which opens "how you're connected" with the inviter label, "why"), the visible context rows, the body (folded
 // past 6 lines or 400 characters in the feed, 10 lines in the tree), link
 // pictures (P1), previews, the integrity footer (audience, edited, report) and the actions
 // (like summary, like / hide / show less, reply, family tree).
 // Owner: P0-W07 → P1-W12 (P0-W08 reuses it for the tree's 'tree' / 'focal' variants).
 import { useTranslation } from 'react-i18next';
 import { EngageBar, useHidden } from '../../features/engage';
-import { AudienceBadge, Chain, EditedMark, InviterLabel, ReportAction, WhyButton } from '../../integrity';
+import { AudienceBadge, Chain, EditedMark, ReportAction, WhyButton } from '../../integrity';
 import type { PostVM } from '../../vm/types';
 import type { PostActions } from '../types';
 import {
@@ -52,8 +52,7 @@ export function PostLayout({ post, actions, variant, part }: CardProps) {
           {post.author.displayName ? <span className="post-name" data-user-content="">{post.author.displayName}</span> : null}{' '}
           <span className="post-handle">{t('post.handle', { handle: post.author.handle })}</span>
         </PersonLink>
-        <InviterLabel inviter={post.author.inviter} invitee={post.author.ref} onReport={actions.report} />
-        <Chain chain={post.author.chain} author={post.author} />
+        <Chain chain={post.author.chain} author={post.author} post={post.ref} />
         <span className="post-head-end">
           <PostTime at={post.createdAt} />
           {post.thread ? (
