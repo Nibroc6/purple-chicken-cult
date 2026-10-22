@@ -8,7 +8,7 @@
 // signed out or in the top-header layout on wide screens. On phones a bottom
 // tab bar (tabNav) keeps the main pages under the thumb, and its last button
 // opens everything else in the drawer.
-import { Suspense, useCallback, useEffect, useId, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import { NavLink, Outlet, useLocation } from 'react-router';
 import { Icon } from '../lib/Icon';
@@ -21,6 +21,22 @@ import { useSession } from './session';
 
 const navBadges = featureSlots.flatMap((s) => (s.navBadge ? [s.navBadge] : []));
 const globals = featureSlots.flatMap((s) => s.global ?? []);
+
+// The tab bar is only rendered on phones (the width below which the CSS turns
+// the sidebar into a drawer), so wide screens carry no second copy of its
+// links and badges. Without matchMedia (tests) it is always rendered.
+const narrowQuery = '(max-width: 47.99rem)';
+function subscribeNarrow(onChange: () => void): () => void {
+  if (typeof window.matchMedia !== 'function') return () => undefined;
+  const mq = window.matchMedia(narrowQuery);
+  mq.addEventListener('change', onChange);
+  return () => {
+    mq.removeEventListener('change', onChange);
+  };
+}
+function isNarrow(): boolean {
+  return typeof window.matchMedia !== 'function' || window.matchMedia(narrowQuery).matches;
+}
 
 export function Shell() {
   const { t } = useTranslation('common');
@@ -37,6 +53,7 @@ export function Shell() {
   const menuButton = useRef<HTMLButtonElement>(null);
   const navRef = useRef<HTMLElement>(null);
   const location = useLocation();
+  const narrow = useSyncExternalStore(subscribeNarrow, isNarrow);
 
   // Following a link closes the drawer.
   const [path, setPath] = useState(location.pathname);
@@ -149,7 +166,7 @@ export function Shell() {
           <G key={i} />
         ))}
       </div>
-      {signedIn ? (
+      {signedIn && narrow ? (
         <nav className="tabbar" aria-label={t('nav.tabs')}>
           <ul>
             {visible(tabNav).map((e) => (
