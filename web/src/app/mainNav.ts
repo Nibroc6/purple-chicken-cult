@@ -26,6 +26,8 @@ export interface MainNavEntry {
     | 'nav.roles';
   // A short glyph shown when the sidebar is collapsed (decorative).
   icon: string;
+  // An outline icon (24×24 stroke paths) drawn instead of the glyph.
+  paths?: string[];
   // The feature nav badges render next to this entry (e.g. the unread count).
   badges?: boolean;
   // Who sees the entry (default: signed-in members).
@@ -35,7 +37,17 @@ export interface MainNavEntry {
 export const mainNav: MainNavEntry[] = [
   { to: '/', label: 'nav.feed', icon: '⌂' },
   { to: '/compose', label: 'nav.compose', icon: '✎' },
-  { to: '/invite', label: 'nav.invite', icon: '✉' },
+  // Lucide "feather" (ISC licence).
+  {
+    to: '/invite',
+    label: 'nav.invite',
+    icon: '✉',
+    paths: [
+      'M12.67 19a2 2 0 0 0 1.416-.588l6.154-6.172a6 6 0 0 0-8.49-8.49L5.586 9.914A2 2 0 0 0 5 11.328V18a1 1 0 0 0 1 1z',
+      'M16 8 2 22',
+      'M17.5 15H9',
+    ],
+  },
   { to: '/friends', label: 'nav.people', icon: '☺' },
   { to: '/saves', label: 'nav.saves', icon: '★' },
   { to: '/seen', label: 'nav.seen', icon: '◉' },

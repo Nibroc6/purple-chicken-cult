@@ -1,7 +1,7 @@
 {
   "page": {
-    "title": "Meet someone in person",
-    "intro": "Show your code to someone you're with.",
+    "title": "Feathers",
+    "intro": "Use a feather to show your code to someone you're with.",
     "introTip": "If they're new here, they join with it. If they already have an account, they scan it while signed in and you become friends."
   },
   "budget": {
@@ -17,9 +17,9 @@
     "probationFriendsPlus": "{count, plural, one {# more friend} other {# more friends}} outside your invite tree (met in person)"
   },
   "attempts": {
-    "left": "Code attempts: {count, number} of {cap, number} left",
-    "next": "One more attempt in {time}",
-    "hint": "Showing a code uses an attempt, even if nobody joins. Used attempts come back one at a time."
+    "left": "Feathers: {count, number} of {cap, number} left",
+    "next": "Next feather in {time}",
+    "hint": "Showing your code uses a feather, even if nobody joins. Used feathers grow back one at a time."
   },
   "countdown": {
     "days": "{d, plural, one {# day} other {# days}} {h, plural, one {# hour} other {# hours}}",
