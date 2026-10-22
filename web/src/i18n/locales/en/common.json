@@ -27,6 +27,9 @@
     "collapse": "Collapse sidebar",
     "expand": "Expand sidebar"
   },
+  "postLists": {
+    "label": "Your post lists"
+  },
   "placeholder": {
     "body": "This page is not built yet."
   },

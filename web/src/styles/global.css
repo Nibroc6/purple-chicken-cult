@@ -46,6 +46,7 @@ a {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: start;
+  align-content: start;
   min-block-size: 100vh;
 }
 .shell[data-signed-in='false'],
