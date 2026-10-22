@@ -11,11 +11,12 @@
 //   MediaList (P1: attached pictures; display size in the feed and the focal
 //   post, thumbs in tree rows), PostLinks.
 // - groupTiers: feed items (across pages) → tier sections for sticky headers.
-import { createContext, useContext, useId, useState, type ReactNode } from 'react';
+import { createContext, useContext, useId, useState, type MouseEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useInRouterContext } from 'react-router';
 import { IconButton } from '../../../lib/IconButton';
 import { formatDateTime, formatRelative } from '../../../lib/time';
+import { ReplyPick } from '../../../features/composer';
 import { MediaImage } from '../../../features/media';
 import { LinkPreviews, Markdown } from '../../../markdown';
 import type { ContextVM, FeedItemVM, FeedPageVM, MarkdownDoc, MediaVM, PostVM, PreviewVM, Ref } from '../../../vm/types';
@@ -95,13 +96,59 @@ export function PersonLink({ person, className, children }: { person: Ref; class
   );
 }
 
-export function PostTime({ at }: { at: Date }) {
+// PostTime: when the post was written; given the post, also a link to it (the
+// keyboard way to open a card, and the one that opens in a new tab).
+export function PostTime({ at, post }: { at: Date; post?: Ref }) {
   const { i18n } = useTranslation();
-  return (
+  const inRouter = useInRouterContext();
+  const time = (
     <time className="post-time muted" dateTime={at.toISOString()} title={formatDateTime(at, i18n.language)}>
       {formatRelative(at, i18n.language)}
     </time>
   );
+  if (!post) return time;
+  return inRouter ? (
+    <Link to={postPath(post)} className="post-time-link" data-testid="post-time-link">
+      {time}
+    </Link>
+  ) : (
+    <a href={postPath(post)} className="post-time-link" data-testid="post-time-link">
+      {time}
+    </a>
+  );
+}
+
+// ---- opening a card ----
+
+export function postPath(post: Ref): string {
+  return `/p/${post}`;
+}
+
+// What a click on a card leaves alone: its own controls and links, open
+// panels, and media players.
+const inner = 'a, button, input, textarea, select, label, summary, details, video, audio, [role="button"], [role="link"], [role="dialog"], [contenteditable="true"]';
+
+// openCardProps makes a whole card open its post: a click anywhere but on its
+// controls, links or a text selection opens it; Ctrl / Cmd / Shift-click and a
+// middle click open it in a new tab. The time link (PostTime) is the keyboard
+// path, so the card itself adds no tab stop.
+export function openCardProps(post: Ref, open: (post: Ref) => void) {
+  const go = (e: MouseEvent<HTMLElement>, newTab: boolean) => {
+    const hit = (e.target as Element).closest(inner);
+    if (hit && e.currentTarget.contains(hit)) return;
+    if ((window.getSelection()?.toString() ?? '') !== '') return;
+    if (newTab) window.open(postPath(post), '_blank', 'noopener');
+    else open(post);
+  };
+  return {
+    'data-open-card': 'true',
+    onClick: (e: MouseEvent<HTMLElement>) => {
+      if (e.button === 0) go(e, e.metaKey || e.ctrlKey || e.shiftKey);
+    },
+    onAuxClick: (e: MouseEvent<HTMLElement>) => {
+      if (e.button === 1) go(e, true);
+    },
+  };
 }
 
 // ContextRows: "↳ replying to @a: first 80 characters…", only for links the
@@ -160,8 +207,8 @@ export function MediaList({ media, variant }: { media: readonly MediaVM[]; varia
   );
 }
 
-// PostLinks: reply (when the reader may reference the post) and the family tree
-// with its visible reply count.
+// PostLinks: reply and add to a reply to several posts (when the reader may
+// reference the post), and the family tree with its visible reply count.
 export function PostLinks({ post, actions }: { post: PostVM; actions: PostActions }) {
   const { t, i18n } = useTranslation('feed');
   return (
@@ -177,6 +224,7 @@ export function PostLinks({ post, actions }: { post: PostVM; actions: PostAction
           }}
         />
       ) : null}
+      {post.canReference ? <ReplyPick post={post} /> : null}
       <IconButton
         icon="replies"
         label={t('post.tree', { count: post.replyCount })}

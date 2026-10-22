@@ -15,6 +15,10 @@ import type { FormatId, PostActions, TreeActions } from '../types';
 import { Canvas } from './canvas/Canvas';
 import { layoutTree } from './canvas/layout';
 
+// WIDE matches screens where the focus card floats beside the map rather than
+// being a bottom sheet (canvas.css).
+const WIDE = '(min-width: 48rem)';
+
 export type PostComponent = ComponentType<{
   post: PostVM;
   actions: PostActions;
@@ -44,7 +48,8 @@ export function ConnectedTree({
   const { t } = useTranslation('tree');
   const uid = useId().replace(/:/g, '');
   // The focused post's card folds down to its bar to free the map.
-  const [open, setOpen] = useState(true);
+  // On phones the focused post starts folded so the map shows first.
+  const [open, setOpen] = useState(() => typeof window.matchMedia !== 'function' || window.matchMedia(WIDE).matches);
   // Each row hangs from its first post (the server's best-ranked one).
   const layout = useMemo(() => layoutTree(tree, () => undefined), [tree]);
   const focal = tree.rows.flatMap((r) => r.items).find((i) => i.post.ref === tree.focal && !i.shownAbove)?.post;

@@ -1,5 +1,6 @@
 // A person's page: who they are to you, how you are connected, who invited
-// them, the friendship actions and (P1) the friend+ upgrade in person.
+// them, the friendship actions, (P1) the friend+ upgrade in person and their
+// post history.
 // Owner: P0-W03 → P1-W03.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useId, useState } from 'react';
@@ -10,11 +11,12 @@ import { NotFound } from '../../app/NotFound';
 import { ApiError } from '../../api/errors';
 import { asRef } from '../../vm/types';
 import { HandshakeHost, type OpenedVM } from '../invites';
+import { MessageButton } from '../messages';
 import { fetchPerson, openUpgrade } from './api';
+import { PersonPosts } from './PersonPosts';
 import { ErrorText, PeopleNav, PersonActions, PersonCard, ReportPerson, peopleKey } from './shared';
 import { canUpgrade, type PeopleVM } from './vm';
 
-// i18n-dynamic: people:person.relation.
 export default function PersonPage() {
   const { t } = useTranslation('people');
   const ref = asRef(useParams().ref ?? '');
@@ -33,24 +35,25 @@ export default function PersonPage() {
           <ul className="people-list">
             <PersonCard
               person={q.data}
+              page
               extra={
-                <>
-                  <span className="muted" data-testid="person-relation" data-relation={q.data.relation}>
-                    {t(`person.relation.${q.data.blocked ? 'blocked' : q.data.request ? q.data.request : q.data.relation}` as 'person.relation.self')}
-                  </span>
-                  {q.data.hiddenVia ? (
-                    <span className="muted" data-testid="person-hidden-via">
-                      {t('person.hiddenVia', { handle: q.data.handle })}
-                    </span>
-                  ) : null}
-                </>
+                q.data.hiddenVia ? (
+                  <p className="muted people-note" data-testid="person-hidden-via">
+                    {t('person.hiddenVia', { handle: q.data.handle })}
+                  </p>
+                ) : null
               }
             >
-              <PersonActions person={q.data} secondary />
-              {q.data.relation !== 'self' ? <ReportPerson person={q.data} /> : null}
+              <PersonActions person={q.data} secondary>
+                {!q.data.blocked && (q.data.relation === 'friend' || q.data.relation === 'friend_plus') ? (
+                  <MessageButton person={q.data.ref} />
+                ) : null}
+                {q.data.relation !== 'self' ? <ReportPerson person={q.data} /> : null}
+              </PersonActions>
             </PersonCard>
           </ul>
           {q.data.relation !== 'self' ? <Upgrade key={q.data.ref} person={q.data} /> : null}
+          {q.data.blocked ? null : <PersonPosts key={q.data.ref} person={q.data} />}
         </>
       )}
     </section>

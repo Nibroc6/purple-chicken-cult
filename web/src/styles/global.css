@@ -46,7 +46,9 @@ a {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: start;
+  align-content: start;
   min-block-size: 100vh;
+  min-block-size: 100dvh;
 }
 .shell[data-signed-in='false'],
 :root[data-nav='header'] .shell {
@@ -105,10 +107,12 @@ a {
   border-radius: var(--radius-control);
   cursor: pointer;
 }
-.sidebar-toggle:hover,
-.sidebar-menu:hover {
-  color: var(--color-accent);
-  background: var(--color-hover);
+@media (hover: hover) {
+  .sidebar-toggle:hover,
+  .sidebar-menu:hover {
+    color: var(--color-accent);
+    background: var(--color-hover);
+  }
 }
 .sidebar-menu {
   display: none;
@@ -147,8 +151,13 @@ a {
   text-decoration: none;
   transition: background-color var(--ease);
 }
-.link-cards a:hover {
-  color: var(--color-accent);
+@media (hover: hover) {
+  .link-cards a:hover {
+    color: var(--color-accent);
+    background: var(--color-hover);
+  }
+}
+.link-cards a:active {
   background: var(--color-hover);
 }
 .link-cards a:focus-visible {
@@ -187,9 +196,11 @@ a {
     background-color var(--ease),
     color var(--ease);
 }
-.sidebar-nav a:hover {
-  background: var(--color-hover);
-  color: var(--color-accent);
+@media (hover: hover) {
+  .sidebar-nav a:hover {
+    background: var(--color-hover);
+    color: var(--color-accent);
+  }
 }
 .sidebar-nav a[aria-current='page'] {
   font-weight: 650;
@@ -292,8 +303,8 @@ a {
     inline-size: auto;
     block-size: auto;
     overflow: visible;
-    padding-block: var(--space-2);
-    padding-inline: var(--space-4);
+    padding-block: max(var(--space-2), env(safe-area-inset-top)) var(--space-2);
+    padding-inline: max(var(--space-4), env(safe-area-inset-left)) max(var(--space-4), env(safe-area-inset-right));
     border-inline-end: none;
     border-block-end: 1px solid var(--color-border);
   }
@@ -303,9 +314,6 @@ a {
   .sidebar-toggle,
   :root[data-nav='header'] .sidebar-toggle {
     display: none;
-  }
-  .sidebar-menu {
-    display: inline-flex;
   }
   .sidebar-nav {
     display: none;
@@ -317,7 +325,8 @@ a {
     inset-inline-start: 0;
     z-index: 30;
     inline-size: min(var(--sidebar-width), 85vw);
-    padding: var(--space-4);
+    padding: max(var(--space-4), env(safe-area-inset-top)) var(--space-4) calc(var(--tabbar-height) + var(--space-4));
+    padding-inline-start: max(var(--space-4), env(safe-area-inset-left));
     overflow-y: auto;
     background: var(--color-surface);
     border-inline-end: 1px solid var(--color-border);
@@ -336,6 +345,9 @@ a {
   :root[data-nav='header'] .shell[data-drawer-open='true'] .nav-icon {
     display: inline;
   }
+  .shell[data-drawer-open='true'] .sidebar-nav a {
+    min-block-size: 2.75rem;
+  }
   .sidebar-backdrop {
     position: fixed;
     inset: 0;
@@ -346,6 +358,143 @@ a {
     border: none;
     background: rgb(0 0 0 / 40%);
     cursor: pointer;
+  }
+}
+
+/* The phone tab bar: the main pages at the bottom of the screen, under the
+   thumb, clear of the home indicator. It steps aside while a text field has
+   focus, so it never rides on top of the on-screen keyboard. */
+.tabbar {
+  display: none;
+}
+@media (max-width: 47.99rem) {
+  .shell {
+    /* The sticky top bar's height: sticky things on the page stop below it. */
+    --shell-top: calc(2.5rem + var(--space-2) + max(var(--space-2), env(safe-area-inset-top)) + 1px);
+  }
+  .shell[data-signed-in='true'] {
+    --tabbar-height: calc(3.5rem + env(safe-area-inset-bottom));
+  }
+  .shell[data-signed-in='true'] .shell-body {
+    padding-block-end: var(--tabbar-height);
+  }
+  .shell[data-signed-in='true'] .shell-main {
+    padding-inline: max(var(--space-4), env(safe-area-inset-left)) max(var(--space-4), env(safe-area-inset-right));
+  }
+  .tabbar {
+    display: block;
+    position: fixed;
+    inset-block-end: 0;
+    inset-inline: 0;
+    z-index: 35;
+    padding-block-end: env(safe-area-inset-bottom);
+    padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
+    background: color-mix(in srgb, var(--color-surface) 92%, transparent);
+    backdrop-filter: blur(12px);
+    border-block-start: 1px solid var(--color-border);
+  }
+  .tabbar ul {
+    display: grid;
+    grid-auto-columns: minmax(0, 1fr);
+    grid-auto-flow: column;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .tabbar a,
+  .tabbar .sidebar-menu {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    inline-size: 100%;
+    block-size: 3.5rem;
+    padding: 0;
+    font: inherit;
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1.1;
+    color: var(--color-muted);
+    text-decoration: none;
+    background: none;
+    border: 0;
+    border-radius: 0;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  .tabbar-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    inline-size: 3rem;
+    block-size: 1.75rem;
+    font-size: 1.25rem;
+    border-radius: 999px;
+    transition: background-color var(--ease);
+  }
+  .tabbar-label {
+    max-inline-size: 100%;
+    padding-inline: 2px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .tabbar a[aria-current='page'],
+  .tabbar .sidebar-menu[aria-expanded='true'] {
+    color: var(--color-accent);
+  }
+  .tabbar a[aria-current='page'] .tabbar-icon,
+  .tabbar .sidebar-menu[aria-expanded='true'] .tabbar-icon {
+    background: var(--color-accent-soft);
+  }
+  .tabbar a:active .tabbar-icon,
+  .tabbar .sidebar-menu:active .tabbar-icon {
+    background: var(--color-hover);
+  }
+  /* New post stands out: a filled pill in the middle of the bar. */
+  .tabbar li[data-primary] .tabbar-icon,
+  .tabbar li[data-primary] a[aria-current='page'] .tabbar-icon {
+    color: var(--color-on-accent);
+    background: var(--color-accent);
+    box-shadow: var(--shadow-md);
+  }
+  .tabbar li[data-primary] a {
+    color: var(--color-accent);
+  }
+  .tabbar a:focus-visible,
+  .tabbar .sidebar-menu:focus-visible {
+    outline: none;
+  }
+  .tabbar a:focus-visible .tabbar-icon,
+  .tabbar .sidebar-menu:focus-visible .tabbar-icon {
+    box-shadow: var(--focus-ring);
+  }
+  /* The unread count sits on the bell's shoulder. */
+  .tabbar .nav-badge {
+    position: absolute;
+    inset-block-start: 0.3rem;
+    inset-inline-start: calc(50% + 0.35rem);
+    margin: 0;
+    line-height: 1.4;
+  }
+  .shell:has(
+      .shell-body
+        :is(
+          textarea,
+          [contenteditable='true'],
+          input:not([type='checkbox'], [type='radio'], [type='range'], [type='file'], [type='button'], [type='submit'], [type='color'])
+        ):focus
+    )
+    .tabbar {
+    display: none;
+  }
+  /* Tier headers stick below the top bar, not under it. */
+  .shell .tier-header {
+    inset-block-start: var(--shell-top);
+    z-index: 5;
   }
 }
 
@@ -392,6 +541,22 @@ a {
 
 .muted {
   color: var(--color-muted);
+}
+
+/* A card that opens its post on click (formats/cards/feed/parts.tsx). */
+[data-open-card] {
+  cursor: pointer;
+}
+.post[data-open-card]:hover {
+  border-color: color-mix(in srgb, var(--color-accent) 30%, var(--color-border));
+  box-shadow: var(--shadow-md);
+}
+.post-time-link {
+  color: inherit;
+  text-decoration: none;
+}
+.post-time-link:hover {
+  text-decoration: underline;
 }
 
 .post {
@@ -487,9 +652,11 @@ a {
   border-radius: 999px;
 }
 
-.modal-close:hover {
-  color: var(--color-text);
-  background: var(--color-hover);
+@media (hover: hover) {
+  .modal-close:hover {
+    color: var(--color-text);
+    background: var(--color-hover);
+  }
 }
 
 :root:has(.modal[open]) {

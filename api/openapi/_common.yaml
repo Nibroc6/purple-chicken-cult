@@ -373,6 +373,16 @@ components:
         claimed: { type: boolean }
         pending: { $ref: '#/components/schemas/ModPending' }
         csam: { $ref: '#/components/schemas/CSAMHoldView' }
+        message: { $ref: '#/components/schemas/ModMessageView' }
+    ModMessageView:
+      type: object
+      description: A reported direct message - the text the reporter saw - and nothing else of its conversation.
+      required: [body, at]
+      properties:
+        body: { type: string }
+        shared_post: { type: boolean }
+        at: { type: string, format: date-time }
+        removed: { type: boolean }
     ModPending:
       type: object
       required: [action, reason, mine, at]

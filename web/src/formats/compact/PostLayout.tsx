@@ -4,7 +4,7 @@
 // one line. Owner: P0-W07 → P1-W12 (P0-W08 reuses it for the tree outline).
 import { useTranslation } from 'react-i18next';
 import { EngageBar, useHidden } from '../../features/engage';
-import { AudienceBadge, Chain, EditedMark, InviterLabel, ReportAction, WhyButton } from '../../integrity';
+import { AudienceBadge, Chain, EditedMark, ReportAction, WhyButton } from '../../integrity';
 import type { PostVM } from '../../vm/types';
 import type { PostActions } from '../types';
 import {
@@ -15,6 +15,7 @@ import {
   PersonLink,
   PostLinks,
   PostTime,
+  openCardProps,
   PreviewList,
   shouldFold,
   useSeenTarget,
@@ -44,15 +45,15 @@ export function PostLayout({
       data-tier={post.tier}
       data-part={part}
       {...seen}
+      {...(variant === 'feed' ? openCardProps(post.ref, actions.openTree) : {})}
     >
       <header className="row-head">
         <PersonLink person={post.author.ref} className="post-who">
           <span className="post-handle">{t('post.handle', { handle: post.author.handle })}</span>
           {post.author.displayName ? <span className="post-name muted" data-user-content=""> {post.author.displayName}</span> : null}
         </PersonLink>
-        <InviterLabel inviter={post.author.inviter} invitee={post.author.ref} onReport={actions.report} />
-        <Chain chain={post.author.chain} author={post.author} />
-        <PostTime at={post.createdAt} />
+        <Chain chain={post.author.chain} author={post.author} post={post.ref} />
+        <PostTime at={post.createdAt} post={post.ref} />
         {post.thread ? (
           <span className="post-thread muted" data-testid="feed-thread-pos">
             {t('thread.position', { index: post.thread.index, total: post.thread.total })}

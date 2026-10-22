@@ -18,7 +18,7 @@ import (
 type reportBody struct {
 	Reporter   uuid.UUID `json:"reporter"`
 	TargetKind string    `json:"target_kind"`
-	Target     uuid.UUID `json:"target"` // post ID, or the reported person's (for inviter: the invitee's) ext_id
+	Target     uuid.UUID `json:"target"` // post or message ID, or the reported person's (for inviter: the invitee's) ext_id
 	Reason     string    `json:"reason"`
 	At         sigs.Time `json:"at"`
 }
@@ -30,12 +30,15 @@ type target struct {
 	user core.UserID // person reports; for inviter reports the INVITEE
 	ext  uuid.UUID   // record target
 	// subject is who the report is about: the post's author, the person, or
-	// (inviter reports) the invitee's inviter.
+	// (inviter reports) the invitee's inviter, or a message's sender.
 	subject core.UserID
+	// message reports: the message and the text the reporter saw.
+	message  uuid.UUID
+	evidence string
 }
 
-// Report files a report. kind is post | person | inviter | preview; for
-// inviter the ref is the INVITEE's (the inviter is never addressable, §3).
+// Report files a report. kind is post | person | inviter | preview | message;
+// for inviter the ref is the INVITEE's (the inviter is never addressable, §3).
 // Problems about the caller's own input: kind_invalid, reason_invalid,
 // note_too_long. A target the reporter cannot see (or garbage, another viewer's
 // ref, the reporter themself) is dropped silently: the answer is always the
@@ -69,8 +72,9 @@ func (s *Service) Report(ctx context.Context, kind string, ref gate.Ref, reason,
 		// One open report per reporter and target: a repeat changes nothing.
 		var dup int
 		err := tx.QueryRow(ctx, `SELECT 1 FROM reports WHERE reporter_id = $1 AND state = $2 AND target_kind = $3
-			AND target_post IS NOT DISTINCT FROM $4 AND target_user IS NOT DISTINCT FROM $5 LIMIT 1`,
-			int64(v.ID), reportOpen, t.kind, nullPost(t.post), nullUser(t.user)).Scan(&dup)
+			AND target_post IS NOT DISTINCT FROM $4 AND target_user IS NOT DISTINCT FROM $5
+			AND target_message IS NOT DISTINCT FROM $6 LIMIT 1`,
+			int64(v.ID), reportOpen, t.kind, nullPost(t.post), nullUser(t.user), nullPost(t.message)).Scan(&dup)
 		if err == nil {
 			return nil
 		}
@@ -82,9 +86,14 @@ func (s *Service) Report(ctx context.Context, kind string, ref gate.Ref, reason,
 		if note != "" {
 			notePtr = &note
 		}
-		if _, err := tx.Exec(ctx, `INSERT INTO reports (id, reporter_id, target_kind, target_post, target_user, reason, note, created_at, state)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`, id, int64(v.ID), t.kind, nullPost(t.post), nullUser(t.user),
-			reason, notePtr, now, reportOpen); err != nil {
+		var evidence *string
+		if t.message != uuid.Nil {
+			evidence = &t.evidence
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO reports (id, reporter_id, target_kind, target_post, target_user, reason, note, created_at,
+				state, target_message, evidence)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`, id, int64(v.ID), t.kind, nullPost(t.post), nullUser(t.user),
+			reason, notePtr, now, reportOpen, nullPost(t.message), evidence); err != nil {
 			return err
 		}
 		body := reportBody{Reporter: me.ExtID, TargetKind: kind, Target: t.ext, Reason: reason, At: sigs.T(now)}
@@ -125,6 +134,16 @@ func (s *Service) resolveTarget(ctx context.Context, v core.Viewer, kind int16, 
 			return t, false
 		}
 		t.post, t.ext, t.subject = pid, pid, m.Author
+		return t, true
+	case 4: // message
+		if s.d.Messages == nil {
+			return t, false
+		}
+		m, ok := s.d.Messages.ForReport(ctx, v.ID, ref)
+		if !ok {
+			return t, false
+		}
+		t.user, t.ext, t.subject, t.message, t.evidence = m.Sender, m.ID, m.Sender, m.ID, m.Body
 		return t, true
 	default: // person, inviter (via the invitee)
 		u, ok := s.d.Refs.OpenUser(v.ID, ref)

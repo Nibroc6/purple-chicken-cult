@@ -1,7 +1,7 @@
 // toPostVM maps the API PostView to the PostVM every format renders (shared by
 // feed, tree and people), plus the pure helpers of the post and composer
 // features. Owner: P0-W05 → P1-W12.
-import { ApiError, errorKey } from '../../api/errors';
+import { ApiError, errorKey, errorParams } from '../../api/errors';
 import type { components } from '../../api/schema.gen';
 import { parse } from '../../markdown';
 import type { Audience, AuthorVM, ChainVM, HopVM, MediaVM, PostVM, RefPolicy } from '../../vm/types';
@@ -114,7 +114,10 @@ export function counterState(n: number): CounterState {
   return 'hidden';
 }
 
-export const audiences: readonly Audience[] = ['connected', 'd1', 'd2', 'd3', 'friend_plus'];
+// From the narrowest audience to the widest, as the composer lists them.
+export const audiences: readonly Audience[] = ['friend_plus', 'd1', 'd2', 'd3', 'connected'];
+// The audience a new post starts with.
+export const defaultAudience: Audience = 'connected';
 export const refPolicies: readonly RefPolicy[] = ['anyone', 'two_hops', 'friends', 'nobody'];
 
 // hasAudienceLimit: replying to such a post hides the context from some of
@@ -149,7 +152,5 @@ export function postErrorKey(err: unknown): string {
   return errorKey(err);
 }
 
-// errorParams are the ICU arguments of an error message.
-export function errorParams(err: unknown): Record<string, number> {
-  return err instanceof ApiError && err.retryAfterS !== undefined ? { seconds: err.retryAfterS } : {};
-}
+// errorParams are the shared ICU arguments of an error message (api/errors).
+export { errorParams };

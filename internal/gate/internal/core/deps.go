@@ -99,4 +99,10 @@ type Deps struct {
 	// gate/moderation. Marks is optional: gate/views treats nil as "none".
 	InvitePenalties InvitePenalties
 	Marks           RemovedMarks
+
+	// Steward additions (contract request dm-1); impl: gate/dm, gate/notify.
+	// Optional: moderation treats a nil Messages as "no message reports", and
+	// gate/dm a nil MessagePush as "push is off".
+	Messages    Messages
+	MessagePush MessagePush
 }

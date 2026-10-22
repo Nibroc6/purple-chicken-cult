@@ -15,7 +15,7 @@ import (
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate"
 )
 
-var wAccount = apix.Write("account")
+var wSettings = apix.Write("settings")
 
 // KeyOut is the answer to GET /api/push/key.
 type KeyOut struct {
@@ -42,7 +42,7 @@ func Register(r chi.Router, d *api.Deps) {
 		}
 		return apix.JSON(w, http.StatusOK, st)
 	})
-	apix.Route(r, http.MethodPost, "/push/subscriptions", wAccount, func(w http.ResponseWriter, r *http.Request) error {
+	apix.Route(r, http.MethodPost, "/push/subscriptions", wSettings, func(w http.ResponseWriter, r *http.Request) error {
 		in, err := apix.Decode[gate.PushSub](r, 8<<10)
 		if err != nil {
 			return err
@@ -52,7 +52,7 @@ func Register(r chi.Router, d *api.Deps) {
 		}
 		return apix.NoContent(w)
 	})
-	apix.Route(r, http.MethodDelete, "/push/subscriptions", wAccount, func(w http.ResponseWriter, r *http.Request) error {
+	apix.Route(r, http.MethodDelete, "/push/subscriptions", wSettings, func(w http.ResponseWriter, r *http.Request) error {
 		in, err := apix.Decode[EndpointIn](r, 8<<10)
 		if err != nil {
 			return err

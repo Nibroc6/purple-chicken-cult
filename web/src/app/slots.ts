@@ -5,5 +5,8 @@ import type { ComponentType } from 'react';
 
 export interface FeatureSlots {
   navBadge?: ComponentType;
+  // navBadgeFor is the nav entry (its path) the badge belongs to; without it
+  // the badge renders next to the notifications entry.
+  navBadgeFor?: string;
   global?: ComponentType[];
 }

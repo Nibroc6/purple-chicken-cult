@@ -1,11 +1,13 @@
 {
   "not_found": "Not found.",
   "rate_limited": "You're going a bit fast. Try again in {seconds, plural, one {# second} other {# seconds}}.",
+  "rate_limited_soon": "You're going a bit fast. Try again in a moment.",
   "step_up_required": "Confirm it is you with your passkey.",
   "feature_disabled": "This feature is turned off.",
   "bad_request": "That request did not look right.",
   "internal": "Something went wrong on our side.",
   "not_implemented": "This is not built yet.",
   "network": "You seem to be offline.",
-  "unknown": "Something went wrong."
+  "unknown": "Something went wrong.",
+  "updated": "The app was updated. Reload to get the new version."
 }

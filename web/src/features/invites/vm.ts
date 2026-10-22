@@ -1,7 +1,7 @@
 // View-models and pure helpers of the invites feature. Owner: P0-W04 → P1-W02.
 // i18n-dynamic: invites:errors.
 // i18n-dynamic: invites:countdown.
-import { ApiError, errorKey } from '../../api/errors';
+import { ApiError, errorKey, errorParams } from '../../api/errors';
 import type { components } from '../../api/schema.gen';
 import type { PersonVM } from '../../vm/types';
 import { toPersonVM } from '../people/vm';
@@ -178,10 +178,8 @@ export function invitesErrorKey(err: unknown): string {
   return errorKey(err);
 }
 
-export function errorParams(err: unknown): Record<string, number> {
-  if (err instanceof ApiError && err.retryAfterS !== undefined) return { seconds: err.retryAfterS };
-  return {};
-}
+// errorParams are the shared ICU arguments of an error message (api/errors).
+export { errorParams };
 
 // joinURL is the address an invitee (path /join) or a recovering device
 // (path /recover) opens to scan the code.

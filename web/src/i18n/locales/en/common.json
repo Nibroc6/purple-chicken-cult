@@ -5,14 +5,19 @@
   },
   "nav": {
     "label": "Main",
+    "tabs": "Shortcuts",
     "skip": "Skip to content",
     "feed": "Feed",
     "compose": "New post",
+    "post": "Post",
     "invite": "Feathers",
     "people": "Chickens",
     "saves": "Saved",
     "seen": "Seen",
     "notifications": "Notifications",
+    "alerts": "Alerts",
+    "messages": "Messages",
+    "chats": "Chats",
     "moderation": "Moderation",
     "settings": "Settings",
     "more": "About and moderation",
@@ -26,6 +31,9 @@
     "close": "Close menu",
     "collapse": "Collapse sidebar",
     "expand": "Expand sidebar"
+  },
+  "postLists": {
+    "label": "Your post lists"
   },
   "placeholder": {
     "body": "This page is not built yet."
@@ -52,6 +60,7 @@
     "privacy": "Privacy",
     "passkeys": "Passkeys",
     "blocks": "Blocked people",
+    "hidden": "Hidden posts",
     "export": "Export your data",
     "delete": "Delete account",
     "recovery": "Recovery contacts",

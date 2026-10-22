@@ -4,13 +4,12 @@
 // saved again. Owner: P1-W08.
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router';
 import { Loading } from '../../app/Loading';
-import { errorKey } from '../../api/errors';
-import { EngageBar } from '../engage/EngageBar';
+import { errorText } from '../../api/errors';
 import { usePostActions } from '../engage/usePostActions';
-import { PostPreview } from '../post/shared';
+import { PostCard } from '../post/PostCard';
 import { fetchSaves, savesKey } from './api';
+import { PostListsNav } from '../../app/PostListsNav';
 import './saves.css';
 
 export default function SavesPage() {
@@ -28,22 +27,19 @@ export default function SavesPage() {
   return (
     <section className="page saves-page">
       <h1>{t('page.title')}</h1>
+      <PostListsNav />
       <p className="muted">{t('page.intro')}</p>
       {q.isPending ? <Loading /> : null}
       {q.error ? (
         <p className="saves-error" role="alert">
-          {t(errorKey(q.error) as 'errors:unknown')}
+          {errorText(t, q.error)}
         </p>
       ) : null}
       {q.isSuccess && posts.length === 0 ? <p data-testid="saves-empty">{t('page.empty')}</p> : null}
       <ol className="saves-list" data-testid="saves-list">
         {posts.map((p) => (
           <li key={p.ref} className="saves-item" data-testid="saves-item" data-ref={p.ref}>
-            <PostPreview post={p} />
-            <EngageBar post={p} actions={actions} />
-            <p className="post-links">
-              <Link to={`/p/${p.ref}`}>{t('page.open')}</Link>
-            </p>
+            <PostCard post={p} actions={actions} />
           </li>
         ))}
       </ol>

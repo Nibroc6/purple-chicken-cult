@@ -7,7 +7,7 @@
 import { Fragment, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useInRouterContext } from 'react-router';
-import { errorKey } from '../../api/errors';
+import { errorText } from '../../api/errors';
 import { useModalParam } from '../../app/Modal';
 import { IconButton } from '../../lib/IconButton';
 import type { PostActions } from '../../formats/types';
@@ -104,9 +104,27 @@ export function EngageBar({ post, actions }: { post: PostVM; actions: PostAction
   const failed = useFailed(post.ref);
   if (hidden) {
     return (
-      <p className="engage-hidden muted" role="status" data-testid="engage-hidden" data-kind={hidden}>
-        {hidden === 'show_less' ? t('showLess.done', { handle: post.author.handle }) : t('hide.done')}
-      </p>
+      <div className="engage-hidden" data-testid="engage-hidden" data-kind={hidden}>
+        <p className="muted" role="status">
+          {hidden === 'show_less' ? t('showLess.done', { handle: post.author.handle }) : t('hide.done')}
+        </p>
+        {actions.unhide ? (
+          <button
+            type="button"
+            data-testid="engage-unhide"
+            onClick={() => {
+              actions.unhide?.(post.ref);
+            }}
+          >
+            {t('hide.undo')}
+          </button>
+        ) : null}
+        {failed ? (
+          <p className="engage-error" role="alert" data-testid="engage-error">
+            {errorText(t, failed)}
+          </p>
+        ) : null}
+      </div>
     );
   }
   return (
@@ -136,6 +154,17 @@ export function EngageBar({ post, actions }: { post: PostVM; actions: PostAction
             }}
           />
         ) : null}
+        {actions.share ? (
+          <IconButton
+            icon="share"
+            label={t('share.action')}
+            data-testid="engage-share"
+            data-part="share"
+            onClick={() => {
+              actions.share?.(post.ref);
+            }}
+          />
+        ) : null}
         {post.mine ? null : (
           <>
             <IconButton
@@ -161,7 +190,7 @@ export function EngageBar({ post, actions }: { post: PostVM; actions: PostAction
       </div>
       {failed ? (
         <p className="engage-error" role="alert" data-testid="engage-error">
-          {t(errorKey(failed) as 'errors:unknown')}
+          {errorText(t, failed)}
         </p>
       ) : null}
     </div>

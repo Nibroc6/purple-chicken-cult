@@ -25,12 +25,30 @@
     "missing": "That post can't be found.",
     "closed": "Replies to this post are off for you.",
     "notOwn": "You can only continue your own posts.",
-    "limited": "Some people who see your post won't see what it replies to."
+    "limited": "Some people who see your post won't see what it replies to.",
+    "refMany": "{count, plural, one {Replying to this post} other {Replying to these # posts}}",
+    "remove": "Don't reply to @{handle}",
+    "add": "Also reply to",
+    "addHint": "Paste a link to a post.",
+    "addButton": "Add",
+    "badLink": "That isn't a link to a post.",
+    "max": "A post can reply to at most {max, number} posts.",
+    "removeMissing": "Take it out"
   },
   "published": {
     "done": "{count, plural, one {Published.} other {Published a thread of # parts.}}",
     "open": "Open it",
     "manage": "Edit or delete",
     "again": "Write another post"
+  },
+  "picks": {
+    "pick": "Add to a reply to several posts",
+    "picked": "In your reply (take it out)",
+    "label": "Your reply",
+    "title": "{count, plural, one {Replying to # post} other {Replying to # posts}} (up to {max, number})",
+    "handle": "@{handle}",
+    "remove": "Take @{handle}'s post out",
+    "write": "Write the reply",
+    "clear": "Clear"
   }
 }

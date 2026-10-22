@@ -12,6 +12,7 @@ import { postJSON } from '../post/testdata';
 import { pendingSeen, resetSeenQueue } from '../seen/tracker';
 import { LikeSummary } from './EngageBar';
 import { LikesModal } from './LikesModal';
+import HiddenPage from './HiddenPage';
 import LikesPage from './LikesPage';
 import { resetEngageStore } from './store';
 import { applyLikes, usePostActions } from './usePostActions';
@@ -269,7 +270,9 @@ describe('likes page and post actions', () => {
     await waitFor(() => {
       expect(screen.getByTestId('engage-like').getAttribute('aria-pressed')).toBe('false');
     });
-    expect(calls.filter((c) => c.path === '/posts/p1/like').map((c) => c.method)).toEqual(['PUT', 'DELETE']);
+    await waitFor(() => {
+      expect(calls.filter((c) => c.path === '/posts/p1/like').map((c) => c.method)).toEqual(['PUT', 'DELETE']);
+    });
   });
 
   it('rolls a failed like back and says why', async () => {
@@ -297,7 +300,7 @@ describe('likes page and post actions', () => {
     fireEvent.click(await screen.findByTestId('engage-show-less'));
     const done = await screen.findByTestId('engage-hidden');
     expect(done.dataset.kind).toBe('show_less');
-    expect(done.textContent).toBe(tr('engage:showLess.done', { handle: 'alice' }));
+    expect(done.querySelector('[role="status"]')?.textContent).toBe(tr('engage:showLess.done', { handle: 'alice' }));
     expect(calls.some((c) => c.method === 'POST' && c.path === '/posts/p1/show-less')).toBe(true);
 
     renderAt('/p/p2/likes');
@@ -305,6 +308,47 @@ describe('likes page and post actions', () => {
     fireEvent.click(hides[hides.length - 1] as HTMLElement);
     expect(await screen.findByTestId('engage-error')).toBeTruthy();
     expect(screen.queryAllByTestId('engage-hidden')).toHaveLength(1); // only p1 stays hidden
+  });
+
+  it('undoes a hide from the notice', async () => {
+    const calls = stubAPI((c) => {
+      if (c.method === 'GET' && c.path === '/posts/p1') return json(200, postJSON({ mine: false }));
+      if (c.path === '/posts/p1/hide') return json(204, null);
+      return undefined;
+    });
+    renderAt('/p/p1/likes');
+    fireEvent.click(await screen.findByTestId('engage-hide'));
+    fireEvent.click(await screen.findByTestId('engage-unhide'));
+    expect(await screen.findByTestId('engage-hide')).toBeTruthy();
+    expect(screen.queryByTestId('engage-hidden')).toBeNull();
+    await waitFor(() => {
+      expect(calls.some((c) => c.method === 'DELETE' && c.path === '/posts/p1/hide')).toBe(true);
+    });
+  });
+
+  it('lists hidden posts and show-less choices, each with an undo', async () => {
+    const calls = stubAPI((c) => {
+      if (c.method === 'GET' && c.path === '/show-less')
+        return json(200, { items: [{ ref: 'u9', handle: 'carol', display_name: 'Carol', count: 2 }] });
+      if (c.method === 'GET' && c.path === '/hidden') return json(200, { items: [postJSON({ mine: false })] });
+      if (c.method === 'DELETE') return json(204, null);
+      return undefined;
+    });
+    const router = createMemoryRouter([{ path: '/settings/hidden', element: <HiddenPage /> }], {
+      initialEntries: ['/settings/hidden'],
+    });
+    render(
+      <QueryClientProvider client={makeQueryClient()}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>,
+    );
+    const person = await screen.findByTestId('hidden-less-item');
+    expect(person.textContent).toContain(tr('engage:hidden.less.count', { count: 2 }));
+    fireEvent.click(screen.getByTestId('hidden-less-reset'));
+    expect(await screen.findByText(tr('engage:hidden.less.done'))).toBeTruthy();
+    fireEvent.click(await screen.findByTestId('hidden-unhide'));
+    expect(await screen.findByText(tr('engage:hidden.posts.done'))).toBeTruthy();
+    expect(calls.filter((c) => c.method === 'DELETE').map((c) => c.path)).toEqual(['/show-less/u9', '/posts/p1/hide']);
   });
 
   it('saves privately and optimistically, rolling back on failure', async () => {
@@ -333,6 +377,39 @@ describe('likes page and post actions', () => {
     expect(await screen.findByTestId('engage-error')).toBeTruthy();
     expect(screen.getByTestId('engage-save').getAttribute('aria-pressed')).toBe('true');
     expect(calls.filter((c) => c.path === '/posts/p1/save').map((c) => c.method)).toEqual(['PUT', 'DELETE']);
+    // The message is formatted (it once showed its raw {seconds, plural, …} template).
+    expect(screen.getByTestId('engage-error').textContent).toBe(tr('errors:rate_limited', { seconds: 30 }));
+  });
+
+  it('takes a quick save and unsave without an error', async () => {
+    const calls = stubAPI((c) => {
+      if (c.method === 'GET' && c.path === '/posts/p1') return json(200, postJSON({ mine: false }));
+      if (c.path === '/posts/p1/like') return json(200, { likes: { in_network: c.method === 'PUT' ? 1 : 0, others: 0, by_me: c.method === 'PUT' } });
+      return json(204, null);
+    });
+    renderAt('/p/p1/likes');
+    const pressed = (id: string, on: boolean) =>
+      waitFor(() => {
+        expect(screen.getByTestId(id).getAttribute('aria-pressed')).toBe(String(on));
+      });
+    fireEvent.click(await screen.findByTestId('engage-save'));
+    await pressed('engage-save', true);
+    fireEvent.click(screen.getByTestId('engage-save'));
+    await pressed('engage-save', false);
+    fireEvent.click(screen.getByTestId('engage-like'));
+    await pressed('engage-like', true);
+    fireEvent.click(screen.getByTestId('engage-like'));
+    await pressed('engage-like', false);
+    // Each toggle went out and came back; nothing was refused or rolled back.
+    const sent = (path: string) => calls.filter((c) => c.path === path).map((c) => c.method);
+    await waitFor(() => {
+      expect(sent('/posts/p1/save')).toEqual(['PUT', 'DELETE']);
+      expect(sent('/posts/p1/like')).toEqual(['PUT', 'DELETE']);
+    });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(screen.getByTestId('engage-save').getAttribute('aria-pressed')).toBe('false');
+    expect(screen.getByTestId('engage-like').getAttribute('aria-pressed')).toBe('false');
+    expect(screen.queryByTestId('engage-error')).toBeNull();
   });
 
   it('patches saved_by_me in every cached post', () => {
@@ -363,8 +440,9 @@ describe('likes page and post actions', () => {
     await screen.findByTestId('engage-card');
     const marked = container.querySelectorAll('[data-seen-ref]');
     expect([...marked].map((e) => e.getAttribute('data-seen-ref'))).toEqual(['p1']);
-    expect(screen.getByTestId('post-context').closest('[data-seen-ref]')?.getAttribute('data-seen-ref')).toBe('p1');
-    expect(screen.getByTestId('post-context').hasAttribute('data-seen-ref')).toBe(false);
+    // The card (the feed's layout) carries the context row inside the tracked box.
+    expect(screen.getByTestId('feed-context').closest('[data-seen-ref]')?.getAttribute('data-seen-ref')).toBe('p1');
+    expect(screen.getByTestId('feed-context').hasAttribute('data-seen-ref')).toBe(false);
   });
 
   it('is not found for refs the server does not know', async () => {

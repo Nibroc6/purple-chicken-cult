@@ -5,21 +5,21 @@
 import { useMutation } from '@tanstack/react-query';
 import { useId, useState, type SyntheticEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ApiError } from '../../api/errors';
+import { errorText } from '../../api/errors';
 import { useMe } from '../../app/session';
 import { requestCosign } from '../cosign';
 import { sessionCosigns } from '../settings/api';
 import { approveRecovery, isRef, openRecovery, recoveryErrorKey, recoveryLink } from './api';
 import '../settings/settings.css';
 import { InfoTip } from '../../lib/InfoTip';
+import { ModNav } from '../moderation/ModNav';
 
 function ErrorLine({ err }: { err: unknown }) {
   const { t } = useTranslation(['modrecovery', 'errors']);
   if (!err) return null;
-  const params = err instanceof ApiError && err.retryAfterS !== undefined ? { seconds: err.retryAfterS } : {};
   return (
     <p className="settings-error" role="alert">
-      {t(recoveryErrorKey(err) as 'errors:unknown', params)}
+      {errorText(t, err, recoveryErrorKey)}
     </p>
   );
 }
@@ -126,6 +126,7 @@ export default function ModRecoveryPage() {
   return (
     <section className="page">
       <h1>{t('page.title')}</h1>
+      <ModNav />
       {moderator ? <RecoverySteps /> : <p className="muted">{t('page.membersOnly')}</p>}
     </section>
   );

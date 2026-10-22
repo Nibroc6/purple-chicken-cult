@@ -23,7 +23,9 @@ var (
 	wF   = apix.Write("friend_request")
 	wR   = apix.Write("report")
 	wS   = apix.Write("social")
+	sS   = apix.Step("social")
 	wA   = apix.Write("account")
+	wSt  = apix.Write("settings")
 	sA   = apix.Step("account")
 	wI   = apix.Write("invite_handshake")
 	sI   = apix.Step("invite_handshake")
@@ -31,6 +33,9 @@ var (
 	wV   = apix.Write("save")
 	wM   = apix.Write("media")
 	sM   = apix.Step("media")
+	rMsg = apix.Read("messages")
+	wDM  = apix.Write("message")
+	wG   = apix.Write("message_group")
 )
 
 func e(mod string, phase int, method, pattern string, c apix.Class) Entry {
@@ -117,6 +122,10 @@ var Catalogue = []Entry{
 	e("engageapi", 0, "GET", "/seen/recent", rF),
 	e("engageapi", 0, "POST", "/posts/{ref}/hide", wS),
 	e("engageapi", 0, "POST", "/posts/{ref}/show-less", wS),
+	e("engageapi", 1, "DELETE", "/posts/{ref}/hide", sS),
+	e("engageapi", 1, "GET", "/hidden", rF),
+	e("engageapi", 1, "GET", "/show-less", rF),
+	e("engageapi", 1, "DELETE", "/show-less/{ref}", sS),
 	e("engageapi", 1, "PUT", "/posts/{ref}/save", wV),
 	e("engageapi", 1, "DELETE", "/posts/{ref}/save", wV),
 	e("engageapi", 1, "GET", "/saves", rF),
@@ -132,6 +141,24 @@ var Catalogue = []Entry{
 	e("treeapi", 0, "GET", "/tree/s/{snapshot}/row", rT),
 	e("treeapi", 0, "GET", "/tree/s/{snapshot}/more", rT),
 
+	// messagesapi (direct messages; contract request dm-1)
+	e("messagesapi", 1, "GET", "/messages", rMsg),
+	e("messagesapi", 1, "GET", "/messages/unread", rMsg),
+	e("messagesapi", 1, "POST", "/messages/direct", wS),
+	e("messagesapi", 1, "POST", "/messages/groups", wG),
+	e("messagesapi", 1, "GET", "/messages/{ref}", rMsg),
+	e("messagesapi", 1, "PATCH", "/messages/{ref}", wG),
+	e("messagesapi", 1, "DELETE", "/messages/{ref}", wS),
+	e("messagesapi", 1, "POST", "/messages/{ref}/join", wS),
+	e("messagesapi", 1, "POST", "/messages/{ref}/members", wG),
+	e("messagesapi", 1, "DELETE", "/messages/{ref}/members/{id}", wS),
+	e("messagesapi", 1, "PUT", "/messages/{ref}/mute", wS),
+	e("messagesapi", 1, "DELETE", "/messages/{ref}/mute", wS),
+	e("messagesapi", 1, "GET", "/messages/{ref}/messages", rMsg),
+	e("messagesapi", 1, "POST", "/messages/{ref}/messages", wDM),
+	e("messagesapi", 1, "DELETE", "/messages/{ref}/messages/{id}", wS),
+	e("messagesapi", 1, "POST", "/messages/{ref}/read", free),
+
 	// notifyapi (P0-W10 → P1-W05)
 	e("notifyapi", 0, "GET", "/notifications", rG),
 	e("notifyapi", 0, "POST", "/notifications/read", free),
@@ -142,12 +169,12 @@ var Catalogue = []Entry{
 	// pushapi (P1-W05)
 	e("pushapi", 1, "GET", "/push/key", free),
 	e("pushapi", 1, "GET", "/push/subscriptions", free), // p1-w05-1: the caller's state of one endpoint
-	e("pushapi", 1, "POST", "/push/subscriptions", wA),
-	e("pushapi", 1, "DELETE", "/push/subscriptions", wA),
+	e("pushapi", 1, "POST", "/push/subscriptions", wSt),
+	e("pushapi", 1, "DELETE", "/push/subscriptions", wSt),
 
 	// accountapi (P0-W11 → P1-W10)
 	e("accountapi", 0, "GET", "/me", free),
-	e("accountapi", 0, "PATCH", "/me/settings", wA),
+	e("accountapi", 0, "PATCH", "/me/settings", wSt),
 	e("accountapi", 0, "POST", "/me/export", wA),
 	e("accountapi", 0, "POST", "/me/delete", wA),
 	e("accountapi", 0, "GET", "/me/recovery", free),
@@ -179,8 +206,8 @@ var Catalogue = []Entry{
 
 	// themeapi (P1-W09)
 	e("themeapi", 1, "GET", "/me/theme", free), // steward: contract request p1-w09-1
-	e("themeapi", 1, "PUT", "/me/theme", wA),
-	e("themeapi", 1, "DELETE", "/me/theme", wA),
+	e("themeapi", 1, "PUT", "/me/theme", wSt),
+	e("themeapi", 1, "DELETE", "/me/theme", wSt),
 
 	// mediaapi (P1-W04)
 	e("mediaapi", 1, "POST", "/media", wM),

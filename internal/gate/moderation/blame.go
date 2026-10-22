@@ -190,7 +190,7 @@ func (s *Service) Log(ctx context.Context, cursor string) (gate.Page[gate.LogIte
 	}
 	rows, err := s.d.DB.Q().Query(ctx, `SELECT to_char((done_at AT TIME ZONE 'UTC')::date, 'YYYY-MM-DD') AS day, action, reason,
 			target_user, count(*)
-		FROM mod_actions WHERE state = $1 AND action IN ('remove_post', 'suspend_user', 'grant_moderator', 'revoke_moderator',
+		FROM mod_actions WHERE state = $1 AND action IN ('remove_post', 'remove_message', 'suspend_user', 'grant_moderator', 'revoke_moderator',
 			'grant_admin') AND done_at IS NOT NULL
 		GROUP BY 1, action, reason, target_user
 		ORDER BY 1 DESC, action, reason, target_user LIMIT $2 OFFSET $3`, actionDone, LogPage+1, offset)

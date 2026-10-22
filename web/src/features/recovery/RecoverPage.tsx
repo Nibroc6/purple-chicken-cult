@@ -9,7 +9,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ApiError } from '../../api/errors';
+import { ApiError, errorMsg, type ErrorMsg, errorText } from '../../api/errors';
 import { Loading } from '../../app/Loading';
 import { formatDateTime } from '../../lib/time';
 import { ClaimDevice, isFrame } from '../invites/handshake';
@@ -36,7 +36,7 @@ export default function RecoverPage() {
   });
   const [dev, setDev] = useState<ClaimDevice | undefined>();
   const [ticket, setTicket] = useState<string | undefined>();
-  const [err, setErr] = useState<string | undefined>();
+  const [err, setErr] = useState<ErrorMsg | undefined>();
   const [busy, setBusy] = useState(false);
 
   const begin = async () => {
@@ -47,7 +47,7 @@ export default function RecoverPage() {
       await joinStart(); // the guest session the claim runs in
       setStep({ kind: 'scanning' });
     } catch (e) {
-      setErr(recoveryErrorKey(e));
+      setErr(errorMsg(e, recoveryErrorKey(e)));
     } finally {
       setBusy(false);
     }
@@ -123,7 +123,7 @@ export default function RecoverPage() {
       {step.kind === 'follow' ? <Follow ticket={step.ticket} onRestart={restart} /> : null}
       {err ? (
         <p className="recovery-error" role="alert">
-          {t(err as 'errors:unknown')}
+          {errorText(t, err)}
         </p>
       ) : null}
     </section>
@@ -154,7 +154,7 @@ function Follow({ ticket, onRestart }: { ticket: string; onRestart: () => void }
     );
   }
   const st = q.data;
-  if (!st) return q.error ? <p role="alert">{t(recoveryErrorKey(q.error) as 'errors:unknown')}</p> : <Loading />;
+  if (!st) return q.error ? <p role="alert">{errorText(t, q.error, recoveryErrorKey)}</p> : <Loading />;
   const at = st.releaseAt ? formatDateTime(st.releaseAt, i18n.language) : '';
   return (
     <div className="recovery-follow" data-testid="recover-state" data-state={st.state}>

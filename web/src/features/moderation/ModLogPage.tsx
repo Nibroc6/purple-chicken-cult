@@ -5,11 +5,12 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
-import { errorKey } from '../../api/errors';
+import { errorText } from '../../api/errors';
 import { Loading } from '../../app/Loading';
 import { fetchLog, type LogItem } from './api';
 import './moderation.css';
 import { InfoTip } from '../../lib/InfoTip';
+import { ModNav } from './ModNav';
 
 export const logKey = ['moderation', 'log'] as const;
 
@@ -26,6 +27,7 @@ export default function ModLogPage() {
   return (
     <section className="page moderation-page" data-testid="mod-log-page">
       <h1>{t('log.title')}</h1>
+      <ModNav />
       <p className="muted">
         {t('log.intro')}
         <InfoTip>{t('log.introTip')}</InfoTip>
@@ -33,7 +35,7 @@ export default function ModLogPage() {
       {q.isPending ? <Loading /> : null}
       {q.error ? (
         <p className="moderation-error" role="alert">
-          {t(errorKey(q.error) as 'errors:unknown')}
+          {errorText(t, q.error)}
         </p>
       ) : null}
       {q.isSuccess && items.length === 0 ? (

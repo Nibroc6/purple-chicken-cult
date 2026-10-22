@@ -13,6 +13,7 @@ import (
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/account"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/auth"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/cosign"
+	"github.com/Nibroc6/purple-chicken-cult/internal/gate/dm"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/engage"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/feed"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/friends"
@@ -55,6 +56,9 @@ type Deps struct {
 	Automation *automation.Service
 	Cosign     *cosign.Service
 	Themes     *themes.Service
+
+	// Direct messages (contract request dm-1).
+	DM *dm.Service
 }
 
 // FromApp builds Deps from a wired App (cmd/pcc serve, apitest).
@@ -63,6 +67,6 @@ func FromApp(a *wire.App, cfg *config.Config, log *slog.Logger, static fs.FS) *D
 		Cfg: cfg, Log: log, Static: static, Hooks: a.Hooks(),
 		Auth: a.Auth, Friends: a.Friends, Invites: a.Invites, Posts: a.Posts, Engage: a.Engage, Feed: a.Feed,
 		Tree: a.Tree, Notify: a.Notify, Records: a.Records, Account: a.Account, Limits: a.Limits,
-		Moderation: a.Moderation, Media: a.Media, Automation: a.Automation, Cosign: a.Cosign, Themes: a.Themes,
+		Moderation: a.Moderation, Media: a.Media, Automation: a.Automation, Cosign: a.Cosign, Themes: a.Themes, DM: a.DM,
 	}
 }

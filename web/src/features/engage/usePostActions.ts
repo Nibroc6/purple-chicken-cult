@@ -1,7 +1,9 @@
 // usePostActions is the PostActions every format receives (plan §6.3): like
 // (optimistic, then the server's summary), save (optimistic, rolled back on
-// failure; private, so nothing but saved_by_me changes), hide and show less (the post leaves
-// the layouts at once through useHidden), seen (queued for the batched POST),
+// failure; private, so nothing but saved_by_me changes), both coalesced per
+// post (toggles.ts: clicks during a request send at most what changed), hide
+// and show less (the post leaves the layouts at once through useHidden) and
+// their undo, seen (queued for the batched POST),
 // navigation for reply and the family tree, and the report modal. Every cached
 // view-model of the post is patched in place, whichever feature cached it.
 // Owner: P0-W06 → P1-W08.
@@ -10,11 +12,14 @@ import { useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import type { PostActions } from '../../formats/types';
 import type { LikesVM, PostVM, Ref } from '../../vm/types';
+import { clearPicks, composeURL, getPicks } from '../composer';
+import { useOpenShare } from '../messages';
 import { useOpenReport } from '../moderation/ReportModal';
 import { savesKey } from '../saves/api';
 import { queueSeen } from '../seen/tracker';
-import { hidePost, likesKey, setLike, setSave, showLess } from './api';
-import { setFailed, setHidden, type HiddenKind } from './store';
+import { hiddenKey, hidePost, likesKey, setLike, setSave, showLess, unhidePost } from './api';
+import { hiddenKind, setFailed, setHidden, type HiddenKind } from './store';
+import { makeToggler, type Toggler } from './toggles';
 import { optimistic, patchLikes, patchSaved } from './vm';
 
 // currentLikes finds the post's like summary in any cached query.
@@ -70,59 +75,119 @@ export function applySaved(qc: QueryClient, ref: string, saved: boolean): void {
     });
 }
 
+// togglers holds the like and save togglers of each query client, so every
+// control of one post shares its pending state.
+// A failed like goes back to the summary from before the first pending click.
+interface Togglers {
+  like: Toggler;
+  save: Toggler;
+  likeBase: Map<string, LikesVM>;
+}
+
+const togglers = new WeakMap<QueryClient, Togglers>();
+
+function togglersFor(qc: QueryClient): Togglers {
+  let t = togglers.get(qc);
+  if (!t) {
+    const likeBase = new Map<string, LikesVM>();
+    t = {
+      likeBase,
+      like: makeToggler({
+        // Each answer is the new base a later failure goes back to.
+        send: (ref, on) =>
+          setLike(ref, on).then((likes) => {
+            likeBase.set(ref, likes);
+            return likes;
+          }),
+        landed: (ref, _on, likes) => {
+          applyLikes(qc, ref, likes);
+        },
+        failed: (ref, _confirmed, err) => {
+          const base = likeBase.get(ref);
+          if (base) applyLikes(qc, ref, base);
+          setFailed(ref, err);
+        },
+        settled: (ref) => {
+          likeBase.delete(ref);
+        },
+      }),
+      save: makeToggler({
+        send: setSave,
+        // The open saves page keeps an unsaved post (to save it again); the
+        // list is read afresh the next time it opens.
+        landed: () => void qc.invalidateQueries({ queryKey: savesKey, refetchType: 'inactive' }),
+        failed: (ref, confirmed, err) => {
+          applySaved(qc, ref, confirmed);
+          setFailed(ref, err);
+        },
+      }),
+    };
+    togglers.set(qc, t);
+  }
+  return t;
+}
+
 export function usePostActions(): PostActions {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const openReport = useOpenReport();
+  const openShare = useOpenShare();
   return useMemo(() => {
     const hideAs = (kind: HiddenKind, call: (ref: string) => Promise<void>) => (ref: Ref) => {
       setFailed(ref, undefined);
       setHidden(ref, kind);
-      call(ref).catch((err: unknown) => {
-        setHidden(ref, undefined);
-        setFailed(ref, err);
-      });
+      call(ref).then(
+        () => qc.invalidateQueries({ queryKey: hiddenKey }),
+        (err: unknown) => {
+          setHidden(ref, undefined);
+          setFailed(ref, err);
+        },
+      );
     };
     return {
       like: (ref: Ref, on: boolean) => {
         setFailed(ref, undefined);
         const before = currentLikes(qc, ref);
-        if (before) applyLikes(qc, ref, optimistic(before, on));
-        setLike(ref, on).then(
-          (likes) => {
-            applyLikes(qc, ref, likes);
-          },
-          (err: unknown) => {
-            if (before) applyLikes(qc, ref, before);
-            setFailed(ref, err);
-          },
-        );
+        const tg = togglersFor(qc);
+        if (before) {
+          if (!tg.likeBase.has(ref)) tg.likeBase.set(ref, before);
+          applyLikes(qc, ref, optimistic(before, on));
+        }
+        tg.like.set(ref, on, tg.likeBase.get(ref)?.byMe ?? !on);
       },
       save: (ref: Ref, on: boolean) => {
         setFailed(ref, undefined);
         applySaved(qc, ref, on);
-        setSave(ref, on).then(
-          // The open saves page keeps an unsaved post (to save it again); the
-          // list is read afresh the next time it opens.
-          () => qc.invalidateQueries({ queryKey: savesKey, refetchType: 'inactive' }),
+        togglersFor(qc).save.set(ref, on, !on);
+      },
+      hide: hideAs('hide', hidePost),
+      showLess: hideAs('show_less', showLess),
+      unhide: (ref: Ref) => {
+        const kind = hiddenKind(ref);
+        setFailed(ref, undefined);
+        setHidden(ref, undefined);
+        unhidePost(ref).then(
+          () => qc.invalidateQueries({ queryKey: hiddenKey }),
           (err: unknown) => {
-            applySaved(qc, ref, !on);
+            setHidden(ref, kind);
             setFailed(ref, err);
           },
         );
       },
-      hide: hideAs('hide', hidePost),
-      showLess: hideAs('show_less', showLess),
       markSeen: (ref: Ref) => {
         queueSeen(ref);
       },
       reply: (ref: Ref) => {
-        void navigate(`/compose?${new URLSearchParams({ parent: ref, kind: 'ref' }).toString()}`);
+        // A reply takes the posts already picked for it along.
+        const url = composeURL([...getPicks().map((p) => p.ref), ref]);
+        clearPicks();
+        void navigate(url);
       },
       openTree: (ref: Ref) => {
         void navigate(`/p/${ref}`);
       },
       report: openReport,
+      share: openShare,
     };
-  }, [qc, navigate, openReport]);
+  }, [qc, navigate, openReport, openShare]);
 }

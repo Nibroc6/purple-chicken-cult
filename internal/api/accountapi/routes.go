@@ -27,6 +27,7 @@ import (
 var (
 	free      = apix.Free
 	wAccount  = apix.Write("account")
+	wSettings = apix.Write("settings")
 	rGraph    = apix.Read("graph_read")
 	aRecovery = apix.Anon("recovery")
 )
@@ -97,7 +98,7 @@ func Register(r chi.Router, d *api.Deps) {
 		}
 		return apix.JSON(w, http.StatusOK, me)
 	})
-	apix.Route(r, http.MethodPatch, "/me/settings", wAccount, func(w http.ResponseWriter, r *http.Request) error {
+	apix.Route(r, http.MethodPatch, "/me/settings", wSettings, func(w http.ResponseWriter, r *http.Request) error {
 		in, err := apix.Decode[gate.SettingsPatch](r, maxSettingsBody)
 		if err != nil {
 			return err

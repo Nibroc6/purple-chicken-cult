@@ -7,13 +7,15 @@
       "post": "Report this post",
       "person": "Report this person",
       "inviter": "Report who invited this person",
-      "preview": "Report a misleading link preview"
+      "preview": "Report a misleading link preview",
+      "message": "Report this message"
     },
     "about": {
       "post": "Moderators will see the post and decide what to do.",
       "person": "Moderators will look at this account.",
       "inviter": "The person who invited them stays hidden from you. Moderators can see who it is and look at the invites they made.",
-      "preview": "Use this when a link preview shows something different from where the link really goes."
+      "preview": "Use this when a link preview shows something different from where the link really goes.",
+      "message": "Moderators will see this message, and only this message: never the rest of the conversation."
     },
     "reasonLegend": "What is wrong?",
     "note": "Anything moderators should know (optional)",
@@ -52,7 +54,8 @@
     "dismiss": "Dismiss",
     "grant_moderator": "Made a moderator",
     "revoke_moderator": "Removed as moderator",
-    "grant_admin": "Made an admin"
+    "grant_admin": "Made an admin",
+    "remove_message": "Remove the message"
   },
   "blame": {
     "title": "Blame inbox",
@@ -90,7 +93,10 @@
     "claimedByMe": "You are handling this",
     "claimedByOther": "Another moderator is handling this",
     "quarantine": "Quarantine the invite tree of @{handle}",
-    "quarantineHint": "Everyone they invited, directly or not, goes back to probation for 30 days, and their invites pause for 30 days. A second time takes their invites away."
+    "quarantineHint": "Everyone they invited, directly or not, goes back to probation for 30 days, and their invites pause for 30 days. A second time takes their invites away.",
+    "message": "The reported message, as the reporter saw it:",
+    "messageRemoved": "The reported message (since deleted), as the reporter saw it:",
+    "messageSharedPost": "It also shared a post."
   },
   "log": {
     "title": "Moderation log",
@@ -129,11 +135,15 @@
     "historyEmpty": "No changes recorded yet.",
     "change": "{action, select, grant_moderator {@{by} made @{handle} a moderator} revoke_moderator {@{by} removed @{handle} as moderator} grant_admin {@{handle} became an admin} other {@{by} changed the role of @{handle}}}"
   },
-  "footer": {
-    "log": "Moderation log",
-    "queue": "Moderation queue",
+  "nav": {
+    "label": "Moderator pages",
+    "queue": "Queue",
+    "log": "Log",
     "recovery": "Account recovery",
-    "roles": "Moderators and admins"
+    "roles": "Moderators"
+  },
+  "footer": {
+    "log": "Moderation log"
   },
   "errors": {
     "kind_invalid": "This cannot be reported.",
@@ -154,7 +164,8 @@
     "handle_unknown": "Nobody active has that handle.",
     "already_staff": "They are already a moderator or an admin.",
     "admin_role": "Admins can only be changed from the server command line.",
-    "not_moderator": "They are not a moderator anymore."
+    "not_moderator": "They are not a moderator anymore.",
+    "message_gone": "This message is already gone."
   },
   "source": {
     "report": "Report",

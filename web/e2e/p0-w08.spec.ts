@@ -158,7 +158,7 @@ test('rows around the focal post, ranked by tier, on one connected canvas', asyn
   await expect(focusCard(page)).toHaveAttribute('data-ref', focal);
   await expect(focusCard(page).locator('.post-focal')).toBeVisible();
   await expect(page.getByText('Xavier is never shown')).toHaveCount(0);
-  for (const id of ['integrity-chain', 'integrity-inviter-label', 'integrity-why', 'integrity-audience', 'integrity-report']) {
+  for (const id of ['integrity-chain', 'integrity-why', 'integrity-audience', 'integrity-report']) {
     await expect(focusCard(page).getByTestId(id)).toBeVisible();
   }
 
@@ -191,12 +191,18 @@ test('a diamond shows once, other parents join the focal post, hidden parents lo
   const focal = await refOf(page, 'The focal post');
   await openTree(page, focal);
 
-  // The diamond is a reply and a reply to a reply: one node, a dashed edge for its second spot.
-  await expect(nodeWith(page, 'Diamond by carol')).toHaveCount(1);
-  await expect(page.locator('.explorer-edge[data-kind="above"]')).toHaveCount(1);
+  // The diamond replies to the focal post and to a reply: one node, a row below
+  // its lowest parent, with a line to each parent (the second one dashed).
+  const diamond = nodeWith(page, 'Diamond by carol');
+  await expect(diamond).toHaveCount(1);
+  await expect(diamond).toHaveAttribute('data-gen', '1');
+  const grandchild = nodeWith(page, 'Grandchild by bob');
+  const rowY = async (l: typeof diamond) => (await l.boundingBox())?.y ?? Number.NaN;
+  expect(await rowY(diamond)).toBe(await rowY(grandchild));
+  await expect(page.locator('.explorer-edge[data-kind="above"]')).toHaveCount(0);
   // carol's second parent joins the focal post apart from the siblings' line.
   await expect(nodeWith(page, 'Second parent by carol')).toHaveCount(1);
-  await expect(page.locator('.explorer-edge[data-kind="also"]')).toHaveCount(1);
+  await expect(page.locator('.explorer-edge[data-kind="also"]')).toHaveCount(2);
 
   // carol's reply to dave's friends-only post: no parents, nothing earlier.
   const under = await refOf(page, 'Carol under a hidden parent');
@@ -320,7 +326,45 @@ test('the same canvas in Compact', async ({ page, request, baseURL }) => {
   await expect(page.getByTestId('tree-layout')).toHaveAttribute('data-format', 'compact');
   await expect(page.getByTestId('explorer-node')).toHaveCount(16);
   await expect(nodeOf(page, focal)).toHaveAttribute('data-focal', 'true');
-  for (const id of ['integrity-chain', 'integrity-inviter-label', 'integrity-why', 'integrity-audience', 'integrity-report']) {
+  for (const id of ['integrity-chain', 'integrity-why', 'integrity-audience', 'integrity-report']) {
     await expect(focusCard(page).getByTestId(id)).toBeVisible();
   }
+});
+
+test('reply to two posts on different rows: picked from the tree, placed below the lower one with a line to each', async ({
+  page,
+  request,
+  baseURL,
+}) => {
+  await setup(request, baseURL);
+  await loginAs(page, baseURL, 'alice');
+  const focal = await refOf(page, 'The focal post');
+  const reply = await refOf(page, 'Reply 08 by fran');
+
+  // Pick the focal post and one of its replies for one reply.
+  await openTree(page, focal);
+  await focusCard(page).getByTestId('reply-pick').click();
+  await expect(page.getByTestId('reply-tray')).toBeVisible();
+  await openTree(page, reply);
+  await focusCard(page).getByTestId('reply-pick').click();
+  await expect(page.getByTestId('reply-tray').getByTestId('reply-tray-remove')).toHaveCount(2);
+  await page.getByTestId('reply-tray-write').click();
+
+  // The composer replies to both, and the server stores both parents.
+  await expect(page.getByTestId('composer-parent')).toHaveCount(2);
+  await page.getByTestId('composer-body').fill('Replying to both of you');
+  const created = page.waitForResponse((r) => new URL(r.url()).pathname === '/api/posts' && r.request().method() === 'POST');
+  await page.getByTestId('composer-publish').click();
+  const res = await created;
+  expect(res.status()).toBe(201);
+  expect(((await res.json()) as { context?: { ref: string }[] }).context?.map((c) => c.ref).sort()).toEqual([focal, reply].sort());
+  await expect(page.getByTestId('reply-tray')).toHaveCount(0);
+
+  // On the focal post's tree the new post sits below fran's reply, joined to both.
+  await openTree(page, focal);
+  const mine = nodeWith(page, 'Replying to both of you');
+  await expect(mine).toHaveCount(1);
+  const y = async (l: Locator) => (await l.boundingBox())?.y ?? Number.NaN;
+  expect(await y(mine)).toBeGreaterThan(await y(nodeOf(page, reply)));
+  await expect(page.locator('.explorer-edge[data-kind="also"]')).toHaveCount(3);
 });

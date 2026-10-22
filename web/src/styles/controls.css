@@ -2,7 +2,9 @@
    links, focus). Every selector sits in :where(), so it weighs nothing: a
    component's own class, and a theme's CSS (features/themes/sheet.ts), always
    win over it. Colours come only from the tokens, so presets and custom themes
-   restyle it too. Logical properties only. */
+   restyle it too. Hover looks only apply where there is a real hover (a mouse
+   or trackpad), so a tap on a phone never leaves a stuck highlight; on touch
+   screens every control is at least 44px to tap. Logical properties only. */
 
 :root {
   accent-color: var(--color-accent);
@@ -19,8 +21,10 @@
   text-decoration-thickness: from-font;
   text-underline-offset: 0.18em;
 }
-:where(a:hover) {
-  text-decoration-thickness: 2px;
+@media (hover: hover) {
+  :where(a:hover) {
+    text-decoration-thickness: 2px;
+  }
 }
 
 /* Focus: one visible ring for every focusable thing (forced colours keep the
@@ -50,9 +54,11 @@
     box-shadow var(--ease),
     translate var(--ease);
 }
-:where(button, input[type='button'], input[type='submit'], input[type='reset']):where(:hover:not(:disabled)) {
-  background: var(--color-hover);
-  border-color: color-mix(in srgb, var(--color-accent) 45%, var(--color-border-strong));
+@media (hover: hover) {
+  :where(button, input[type='button'], input[type='submit'], input[type='reset']):where(:hover:not(:disabled)) {
+    background: var(--color-hover);
+    border-color: color-mix(in srgb, var(--color-accent) 45%, var(--color-border-strong));
+  }
 }
 :where(button, input[type='button'], input[type='submit'], input[type='reset']):where(:active:not(:disabled)) {
   translate: 0 1px;
@@ -73,10 +79,12 @@
   border-color: var(--color-accent);
   box-shadow: var(--shadow-sm);
 }
-:where(button.primary, button[type='submit'], input[type='submit']):where(:hover:not(:disabled)) {
-  color: var(--color-on-accent);
-  background: color-mix(in srgb, var(--color-accent) 86%, var(--color-text));
-  border-color: color-mix(in srgb, var(--color-accent) 86%, var(--color-text));
+@media (hover: hover) {
+  :where(button.primary, button[type='submit'], input[type='submit']):where(:hover:not(:disabled)) {
+    color: var(--color-on-accent);
+    background: color-mix(in srgb, var(--color-accent) 86%, var(--color-text));
+    border-color: color-mix(in srgb, var(--color-accent) 86%, var(--color-text));
+  }
 }
 
 /* Icon buttons (lib/IconButton.tsx): borderless round targets in the muted
@@ -105,14 +113,22 @@
 :where(.icon-button .icon) {
   font-size: 1.25em;
 }
-:where(.icon-button:hover:not(:disabled)) {
-  color: var(--color-accent);
-  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+@media (hover: hover) {
+  :where(.icon-button:hover:not(:disabled)) {
+    color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+  }
 }
 :where(.icon-button[aria-pressed='true']) {
   background: transparent;
   border-color: transparent;
   color: var(--color-accent);
+}
+/* The round highlight shows only on hover (above, pointers that hover),
+   keyboard focus and press (touch). */
+:where(.icon-button:not(:disabled)):where(:focus-visible, :active) {
+  color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
 }
 :where(.icon-button:disabled) {
   opacity: 0.5;
@@ -153,14 +169,18 @@
   border-radius: var(--radius-control);
   cursor: pointer;
 }
-:where(input[type='file'])::file-selector-button:hover {
-  background: var(--color-hover);
+@media (hover: hover) {
+  :where(input[type='file'])::file-selector-button:hover {
+    background: var(--color-hover);
+  }
 }
 :where(textarea) {
   line-height: 1.5;
 }
-:where(input, select, textarea):where(:hover:not(:disabled, :focus)) {
-  border-color: color-mix(in srgb, var(--color-text) 35%, var(--color-border-strong));
+@media (hover: hover) {
+  :where(input, select, textarea):where(:hover:not(:disabled, :focus)) {
+    border-color: color-mix(in srgb, var(--color-text) 35%, var(--color-border-strong));
+  }
 }
 :where(input, select, textarea):focus-visible {
   outline: 2px solid transparent;
@@ -206,6 +226,48 @@
 
 ::selection {
   background: color-mix(in srgb, var(--color-accent) 25%, transparent);
+}
+
+/* Touch screens: 44px targets. Buttons, fields and navigation links grow;
+   small round icon buttons keep their look and get an invisible 44px hit
+   area instead. Taps fire at once (no double-tap-to-zoom wait), and fields
+   never drop below 16px, which would make iOS zoom the page on focus. */
+@media (pointer: coarse) {
+  :where(
+      button:not(.icon-button, .infotip-button),
+      input[type='button'],
+      input[type='submit'],
+      input[type='reset'],
+      select,
+      input:not([type='checkbox'], [type='radio'], [type='range'], [type='file'], [type='color'], [type='image'], [type='hidden'])
+    ) {
+    min-block-size: 2.75rem;
+  }
+  :where(input[type='file'])::file-selector-button {
+    min-block-size: 2.75rem;
+  }
+  :where(.icon-button, .infotip-button)::after {
+    content: '';
+    position: absolute;
+    inset-block: min(0px, calc((100% - 2.75rem) / 2));
+    inset-inline: min(0px, calc((100% - 2.75rem) / 2));
+  }
+  :where(input[type='checkbox'], input[type='radio']) {
+    inline-size: 1.25rem;
+    block-size: 1.25rem;
+    vertical-align: -0.3em;
+  }
+  :where(nav a) {
+    display: inline-flex;
+    align-items: center;
+    min-block-size: 2.75rem;
+  }
+  :where(a, button, input, select, textarea, summary, label) {
+    touch-action: manipulation;
+  }
+  :root[data-text-scale='small'] :is(input, select, textarea) {
+    font-size: 16px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -12,9 +12,8 @@
   gap: var(--space-4);
 }
 
-.saves-item {
-  border-block-end: 1px solid var(--border, currentColor);
-  padding-block-end: var(--space-3);
+.saves-item > .post {
+  margin-block-end: 0;
 }
 
 .saves-error {

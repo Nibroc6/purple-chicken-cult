@@ -163,6 +163,39 @@ func TestMediaFailClosedMatrix(t *testing.T) {
 	}
 }
 
+// TestServesMedia: the process serves /m/ in dev/test, and in prod only with
+// media on and an fs store (s3 is served by the Worker).
+func TestServesMedia(t *testing.T) {
+	cases := []struct {
+		name string
+		edit func(map[string]string)
+		want bool
+	}{
+		{"prod fs media on", func(map[string]string) {}, true},
+		{"prod fs not allowed", func(m map[string]string) { m["PCC_ALLOW_FS_BLOB"] = "" }, false},
+		{"prod s3", func(m map[string]string) {
+			m["PCC_BLOB_DRIVER"] = "s3"
+			m["PCC_S3_ENDPOINT"], m["PCC_S3_BUCKET"], m["PCC_S3_ACCESS_KEY"], m["PCC_S3_SECRET_KEY"] = "r2.example", "b", "a", "s"
+		}, false},
+		{"prod no scanner", func(m map[string]string) { m["PCC_SCANNER"] = "none" }, false},
+		{"dev", func(m map[string]string) { m["PCC_ENV"], m["PCC_ORIGIN"] = "dev", "http://localhost:5173" }, true},
+	}
+	for _, tc := range cases {
+		m := prodBase()
+		m["PCC_SCANNER"], m["PCC_ALLOW_UNSCANNED_MEDIA"] = "unscanned", "1"
+		m["PCC_BLOB_DRIVER"], m["PCC_BLOB_FS_DIR"], m["PCC_ALLOW_FS_BLOB"] = "fs", "/var/lib/pcc/media", "1"
+		m["PCC_EVIDENCE_DRIVER"], m["PCC_EVIDENCE_FS_DIR"] = "fs", "/var/lib/pcc/evidence"
+		tc.edit(m)
+		c, err := LoadFrom(env(m))
+		if err != nil {
+			t.Fatalf("%s: %v", tc.name, err)
+		}
+		if got := c.ServesMedia(); got != tc.want {
+			t.Errorf("%s: ServesMedia=%v want %v", tc.name, got, tc.want)
+		}
+	}
+}
+
 func TestPushEnabled(t *testing.T) {
 	m := prodBase()
 	m["PCC_VAPID_PUBLIC"], m["PCC_VAPID_PRIVATE"], m["PCC_VAPID_SUBJECT"] = "p", "q", "mailto:x@y"

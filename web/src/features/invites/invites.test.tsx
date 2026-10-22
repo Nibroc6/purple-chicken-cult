@@ -13,8 +13,8 @@ import InvitePage from './InvitePage';
 import InviteesPage from './InviteesPage';
 import { canInvite, canShowCode, countdown, invitesErrorKey, joinURL, passed, toBudgetVM, toInviteeVM, toStatusVM } from './vm';
 
-const qr = vi.hoisted(() => ({ draw: vi.fn((_c: unknown, _p: string) => undefined) }));
-vi.mock('./featherQR', () => ({ drawFeatherQR: qr.draw }));
+const qr = vi.hoisted(() => ({ toCanvas: vi.fn((_c: unknown, _p: string, _o: unknown) => Promise.resolve()) }));
+vi.mock('qrcode', () => ({ default: { toCanvas: qr.toCanvas } }));
 
 const cosign = vi.hoisted(() => ({ request: vi.fn() }));
 vi.mock('../cosign', () => ({ requestCosign: cosign.request }));
@@ -91,7 +91,7 @@ async function openButton(): Promise<HTMLElement> {
 
 afterEach(() => {
   vi.unstubAllGlobals();
-  qr.draw.mockClear();
+  qr.toCanvas.mockClear();
   cosign.request.mockReset();
   delete (globalThis as { pccHandshakeAudio?: unknown }).pccHandshakeAudio;
 });
@@ -268,9 +268,9 @@ describe('invite page', () => {
     renderAt('/invite', <InvitePage />);
     fireEvent.click(await openButton());
     await waitFor(() => {
-      expect(qr.draw).toHaveBeenCalled();
+      expect(qr.toCanvas).toHaveBeenCalled();
     });
-    const drawn = qr.draw.mock.calls.map((a) => a[1]);
+    const drawn = qr.toCanvas.mock.calls.map((a) => a[1]);
     const f = parseFrame(drawn[0] ?? '');
     expect(f?.n).toBeGreaterThanOrEqual(12);
     expect(b64url(f?.hs ?? new Uint8Array())).toBe(b64url(HS));
@@ -313,7 +313,7 @@ describe('invite page', () => {
     expect((await screen.findByTestId('invite-outcome')).dataset.outcome).toBe('retry');
     await screen.findByTestId('invite-dual-qr');
     await waitFor(() => {
-      expect(qr.draw.mock.calls.some((a) => a[1].startsWith('pcc2d.'))).toBe(true);
+      expect(qr.toCanvas.mock.calls.some((a) => a[1].startsWith('pcc2d.'))).toBe(true);
     });
     expect(calls.find((c) => c.path === '/invites/handshakes' && c.method === 'POST')?.body).toEqual({ mode: 'dual_qr', quiet: false });
     st = status({ state: 'confirmed', outcome: 'retry', hint: 'volume_up', attempt: 2, attempts_left: 3 });

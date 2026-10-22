@@ -10,7 +10,7 @@
 // above", a diamond) gets no second node: its edge goes, dashed, to the node it
 // already has. Edges are routed as family-tree elbows (down, across, down) so
 // siblings hang from one shared line. Owner: P1-W09.
-import type { Ref, TreeRowVM, TreeVM } from '../../../vm/types';
+import type { Ref, TreeItemVM, TreeRowVM, TreeVM } from '../../../vm/types';
 
 export const NODE_W = 208;
 export const NODE_H = 96;
@@ -132,6 +132,17 @@ export function lines(text: string, width = LINE, max = 2): string[] {
 // Centers gives the centered post of a row: the chosen one, else its first post.
 export type Centers = (row: TreeRowVM) => Ref | undefined;
 
+// A post's slot on the canvas while laying out: its row, the band it ends up
+// in, and its parents on the canvas (the row's parent first).
+interface Slot {
+  it: TreeItemVM;
+  gen: number;
+  center: boolean;
+  band: number;
+  moved: boolean;
+  parents: Ref[];
+}
+
 export function layoutTree(tree: TreeVM, centered: Centers): CanvasLayout {
   const nodes: CanvasNode[] = [];
   const edges: CanvasEdge[] = [];
@@ -143,40 +154,76 @@ export function layoutTree(tree: TreeVM, centered: Centers): CanvasLayout {
     if (c) centers.set(row.gen, c);
   }
 
-  tree.rows.forEach((row, ri) => {
-    const y = ri * ROW_H;
+  // Each post once, in its row's band: the centered post first, then the rest
+  // in ranked order. A reply's parents are the row's centered post above plus
+  // its other visible parents.
+  const slots: Slot[] = [];
+  const slotOf = new Map<Ref, Slot>();
+  tree.rows.forEach((row, band) => {
     const center = centers.get(row.gen);
-    // The centered post first, then the rest in ranked order.
     const own = row.items.filter((i) => !i.shownAbove);
     const ordered = [...own.filter((i) => i.post.ref === center), ...own.filter((i) => i.post.ref !== center)];
-    let maxOffset = 0;
-    ordered.forEach((it, rank) => {
-      if (byRef.has(it.post.ref)) return;
+    for (const it of ordered) {
+      if (slotOf.has(it.post.ref)) continue;
+      const above = centers.get(row.gen - 1);
+      const parents = row.gen >= 0 ? [...(above ? [above] : []), ...it.alsoParents.filter((p) => p !== above)] : [];
+      const sl: Slot = { it, gen: row.gen, center: it.post.ref === center, band, moved: false, parents };
+      slots.push(sl);
+      slotOf.set(it.post.ref, sl);
+    }
+  });
+  // A reply sits one band below its lowest parent (and its own replies below
+  // it in turn), so it hangs from every parent it has on the canvas.
+  for (let changed = true, pass = 0; changed && pass <= slots.length; pass++) {
+    changed = false;
+    for (const sl of slots) {
+      for (const p of sl.parents) {
+        const ps = slotOf.get(p);
+        if (ps && ps.band >= sl.band) {
+          sl.band = ps.band + 1;
+          sl.moved = true;
+          changed = true;
+        }
+      }
+    }
+  }
+
+  // Slots per band: the band's own posts in order, then the ones moved into it.
+  const bands = new Map<number, Slot[]>();
+  for (const sl of [...slots.filter((x) => !x.moved), ...slots.filter((x) => x.moved)]) {
+    bands.set(sl.band, [...(bands.get(sl.band) ?? []), sl]);
+  }
+  const maxOffset = new Map<number, number>();
+  for (const [band, list] of bands) {
+    list.forEach((sl, rank) => {
       const off = slotOffset(rank);
-      maxOffset = Math.max(maxOffset, off);
+      maxOffset.set(band, Math.max(maxOffset.get(band) ?? 0, off));
+      const p = sl.it.post;
       const n: CanvasNode = {
-        ref: it.post.ref,
-        gen: row.gen,
+        ref: p.ref,
+        gen: sl.gen,
         x: off * (NODE_W + GAP_X),
-        y,
-        centered: it.post.ref === center,
-        focal: it.post.ref === tree.focal,
-        tier: it.post.tier,
-        handle: it.post.author.handle,
-        name: it.post.author.displayName,
-        excerpt: excerpt(it.post.body?.nodes),
-        replies: it.post.replyCount,
+        y: band * ROW_H,
+        centered: sl.center,
+        focal: p.ref === tree.focal,
+        tier: p.tier,
+        handle: p.author.handle,
+        name: p.author.displayName,
+        excerpt: excerpt(p.body?.nodes),
+        replies: p.replyCount,
       };
       nodes.push(n);
       byRef.set(n.ref, n);
     });
+  }
+  tree.rows.forEach((row, band) => {
     if (row.more > 0) {
       more.push({
         gen: row.gen,
         center: row.center,
         ...(row.cursor ? { cursor: row.cursor } : {}),
-        x: (maxOffset + 1) * (NODE_W + GAP_X),
-        y,
+        x: ((maxOffset.get(band) ?? 0) + 1) * (NODE_W + GAP_X),
+        y: band * ROW_H,
         count: row.more,
       });
     }
@@ -190,19 +237,26 @@ export function layoutTree(tree: TreeVM, centered: Centers): CanvasLayout {
     seen.add(k);
     edges.push({ from, to, kind });
   };
+  for (const sl of slots) {
+    const ref = sl.it.post.ref;
+    if (sl.gen >= 0) {
+      sl.parents.forEach((p, i) => {
+        add(p, ref, i === 0 ? 'reply' : 'also');
+      });
+    } else if (sl.gen === -1) {
+      // The primary parent carries the focal row; the others join the focal post.
+      add(ref, tree.focal, ref === centers.get(-1) ? 'reply' : 'also');
+    } else {
+      add(ref, centers.get(sl.gen + 1), 'reply');
+    }
+  }
+  // A post shown again further down keeps one node; its second spot is a
+  // dashed line to it, unless a parent line already joins the two.
   for (const row of tree.rows) {
     for (const it of row.items) {
-      if (it.shownAbove) {
-        if (row.gen >= 0) add(centers.get(row.gen - 1), it.post.ref, 'above');
-        else add(it.post.ref, row.gen === -1 ? tree.focal : centers.get(row.gen + 1), 'above');
-      } else if (row.gen >= 0) {
-        add(centers.get(row.gen - 1), it.post.ref, 'reply');
-      } else if (row.gen === -1) {
-        // The primary parent carries the focal row; the others join the focal post.
-        add(it.post.ref, tree.focal, it.post.ref === centers.get(-1) ? 'reply' : 'also');
-      } else {
-        add(it.post.ref, centers.get(row.gen + 1), 'reply');
-      }
+      if (!it.shownAbove) continue;
+      if (row.gen >= 0) add(centers.get(row.gen - 1), it.post.ref, 'above');
+      else add(it.post.ref, row.gen === -1 ? tree.focal : centers.get(row.gen + 1), 'above');
     }
   }
 
@@ -242,6 +296,29 @@ function elbow(x1: number, y1: number, x2: number, y2: number, my: number): stri
   ].join(' ');
 }
 
+// polyline joins points by straight lines with rounded corners.
+function polyline(pts: [number, number][]): string {
+  const out: string[] = [];
+  pts.forEach(([x, y], i) => {
+    const prev = pts[i - 1];
+    const next = pts[i + 1];
+    if (!prev) {
+      out.push(`M ${n2(x)} ${n2(y)}`);
+      return;
+    }
+    if (!next) {
+      out.push(`L ${n2(x)} ${n2(y)}`);
+      return;
+    }
+    const r = Math.min(RADIUS, Math.hypot(x - prev[0], y - prev[1]) / 2, Math.hypot(next[0] - x, next[1] - y) / 2);
+    const back = (p: [number, number]) => [x + Math.sign(p[0] - x) * r, y + Math.sign(p[1] - y) * r];
+    const [bx, by] = back(prev);
+    const [fx, fy] = back(next);
+    out.push(`L ${n2(bx ?? x)} ${n2(by ?? y)}`, `Q ${n2(x)} ${n2(y)} ${n2(fx ?? x)} ${n2(fy ?? y)}`);
+  });
+  return out.join(' ');
+}
+
 // LOOP is how far below a row a line between two of its posts runs.
 const LOOP = 20;
 
@@ -256,7 +333,20 @@ export function route(a: { x: number; y: number }, b: { x: number; y: number }, 
   if (b.y > a.y) {
     const y1 = a.y + NODE_H / 2;
     const y2 = b.y - NODE_H / 2;
-    return elbow(a.x, y1, b.x, y2, y1 + (y2 - y1) * (kind === 'also' ? 0.35 : 0.5));
+    const share = kind === 'also' ? 0.35 : 0.5;
+    if (y2 - y1 <= ROW_H) return elbow(a.x, y1, b.x, y2, y1 + (y2 - y1) * share);
+    // Across more than one band: down to the gap under a, along to a lane
+    // between two columns of cards, down it, and along the gap above b.
+    const gap = ROW_H - NODE_H;
+    const lane = b.x + (Math.sign(a.x - b.x) || 1) * ((NODE_W + GAP_X) / 2);
+    return polyline([
+      [a.x, y1],
+      [a.x, y1 + gap * share],
+      [lane, y1 + gap * share],
+      [lane, y2 - gap * share],
+      [b.x, y2 - gap * share],
+      [b.x, y2],
+    ]);
   }
   if (b.y === a.y) {
     const y = a.y + NODE_H / 2;

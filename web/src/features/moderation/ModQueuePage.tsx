@@ -12,8 +12,7 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router';
-import { errorKey } from '../../api/errors';
+import { errorText } from '../../api/errors';
 import { Loading } from '../../app/Loading';
 import { useMe } from '../../app/session';
 import { formatDateTime, formatRelative } from '../../lib/time';
@@ -23,7 +22,7 @@ import {
   canQuarantine,
   claimItem,
   confirmItem,
-  errorParams,
+  
   fetchQueue,
   modReasons,
   moderationErrorKey,
@@ -40,6 +39,7 @@ import {
 } from './api';
 import './moderation.css';
 import { InfoTip } from '../../lib/InfoTip';
+import { ModNav } from './ModNav';
 
 export const queueKey = ['moderation', 'queue'] as const;
 const cosignsKey = ['moderation', 'cosigns'] as const;
@@ -51,6 +51,7 @@ export default function ModQueuePage() {
   return (
     <section className="page moderation-page" data-testid="mod-queue-page">
       <h1>{t('queue.title')}</h1>
+      <ModNav />
       {moderator ? <Queue /> : <p className="muted">{t('queue.membersOnly')}</p>}
     </section>
   );
@@ -58,7 +59,6 @@ export default function ModQueuePage() {
 
 function Queue() {
   const { t } = useTranslation(['moderation', 'errors']);
-  const me = useMe();
   const q = useInfiniteQuery({
     queryKey: queueKey,
     queryFn: ({ pageParam }) => fetchQueue(pageParam),
@@ -73,25 +73,10 @@ function Queue() {
         {t('queue.intro')}
         <InfoTip>{t('queue.introTip')}</InfoTip>
       </p>
-      <ul className="link-list link-cards">
-        <li>
-          <Link to="/mod/log">{t('footer.log')}</Link>
-        </li>
-        <li>
-          <Link to="/mod/recovery">{t('footer.recovery')}</Link>
-        </li>
-        {me?.role === 'admin' ? (
-          <li>
-            <Link to="/mod/roles" data-testid="queue-roles-link">
-              {t('footer.roles')}
-            </Link>
-          </li>
-        ) : null}
-      </ul>
       {q.isPending ? <Loading /> : null}
       {q.error ? (
         <p className="moderation-error" role="alert">
-          {t(errorKey(q.error) as 'errors:unknown')}
+          {errorText(t, q.error)}
         </p>
       ) : null}
       {q.isSuccess && items.length === 0 ? (
@@ -306,6 +291,14 @@ function QueueItem({ it }: { it: ModItem }) {
         <blockquote className="moderation-post" data-user-content="" data-testid="queue-post">
           {it.post.body}
         </blockquote>
+      ) : it.message ? (
+        <div data-testid="queue-message">
+          <p className="muted">{it.message.removed ? t('queue.messageRemoved') : t('queue.message')}</p>
+          <blockquote className="moderation-post" data-user-content="">
+            {it.message.body}
+          </blockquote>
+          {it.message.shared_post ? <p className="muted">{t('queue.messageSharedPost')}</p> : null}
+        </div>
       ) : it.reason === 'csam' && !it.csam ? (
         <p className="muted">{t('queue.noContent')}</p>
       ) : null}
@@ -449,7 +442,7 @@ function QueueItem({ it }: { it: ModItem }) {
       {csam.isSuccess || quarantine.isSuccess ? <p role="status">{t('queue.started')}</p> : null}
       {err ? (
         <p className="moderation-error" role="alert" data-testid="queue-error">
-          {t(moderationErrorKey(err) as 'errors:unknown', errorParams(err))}
+          {errorText(t, err, moderationErrorKey)}
         </p>
       ) : null}
     </li>

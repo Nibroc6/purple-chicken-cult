@@ -7,6 +7,7 @@ import (
 	"pgregory.net/rapid"
 
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate"
+	"github.com/Nibroc6/purple-chicken-cult/internal/gate/friends"
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/posts"
 )
 
@@ -48,7 +49,9 @@ func genOps(t *rapid.T, base *model) []vop {
 			op.Target = postT("target")
 		case "why", "likers", "get", "report", "hide", "mute":
 			op.Target = postT("target")
-		case "person", "request", "block", "unfriend", "muteuser":
+		case "person":
+			op.Target, op.On = userT("target"), rapid.Bool().Draw(t, "oldest")
+		case "request", "block", "unfriend", "muteuser":
 			op.Target = userT("target")
 		case "like":
 			op.Target, op.On = postT("target"), rapid.IntRange(0, 3).Draw(t, "on") > 0
@@ -168,9 +171,12 @@ func (r *replayer) do(i int, op vop) {
 		ref := r.userRef(op.Target)
 		pv, err := w.a.Friends.Person(ctx, ref)
 		r.rec(name, pv, err)
-		cursor := ""
+		cursor, order := "", friends.OrderNewest
+		if op.On {
+			order = friends.OrderOldest
+		}
 		for page := 0; page < 10; page++ {
-			out, err := w.a.Friends.PersonPosts(ctx, ref, cursor)
+			out, err := w.a.Friends.PersonPosts(ctx, ref, cursor, order)
 			r.rec(name+" posts", out, err)
 			if err != nil || out.Next == "" {
 				break

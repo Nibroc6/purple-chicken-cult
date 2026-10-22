@@ -1,0 +1,13 @@
+/* The unread badge (same look as the notifications one). Owner: direct messages. Logical properties only. */
+.nav-badge {
+  display: inline-block;
+  margin-inline-start: var(--space-1);
+  padding-inline: var(--space-1);
+  min-inline-size: 1.4em;
+  border-radius: 999px;
+  background: var(--color-accent);
+  color: var(--color-surface);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-align: center;
+}

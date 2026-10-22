@@ -48,6 +48,15 @@ type PersonView struct {
 	InvitedRemoved bool `json:"invited_removed,omitempty"`
 }
 
+// ShowLessView is an author the viewer asked to see less of: Count steps
+// (rank uses at most three).
+type ShowLessView struct {
+	Ref         Ref    `json:"ref"`
+	Handle      string `json:"handle"`
+	DisplayName string `json:"display_name"`
+	Count       int    `json:"count"`
+}
+
 // AuthorView is a compact person for cards.
 type AuthorView struct {
 	Ref         Ref          `json:"ref"`
@@ -378,6 +387,8 @@ type ModItem struct {
 	Claimed bool          `json:"claimed"`           // claimed by any moderator (claim not expired)
 	Pending *ModPending   `json:"pending,omitempty"` // the two-person action awaiting a second moderator
 	CSAM    *CSAMHoldView `json:"csam,omitempty"`    // csam items: the hold's metadata, never the content
+	// Steward addition (contract request dm-1): a reported direct message.
+	Message *ModMessageView `json:"message,omitempty"`
 }
 
 // ModPending is a two-person moderator action awaiting its second moderator.

@@ -32,6 +32,7 @@ import type explorer from './locales/en/explorer.json';
 import type recovery from './locales/en/recovery.json';
 import type saves from './locales/en/saves.json';
 import type about from './locales/en/about.json';
+import type messages from './locales/en/messages.json';
 
 declare module 'i18next' {
   interface CustomTypeOptions {
@@ -68,6 +69,7 @@ declare module 'i18next' {
       recovery: typeof recovery;
       saves: typeof saves;
       about: typeof about;
+      messages: typeof messages;
     };
   }
 }

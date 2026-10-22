@@ -40,9 +40,8 @@
   background: #fff;
   padding: var(--space-2);
   border-radius: var(--radius);
-  inline-size: min(100%, 360px);
+  inline-size: min(100%, 320px);
   block-size: auto;
-  image-rendering: pixelated;
 }
 
 .invites-sas {

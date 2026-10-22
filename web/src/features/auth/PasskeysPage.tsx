@@ -3,6 +3,7 @@
 // that passkey started). From Phase 1 a session started with a passkey
 // co-signs both changes with an existing passkey (passkeyFlow.ts).
 // Owner: P0-W01 → P1-W07.
+import { errorText } from '../../api/errors';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -14,6 +15,7 @@ import { addPasskey, removeKey } from './passkeyFlow';
 import { authError, toPasskeyVM, type PasskeyVM } from './vm';
 import './auth.css';
 import { InfoTip } from '../../lib/InfoTip';
+import { SettingsSubNav } from '../../app/SettingsSubNav';
 
 export const passkeysKey = ['auth', 'passkeys'] as const;
 
@@ -23,7 +25,7 @@ function ErrorLine({ err }: { err: unknown }) {
   if (!msg) return null;
   return (
     <p className="auth-error" role="alert">
-      {t(msg.key as 'errors:unknown', msg.params)}
+      {errorText(t, msg)}
     </p>
   );
 }
@@ -213,9 +215,7 @@ export default function PasskeysPage() {
   return (
     <section className="page auth-page">
       <h1>{t('passkeys.title')}</h1>
-      <p>
-        <Link to="/settings">{t('common:nav.settings')}</Link>
-      </p>
+      <SettingsSubNav />
       <p>
         {t('passkeys.intro')}
         <InfoTip>{t('passkeys.introTip')}</InfoTip>

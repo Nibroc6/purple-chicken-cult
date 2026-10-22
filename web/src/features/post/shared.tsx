@@ -1,6 +1,7 @@
 // Shared pieces of the post and composer features: error text, the length
 // counter, the language / audience / reference-policy pickers and a compact
 // preview of a post. Owner: P0-W05 → P1-W12.
+import { errorText } from '../../api/errors';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AudienceBadge, EditedMark } from '../../integrity';
@@ -8,7 +9,7 @@ import { Markdown } from '../../markdown';
 import { MediaImage } from '../media';
 import type { Audience, PostVM, RefPolicy } from '../../vm/types';
 import { langName, langOptions, UND } from './lang';
-import { audiences, codePoints, counterState, errorParams, HARD_LIMIT, postErrorKey, refPolicies, SOFT_LIMIT } from './vm';
+import { audiences, codePoints, counterState, defaultAudience, HARD_LIMIT, postErrorKey, refPolicies, SOFT_LIMIT } from './vm';
 import './post.css';
 
 // ErrorText renders a posts API error from the post or errors catalogs.
@@ -17,7 +18,7 @@ export function ErrorText({ err }: { err: unknown }) {
   if (!err) return null;
   return (
     <p className="post-error" role="alert">
-      {t(postErrorKey(err) as 'errors:unknown', errorParams(err))}
+      {errorText(t, err, postErrorKey)}
     </p>
   );
 }
@@ -126,7 +127,9 @@ export function AudienceSelect({ value, onChange, id }: { value: Audience; onCha
       >
         {audiences.map((a) => (
           <option key={a} value={a}>
-            {t(`audience.${a}` as 'audience.connected')}
+            {a === defaultAudience
+              ? t('audience.default', { label: t(`audience.${a}` as 'audience.connected') })
+              : t(`audience.${a}` as 'audience.connected')}
           </option>
         ))}
       </select>

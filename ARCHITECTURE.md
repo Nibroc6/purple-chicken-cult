@@ -189,7 +189,9 @@ Report      { reporter, target, reason, at }
   blocking, except the person isn't removed from your indirect paths.
 - **Everyone who can see a user sees that user's inviter label** ("invited by @bob"),
   including after an unfriend, a split into separate components, or any other way the
-  inviter falls outside the viewer's horizon.
+  inviter falls outside the viewer's horizon. It sits on the user's person card and
+  page, and in the "how you're connected" view a post's chain opens; post cards
+  leave it out to stay uncluttered.
 - **The label is display-only.** It has no per-viewer ref, no profile link, no content,
   no friend request and no message. The one action it allows is **"report inviter"**:
   it goes to moderators, routed through the *invitee's* ref, so the inviter is never
@@ -705,6 +707,9 @@ post's "family tree".
   An edit changes the body and media only. It keeps the same `id` and bumps `version`,
   so children keep pointing at it and readers see the latest version marked "edited".
   A reference creates a new post; an edit does not.
+- **Replying to several posts.** Any post's "add to a reply" collects up to 3 posts in a
+  tray that opens the composer with all of them; the composer also takes a pasted link to
+  another post, and any parent can be taken out before publishing.
 - **You can only reference what you can see.** Parents arrive as per-viewer refs (§13),
   and the gate accepts one only if the author can currently see that post. A bad ref
   gets the uniform not-found response, so referencing can't be used to probe for posts.
@@ -802,8 +807,10 @@ full, with its integrity elements and actions, under the map. The rows are:
    slide into place. A row is ranked as a snapshot, like a feed tier, so it never
    reshuffles while you look at it.
 4. **Each post appears once.** The focal post's extra visible parents join it with a
-   dashed "also" line. If a post would appear a second time, as in a diamond, its second
-   spot is a dashed line to the card it already has.
+   dashed "also" line. A reply to several posts on the map sits one row below the lowest
+   of them, with a line to each (the extra ones dashed); lines that cross rows run in the
+   lanes between cards. If a post would still appear a second time, its second spot is a
+   dashed line to the card it already has.
 5. **No section headers.** The lines show how posts relate; siblings hang from one shared
    line under their parent.
 6. **Loading.** The view opens with the focal post plus 2 rows above and 2 below. More
@@ -887,7 +894,8 @@ Rendering rules:
 
 #### 10.1.7 Feed cards & tier headers
 - **Instagram-style cards** in a single column. Each card has:
-  - an author row: avatar, handle, inviter label, chain (§4.5) and an ⓘ "why";
+  - an author row: avatar, handle, chain (§4.5; it opens "how you're connected" with the
+    inviter label) and an ⓘ "why";
   - the context row;
   - the body and the preview;
   - actions: like · reply (opens the composer with this post as parent) · tree.
@@ -898,7 +906,19 @@ Rendering rules:
   reads "You're caught up".
 - **Headers come from the API** (`tier_start` markers), never from post content, so
   every format and custom layout shows them and nobody can spoof them.
-- **DMs** between friends are a later addition.
+- **Direct messages (dm-1).** Private conversations and groups between Chickens with a
+  direct edge (an acquaintance or a friend); a block or an unfriend stops sending (the
+  same `not_connected` answer either way) and keeps the history readable. Groups are by
+  invitation from the inviter's own connections (≤ 32, invitations included); an invitee
+  sees only who invited them, the title and the count until they join; probation can
+  write 1:1 but not start groups or invite. A member's blocks hide the blocked person's
+  messages from them. **A shared post** is re-checked for every reader on every read:
+  anyone outside its audience gets a placeholder and nothing else about it, and list
+  previews never quote a post. No read receipts and no signatures; moderators see only a
+  reported message (the text kept with the report). Push says only who wrote, once per
+  unread stretch, and never when muted. Retention: a sender's delete erases the body;
+  `dm.purge` erases what every member has cleared; account deletion erases the
+  account's messages; an empty group is deleted.
 
 ### 10.2 Edits, deletion & export
 - **Edit:** the same post `id` with a new `version` (each version is signed), shown as
@@ -1423,9 +1443,12 @@ pace**. No auto-likes, auto-replies, auto-accepting, or scheduled or generated p
 without a per-post human action.
 
 - **Human-pace write limits per account.** Starting points:
-  - 30 posts a day and 10 an hour (a thread published in one action counts as one)
+  - 30 posts a day, at most 10 at once (a thread published in one action counts as one)
   - 100 likes an hour
-  - a minimum spacing between writes
+  - elastic buckets for everyday writes: a burst, then a steady refill, so fast
+    toggling never trips them and turning a toggle back is free
+  - a minimum spacing between security-sensitive writes (account, friend
+    requests and upgrades, invites)
   - the reference caps from §10.1.1
 - **Graph and account changes** (creating or revoking edges, blocks, passkey changes,
   recovery, deletion) need a fresh passkey assertion from Phase 1. Its

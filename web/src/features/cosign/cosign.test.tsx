@@ -130,14 +130,14 @@ describe('CosignDialog', () => {
   });
 
   it('fills in the wait of a rate-limited intent', async () => {
-    stubBegin(() => json(429, { error: 'rate_limited', retry_after_s: 2 }));
+    stubBegin(() => json(429, { error: 'rate_limited', retry_after_s: 4 })); // past the quiet wait
     render(<CosignDialog />);
     act(() => {
       void requestCosign({ purpose: 'passkey_add' });
     });
     const text = (await screen.findByRole('alert')).textContent;
-    expect(text).toBe(i18n.t('errors:rate_limited', { seconds: 2 }));
-    expect(text).toContain('2 seconds');
+    expect(text).toBe(i18n.t('errors:rate_limited', { seconds: 4 }));
+    expect(text).toContain('4 seconds');
     fireEvent.click(screen.getByTestId('cosign-cancel'));
   });
 

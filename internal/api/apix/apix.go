@@ -34,7 +34,7 @@ type Class = gate.Class
 func Read(name string) Class { return Class{Kind: gate.ClassRead, Name: name} }
 
 // Write returns a write class (post, like, friend_request, report, social, account,
-// invite_handshake, friend_upgrade, save, media).
+// settings, invite_handshake, friend_upgrade, save, media).
 func Write(name string) Class { return Class{Kind: gate.ClassWrite, Name: name} }
 
 // Step returns the class of a later step of a write of kind name (see
@@ -51,6 +51,13 @@ var Free = Class{Kind: gate.ClassFree, Name: "free"}
 // Charger charges requests (implemented by *limits.Service).
 type Charger interface {
 	ChargeRequest(ctx context.Context, c gate.Class) error
+}
+
+// ToggleCharger is a Charger that also knows set/clear pairs (implemented by
+// *limits.Service): a PUT and a DELETE of one path are a toggle, and turning
+// one back can be free.
+type ToggleCharger interface {
+	ChargeToggle(ctx context.Context, c gate.Class, target string, on bool) error
 }
 
 type chargerKey struct{}
@@ -97,7 +104,8 @@ func Routes() []RouteInfo {
 var PaddedParams = pad.Params
 
 // Route registers h for method + pattern (relative to /api) with charge class c.
-// The charge happens before the handler and before any ref is resolved (D19).
+// The charge happens before the handler and before any ref is resolved (D19);
+// PUT and DELETE are charged as a toggle of the request path (ToggleCharger).
 // Never call r.Route / r.Mount / r.Group with a shared prefix.
 func Route(r chi.Router, method, pattern string, c Class, h HandlerFunc) {
 	if c.Kind == 0 || c.Name == "" {
@@ -112,7 +120,13 @@ func Route(r chi.Router, method, pattern string, c Class, h HandlerFunc) {
 	regMu.Unlock()
 	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if ch, ok := req.Context().Value(chargerKey{}).(Charger); ok && ch != nil {
-			if err := ch.ChargeRequest(req.Context(), c); err != nil {
+			var err error
+			if tc, ok := ch.(ToggleCharger); ok && (method == http.MethodPut || method == http.MethodDelete) {
+				err = tc.ChargeToggle(req.Context(), c, req.URL.Path, method == http.MethodPut)
+			} else {
+				err = ch.ChargeRequest(req.Context(), c)
+			}
+			if err != nil {
 				Error(w, req, err)
 				return
 			}

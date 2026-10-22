@@ -1,7 +1,9 @@
 /* IconButton tooltip (lib/IconButton.tsx; the button itself is styled in
-   styles/controls.css). Logical properties only. The tip sits above the
-   button, centred, and appears on hover (pointer devices) and on keyboard
-   focus; it never takes pointer events, so it cannot cover what it labels. */
+   styles/controls.css). Logical properties only. Shown by script on hover
+   (after a short delay) and keyboard focus. With popover support it is a
+   top-layer box at viewport coordinates the script measures (--tip-x / --tip-y,
+   physical by nature); without, it sits above the button, centred. It never
+   takes pointer events, so it cannot cover what it labels. */
 .icon-button-tip {
   position: absolute;
   z-index: 20;
@@ -9,8 +11,10 @@
   inset-inline-start: 50%;
   translate: -50% 0;
   display: none;
+  margin: 0;
   padding-block: var(--space-1);
   padding-inline: var(--space-2);
+  border: 0;
   border-radius: 6px;
   background: var(--color-text);
   color: var(--color-bg);
@@ -20,41 +24,33 @@
   white-space: nowrap;
   text-align: center;
   pointer-events: none;
+  overflow: visible;
 }
 .icon-button-tip:dir(rtl) {
   translate: 50% 0;
+}
+.icon-button-tip[data-open] {
+  display: block;
+  animation: icon-tip-in 120ms ease-out both;
+}
+.icon-button-tip:popover-open {
+  position: fixed;
+  inset: 0 auto auto 0;
+  translate: var(--tip-x, 0) var(--tip-y, 0);
+  inline-size: max-content;
+  block-size: max-content;
 }
 .icon-button-hint {
   display: block;
   font-weight: 400;
   opacity: 0.85;
 }
-/* Shown (display, so a hidden tip never widens its button's scroll box) on
-   hover after a short delay, and at once on keyboard focus. */
-@media (hover: hover) {
-  .icon-button:hover .icon-button-tip {
-    display: block;
-    animation: icon-tip-in 120ms ease-out 300ms both;
-  }
-}
-.icon-button:focus-visible .icon-button-tip {
-  display: block;
-  animation: icon-tip-in 120ms ease-out both;
-}
-/* A button whose panel is open (the why panel) needs no tip over it. */
-.icon-button[aria-expanded='true'] .icon-button-tip,
-.icon-button[aria-expanded='true']:hover .icon-button-tip,
-.icon-button[aria-expanded='true']:focus-visible .icon-button-tip {
-  display: none;
-}
 @keyframes icon-tip-in {
   from {
     opacity: 0;
-    margin-block-end: -4px;
   }
   to {
     opacity: 1;
-    margin-block-end: 0;
   }
 }
 @media (forced-colors: active) {
