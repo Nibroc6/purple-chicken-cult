@@ -3,7 +3,7 @@
 // signs it with one of the person's own passkeys. Owner: P1-W01.
 import { useEffect, useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { authErrorKey } from '../auth/vm';
+import { authError, type ErrorMsg } from '../auth/vm';
 import { cancelCeremony, getAssertion } from '../auth/webauthn';
 import { beginCosign, type IntentJSON } from './api';
 import { RecordView } from './RecordView';
@@ -15,7 +15,7 @@ type State =
   | { phase: 'loading' }
   | { phase: 'ready'; intent: IntentJSON; records: RecordVM[] }
   | { phase: 'signing'; intent: IntentJSON; records: RecordVM[] }
-  | { phase: 'failed'; error?: string; intent?: IntentJSON; records?: RecordVM[] };
+  | { phase: 'failed'; error?: ErrorMsg; intent?: IntentJSON; records?: RecordVM[] };
 
 export function CosignDialog() {
   const req = usePendingCosign();
@@ -36,7 +36,7 @@ function Dialog({ req }: { req: CosignRequest }) {
         if (live) setState({ phase: 'ready', intent, records: toRecordVMs(intent.record) });
       })
       .catch((e: unknown) => {
-        if (live) setState({ phase: 'failed', error: authErrorKey(e) ?? 'errors:unknown' });
+        if (live) setState({ phase: 'failed', error: authError(e) ?? { key: 'errors:unknown', params: {} } });
       });
     return () => {
       live = false;
@@ -54,7 +54,7 @@ function Dialog({ req }: { req: CosignRequest }) {
       const assertion = await getAssertion(intent.options);
       settleCosign({ intent: intent.intent, assertion });
     } catch (e) {
-      setState({ phase: 'failed', error: authErrorKey(e), intent, records });
+      setState({ phase: 'failed', error: authError(e), intent, records });
     }
   };
 
@@ -83,7 +83,7 @@ function Dialog({ req }: { req: CosignRequest }) {
         ))}
         {state.phase === 'failed' && state.error ? (
           <p className="cosign-error" role="alert">
-            {t(state.error as 'errors:unknown')}
+            {t(state.error.key as 'errors:unknown', state.error.params)}
           </p>
         ) : null}
         <div className="cosign-actions">

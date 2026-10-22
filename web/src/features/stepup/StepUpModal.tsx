@@ -13,7 +13,7 @@ import { onStepUp } from '../../api/client';
 import { subscribe } from '../../api/sse';
 import { fetchSession, sessionKey, useSession } from '../../app/session';
 import { stepUpBegin, stepUpFinish } from '../auth/api';
-import { authErrorKey } from '../auth/vm';
+import { authError, type ErrorMsg } from '../auth/vm';
 import { cancelCeremony, getAssertion } from '../auth/webauthn';
 import { requestStepUp, settleStepUp, useStepUpOpen, useStepUpReason } from './store';
 import './stepup.css';
@@ -25,7 +25,7 @@ export function StepUpModal() {
   const reason = useStepUpReason();
   const signedIn = useSession().data?.authenticated === true;
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | undefined>();
+  const [err, setErr] = useState<ErrorMsg | undefined>();
   const titleId = useId();
   const bodyId = useId();
 
@@ -75,7 +75,7 @@ export function StepUpModal() {
       if (signals) await qc.invalidateQueries();
     } catch (e) {
       setBusy(false);
-      setErr(authErrorKey(e));
+      setErr(authError(e));
     }
   };
 
@@ -97,7 +97,7 @@ export function StepUpModal() {
         {signals ? <p className="muted">{t('signals:stepup.privacy')}</p> : null}
         {err ? (
           <p className="stepup-error" role="alert">
-            {t(err as 'errors:unknown')}
+            {t(err.key as 'errors:unknown', err.params)}
           </p>
         ) : null}
         <div className="stepup-actions">

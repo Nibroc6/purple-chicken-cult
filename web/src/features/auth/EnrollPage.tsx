@@ -13,7 +13,7 @@ import { sessionKey } from '../../app/session';
 import { enrollBegin, enrollFinish, type EnrollStart } from './api';
 import { settledSession } from './passkeyFlow';
 import { SecondPasskeyPrompt } from './SecondPasskeyPrompt';
-import { authErrorKey, readFragmentToken, toPasskeyVM } from './vm';
+import { authError, readFragmentToken, toPasskeyVM, type ErrorMsg } from './vm';
 import { createPasskey } from './webauthn';
 import './auth.css';
 
@@ -95,7 +95,7 @@ function EnrollForm({
   const [age, setAge] = useState(false);
   const [removeOld, setRemoveOld] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | undefined>();
+  const [err, setErr] = useState<ErrorMsg | undefined>();
   const existing = start.existing.map(toPasskeyVM);
   const ready = !genesis || (tos && age);
 
@@ -112,7 +112,7 @@ function EnrollForm({
       onSession(sv);
       onEnrolled();
     } catch (e) {
-      setErr(authErrorKey(e));
+      setErr(authError(e));
       setBusy(false);
     }
   };
@@ -140,6 +140,12 @@ function EnrollForm({
             />
             {t('enroll.tos', { version: start.tosVersion })}
           </label>
+          {/* A new tab: this page cannot be reloaded (the token left the URL). */}
+          <p className="auth-terms-link">
+            <a href="/terms" target="_blank" rel="noopener" data-testid="enroll-terms">
+              {t('enroll.readTerms')}
+            </a>
+          </p>
           <label className="auth-choice">
             <input
               type="checkbox"
@@ -178,7 +184,7 @@ function EnrollForm({
       )}
       {err ? (
         <p className="auth-error" role="alert">
-          {t(err as 'errors:unknown')}
+          {t(err.key as 'errors:unknown', err.params)}
         </p>
       ) : null}
       <div className="auth-actions">

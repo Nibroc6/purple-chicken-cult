@@ -11,7 +11,8 @@ package gate
 type Ref string
 
 // Class is a request charge class (plan §5.1): Kind 'r' read, 'w' write,
-// 'a' anonymous (per client prefix), '-' free (reviewed allowlist).
+// 's' a later step of a write already begun, 'a' anonymous (per client prefix),
+// '-' free (reviewed allowlist).
 type Class struct {
 	Kind byte
 	Name string
@@ -21,6 +22,11 @@ type Class struct {
 const (
 	ClassRead  byte = 'r'
 	ClassWrite byte = 'w'
-	ClassAnon  byte = 'a'
-	ClassFree  byte = '-'
+	// ClassStep is a request the client sends on its own to carry on a write
+	// the person already started (a ceremony's finish, a co-sign intent, a
+	// step-up): charged to the write kind's caps but exempt from the minimum
+	// spacing, which is about human pace, and it does not restart that clock.
+	ClassStep byte = 's'
+	ClassAnon byte = 'a'
+	ClassFree byte = '-'
 )

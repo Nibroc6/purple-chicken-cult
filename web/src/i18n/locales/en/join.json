@@ -33,6 +33,7 @@
     "name": "Display name (optional)",
     "terms": "Terms",
     "tos": "I accept the terms of service (version {version}).",
+    "readTerms": "Read the terms of service (opens in a new tab)",
     "age": "I am at least {age} years old.",
     "submit": "Create account with a passkey",
     "working": "Creating your account…"

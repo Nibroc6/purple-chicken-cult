@@ -5,7 +5,7 @@
 import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { addPasskey } from './passkeyFlow';
-import { authErrorKey } from './vm';
+import { authError, type ErrorMsg } from './vm';
 import './auth.css';
 
 export function SecondPasskeyPrompt({ onDone }: { onDone: () => void }) {
@@ -14,7 +14,7 @@ export function SecondPasskeyPrompt({ onDone }: { onDone: () => void }) {
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [added, setAdded] = useState(false);
-  const [err, setErr] = useState<string | undefined>();
+  const [err, setErr] = useState<ErrorMsg | undefined>();
 
   const add = async () => {
     setBusy(true);
@@ -24,7 +24,7 @@ export function SecondPasskeyPrompt({ onDone }: { onDone: () => void }) {
       await addPasskey(name, t('cosign.addSummary', { name: name.trim() || t('passkeys.unnamed') }));
       setAdded(true);
     } catch (e) {
-      setErr(authErrorKey(e));
+      setErr(authError(e));
     } finally {
       setBusy(false);
     }
@@ -55,7 +55,7 @@ export function SecondPasskeyPrompt({ onDone }: { onDone: () => void }) {
       )}
       {err ? (
         <p className="auth-error" role="alert">
-          {t(err as 'errors:unknown')}
+          {t(err.key as 'errors:unknown', err.params)}
         </p>
       ) : null}
       <div className="auth-actions">

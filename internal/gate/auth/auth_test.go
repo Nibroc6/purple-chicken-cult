@@ -721,9 +721,6 @@ func TestEnrollmentTokenBindingAndRules(t *testing.T) {
 		t.Fatal(err)
 	}
 	x.cookie = ev.Token
-	// Another browser cannot take the token over while x's session lives.
-	_, err = e.a.Auth.EnrollBegin((&client{e: e}).ctx(), tok)
-	wantNotFound(t, err)
 	// x may begin again (a reload) without a new session.
 	ev2, err := e.a.Auth.EnrollBegin(x.ctx(), tok)
 	if err != nil || ev2.Token != "" || ev2.CSRF != ev.CSRF {
@@ -770,6 +767,48 @@ func TestEnrollmentTokenBindingAndRules(t *testing.T) {
 	wantNotFound(t, err)
 	e.advance(auth.EnrollTokenTTL + time.Second)
 	_, err = e.a.Auth.EnrollBegin((&client{e: e}).ctx(), tok2)
+	wantNotFound(t, err)
+}
+
+// A passkey prompt that failed in one browser must not lock the link: opening
+// it in another browser takes the binding over and ends the first session,
+// which can then no longer finish. The token is used only by a finish.
+func TestEnrollmentRetryFromAnotherBrowser(t *testing.T) {
+	e := newEnv(t)
+	a := e.authn()
+	tok, err := e.a.Auth.GenesisToken(e.ctx, "alice")
+	if err != nil {
+		t.Fatal(err)
+	}
+	x := &client{e: e}
+	ev, err := e.a.Auth.EnrollBegin(x.ctx(), tok)
+	if err != nil {
+		t.Fatal(err)
+	}
+	x.cookie = ev.Token
+	stale, err := a.Create(ev.Options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	y := &client{e: e}
+	ev, err = e.a.Auth.EnrollBegin(y.ctx(), tok)
+	if err != nil {
+		t.Fatalf("retry from another browser: %v", err)
+	}
+	y.cookie = ev.Token
+	if _, ok := x.viewer(); ok {
+		t.Fatal("the replaced enrollment session still lives")
+	}
+	_, _, err = e.a.Auth.EnrollFinish(x.ctx(), stale, false, e.d.Cfg.TOSVersion, true)
+	wantNotFound(t, err)
+	resp, err := a.Create(ev.Options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := e.a.Auth.EnrollFinish(y.ctx(), resp, false, e.d.Cfg.TOSVersion, true); err != nil {
+		t.Fatal(err)
+	}
+	_, err = e.a.Auth.EnrollBegin((&client{e: e}).ctx(), tok)
 	wantNotFound(t, err)
 }
 

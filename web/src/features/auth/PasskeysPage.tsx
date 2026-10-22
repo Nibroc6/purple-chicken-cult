@@ -11,18 +11,18 @@ import { Loading } from '../../app/Loading';
 import { sessionKey, useSession } from '../../app/session';
 import { listPasskeys, logout } from './api';
 import { addPasskey, removeKey } from './passkeyFlow';
-import { authErrorKey, toPasskeyVM, type PasskeyVM } from './vm';
+import { authError, toPasskeyVM, type PasskeyVM } from './vm';
 import './auth.css';
 
 export const passkeysKey = ['auth', 'passkeys'] as const;
 
 function ErrorLine({ err }: { err: unknown }) {
   const { t } = useTranslation(['auth', 'errors']);
-  const key = err ? authErrorKey(err) : undefined;
-  if (!key) return null;
+  const msg = err ? authError(err) : undefined;
+  if (!msg) return null;
   return (
     <p className="auth-error" role="alert">
-      {t(key as 'errors:unknown')}
+      {t(msg.key as 'errors:unknown', msg.params)}
     </p>
   );
 }

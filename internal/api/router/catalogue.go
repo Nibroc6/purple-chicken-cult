@@ -24,7 +24,9 @@ var (
 	wR   = apix.Write("report")
 	wS   = apix.Write("social")
 	wA   = apix.Write("account")
+	sA   = apix.Step("account")
 	wI   = apix.Write("invite_handshake")
+	sI   = apix.Step("invite_handshake")
 	wV   = apix.Write("save")
 	wM   = apix.Write("media")
 )
@@ -42,11 +44,11 @@ var Catalogue = []Entry{
 	e("authapi", 0, "POST", "/auth/login/begin", apix.Anon("login")),
 	e("authapi", 0, "POST", "/auth/login/finish", apix.Anon("login")),
 	e("authapi", 0, "POST", "/auth/logout", free),
-	e("authapi", 0, "POST", "/auth/stepup/begin", wA),
-	e("authapi", 0, "POST", "/auth/stepup/finish", wA),
+	e("authapi", 0, "POST", "/auth/stepup/begin", sA),
+	e("authapi", 0, "POST", "/auth/stepup/finish", sA),
 	e("authapi", 0, "GET", "/auth/passkeys", rG),
 	e("authapi", 0, "POST", "/auth/passkeys/begin", wA),
-	e("authapi", 0, "POST", "/auth/passkeys/finish", wA),
+	e("authapi", 0, "POST", "/auth/passkeys/finish", sA),
 	e("authapi", 0, "DELETE", "/auth/passkeys/{id}", wA),
 	e("authapi", 0, "POST", "/enroll/begin", apix.Anon("enroll")),
 	e("authapi", 0, "POST", "/enroll/finish", apix.Anon("enroll")),
@@ -66,14 +68,14 @@ var Catalogue = []Entry{
 	e("invitesapi", 0, "GET", "/join/status", apix.Anon("join")),
 	e("invitesapi", 0, "POST", "/join/register/begin", apix.Anon("join")),
 	e("invitesapi", 0, "POST", "/join/register/finish", apix.Anon("join")),
-	e("invitesapi", 1, "POST", "/invites/handshakes/{hs}/epub", wI),
+	e("invitesapi", 1, "POST", "/invites/handshakes/{hs}/epub", sI),
 	e("invitesapi", 1, "GET", "/invites/handshakes/{hs}/peer", free),
 	e("invitesapi", 1, "POST", "/join/audio/start", apix.Anon("join")),
-	e("invitesapi", 1, "POST", "/invites/handshakes/{hs}/report", wI),
+	e("invitesapi", 1, "POST", "/invites/handshakes/{hs}/report", sI),
 	e("invitesapi", 1, "POST", "/join/dual/frame", apix.Anon("join")),
 	// steward: contract request p1-w02-1 (co-signing on both sides of a handshake)
 	e("invitesapi", 1, "POST", "/join/register/cosign", apix.Anon("join")),
-	e("invitesapi", 1, "POST", "/invites/handshakes/{hs}/cosign", wI),
+	e("invitesapi", 1, "POST", "/invites/handshakes/{hs}/cosign", sI),
 
 	// friendsapi (P0-W03 → P1-W03)
 	e("friendsapi", 0, "GET", "/friends", rG),
@@ -183,7 +185,7 @@ var Catalogue = []Entry{
 	e("signalsapi", 1, "POST", "/signals", free),
 
 	// cosignapi (P1-W01)
-	e("cosignapi", 1, "POST", "/cosign", wA),
+	e("cosignapi", 1, "POST", "/cosign", sA),
 
 	// testhooks (SCAFFOLD; PCC_ENV=test && PCC_TEST_HOOKS=1 only)
 	e("testhooks", 0, "POST", "/_test/reset", free),
