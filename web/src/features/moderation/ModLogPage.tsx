@@ -10,6 +10,7 @@ import { Loading } from '../../app/Loading';
 import { fetchLog, type LogItem } from './api';
 import './moderation.css';
 import { InfoTip } from '../../lib/InfoTip';
+import { ModNav } from './ModNav';
 
 export const logKey = ['moderation', 'log'] as const;
 
@@ -26,6 +27,7 @@ export default function ModLogPage() {
   return (
     <section className="page moderation-page" data-testid="mod-log-page">
       <h1>{t('log.title')}</h1>
+      <ModNav />
       <p className="muted">
         {t('log.intro')}
         <InfoTip>{t('log.introTip')}</InfoTip>

@@ -2,7 +2,7 @@
 // elements. Visibility, size and contrast are asserted in Playwright (INT).
 import { render } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { integrityTestIds } from '../integrity/types';
+import { postIntegrityTestIds } from '../integrity/types';
 import { feedPageVM } from '../test/fixtures';
 import { formats } from './registry';
 import type { FormatId, PostActions } from './types';
@@ -23,7 +23,7 @@ describe.each(Object.keys(formats) as FormatId[])('format %s', (id) => {
     const { getAllByTestId } = render(
       <f.FeedLayout page={[feedPageVM()]} actions={actions} onLoadMore={vi.fn()} onExpand={vi.fn()} />,
     );
-    for (const tid of integrityTestIds) {
+    for (const tid of postIntegrityTestIds) {
       expect(getAllByTestId(tid).length).toBeGreaterThan(0);
     }
   });

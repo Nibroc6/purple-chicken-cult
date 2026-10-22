@@ -12,6 +12,7 @@ import { runAction, sessionCosigns, type Cosig, type PersonAction } from './api'
 import { confirmActions, cosignPurpose, peopleErrorKey, primaryActions, secondaryActions } from './vm';
 import './people.css';
 import { InfoTip } from '../../lib/InfoTip';
+import { SubNav } from '../../app/SubNav';
 
 // peopleKey prefixes every query of this feature (any action refreshes them all).
 export const peopleKey = ['people'] as const;
@@ -185,12 +186,15 @@ export function PeopleList({ people, empty, emptyTip, render }: {
 export function PeopleNav() {
   const { t } = useTranslation('people');
   return (
-    <nav className="people-nav" aria-label={t('nav.label')}>
-      <Link to="/friends">{t('friends.title')}</Link>
-      <Link to="/friends/requests">{t('requests.title')}</Link>
-      <Link to="/suggestions">{t('suggestions.title')}</Link>
-      <Link to="/settings/blocks">{t('blocks.title')}</Link>
-    </nav>
+    <SubNav
+      label={t('nav.label')}
+      items={[
+        { to: '/friends', label: t('nav.friends') },
+        { to: '/friends/requests', label: t('nav.requests') },
+        { to: '/suggestions', label: t('nav.suggestions') },
+        { to: '/settings/blocks', label: t('nav.blocks') },
+      ]}
+    />
   );
 }
 

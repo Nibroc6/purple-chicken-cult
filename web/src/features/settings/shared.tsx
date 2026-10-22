@@ -3,12 +3,12 @@ import { errorText } from '../../api/errors';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router';
 import { Loading } from '../../app/Loading';
 import { sessionKey, useSession } from '../../app/session';
 import { fetchMe, patchSettings, type MeView, type SettingsPatch } from './api';
 import { accountErrorKey } from './vm';
 import './settings.css';
+import { SettingsSubNav } from '../../app/SettingsSubNav';
 
 export const accountMeKey = ['account', 'me'] as const;
 
@@ -29,19 +29,16 @@ export function ErrorText({ err }: { err: unknown }) {
   );
 }
 
-// SettingsShell is the frame of one settings page: title, back link and, once
+// SettingsShell is the frame of one settings page: title, section tabs and, once
 // the account is loaded, the page body for the signed-in user.
 export function SettingsShell({ title, children }: { title: string; children: (me: MeView) => ReactNode }) {
-  const { t } = useTranslation('settings');
   const session = useSession();
   const me = useAccountMe();
   const loading = session.isPending || (session.data?.authenticated === true && me.isPending);
   return (
     <section className="page settings-page">
       <h1>{title}</h1>
-      <p>
-        <Link to="/settings">{t('index.title')}</Link>
-      </p>
+      <SettingsSubNav />
       {me.data ? children(me.data) : loading ? <Loading /> : <ErrorText err={me.error} />}
     </section>
   );

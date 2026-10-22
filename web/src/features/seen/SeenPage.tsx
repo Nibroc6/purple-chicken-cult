@@ -12,6 +12,7 @@ import { PostPreview } from '../post/shared';
 import { fetchRecent, recentKey } from './api';
 import './seen.css';
 import { InfoTip } from '../../lib/InfoTip';
+import { PostListsNav } from '../../app/PostListsNav';
 
 export default function SeenPage() {
   const { t } = useTranslation(['seen', 'errors']);
@@ -27,9 +28,10 @@ export default function SeenPage() {
   return (
     <section className="page seen-page">
       <h1>{t('page.title')}</h1>
+      <PostListsNav />
       <p className="muted">
         {t('page.intro')}
-        <InfoTip>{t('page.introTip')}</InfoTip> <Link to="/saves">{t('page.saves')}</Link>
+        <InfoTip>{t('page.introTip')}</InfoTip>
       </p>
       {q.isPending ? <Loading /> : null}
       {q.error ? (

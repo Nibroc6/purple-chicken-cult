@@ -11,7 +11,7 @@ import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetEngageStore } from '../../features/engage/store';
 import { i18n } from '../../i18n/setup';
-import { integrityTestIds } from '../../integrity/types';
+import { postIntegrityTestIds } from '../../integrity/types';
 import { postVM } from '../../test/fixtures';
 import { asRef, type PostVM, type TreeItemVM, type TreeRowVM, type TreeVM } from '../../vm/types';
 import cards from '../cards';
@@ -270,7 +270,7 @@ describe('connected tree', () => {
     const focus = screen.getByTestId('tree-focus');
     expect(focus.dataset.ref).toBe('f');
     expect(within(focus).getByText('the focal post')).toBeTruthy();
-    for (const tid of integrityTestIds.filter((t) => t !== 'integrity-tier-header')) {
+    for (const tid of postIntegrityTestIds.filter((t) => t !== 'integrity-tier-header')) {
       expect(within(focus).getAllByTestId(tid).length).toBeGreaterThan(0);
     }
     expect(screen.getByTestId('explorer-svg').getAttribute('aria-label')).toBe(tr('explorer:canvas.label'));

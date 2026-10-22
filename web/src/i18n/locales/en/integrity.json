@@ -10,7 +10,9 @@
     "you": "you",
     "sep": "→",
     "handle": "@{handle}",
-    "hidden": "{count, plural, one {# other} other {# others}}"
+    "hidden": "{count, plural, one {# other} other {# others}}",
+    "steps": "{count, plural, one {# step} other {# steps}}",
+    "tie": "{tie, select, friend {friend} other {acquaintance}}"
   },
   "inviter": {
     "label": "{kind, select, genesis {genesis} deleted {invited by a deleted account} other {invited by @{handle}}}",
@@ -46,5 +48,8 @@
   "editedAt": "Edited {at}",
   "report": {
     "action": "Report"
+  },
+  "via": {
+    "open": "See how you're connected"
   }
 }

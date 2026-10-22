@@ -189,7 +189,9 @@ Report      { reporter, target, reason, at }
   blocking, except the person isn't removed from your indirect paths.
 - **Everyone who can see a user sees that user's inviter label** ("invited by @bob"),
   including after an unfriend, a split into separate components, or any other way the
-  inviter falls outside the viewer's horizon.
+  inviter falls outside the viewer's horizon. It sits on the user's person card and
+  page, and in the "how you're connected" view a post's chain opens; post cards
+  leave it out to stay uncluttered.
 - **The label is display-only.** It has no per-viewer ref, no profile link, no content,
   no friend request and no message. The one action it allows is **"report inviter"**:
   it goes to moderators, routed through the *invitee's* ref, so the inviter is never
@@ -892,7 +894,8 @@ Rendering rules:
 
 #### 10.1.7 Feed cards & tier headers
 - **Instagram-style cards** in a single column. Each card has:
-  - an author row: avatar, handle, inviter label, chain (§4.5) and an ⓘ "why";
+  - an author row: avatar, handle, chain (§4.5; it opens "how you're connected" with the
+    inviter label) and an ⓘ "why";
   - the context row;
   - the body and the preview;
   - actions: like · reply (opens the composer with this post as parent) · tree.
