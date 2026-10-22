@@ -26,6 +26,8 @@ export interface MainNavEntry {
     | 'nav.blame'
     | 'nav.modRecovery'
     | 'nav.roles';
+  // A shorter label for the phone tab bar, where space is tight.
+  short?: 'nav.post' | 'nav.alerts';
   // The icon shown next to the label, and alone when the sidebar is collapsed
   // (decorative).
   icon: IconName;
@@ -54,6 +56,15 @@ export const moreNav: MainNavEntry[] = [
   { to: '/blame', label: 'nav.blame', icon: 'blame' },
   { to: '/mod/recovery', label: 'nav.modRecovery', icon: 'mod-recovery', who: 'moderator' },
   { to: '/mod/roles', label: 'nav.roles', icon: 'roles', who: 'admin' },
+];
+
+// tabNav is the phone tab bar: the pages people reach for most, with New post
+// in the middle. Everything else is one tap away in the drawer.
+export const tabNav: MainNavEntry[] = [
+  { to: '/', label: 'nav.feed', icon: 'feed' },
+  { to: '/friends', label: 'nav.people', icon: 'people' },
+  { to: '/compose', label: 'nav.compose', short: 'nav.post', icon: 'compose' },
+  { to: '/notifications', label: 'nav.notifications', short: 'nav.alerts', icon: 'notifications', badges: true },
 ];
 
 // navAllows reports whether a viewer sees an entry.
