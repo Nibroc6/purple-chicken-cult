@@ -143,7 +143,7 @@
       ],
       "p1-w09": [
         "web/src/formats/explorer/**", "!web/src/formats/explorer/index.ts", "web/src/features/{themes,tree}/**",
-        "web/src/formats/{cards,compact}/TreeLayout.tsx", "web/src/formats/{cards,compact}/tree/**", "web/src/integrity/**",
+        "web/src/formats/{cards,compact}/TreeLayout.tsx", "web/src/formats/{cards,compact}/tree/**", "web/src/formats/tree/**", "web/src/integrity/**",
         "!web/src/integrity/types.ts", "!web/src/integrity/index.ts", "internal/gate/themes/**", "internal/api/themeapi/**",
         "api/openapi/theme.yaml", "web/src/i18n/locales/en/{themes,explorer,tree,integrity}.json", "web/e2e/p1-w09.spec.ts",
         "testdata/fixtures/p1-w09.json",

@@ -1,22 +1,22 @@
-// The family tree (/p/:ref; ARCHITECTURE §10.1.4): the post as the focal post,
-// two rows of parents above and two rows of replies below, each ranked once
-// per snapshot like a feed tier. Swiping a row re-centers it and the rows below
-// reload as the new center's replies (re-centering "Replying to" reloads the
-// focal row's siblings under that parent); "+N more" pages through a row;
-// earlier and later rows load at the edges. A snapshot the server no longer
-// keeps (409 tree_snapshot_expired) reopens the tree. Every other failure is
-// the uniform "not available". Leaving the page drops the tree, so returning
-// opens a new snapshot. The layout comes from the reader's format.
-// Owner: P0-W08 → P1-W09.
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+// The reply tree (/p/:ref; ARCHITECTURE §10.1.4): the post as the focal post,
+// two generations of parents above and two of replies below, each ranked once
+// per snapshot like a feed tier, all on one connected canvas (the format's
+// TreeLayout). Choosing another post opens the tree around it, keeping the
+// current tree on screen until the new one arrives so the canvas can move
+// over to it; "+N more" pages through a generation; earlier and later
+// generations load at the edges. A snapshot the server no longer keeps (409
+// tree_snapshot_expired) reopens the tree. Every other failure is the uniform
+// "not available". Leaving the page drops the tree, so returning opens a new
+// snapshot. Owner: P0-W08 → P1-W09.
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router';
 import { Loading } from '../../app/Loading';
 import { formats } from '../../formats/registry';
 import type { FormatId, FormatModule, TreeActions } from '../../formats/types';
 import { WhyLoaderContext, type WhyLoader } from '../../integrity/types';
-import type { Ref, TreeVM } from '../../vm/types';
+import type { Ref, TreeRowVM, TreeVM } from '../../vm/types';
 import { usePostActions } from '../engage';
 import { fetchWhy } from '../feed/api';
 import { useAccountMe } from '../settings/shared';
@@ -37,9 +37,6 @@ function useFormat(id: FormatId, enabled: boolean): FormatModule | undefined {
   return q.data;
 }
 
-// DEPTH is how far below the focal row a re-centered row reloads at least.
-const DEPTH = 2;
-
 export default function TreePage() {
   const { t } = useTranslation(['tree', 'errors']);
   const { ref = '' } = useParams();
@@ -52,8 +49,6 @@ export default function TreePage() {
   // An action's failure belongs to the tree it happened in.
   const [failed, setFailed] = useState<{ key: typeof key; err: unknown } | undefined>(undefined);
   const actionError = failed?.key === key ? failed.err : undefined;
-  // The centered post of each row (the first one until the reader picks another).
-  const centers = useMemo(() => ({ key, current: new Map<number, Ref>() }), [key]);
 
   const q = useQuery({
     queryKey: key,
@@ -64,17 +59,11 @@ export default function TreePage() {
     // would never show the replies posted since.
     staleTime: Infinity,
     gcTime: 0,
+    // Another post of the tree: the current one stays until the new one is in.
+    placeholderData: keepPreviousData,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
   });
-
-  // Bring the focal row into view once the tree is there.
-  const ready = q.data !== undefined && format !== undefined;
-  useEffect(() => {
-    if (!ready) return;
-    const row: Partial<Element> | null = document.querySelector('[data-testid="tree-row"][data-gen="0"]');
-    row?.scrollIntoView?.({ block: 'center' });
-  }, [ready, key]);
 
   const reopen = useCallback(() => {
     qc.removeQueries({ queryKey: [...treeKey, 'open', ref] });
@@ -90,40 +79,15 @@ export default function TreePage() {
       if (isExpired(err)) reopen();
       else setFailed({ key, err });
     };
-    const centerOf = (gen: number): Ref | undefined => {
-      const tree = current();
-      const row = tree?.rows.find((r) => r.gen === gen);
-      return centers.current.get(gen) ?? row?.items[0]?.post.ref;
-    };
-    // reloadBelow loads the replies of center as row gen+1 and follows the
-    // first post of each new row down to the deepest row shown before.
-    const reloadBelow = async (snapshot: string, gen: number, center: Ref, until: number) => {
-      let c: Ref | undefined = center;
-      for (let k = gen + 1; k <= until && c; k++) {
-        const row = await fetchRow(snapshot, k, c);
-        centers.current.delete(k);
-        update((tr) => ({ ...putRow(tr, row), hasLater: laterFrom(row, row.items[0]?.post.ref) }));
-        c = row.items[0]?.post.ref;
-      }
+    // A generation hangs from its first post (the server's best-ranked one).
+    const centerOf = (row: TreeRowVM): Ref | undefined => row.items.find((i) => !i.shownAbove)?.post.ref ?? row.items[0]?.post.ref;
+    // loadBelow loads the replies of center as row gen+1.
+    const loadBelow = async (snapshot: string, gen: number, center: Ref) => {
+      const row = await fetchRow(snapshot, gen + 1, center);
+      update((tr) => ({ ...putRow(tr, row), hasLater: laterFrom(row, centerOf(row)) }));
     };
     return {
       ...post,
-      recenter: (gen: number, center: Ref) => {
-        const tree = current();
-        if (!tree) return;
-        setFailed(undefined);
-        centers.current.set(gen, center);
-        if (gen <= -2) return; // rows above stay put
-        if (gen === -1) {
-          // Another parent: the focal row lists the replies under it.
-          fetchRow(tree.snapshot, 0, center).then((row) => {
-            update((tr) => putRow(tr, row));
-          }, fail);
-          return;
-        }
-        const until = Math.max(DEPTH, bottomRow(tree)?.gen ?? 0);
-        reloadBelow(tree.snapshot, gen, center, until).catch(fail);
-      },
       more: (gen: number, center: Ref, cursor: string) => {
         const tree = current();
         if (!tree) return;
@@ -134,7 +98,7 @@ export default function TreePage() {
       loadEarlier: () => {
         const tree = current();
         const top = tree ? topRow(tree) : undefined;
-        const c = top ? centerOf(top.gen) : undefined;
+        const c = top ? centerOf(top) : undefined;
         if (!tree || !top || !c) return;
         fetchRow(tree.snapshot, top.gen - 1, c).then((row) => {
           update((tr) => addEarlier(tr, row));
@@ -143,12 +107,12 @@ export default function TreePage() {
       loadLater: () => {
         const tree = current();
         const bottom = tree ? bottomRow(tree) : undefined;
-        const c = bottom ? centerOf(bottom.gen) : undefined;
+        const c = bottom ? centerOf(bottom) : undefined;
         if (!tree || !bottom || !c) return;
-        reloadBelow(tree.snapshot, bottom.gen, c, bottom.gen + 1).catch(fail);
+        loadBelow(tree.snapshot, bottom.gen, c).catch(fail);
       },
     };
-  }, [post, qc, key, reopen, centers]);
+  }, [post, qc, key, reopen]);
 
   const why = useCallback<WhyLoader>(
     (r) => qc.query({ queryKey: [...treeKey, 'why', r], queryFn: () => fetchWhy(r), staleTime: 60_000 }),
@@ -156,7 +120,7 @@ export default function TreePage() {
   );
 
   return (
-    <section className="page tree-page" data-testid="tree-page" data-opened={opened}>
+    <section className="page tree-page" data-testid="tree-page" data-opened={opened} aria-busy={q.isPlaceholderData}>
       <h1 className="visually-hidden">{t('page.title')}</h1>
       {q.isPending || (q.data && !format) ? <Loading /> : null}
       {q.error ? (
