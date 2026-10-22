@@ -43,6 +43,9 @@ export function Shell() {
                 <NavLink to="/saves">{t('nav.saves')}</NavLink>
               </li>
               <li>
+                <NavLink to="/seen">{t('nav.seen')}</NavLink>
+              </li>
+              <li>
                 <NavLink to="/notifications">
                   {t('nav.notifications')}
                   {navBadges.map((Badge, i) => (
