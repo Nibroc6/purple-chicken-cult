@@ -4,6 +4,7 @@
 // says "sent". kind=inviter carries the INVITEE's ref (the inviter is never
 // addressable, §3). In the app the same form opens as a modal (ReportModal);
 // the page is for links.
+import { errorText } from '../../api/errors';
 import { useMutation } from '@tanstack/react-query';
 import { useId, useState, type SyntheticEvent } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -11,7 +12,6 @@ import { Link, useNavigate, useSearchParams } from 'react-router';
 import {
   codePoints,
   defaultReason,
-  errorParams,
   isRef,
   isTargetKind,
   moderationErrorKey,
@@ -140,7 +140,7 @@ export function ReportForm({ kind, target, onBack }: { kind: TargetKind; target:
           </div>
           {send.error ? (
             <p className="moderation-error" role="alert" data-testid="report-error">
-              {t(moderationErrorKey(send.error) as 'errors:unknown', errorParams(send.error))}
+              {errorText(t, send.error, moderationErrorKey)}
             </p>
           ) : null}
         </form>

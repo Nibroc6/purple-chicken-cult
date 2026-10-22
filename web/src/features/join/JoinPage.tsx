@@ -13,7 +13,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router';
-import { ApiError } from '../../api/errors';
+import { ApiError, type ErrorMsg, errorMsgFor, errorText } from '../../api/errors';
 import { Loading } from '../../app/Loading';
 import { sessionKey, useSession } from '../../app/session';
 import { SecondPasskeyPrompt } from '../auth/SecondPasskeyPrompt';
@@ -58,7 +58,7 @@ export default function JoinPage() {
   const navigate = useNavigate();
   const [step, setStep] = useState<Step>({ kind: 'intro' });
   const [start, setStart] = useState<JoinStart | undefined>();
-  const [err, setErr] = useState<string | undefined>();
+  const [err, setErr] = useState<ErrorMsg | undefined>();
   const [busy, setBusy] = useState(false);
   const [d, setDev] = useState<ClaimDevice | undefined>();
   const signedIn = session.data?.authenticated === true;
@@ -75,7 +75,7 @@ export default function JoinPage() {
       if (!signedIn) setStart(await joinStart());
       setStep({ kind: 'scanning' });
     } catch (e) {
-      setErr(joinErrorKey(e));
+      setErr(errorMsgFor(e, joinErrorKey));
     } finally {
       setBusy(false);
     }
@@ -205,7 +205,7 @@ export default function JoinPage() {
       ) : null}
       {err ? (
         <p className="join-error" role="alert">
-          {t(err as 'errors:unknown')}
+          {errorText(t, err)}
         </p>
       ) : null}
     </section>
@@ -348,7 +348,7 @@ export function Sound({ dev, first, onPassed }: { dev: ClaimDevice; first: Statu
   const { t } = useTranslation(['join', 'errors']);
   const [st, setSt] = useState<StatusVM>(first);
   const [phase, setPhase] = useState<'ready' | 'playing' | 'waiting'>('ready');
-  const [err, setErr] = useState<string | undefined>();
+  const [err, setErr] = useState<ErrorMsg | undefined>();
   const play = async () => {
     setErr(undefined);
     // Before any await: Safari only starts audio inside the click itself.
@@ -378,10 +378,8 @@ export function Sound({ dev, first, onPassed }: { dev: ClaimDevice; first: Statu
       setPhase('ready');
       setErr(
         e instanceof ApiError
-          ? joinErrorKey(e)
-          : e instanceof SoundError && e.blocked
-            ? 'join:sound.blocked'
-            : 'join:sound.failed',
+          ? errorMsgFor(e, joinErrorKey)
+          : { key: e instanceof SoundError && e.blocked ? 'join:sound.blocked' : 'join:sound.failed', params: {} },
       );
     }
   };
@@ -418,7 +416,7 @@ export function Sound({ dev, first, onPassed }: { dev: ClaimDevice; first: Statu
       {st.attemptsLeft === 0 && phase === 'ready' ? <p role="alert">{t('sound.noAttempts')}</p> : null}
       {err ? (
         <p className="join-error" role="alert">
-          {t(err as 'errors:unknown')}
+          {errorText(t, err)}
         </p>
       ) : null}
     </div>
@@ -465,7 +463,7 @@ function Register({ dev, start, onJoined }: { dev: ClaimDevice; start: JoinStart
   const [tos, setTos] = useState(false);
   const [age, setAge] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | undefined>();
+  const [err, setErr] = useState<ErrorMsg | undefined>();
   const [signup, setSignup] = useState<Signup | undefined>();
   const ready = handle.trim() !== '' && tos && age && !busy;
 
@@ -490,7 +488,7 @@ function Register({ dev, start, onJoined }: { dev: ClaimDevice; start: JoinStart
       const credential = await createPasskey(options);
       setSignup(await registerFinish(dev, credential));
     } catch (e) {
-      setErr(joinErrorKey(e));
+      setErr(errorMsgFor(e, joinErrorKey));
     } finally {
       setBusy(false);
     }
@@ -588,7 +586,7 @@ function Register({ dev, start, onJoined }: { dev: ClaimDevice; start: JoinStart
       </button>
       {err ? (
         <p className="join-error" role="alert">
-          {t(err as 'errors:unknown')}
+          {errorText(t, err)}
         </p>
       ) : null}
     </form>
@@ -634,7 +632,7 @@ function SignupCeremony({
       setWaiting(false);
     },
   });
-  const errKey = sign.error ? joinErrorKey(sign.error) : undefined;
+  const errMsg = sign.error ? errorMsgFor(sign.error, joinErrorKey) : undefined;
   return (
     <div className="join-ceremony" data-testid="join-ceremony">
       <h2>{t('ceremony.title')}</h2>
@@ -657,9 +655,9 @@ function SignupCeremony({
       ) : null}
       {sign.error ? (
         <>
-          {errKey ? (
+          {errMsg ? (
             <p className="join-error" role="alert">
-              {t(errKey as 'errors:unknown')}
+              {errorText(t, errMsg)}
             </p>
           ) : null}
           <button type="button" onClick={onRestart}>
@@ -719,7 +717,7 @@ function UpgradeSign({ dev, outcome, onDone }: { dev: ClaimDevice; outcome?: Han
       )}
       {sign.error ? (
         <p className="join-error" role="alert">
-          {t(joinErrorKey(sign.error) as 'errors:unknown')}
+          {errorText(t, sign.error, joinErrorKey)}
         </p>
       ) : null}
     </div>

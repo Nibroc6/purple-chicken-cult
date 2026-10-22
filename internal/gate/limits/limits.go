@@ -20,6 +20,16 @@
 // exhaustion is not faster than a charge that passes; charging stays before
 // the handler and before any ref is resolved.
 //
+// v3 (elastic limits): everyday writes (like, save, social, post, media,
+// report, settings) are build-up buckets with a burst (Policy.Refills on
+// rate_buckets) instead of hourly and daily counters, and they have no minimum
+// spacing: fast toggling never trips them, only a sustained pace above the
+// refill does. Turning a toggle back (PUT then DELETE of one path, or the
+// reverse) within ToggleWindow is free (ChargeToggle). The minimum spacing and
+// the windowed counters stay on the security-sensitive kinds: account (auth,
+// recovery, export, delete), friend_request, friend_upgrade and
+// invite_handshake (the anonymous auth buckets are unchanged).
+//
 // Owner: P0-W12 → P1-W07.
 package limits
 
@@ -64,6 +74,10 @@ const (
 	// and no new connection, so it spends no code attempt (WriteInvite); its
 	// own cap bounds the scanner offers it sends.
 	WriteUpgrade core.WriteKind = "friend_upgrade"
+	// WriteSettings is a person's own preferences (settings, theme, push
+	// subscriptions): split from account so they are elastic while sign-in,
+	// recovery, export and deletion stay strict.
+	WriteSettings core.WriteKind = "settings"
 )
 
 // Window lengths.
@@ -112,8 +126,14 @@ type Policy struct {
 	// ProbationFriendRequests replaces the daily friend_request cap while the
 	// caller is on probation (§8).
 	ProbationFriendRequests int
-	// Spacing is the minimum time between two writes of one kind (§17.4).
+	// Spacing is the minimum time between two writes of one kind (§17.4),
+	// for the kinds in Spaced only.
 	Spacing time.Duration
+	Spaced  map[string]bool
+	// Toggles lists the write kinds whose toggle back (ChargeToggle: the
+	// opposite method on the same path within ToggleWindow) is free.
+	Toggles      map[string]bool
+	ToggleWindow time.Duration
 	// FreeSteps lists the write kinds whose steps (gate.ClassStep) are not
 	// charged at all: their cap counts the actions people start, and the
 	// server already bounds the steps of each one (an invite handshake takes
@@ -134,23 +154,35 @@ func DefaultPolicy() Policy {
 			string(ReadFeedPage): 400, string(ReadTreeView): 400, string(ReadPost): 1500,
 			string(ReadGraph): 200, string(ReadMediaFull): 60,
 		},
+		// The strict kinds keep windowed counters.
 		Writes: map[string][]Cap{
-			string(WritePost):      {{Hour, 10}, {Day, 30}},
-			string(WriteLike):      {{Hour, 100}},
 			string(WriteFriendReq): {{Day, 20}},
-			string(WriteReport):    {{Day, 20}},
-			string(WriteSocial):    {{Day, 200}},
 			string(WriteAccount):   {{Day, 50}},
-			string(WriteSave):      {{Day, 200}},
-			string(WriteMedia):     {{Day, 50}},
 			string(WriteUpgrade):   {{Hour, 10}, {Day, 30}},
 		},
-		// 20 handshakes, one more every 72 min: a full day's worth at once,
-		// shown on the invite page (trial feedback).
-		Refills:                 map[string]Refill{string(WriteInvite): {Cap: 20, Every: Day / 20}},
+		// Build-up buckets: Cap at once, then one back every Every. The
+		// everyday kinds burst up to their old cap and refill at its pace,
+		// so nothing the old windows let through is refused now.
+		Refills: map[string]Refill{
+			// 20 handshakes, one more every 72 min: a full day's worth at
+			// once, shown on the invite page (trial feedback).
+			string(WriteInvite):   {Cap: 20, Every: Day / 20},
+			string(WriteLike):     {Cap: 100, Every: Hour / 100}, // 100 an hour
+			string(WriteSave):     {Cap: 200, Every: Day / 200},  // 200 a day
+			string(WriteSocial):   {Cap: 200, Every: Day / 200},  // 200 a day
+			string(WritePost):     {Cap: 10, Every: Day / 30},    // 10 at once, 30 a day
+			string(WriteMedia):    {Cap: 50, Every: Day / 50},    // 50 a day
+			string(WriteReport):   {Cap: 20, Every: Day / 20},    // 20 a day
+			string(WriteSettings): {Cap: 30, Every: 2 * time.Minute},
+		},
 		ProbationFriendRequests: 5,
 		Spacing:                 2 * time.Second,
-		FreeSteps:               map[string]bool{string(WriteInvite): true},
+		Spaced: map[string]bool{
+			string(WriteAccount): true, string(WriteFriendReq): true, string(WriteUpgrade): true, string(WriteInvite): true,
+		},
+		Toggles:      map[string]bool{string(WriteLike): true, string(WriteSave): true, string(WriteSocial): true},
+		ToggleWindow: 10 * time.Minute,
+		FreeSteps:    map[string]bool{string(WriteInvite): true},
 		// 30/min per prefix for login, enroll and CSP reports. The join flow polls
 		// /join/status every 1.5 s while the invitee waits for the SAS, so join
 		// gets room for that plus the claim and the two registration calls.
@@ -174,6 +206,17 @@ type spacingKey struct {
 	kind string
 }
 
+type toggleKey struct {
+	user   core.UserID
+	kind   string
+	target string
+}
+
+type toggleState struct {
+	on bool
+	at time.Time
+}
+
 type anonKey struct {
 	prefix netip.Prefix
 	bucket string
@@ -192,6 +235,7 @@ type Service struct {
 	policy  Policy
 	counts  map[counterKey]int
 	last    map[spacingKey]time.Time
+	toggles map[toggleKey]toggleState
 	anon    map[anonKey]anonCount
 	charges int
 }
@@ -235,12 +279,13 @@ func (s *Service) Policy() Policy {
 	return s.policy
 }
 
-// Reset forgets every in-memory counter: the cache, the spacing clocks and the
-// anonymous buckets (test hooks; contract request p0-w12-2).
+// Reset forgets every in-memory counter: the cache, the spacing clocks, the
+// toggle memory and the anonymous buckets (test hooks; contract request p0-w12-2).
 func (s *Service) Reset() {
 	s.mu.Lock()
 	s.counts = map[counterKey]int{}
 	s.last = map[spacingKey]time.Time{}
+	s.toggles = map[toggleKey]toggleState{}
 	s.anon = map[anonKey]anonCount{}
 	s.charges = 0
 	s.mu.Unlock()
@@ -275,6 +320,56 @@ func (s *Service) ChargeRequest(ctx context.Context, c gate.Class) error {
 		return s.chargeWrite(ctx, v, core.WriteKind(c.Name), 1, c.Kind == gate.ClassWrite)
 	}
 	return nil
+}
+
+// ChargeToggle charges a request that sets or clears one thing (PUT on true,
+// DELETE on false) at target, the request path. For a kind in Policy.Toggles,
+// the request that turns the caller's own last charged toggle of target back
+// within ToggleWindow is free (so like then unlike costs one charge, and a
+// burst of flips costs one per pair). It looks only at the caller's own
+// requests, never at whether target resolves, so it is the same for a valid
+// ref and garbage (D19). Any other class is ChargeRequest.
+func (s *Service) ChargeToggle(ctx context.Context, c gate.Class, target string, on bool) error {
+	v, ok := core.ViewerFrom(ctx)
+	s.mu.Lock()
+	toggle := s.policy.Toggles[c.Name]
+	window := s.policy.ToggleWindow
+	s.mu.Unlock()
+	if c.Kind != gate.ClassWrite || !toggle || window <= 0 || !ok || v.Kind != core.SessUser || v.ID == 0 {
+		return s.ChargeRequest(ctx, c)
+	}
+	now := s.d.Clock.Now()
+	k := toggleKey{v.ID, c.Name, target}
+	s.mu.Lock()
+	if st, ok := s.toggles[k]; ok && st.on != on && now.Sub(st.at) <= window {
+		delete(s.toggles, k)
+		s.mu.Unlock()
+		return nil
+	}
+	s.mu.Unlock()
+	if err := s.ChargeRequest(ctx, c); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	if len(s.toggles) >= maxToggleKeys {
+		s.pruneTogglesLocked(now)
+	}
+	if len(s.toggles) < maxToggleKeys {
+		s.toggles[k] = toggleState{on: on, at: now}
+	}
+	s.mu.Unlock()
+	return nil
+}
+
+// maxToggleKeys bounds the toggle memory.
+const maxToggleKeys = 1 << 16
+
+func (s *Service) pruneTogglesLocked(now time.Time) {
+	for k, st := range s.toggles {
+		if now.Sub(st.at) > s.policy.ToggleWindow {
+			delete(s.toggles, k)
+		}
+	}
 }
 
 func clientPrefix(ctx context.Context) netip.Prefix {
@@ -316,7 +411,8 @@ func (s *Service) ChargeRead(ctx context.Context, v core.Viewer, c core.ReadClas
 }
 
 // ChargeWrite charges n writes of kind k: the minimum spacing since the
-// previous write of k, then every hourly and daily cap of k.
+// previous write of k (Spaced kinds only), then k's build-up bucket or its
+// hourly and daily caps.
 func (s *Service) ChargeWrite(ctx context.Context, v core.Viewer, k core.WriteKind, n int) error {
 	return s.chargeWrite(ctx, v, k, n, true)
 }
@@ -335,7 +431,7 @@ func (s *Service) chargeWrite(ctx context.Context, v core.Viewer, k core.WriteKi
 	}
 	probation := s.policy.ProbationFriendRequests
 	spacing := s.policy.Spacing
-	if !spaced {
+	if !spaced || !s.policy.Spaced[string(k)] {
 		spacing = 0
 	}
 	if spacing > 0 {
@@ -558,6 +654,7 @@ func (s *Service) pruneLocked(now time.Time) {
 			delete(s.last, k)
 		}
 	}
+	s.pruneTogglesLocked(now)
 	s.pruneAnonLocked(now.Truncate(AnonWindow).Unix())
 }
 

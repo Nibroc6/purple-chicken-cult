@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { Loading } from '../../app/Loading';
 import { PostListsNav } from '../../app/PostListsNav';
-import { errorKey } from '../../api/errors';
+import { errorText } from '../../api/errors';
 import { PostPreview } from '../post/shared';
 import { fetchHidden, fetchShowLess, hiddenKey, resetShowLess, unhidePost } from './api';
 import './engage.css';
@@ -35,11 +35,11 @@ function useUndo(call: (ref: string) => Promise<void>) {
 }
 
 function UndoError({ state }: { state: State | undefined }) {
-  const { t } = useTranslation('errors');
+  const { t } = useTranslation(['errors']);
   if (!state || typeof state === 'string') return null;
   return (
     <p className="engage-error" role="alert">
-      {t(errorKey(state.err) as 'unknown')}
+      {errorText(t, state.err)}
     </p>
   );
 }
@@ -67,7 +67,7 @@ export default function HiddenPage() {
       {less.isPending || posts.isPending ? <Loading /> : null}
       {error ? (
         <p className="engage-error" role="alert">
-          {t(errorKey(error) as 'errors:unknown')}
+          {errorText(t, error)}
         </p>
       ) : null}
       <h2>{t('hidden.less.title')}</h2>

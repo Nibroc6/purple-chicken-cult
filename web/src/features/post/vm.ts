@@ -1,7 +1,7 @@
 // toPostVM maps the API PostView to the PostVM every format renders (shared by
 // feed, tree and people), plus the pure helpers of the post and composer
 // features. Owner: P0-W05 → P1-W12.
-import { ApiError, errorKey } from '../../api/errors';
+import { ApiError, errorKey, errorParams } from '../../api/errors';
 import type { components } from '../../api/schema.gen';
 import { parse } from '../../markdown';
 import type { Audience, AuthorVM, ChainVM, HopVM, MediaVM, PostVM, RefPolicy } from '../../vm/types';
@@ -149,7 +149,5 @@ export function postErrorKey(err: unknown): string {
   return errorKey(err);
 }
 
-// errorParams are the ICU arguments of an error message.
-export function errorParams(err: unknown): Record<string, number> {
-  return err instanceof ApiError && err.retryAfterS !== undefined ? { seconds: err.retryAfterS } : {};
-}
+// errorParams are the shared ICU arguments of an error message (api/errors).
+export { errorParams };

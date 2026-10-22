@@ -2,6 +2,7 @@
 // shown right after enrollment and after joining (features/join reuses it).
 // A second passkey on another device is what keeps a lost phone from becoming
 // a lost account; the first passkey co-signs it (P1). Owner: P0-W01 → P1-W07.
+import { errorText } from '../../api/errors';
 import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { addPasskey } from './passkeyFlow';
@@ -55,7 +56,7 @@ export function SecondPasskeyPrompt({ onDone }: { onDone: () => void }) {
       )}
       {err ? (
         <p className="auth-error" role="alert">
-          {t(err.key as 'errors:unknown', err.params)}
+          {errorText(t, err)}
         </p>
       ) : null}
       <div className="auth-actions">

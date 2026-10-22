@@ -118,7 +118,7 @@ describe('helpers', () => {
     expect(moderationErrorKey(new ApiError(409, { error: 'second_moderator_required' }))).toBe(
       'moderation:errors.second_moderator_required',
     );
-    expect(moderationErrorKey(new ApiError(429, { error: 'rate_limited' }))).toBe('errors:rate_limited');
+    expect(moderationErrorKey(new ApiError(429, { error: 'rate_limited', retry_after_s: 3 }))).toBe('errors:rate_limited');
   });
 });
 

@@ -4,6 +4,7 @@
 // history, and POSTs it. Genesis records the terms version and the age
 // attestation (D29); recovery lists the existing passkeys with a "remove old"
 // option. Afterwards the optional second-passkey step. Owner: P0-W01 → P1-W07.
+import { errorText } from '../../api/errors';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -173,7 +174,7 @@ function EnrollForm({
       )}
       {err ? (
         <p className="auth-error" role="alert">
-          {t(err.key as 'errors:unknown', err.params)}
+          {errorText(t, err)}
         </p>
       ) : null}
       <div className="auth-actions">

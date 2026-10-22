@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { Loading } from '../../app/Loading';
 import { Modal, useModalParam } from '../../app/Modal';
-import { ApiError, errorKey } from '../../api/errors';
+import { ApiError, errorText } from '../../api/errors';
 import { InviterLabel } from '../../integrity';
 import { chainSteps, viaParam } from '../../integrity/Chain';
 import type { PostVM } from '../../vm/types';
@@ -34,7 +34,7 @@ function ConnectionBody({ post }: { post: string }) {
     const missing = q.error instanceof ApiError && q.error.isNotFound;
     return (
       <p className="people-error" role="alert" data-testid="via-error">
-        {missing ? t('via.missing') : t(errorKey(q.error) as 'errors:unknown')}
+        {missing ? t('via.missing') : errorText(t, q.error)}
       </p>
     );
   }

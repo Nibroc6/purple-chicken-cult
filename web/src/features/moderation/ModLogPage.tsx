@@ -5,7 +5,7 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
-import { errorKey } from '../../api/errors';
+import { errorText } from '../../api/errors';
 import { Loading } from '../../app/Loading';
 import { fetchLog, type LogItem } from './api';
 import './moderation.css';
@@ -35,7 +35,7 @@ export default function ModLogPage() {
       {q.isPending ? <Loading /> : null}
       {q.error ? (
         <p className="moderation-error" role="alert">
-          {t(errorKey(q.error) as 'errors:unknown')}
+          {errorText(t, q.error)}
         </p>
       ) : null}
       {q.isSuccess && items.length === 0 ? (

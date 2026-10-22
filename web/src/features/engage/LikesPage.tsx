@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router';
 import { Loading } from '../../app/Loading';
 import { NotFound } from '../../app/NotFound';
-import { ApiError, errorKey } from '../../api/errors';
+import { ApiError, errorText } from '../../api/errors';
 import { fetchPost, postKey } from '../post/api';
 import { PostPreview } from '../post/shared';
 import { useSeenTracker } from '../seen/useSeenTracker';
@@ -28,7 +28,7 @@ export default function LikesPage() {
       {q.isPending ? <Loading /> : null}
       {q.error ? (
         <p className="engage-error" role="alert">
-          {t(errorKey(q.error) as 'errors:unknown')}
+          {errorText(t, q.error)}
         </p>
       ) : null}
       {q.data ? (

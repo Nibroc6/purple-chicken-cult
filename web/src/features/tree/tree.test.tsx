@@ -259,7 +259,7 @@ describe('tree view-models', () => {
     expect(isExpired(new ApiError(409, { error: 'tree_snapshot_expired' }))).toBe(true);
     expect(isExpired(new ApiError(409, { error: 'feed_session_expired' }))).toBe(false);
     expect(treeErrorKey(new ApiError(404, { error: 'not_found' }))).toBe('tree:errors.not_found');
-    expect(treeErrorKey(new ApiError(429, { error: 'rate_limited' }))).toBe('errors:rate_limited');
+    expect(treeErrorKey(new ApiError(429, { error: 'rate_limited', retry_after_s: 3 }))).toBe('errors:rate_limited');
   });
 
   it('calls the tree endpoints', async () => {

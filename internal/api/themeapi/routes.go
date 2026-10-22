@@ -16,7 +16,7 @@ import (
 	"github.com/Nibroc6/purple-chicken-cult/internal/gate/themes"
 )
 
-var wAccount = apix.Write("account")
+var wSettings = apix.Write("settings")
 
 // ThemeIn is the body of PUT /api/me/theme. CSS and Images are the optional
 // advanced mode (theme CSS and the uploads it names).
@@ -45,7 +45,7 @@ func Register(r chi.Router, d *api.Deps) {
 		}
 		return apix.JSON(w, http.StatusOK, ThemeOut{Theme: v})
 	})
-	apix.Route(r, http.MethodPut, "/me/theme", wAccount, func(w http.ResponseWriter, r *http.Request) error {
+	apix.Route(r, http.MethodPut, "/me/theme", wSettings, func(w http.ResponseWriter, r *http.Request) error {
 		in, err := apix.Decode[ThemeIn](r, maxBody)
 		if err != nil {
 			return err
@@ -56,7 +56,7 @@ func Register(r chi.Router, d *api.Deps) {
 		}
 		return apix.JSON(w, http.StatusOK, ThemeOut{Theme: v})
 	})
-	apix.Route(r, http.MethodDelete, "/me/theme", wAccount, func(w http.ResponseWriter, r *http.Request) error {
+	apix.Route(r, http.MethodDelete, "/me/theme", wSettings, func(w http.ResponseWriter, r *http.Request) error {
 		if err := ts.Clear(r.Context()); err != nil {
 			return err
 		}

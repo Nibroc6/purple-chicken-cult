@@ -1,7 +1,6 @@
 package pushapi_test
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/url"
@@ -95,16 +94,11 @@ func TestSubscribeStateLogoutAndCharging(t *testing.T) {
 	if st := state(t, h, s.Endpoint); st["subscribed"] {
 		t.Fatalf("before: %+v", st)
 	}
-	writes := func() int {
-		var n int
-		_ = h.App.Deps().DB.Q().QueryRow(context.Background(), "SELECT coalesce(sum(count), 0) FROM rate_counters WHERE bucket = $1",
-			limits.WriteBucket(limits.WriteAccount, limits.Day)).Scan(&n)
-		return n
-	}
+	writes := func() int { return h.Charges()[limits.RefillBucket(limits.WriteSettings)] }
 	before := writes()
 	do(t, h, http.MethodPost, "/api/push/subscriptions", sub(s, true), http.StatusNoContent)
 	if writes() != before+1 {
-		t.Fatal("subscribing is an account write")
+		t.Fatal("subscribing is a settings write")
 	}
 	if st := state(t, h, s.Endpoint); !st["subscribed"] || !st["hide_content"] {
 		t.Fatalf("after: %+v", st)

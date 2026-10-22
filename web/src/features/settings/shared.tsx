@@ -1,11 +1,12 @@
 // Shared pieces of the settings pages. Owner: P0-W11 → P1-W10.
+import { errorText } from '../../api/errors';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Loading } from '../../app/Loading';
 import { sessionKey, useSession } from '../../app/session';
 import { fetchMe, patchSettings, type MeView, type SettingsPatch } from './api';
-import { accountErrorKey, errorParams } from './vm';
+import { accountErrorKey } from './vm';
 import './settings.css';
 import { SettingsSubNav } from '../../app/SettingsSubNav';
 
@@ -23,7 +24,7 @@ export function ErrorText({ err }: { err: unknown }) {
   if (!err) return null;
   return (
     <p className="settings-error" role="alert">
-      {t(accountErrorKey(err) as 'errors:unknown', errorParams(err))}
+      {errorText(t, err, accountErrorKey)}
     </p>
   );
 }
