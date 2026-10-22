@@ -6,14 +6,6 @@
   flex-direction: column;
   gap: var(--space-1);
 }
-/* On wide screens the map grows past the reading column, centered on it. */
-@media (min-width: 64rem) {
-  .tree-connected .explorer-canvas {
-    --map-width: min(calc(100vw - 4rem), 80rem);
-    inline-size: var(--map-width);
-    margin-inline: calc((100% - var(--map-width)) / 2);
-  }
-}
 .explorer-toolbar {
   display: flex;
   flex-wrap: wrap;
