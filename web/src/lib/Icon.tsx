@@ -15,24 +15,27 @@ import {
   faBell,
   faBookmark as faBookmarkSolid,
   faCheck,
-  faChevronLeft,
-  faChevronRight,
   faCircleCheck,
   faCircleInfo,
   faCircleMinus,
   faCircleQuestion,
+  faCrown,
   faDiamond,
   faEye,
   faFeather,
+  faFileContract,
   faFlag,
   faGear,
   faHeart as faHeartSolid,
   faHouse,
+  faListUl,
   faMinus,
   faPen,
   faPenToSquare,
   faPlus,
   faReply,
+  faRotateLeft,
+  faTriangleExclamation,
   faUserGroup,
   faUserPlus,
   faUsers,
@@ -53,13 +56,16 @@ const icons = {
   moderation: faFlag,
   settings: faGear,
   about: faCircleQuestion,
+  terms: faFileContract,
+  'mod-log': faListUl,
+  blame: faTriangleExclamation,
+  'mod-recovery': faRotateLeft,
+  roles: faCrown,
   // Controls.
   menu: faBars,
   close: faXmark,
   collapse: faAnglesLeft,
   expand: faAnglesRight,
-  prev: faChevronLeft,
-  next: faChevronRight,
   'zoom-in': faPlus,
   'zoom-out': faMinus,
   info: faCircleInfo,
@@ -86,7 +92,7 @@ const icons = {
 export type IconName = keyof typeof icons;
 
 // Icons that point along the reading direction, mirrored in right-to-left text.
-const directional = new Set<IconName>(['collapse', 'expand', 'prev', 'next']);
+const directional = new Set<IconName>(['collapse', 'expand']);
 
 export function Icon({ name, className }: { name: IconName; className?: string }) {
   const [width, height, , , path] = icons[name].icon;

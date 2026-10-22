@@ -3,7 +3,9 @@
 // (remembered per device), an off-canvas drawer on narrow ones. A user can pick
 // a top header instead (display settings, <html data-nav="header">); the
 // layouts are one markup restyled by CSS. The sidebar keeps the .shell-header
-// and .nav-list classes so themes that style those still reach it.
+// and .nav-list classes so themes that style those still reach it. The
+// secondary links (moreNav) sit at the sidebar's foot, or in a page footer when
+// signed out or in the top-header layout on wide screens.
 import { Suspense, useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { NavLink, Outlet, useLocation } from 'react-router';
@@ -11,7 +13,7 @@ import { Icon } from '../lib/Icon';
 import { loadCollapsed, saveCollapsed } from '../lib/navLayout';
 import { featureSlots } from './featureSlots';
 import { Loading } from './Loading';
-import { mainNav } from './mainNav';
+import { mainNav, moreNav, navAllows, type MainNavEntry } from './mainNav';
 import { usePageTitle } from './pageTitle';
 import { useSession } from './session';
 
@@ -23,7 +25,7 @@ export function Shell() {
   const session = useSession();
   const signedIn = session.data?.authenticated === true;
   const role = session.data?.me?.role;
-  const moderator = role === 'moderator' || role === 'admin';
+  const visible = (list: MainNavEntry[]) => list.filter((e) => navAllows(e, signedIn, role));
   const navId = useId();
   const main = useRef<HTMLElement>(null);
   const format = useCallback((page: string) => t('app.pageTitle', { page }), [t]);
@@ -55,6 +57,18 @@ export function Shell() {
       document.removeEventListener('keydown', onKey);
     };
   }, [drawerOpen]);
+
+  const link = (e: MainNavEntry) => (
+    <li key={e.to}>
+      <NavLink to={e.to} end={e.to === '/'} title={collapsed ? t(e.label) : undefined}>
+        <span className="nav-icon" aria-hidden="true">
+          <Icon name={e.icon} />
+        </span>
+        <span className="nav-label">{t(e.label)}</span>
+        {e.badges ? navBadges.map((Badge, i) => <Badge key={i} />) : null}
+      </NavLink>
+    </li>
+  );
 
   const toggleCollapsed = () => {
     setCollapsed((c) => {
@@ -109,21 +123,8 @@ export function Shell() {
         </div>
         {signedIn ? (
           <nav id={navId} ref={navRef} className="sidebar-nav" aria-label={t('nav.label')}>
-            <ul className="nav-list">
-              {mainNav
-                .filter((e) => moderator || !e.moderator)
-                .map((e) => (
-                  <li key={e.to}>
-                    <NavLink to={e.to} end={e.to === '/'} title={collapsed ? t(e.label) : undefined}>
-                      <span className="nav-icon" aria-hidden="true">
-                        <Icon name={e.icon} />
-                      </span>
-                      <span className="nav-label">{t(e.label)}</span>
-                      {e.badges ? navBadges.map((Badge, i) => <Badge key={i} />) : null}
-                    </NavLink>
-                  </li>
-                ))}
-            </ul>
+            <ul className="nav-list">{visible(mainNav).map(link)}</ul>
+            <ul className="nav-list nav-more">{visible(moreNav).map(link)}</ul>
           </nav>
         ) : null}
       </header>
@@ -144,6 +145,17 @@ export function Shell() {
             <Outlet />
           </Suspense>
         </main>
+        <footer className="site-footer" data-testid="site-footer">
+          <nav aria-label={t('nav.more')}>
+            <ul className="link-list">
+              {visible(moreNav).map((e) => (
+                <li key={e.to}>
+                  <NavLink to={e.to}>{t(e.label)}</NavLink>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        </footer>
         {globals.map((G, i) => (
           <G key={i} />
         ))}

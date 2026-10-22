@@ -155,6 +155,18 @@ a {
   outline-offset: -2px;
 }
 
+.sidebar-nav {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.sidebar-nav .nav-more {
+  margin-block-start: auto;
+  padding-block-start: var(--space-3);
+  border-block-start: 1px solid var(--color-border);
+  font-size: 0.875rem;
+}
 .sidebar-nav .nav-list {
   flex-direction: column;
   flex-wrap: nowrap;
@@ -221,6 +233,27 @@ a {
   }
 }
 
+/* The secondary links as a page footer: signed out, or the header layout on
+   wide screens (on narrow ones they are in the menu drawer). */
+.site-footer {
+  display: none;
+  margin-block-start: var(--space-6);
+  padding-block: var(--space-3);
+  padding-inline: var(--space-4);
+  border-block-start: 1px solid var(--color-border);
+  font-size: 0.875rem;
+}
+.shell[data-signed-in='false'] .site-footer,
+:root[data-nav='header'] .site-footer {
+  display: block;
+}
+:root[data-nav='header'] .sidebar-nav {
+  flex: initial;
+}
+:root[data-nav='header'] .sidebar-nav .nav-more {
+  display: none;
+}
+
 /* Header layout, and the signed-out bar. */
 .shell[data-signed-in='false'] .sidebar,
 :root[data-nav='header'] .sidebar {
@@ -278,7 +311,7 @@ a {
     display: none;
   }
   .shell[data-drawer-open='true'] .sidebar-nav {
-    display: block;
+    display: flex;
     position: fixed;
     inset-block: 0;
     inset-inline-start: 0;
@@ -293,6 +326,12 @@ a {
   .shell[data-drawer-open='true'] .sidebar-nav .nav-list {
     flex-direction: column;
     flex-wrap: nowrap;
+  }
+  :root[data-nav='header'] .shell[data-drawer-open='true'] .sidebar-nav .nav-more {
+    display: flex;
+  }
+  :root[data-nav='header'] .shell[data-signed-in='true'] .site-footer {
+    display: none;
   }
   :root[data-nav='header'] .shell[data-drawer-open='true'] .nav-icon {
     display: inline;
