@@ -254,13 +254,13 @@ describe('EnrollPage', () => {
     fireEvent.click(create);
     expect(await screen.findByTestId('second-add')).toBeTruthy();
     const finish = calls.find((c) => c.path === '/enroll/finish');
-    expect(finish?.body).toEqual({ credential: attestation, remove_old: false, tos_version: 3, age_attested: true });
+    expect(finish?.body).toEqual({ credential: attestation, tos_version: 3, age_attested: true });
     expect(finish?.csrf).toBe('csrf-enroll');
     fireEvent.click(screen.getByTestId('second-done'));
     expect(await screen.findByText('home')).toBeTruthy();
   });
 
-  it('recovers an account, offering to remove the old passkeys', async () => {
+  it('recovers an account, keeping the old passkeys', async () => {
     globalThis.history.replaceState(null, '', `/enroll#${token}`);
     const calls = stubAPI(signedOut, (c) => {
       if (c.path === '/enroll/begin') {
@@ -278,13 +278,13 @@ describe('EnrollPage', () => {
     });
     renderAt('/enroll', <EnrollPage />);
     expect(await screen.findByText(/Old phone/)).toBeTruthy();
-    expect(screen.getByLabelText<HTMLInputElement>(i18n.t('auth:enroll.removeOld')).checked).toBe(true);
+    expect(screen.getByText(i18n.t('auth:enroll.keepOld'))).toBeTruthy();
+    expect(screen.queryByRole('checkbox')).toBeNull();
     fireEvent.click(screen.getByTestId('enroll-create'));
     fireEvent.click(await screen.findByTestId('second-add'));
     expect(await screen.findByText(i18n.t('auth:second.added'))).toBeTruthy();
     expect(calls.find((c) => c.path === '/enroll/finish')?.body).toEqual({
       credential: attestation,
-      remove_old: true,
       tos_version: 0,
       age_attested: false,
     });

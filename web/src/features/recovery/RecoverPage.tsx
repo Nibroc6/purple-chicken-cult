@@ -159,7 +159,9 @@ function Follow({ ticket, onRestart }: { ticket: string; onRestart: () => void }
   return (
     <div className="recovery-follow" data-testid="recover-state" data-state={st.state}>
       {st.state === 'claimed' ? <p role="status">{t('recover.state.claimed')}</p> : null}
-      {st.state === 'approving' ? <p role="status">{t('recover.state.approving')}</p> : null}
+      {st.state === 'approving' ? (
+        <p role="status">{t('recover.state.approving', { approvals: st.approvals ?? 1, needed: st.needed ?? 2 })}</p>
+      ) : null}
       {st.state === 'holding' ? <p role="status">{t('recover.state.holding', { at })}</p> : null}
       {st.state === 'released' && st.enrollURL ? (
         <>

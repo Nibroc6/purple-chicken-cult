@@ -177,12 +177,22 @@ describe('the guardians', () => {
     expect(seen.find((s) => s.method === 'POST' && s.path === '/recovery/sessions')?.body).toEqual({ friend: 'fp' });
   });
 
-  it('approves as the second guardian with a co-signature', async () => {
+  it('approves as a further guardian with a co-signature', async () => {
     let approved = false;
     const seen = stub((method, path) => {
       if (path === '/recovery/requests') {
         return json(200, {
-          items: approved ? [] : [{ id: 'req1', account: { handle: 'alice', display_name: 'Alice' }, expires_at: '2026-01-02T03:04:05Z' }],
+          items: approved
+            ? []
+            : [
+                {
+                  id: 'req1',
+                  account: { handle: 'alice', display_name: 'Alice' },
+                  expires_at: '2026-01-02T03:04:05Z',
+                  approvals: 2,
+                  needed: 3,
+                },
+              ],
         });
       }
       if (path === '/friends') return json(200, { items: [] });
@@ -196,6 +206,7 @@ describe('the guardians', () => {
     renderAt('/settings/recovery', <RecoverySettingsPage />);
     const item = await screen.findByTestId('recovery-request');
     expect(item.getAttribute('data-handle')).toBe('alice');
+    expect(item.textContent).toContain('2 of 3 friends have approved so far');
     fireEvent.click(screen.getByTestId('recovery-approve'));
     await waitFor(() => {
       expect(seen.some((s) => s.path === '/recovery/requests/req1/approve')).toBe(true);

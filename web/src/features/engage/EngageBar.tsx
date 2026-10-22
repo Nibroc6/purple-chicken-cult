@@ -5,16 +5,51 @@
 // Owner: P0-W06 → P1-W08.
 import { Fragment, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router';
+import { Link, useInRouterContext } from 'react-router';
 import { errorKey } from '../../api/errors';
+import { useModalParam } from '../../app/Modal';
 import type { PostActions } from '../../formats/types';
-import type { LikesVM, PostVM } from '../../vm/types';
+import type { LikesVM, PostVM, Ref } from '../../vm/types';
 import { useFailed, useHidden } from './store';
 import './engage.css';
 
+// likesParam is the search parameter of the likes modal (?likes=<post ref>).
+export const likesParam = 'likes';
+
+// useOpenLikes opens the likes modal of a post over the current page.
+export function useOpenLikes(): (post: Ref) => void {
+  const [, open] = useModalParam(likesParam);
+  return open;
+}
+
+// OpenLikes is the part of the summary that opens the likes modal: a button
+// inside a router, plain text outside one (a layout preview).
+function OpenLikes({ post, children }: { post?: Ref; children: ReactNode }) {
+  const inRouter = useInRouterContext();
+  if (!post || !inRouter) return <>{children}</>;
+  return <OpenLikesButton post={post}>{children}</OpenLikesButton>;
+}
+
+function OpenLikesButton({ post, children }: { post: Ref; children: ReactNode }) {
+  const open = useOpenLikes();
+  return (
+    <button
+      type="button"
+      className="engage-likes-open"
+      data-testid="engage-likes-open"
+      onClick={() => {
+        open(post);
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
 // LikeSummary: "3 likes in your network", or "Liked by you, @bob and 2 others"
 // when someone can be named (§5.3: only the viewer's own friends who allow it).
-export function LikeSummary({ likes }: { likes: LikesVM }) {
+// Given the post, the count opens the likes modal.
+export function LikeSummary({ likes, post }: { likes: LikesVM; post?: Ref }) {
   const { t, i18n } = useTranslation('engage');
   if (likes.inNetwork === 0) {
     return (
@@ -26,7 +61,7 @@ export function LikeSummary({ likes }: { likes: LikesVM }) {
   if (likes.names.length === 0 && !likes.byMe) {
     return (
       <p className="engage-likes" data-testid="engage-likes" data-count={likes.inNetwork}>
-        {t('likes.inNetwork', { count: likes.inNetwork })}
+        <OpenLikes post={post}>{t('likes.inNetwork', { count: likes.inNetwork })}</OpenLikes>
       </p>
     );
   }
@@ -43,7 +78,9 @@ export function LikeSummary({ likes }: { likes: LikesVM }) {
       ),
     });
   }
-  if (likes.others > 0) items.push({ key: 'others', node: t('likes.others', { count: likes.others }) });
+  if (likes.others > 0) {
+    items.push({ key: 'others', node: <OpenLikes post={post}>{t('likes.others', { count: likes.others })}</OpenLikes> });
+  }
   // Intl.ListFormat places the separators ("a, b and c") for the UI locale.
   const parts = new Intl.ListFormat(i18n.language, { type: 'conjunction' }).formatToParts(items.map((it) => it.key));
   let i = 0;
@@ -72,7 +109,7 @@ export function EngageBar({ post, actions }: { post: PostVM; actions: PostAction
   }
   return (
     <div className="engage" data-testid="engage">
-      <LikeSummary likes={post.likes} />
+      <LikeSummary likes={post.likes} post={post.ref} />
       <div className="engage-bar" role="group" aria-label={t('actions.label')}>
         <button
           type="button"

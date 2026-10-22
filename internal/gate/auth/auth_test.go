@@ -143,7 +143,7 @@ func (e *env) enroll(handle string, a *authtest.Authenticator) (*client, core.Us
 	if err != nil {
 		e.t.Fatal(err)
 	}
-	sess, sv, err := e.a.Auth.EnrollFinish(c.ctx(), resp, false, e.d.Cfg.TOSVersion, true)
+	sess, sv, err := e.a.Auth.EnrollFinish(c.ctx(), resp, e.d.Cfg.TOSVersion, true)
 	if err != nil {
 		e.t.Fatalf("enroll finish: %v", err)
 	}
@@ -731,21 +731,21 @@ func TestEnrollmentTokenBindingAndRules(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Genesis needs the current terms and the age attestation.
-	_, _, err = e.a.Auth.EnrollFinish(x.ctx(), resp, false, e.d.Cfg.TOSVersion-1, true)
+	_, _, err = e.a.Auth.EnrollFinish(x.ctx(), resp, e.d.Cfg.TOSVersion-1, true)
 	wantProblem(t, err, "tos_required")
-	_, _, err = e.a.Auth.EnrollFinish(x.ctx(), resp, false, e.d.Cfg.TOSVersion, false)
+	_, _, err = e.a.Auth.EnrollFinish(x.ctx(), resp, e.d.Cfg.TOSVersion, false)
 	wantProblem(t, err, "age_required")
 	// A session not bound to the token cannot finish.
-	_, _, err = e.a.Auth.EnrollFinish((&client{e: e}).ctx(), resp, false, e.d.Cfg.TOSVersion, true)
+	_, _, err = e.a.Auth.EnrollFinish((&client{e: e}).ctx(), resp, e.d.Cfg.TOSVersion, true)
 	wantNotFound(t, err)
-	tokUser, _, err := e.a.Auth.EnrollFinish(x.ctx(), resp, false, e.d.Cfg.TOSVersion, true)
+	tokUser, _, err := e.a.Auth.EnrollFinish(x.ctx(), resp, e.d.Cfg.TOSVersion, true)
 	if err != nil {
 		t.Fatal(err)
 	}
 	// Used: no second enrollment, from any session.
 	_, err = e.a.Auth.EnrollBegin((&client{e: e}).ctx(), tok)
 	wantNotFound(t, err)
-	_, _, err = e.a.Auth.EnrollFinish(x.ctx(), resp, false, e.d.Cfg.TOSVersion, true)
+	_, _, err = e.a.Auth.EnrollFinish(x.ctx(), resp, e.d.Cfg.TOSVersion, true)
 	wantNotFound(t, err)
 	if (&client{e: e, cookie: tokUser}).ctx() == nil {
 		t.Fatal("no context")
@@ -799,13 +799,13 @@ func TestEnrollmentRetryFromAnotherBrowser(t *testing.T) {
 	if _, ok := x.viewer(); ok {
 		t.Fatal("the replaced enrollment session still lives")
 	}
-	_, _, err = e.a.Auth.EnrollFinish(x.ctx(), stale, false, e.d.Cfg.TOSVersion, true)
+	_, _, err = e.a.Auth.EnrollFinish(x.ctx(), stale, e.d.Cfg.TOSVersion, true)
 	wantNotFound(t, err)
 	resp, err := a.Create(ev.Options)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := e.a.Auth.EnrollFinish(y.ctx(), resp, false, e.d.Cfg.TOSVersion, true); err != nil {
+	if _, _, err := e.a.Auth.EnrollFinish(y.ctx(), resp, e.d.Cfg.TOSVersion, true); err != nil {
 		t.Fatal(err)
 	}
 	_, err = e.a.Auth.EnrollBegin((&client{e: e}).ctx(), tok)
@@ -839,7 +839,7 @@ func TestEnrollmentSessionExpiryReleasesBinding(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := e.a.Auth.EnrollFinish(y.ctx(), resp, false, e.d.Cfg.TOSVersion, true); err != nil {
+	if _, _, err := e.a.Auth.EnrollFinish(y.ctx(), resp, e.d.Cfg.TOSVersion, true); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -887,8 +887,8 @@ func TestRecoveryEnrollment(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := e.endedFor(alice)
-	// Recovery needs no terms (accepted at join); remove the old passkeys.
-	tokUser, sv, err := e.a.Auth.EnrollFinish(r.ctx(), resp, true, 0, false)
+	// Recovery needs no terms (accepted at join); the old passkeys stay.
+	tokUser, sv, err := e.a.Auth.EnrollFinish(r.ctx(), resp, 0, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -903,13 +903,7 @@ func TestRecoveryEnrollment(t *testing.T) {
 	if e.endedFor(alice)-before < 2 {
 		t.Fatal("no SessionEnded for revoked sessions")
 	}
-	if _, err := e.login(a); !errors.Is(err, gate.ErrNotFound) {
-		t.Fatal("removed old passkey still logs in")
-	}
-	if _, err := e.login(fresh); err != nil {
-		t.Fatal(err)
-	}
-	r.cookie = tokUser
+	r.cookie, r.authn = tokUser, fresh
 	if v, ok := r.viewer(); !ok || v.ID != alice {
 		t.Fatal("recovered session not live")
 	}
@@ -917,8 +911,83 @@ func TestRecoveryEnrollment(t *testing.T) {
 		t.Fatalf("friend notifications %+v", evs)
 	}
 	if n := e.count("SELECT count(*) FROM signed_records WHERE kind = $1 AND convert_from(body, 'UTF8')::jsonb->>'op' = 'remove'",
-		int16(core.RecPasskeyChange)); n != 1 {
+		int16(core.RecPasskeyChange)); n != 0 {
 		t.Fatalf("%d remove records", n)
+	}
+	// The old passkey still signs in (§10.3: recovery never removes it)...
+	old, err := e.login(a)
+	if err != nil {
+		t.Fatalf("old passkey after recovery: %v", err)
+	}
+	old.authn = a
+	list, err := e.a.Auth.Passkeys(r.ctx())
+	if err != nil || len(list) != 2 || !list[1].Current {
+		t.Fatalf("passkeys %+v %v", list, err)
+	}
+	// ...and the recovered passkey cannot remove it for RecoveryLockFor...
+	wantProblem(t, e.removePasskey(r, list[0].ID), "recovery_lock")
+	e.advance(auth.RecoveryLockFor - time.Hour)
+	if r, err = e.login(fresh); err != nil {
+		t.Fatal(err)
+	}
+	r.authn = fresh
+	wantProblem(t, e.removePasskey(r, list[0].ID), "recovery_lock")
+	// ...while the old one can remove the recovered one (it ends its sessions).
+	if old, err = e.login(a); err != nil {
+		t.Fatal(err)
+	}
+	old.authn = a
+	ol, err := e.a.Auth.Passkeys(old.ctx())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := e.removePasskey(old, ol[1].ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := r.viewer(); ok {
+		t.Fatal("the removed recovered passkey's session survived")
+	}
+}
+
+// After RecoveryLockFor the recovered passkey is an ordinary one.
+func TestRecoveryLockEnds(t *testing.T) {
+	e := newEnv(t)
+	a := e.authn()
+	_, alice := e.enroll("alice", a)
+	var tok string
+	if err := e.d.DB.Tx(e.ctx, func(tx pgx.Tx) error {
+		var err error
+		tok, err = e.d.Passkeys.IssueEnrollment(e.ctx, tx, alice, 1, time.Time{})
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	e.advance(time.Second)
+	r := &client{e: e}
+	ev, err := e.a.Auth.EnrollBegin(r.ctx(), tok)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.cookie = ev.Token
+	fresh := e.authn()
+	resp, err := fresh.Create(ev.Options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.cookie, _, err = e.a.Auth.EnrollFinish(r.ctx(), resp, 0, false); err != nil {
+		t.Fatal(err)
+	}
+	e.advance(auth.RecoveryLockFor + time.Second)
+	if r, err = e.login(fresh); err != nil {
+		t.Fatal(err)
+	}
+	r.authn = fresh
+	list, err := e.a.Auth.Passkeys(r.ctx())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := e.removePasskey(r, list[0].ID); err != nil {
+		t.Fatal(err)
 	}
 }
 

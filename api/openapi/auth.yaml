@@ -228,7 +228,9 @@ paths:
         "401": { $ref: '#/components/responses/AuthStepUp' }
         "404": { $ref: '_common.yaml#/components/responses/NotFound' }
         "409":
-          description: last_passkey.
+          description: >-
+            last_passkey, or recovery_lock (the session's passkey was enrolled through recovery
+            less than 7 days ago and the target is older).
           content:
             application/json:
               schema: { $ref: '_common.yaml#/components/schemas/Error' }
@@ -285,7 +287,7 @@ paths:
               required: [credential]
               properties:
                 credential: { type: object, additionalProperties: true }
-                remove_old: { type: boolean }
+                remove_old: { type: boolean, deprecated: true, description: Ignored. Recovery keeps the old passkeys. }
                 tos_version: { type: integer }
                 age_attested: { type: boolean }
       responses:

@@ -8,10 +8,12 @@ const BlamePage = lazy(() => import('./BlamePage'));
 const ModQueuePage = lazy(() => import('./ModQueuePage'));
 const ModLogPage = lazy(() => import('./ModLogPage'));
 const ReportPage = lazy(() => import('./ReportPage'));
+const RolesPage = lazy(() => import('./RolesPage'));
 
 export const routes: RouteObject[] = [
   { path: '/blame', element: <BlamePage /> },
   { path: '/mod', element: <ModQueuePage /> },
   { path: '/mod/log', element: <ModLogPage /> },
+  { path: '/mod/roles', element: <RolesPage /> },
   { path: '/report', element: <ReportPage /> },
 ];
