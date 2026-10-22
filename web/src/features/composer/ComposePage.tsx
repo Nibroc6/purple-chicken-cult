@@ -192,7 +192,9 @@ function Composer({
         </>
       )}
       <MediaSection media={media} onChange={setMedia} />
-      <div className="composer-options">
+      <div className="composer-options" data-testid="composer-options">
+        <AudienceSelect id="composer-audience" value={audience} onChange={setAudience} />
+        <PolicySelect id="composer-policy" value={policy} onChange={setPolicy} />
         <AutoLang
           id="composer-lang"
           value={lang}
@@ -201,8 +203,6 @@ function Composer({
           uiLocale={me.settings.ui_locale}
           onChange={setLang}
         />
-        <AudienceSelect id="composer-audience" value={audience} onChange={setAudience} />
-        <PolicySelect id="composer-policy" value={policy} onChange={setPolicy} />
         <label className="composer-check">
           <input
             type="checkbox"
