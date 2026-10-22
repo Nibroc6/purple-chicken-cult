@@ -38,7 +38,7 @@ const (
 	CounterFrom       = 280
 	MaxParents        = 3
 	MaxThreadParts    = 25
-	RefCapPerDay      = 2
+	RefCapPerDay      = 4
 	// NotifyWithin is how close (hops, from the parent's author) a child's author
 	// must be for the parent's author to be notified (§10.1.1 default).
 	NotifyWithin = 2
