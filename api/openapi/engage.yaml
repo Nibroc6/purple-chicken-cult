@@ -125,6 +125,51 @@ paths:
         "204": { description: The post is hidden for the caller. }
         "404": { $ref: '_common.yaml#/components/responses/NotFound' }
         "429": { $ref: '#/components/responses/EngageRateLimited' }
+    delete:
+      operationId: unhidePost
+      description: >-
+        Undoes a hide or a show-less (idempotent). A show-less also gives back
+        the step it took off the author.
+      responses:
+        "204": { description: The post is not hidden for the caller. }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/EngageRateLimited' }
+  /hidden:
+    get:
+      operationId: listHidden
+      parameters:
+        - { name: cursor, in: query, required: false, schema: { type: string, maxLength: 256 } }
+      responses:
+        "200":
+          description: >-
+            Posts the caller hid (hide or show less) and can still see, most
+            recently hidden first.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EngagePostsPage' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/EngageRateLimited' }
+  /show-less:
+    get:
+      operationId: listShowLess
+      responses:
+        "200":
+          description: Authors the caller asked to see less of, most recent first (at most 200).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EngageShowLessOut' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/EngageRateLimited' }
+  /show-less/{ref}:
+    parameters:
+      - { name: ref, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
+    delete:
+      operationId: resetShowLess
+      description: Clears the caller's show-less count for this author (idempotent). Hidden posts stay hidden.
+      responses:
+        "204": { description: The author is no longer lowered for the caller. }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/EngageRateLimited' }
   /posts/{ref}/show-less:
     parameters:
       - { name: ref, in: path, required: true, schema: { $ref: '_common.yaml#/components/schemas/Ref' } }
@@ -152,6 +197,20 @@ components:
         posts:
           type: array
           items: { type: string, maxLength: 256 }
+    EngageShowLessOut:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            required: [ref, handle, display_name, count]
+            properties:
+              ref: { $ref: '_common.yaml#/components/schemas/Ref' }
+              handle: { type: string }
+              display_name: { type: string }
+              count: { type: integer }
     EngagePostsPage:
       type: object
       required: [items]

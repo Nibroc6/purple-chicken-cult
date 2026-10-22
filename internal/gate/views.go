@@ -48,6 +48,15 @@ type PersonView struct {
 	InvitedRemoved bool `json:"invited_removed,omitempty"`
 }
 
+// ShowLessView is an author the viewer asked to see less of: Count steps
+// (rank uses at most three).
+type ShowLessView struct {
+	Ref         Ref    `json:"ref"`
+	Handle      string `json:"handle"`
+	DisplayName string `json:"display_name"`
+	Count       int    `json:"count"`
+}
+
 // AuthorView is a compact person for cards.
 type AuthorView struct {
 	Ref         Ref          `json:"ref"`
