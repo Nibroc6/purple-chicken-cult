@@ -2,7 +2,8 @@
 // changes of an open tree, and the tree page against a stubbed API — opened
 // with the saved preset, re-centering (rows below reload, rows above stay),
 // "+N more" pages, earlier / later rows, the reopen on tree_snapshot_expired,
-// the uniform "not available", and the reader's format.
+// the uniform "not available", a fresh tree on coming back, and the reader's
+// format.
 import { QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
@@ -109,9 +110,9 @@ function treeAPI(extra: (c: Call) => Response | undefined = () => undefined, pre
   });
 }
 
-function renderAt(path = '/p/f') {
+function renderAt(path = '/p/f', client = makeQueryClient()) {
   return render(
-    <QueryClientProvider client={makeQueryClient()}>
+    <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[path]}>
         <Routes>
           <Route path="/p/:ref" element={<TreePage />} />
@@ -296,6 +297,18 @@ describe('tree page', () => {
       expect(treeCalls(calls).filter((c) => c.path === '/tree/f')).toHaveLength(2);
     });
     expect(screen.queryByTestId('tree-action-error')).toBeNull();
+  });
+
+  it('opens a fresh tree when the reader comes back to the post (new replies show)', async () => {
+    const calls = treeAPI();
+    const client = makeQueryClient();
+    const first = renderAt('/p/f', client);
+    await screen.findByTestId('tree-layout');
+    first.unmount();
+    await new Promise((r) => setTimeout(r, 0)); // the unused tree is dropped
+    renderAt('/p/f', client);
+    await screen.findByTestId('tree-layout');
+    expect(treeCalls(calls).filter((c) => c.path === '/tree/f')).toHaveLength(2);
   });
 
   it('shows the uniform "not available" for a post it cannot open', async () => {

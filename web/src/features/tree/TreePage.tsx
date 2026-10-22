@@ -5,7 +5,8 @@
 // focal row's siblings under that parent); "+N more" pages through a row;
 // earlier and later rows load at the edges. A snapshot the server no longer
 // keeps (409 tree_snapshot_expired) reopens the tree. Every other failure is
-// the uniform "not available". The layout comes from the reader's format.
+// the uniform "not available". Leaving the page drops the tree, so returning
+// opens a new snapshot. The layout comes from the reader's format.
 // Owner: P0-W08 → P1-W09.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -58,7 +59,11 @@ export default function TreePage() {
     queryKey: key,
     queryFn: () => openTree(ref),
     retry: false,
+    // A snapshot is frozen while the page is open, but coming back to the post
+    // (after replying, or later from the feed) opens a fresh tree: a cached one
+    // would never show the replies posted since.
     staleTime: Infinity,
+    gcTime: 0,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
   });
