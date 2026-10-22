@@ -6,9 +6,9 @@
   "sections": {
     "joining": {
       "title": "Joining and invites",
-      "p1": "There is no sign-up form. A member shows an invite code on their phone, you scan it with yours, and you create a passkey to sign in. No password, no email.",
+      "p1": "There is no sign-up form. A member uses a feather to show an invite code on their phone, you scan it with yours, and you create a passkey to sign in. No password, no email.",
       "p2": "Your profile always shows who invited you, and theirs shows who invited them. That's what keeps fake accounts traceable to a real person.",
-      "p3": "Once your probation ends you earn one invite a day and can save up to three (the first members can save five). If most of your connections are inside your inviter's group, invites come more slowly."
+      "p3": "Once your probation ends you earn one invite a day and can save up to three (the first members can save five). If most of your connections are inside your inviter's group, invites come more slowly. Showing your code also uses a feather, whether or not anyone joins: you have 20, and a used one grows back every 72 minutes."
     },
     "handshake": {
       "title": "The in-person handshake",

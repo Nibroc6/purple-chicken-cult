@@ -333,6 +333,16 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+// SoundError is a failure to play the sound on this device (not an API error);
+// blocked means the browser never let audio start.
+class SoundError extends Error {
+  blocked: boolean;
+  constructor(cause: unknown) {
+    super('sound', { cause });
+    this.blocked = cause instanceof Error && cause.message === 'audio_blocked';
+  }
+}
+
 // Sound plays the handshake sound and waits for the initiator's report.
 export function Sound({ dev, first, onPassed }: { dev: ClaimDevice; first: StatusVM; onPassed: (st: StatusVM) => void }) {
   const { t } = useTranslation(['join', 'errors']);
@@ -341,12 +351,17 @@ export function Sound({ dev, first, onPassed }: { dev: ClaimDevice; first: Statu
   const [err, setErr] = useState<string | undefined>();
   const play = async () => {
     setErr(undefined);
+    // Before any await: Safari only starts audio inside the click itself.
+    const audio = handshakeAudio();
+    setPhase('playing');
     try {
       const k = await dev.kmac();
-      const audio = handshakeAudio(); // created on the click (autoplay rules)
       const attempt = await audioStart(dev, k);
-      setPhase('playing');
-      await audio.play(await dev.bits(k, attempt), { quiet: st.quiet });
+      try {
+        await audio.play(await dev.bits(k, attempt), { quiet: st.quiet });
+      } catch (e) {
+        throw new SoundError(e);
+      }
       setPhase('waiting');
       for (let i = 0; i < 40; i++) {
         const now = await joinStatus(dev);
@@ -361,7 +376,13 @@ export function Sound({ dev, first, onPassed }: { dev: ClaimDevice; first: Statu
       setPhase('ready');
     } catch (e) {
       setPhase('ready');
-      setErr(e instanceof ApiError ? joinErrorKey(e) : 'join:sound.failed');
+      setErr(
+        e instanceof ApiError
+          ? joinErrorKey(e)
+          : e instanceof SoundError && e.blocked
+            ? 'join:sound.blocked'
+            : 'join:sound.failed',
+      );
     }
   };
   const retry = st.outcome === 'retry';
@@ -384,7 +405,8 @@ export function Sound({ dev, first, onPassed }: { dev: ClaimDevice; first: Statu
         </button>
       ) : null}
       {phase === 'playing' ? (
-        <p role="status" data-testid="join-playing">
+        <p role="status" className="join-playing" data-testid="join-playing">
+          <span className="join-playing-dot" aria-hidden="true" />
           {t('sound.playing')}
         </p>
       ) : null}

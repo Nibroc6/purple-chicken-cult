@@ -34,6 +34,10 @@
   gap: var(--space-1);
 }
 
+.post-lang-auto {
+  margin: 0;
+}
+
 .post-field textarea {
   font: inherit;
   inline-size: 100%;

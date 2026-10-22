@@ -1,6 +1,7 @@
 // Shared pieces of the post and composer features: error text, the length
 // counter, the language / audience / reference-policy pickers and a compact
 // preview of a post. Owner: P0-W05 → P1-W12.
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AudienceBadge, EditedMark } from '../../integrity';
 import { Markdown } from '../../markdown';
@@ -69,6 +70,43 @@ export function LangSelect({
         ))}
       </select>
     </label>
+  );
+}
+
+// AutoLang shows the language the composer picked from the text itself, with a
+// way to choose another; once opened, the picker stays and its choice sticks.
+export function AutoLang({
+  value,
+  detected,
+  languages,
+  uiLocale,
+  onChange,
+  id,
+}: {
+  value: string;
+  detected: boolean;
+  languages: readonly string[] | undefined;
+  uiLocale: string;
+  onChange: (lang: string) => void;
+  id: string;
+}) {
+  const { t } = useTranslation('post');
+  const [open, setOpen] = useState(false);
+  if (open) return <LangSelect id={id} value={value} languages={languages} uiLocale={uiLocale} onChange={onChange} />;
+  const name = value === UND ? t('lang.und') : langName(value, uiLocale);
+  return (
+    <p className="post-lang-auto" data-testid="post-lang-auto" data-lang={value}>
+      <span>{detected ? t('lang.detected', { name }) : t('lang.assumed', { name })}</span>{' '}
+      <button
+        type="button"
+        data-testid="post-lang-change"
+        onClick={() => {
+          setOpen(true);
+        }}
+      >
+        {t('lang.change')}
+      </button>
+    </p>
   );
 }
 

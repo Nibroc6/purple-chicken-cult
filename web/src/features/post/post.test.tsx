@@ -8,7 +8,7 @@ import { ApiError } from '../../api/errors';
 import { makeQueryClient } from '../../app/App';
 import { i18n } from '../../i18n/setup';
 import { asRef } from '../../vm/types';
-import { defaultLang, langOptions, primarySubtag } from './lang';
+import { defaultLang, detectLang, langOptions, primarySubtag } from './lang';
 import ManagePostPage from './ManagePostPage';
 import { me, postJSON } from './testdata';
 import { codePoints, counterState, hasAudienceLimit, postErrorKey, toPostVM } from './vm';
@@ -130,6 +130,33 @@ describe('post helpers', () => {
     expect(opts.slice(0, 3)).toEqual(['de', 'en', 'ja']);
     expect(opts[opts.length - 1]).toBe('und');
     expect(new Set(opts).size).toBe(opts.length);
+  });
+
+  it.each([
+    ['the chickens are out in the yard again and I love it', 'en'],
+    ['Las gallinas están en el patio otra vez y me encanta', 'es'],
+    ['Les poules sont dans la cour et je suis très content', 'fr'],
+    ['Die Hühner sind wieder im Hof und ich finde das sehr schön', 'de'],
+    ['Le galline sono di nuovo nel cortile e mi piace molto', 'it'],
+    ['As galinhas estão no quintal de novo e eu adoro isso', 'pt'],
+    ['De kippen zijn weer in de tuin en ik vind het leuk', 'nl'],
+    ['Hönsen är ute på gården igen och jag gillar det', 'sv'],
+    ['Kury znowu są na podwórku i bardzo mi się to podoba', 'pl'],
+    ['Tavuklar yine bahçede ve ben bunu çok seviyorum', 'tr'],
+    ['Куры снова во дворе, и мне это нравится', 'ru'],
+    ['Кури знову у дворі, і мені це подобається', 'uk'],
+    ['鶏がまた庭にいます', 'ja'],
+    ['鸡又在院子里了', 'zh'],
+    ['닭들이 다시 마당에 있어요', 'ko'],
+    ['hello', null],
+    ['lol ok', null],
+  ])('detects the language of %s', (text, want) => {
+    expect(detectLang(text)).toBe(want);
+  });
+
+  it('detects as one of the user languages when it can', () => {
+    expect(detectLang('As galinhas estão no quintal de novo', ['pt-BR'])).toBe('pt-BR');
+    expect(detectLang('Кокошките са в двора', ['bg'])).toBe('bg');
   });
 });
 
