@@ -221,6 +221,7 @@ func Build(ctx context.Context, cfg *config.Config, db *store.DB, log *slog.Logg
 	d.CosignPurposes = a.Cosign
 	d.Signup = a.Cosign
 	d.CSAM = a.Media
+	d.ThemeMedia = a.Media
 	d.InvitePenalties = a.Invites
 	d.Marks = a.Moderation
 

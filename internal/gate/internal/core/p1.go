@@ -110,6 +110,17 @@ type Media interface {
 	Ingest(ctx context.Context, img []byte, sourcePost PostID, sourceURL string) (uuid.UUID, error)
 }
 
+// ThemeMedia keeps the images of a reader's own advanced theme (impl:
+// gate/media; contract request p1-w09-3). They are uploads like any other
+// (scanned, re-encoded, attached with Media.Attach), but they belong to the
+// theme instead of a post, so only their owner ever gets a URL for them.
+type ThemeMedia interface {
+	// Release marks owner's media ids deleted in tx (media.process purges them).
+	Release(ctx context.Context, tx store.Q, owner UserID, ids []uuid.UUID) error
+	// Own renders owner's ready, live media among ids, in order, with owner's refs.
+	Own(ctx context.Context, owner UserID, ids []uuid.UUID) ([]gate.MediaView, error)
+}
+
 // ModQueue sources (mod_queue.source).
 const (
 	ModSrcReport        uint8 = 0

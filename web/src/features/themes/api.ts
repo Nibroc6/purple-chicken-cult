@@ -11,8 +11,13 @@ export async function fetchTheme(): Promise<ThemeView | null> {
   return unwrap(await api.GET('/me/theme')).theme ?? null;
 }
 
-export async function saveTheme(tokens: ThemeTokens): Promise<ThemeView | null> {
-  return unwrap(await api.PUT('/me/theme', { body: { tokens } })).theme ?? null;
+export type ThemeImage = components['schemas']['ThemeImage'];
+
+// saveTheme stores tokens and, in advanced mode, theme CSS and its images
+// (fresh upload refs or the refs of the theme's current images).
+export async function saveTheme(tokens: ThemeTokens, css = '', images: readonly { name: string; ref: string }[] = []): Promise<ThemeView | null> {
+  const body = css === '' ? { tokens } : { tokens, css, images: images.map((i) => ({ name: i.name, ref: i.ref })) };
+  return unwrap(await api.PUT('/me/theme', { body })).theme ?? null;
 }
 
 export async function clearTheme(): Promise<void> {

@@ -6,8 +6,15 @@
 # radius, a density, and a font from the allowlist at no less than the size
 # floor. The server rejects a theme whose integrity elements (integrity_text
 # on integrity_bg) fall below WCAG AA, or whose body text, muted text or
-# links do (theme_contrast, field = the failing color). Nothing in a theme is
-# CSS; the client maps the values onto its own custom properties.
+# links do (theme_contrast, field = the failing color). Tokens are not CSS;
+# the client maps the values onto its own custom properties.
+#
+# Advanced mode (contract request p1-w09-3): `css` is the caller's own raw
+# CSS (up to 32 KiB), applied only to their own view and never on locked
+# routes (sign-in, recovery, settings, moderation, report). image(name) names
+# one of the theme's own uploads (`images`, refs from POST /media); the client
+# swaps in its signed URL. theme_css (field css.<line>) is an image() name the
+# theme does not have, a NUL, or (css.0) a sheet too long or not UTF-8.
 openapi: 3.0.3
 info:
   title: pcc internal API (theme)
@@ -41,11 +48,12 @@ paths:
         "400": { $ref: '_common.yaml#/components/responses/Problem' }
         "404": { $ref: '_common.yaml#/components/responses/NotFound' }
         "422":
-          description: theme_contrast (field = the color that failed), theme_font (not on the allowlist) or theme_invalid (schema, range or size floor)
+          description: theme_contrast (field = the color that failed), theme_css (field css.<line>), theme_font (not on the allowlist) or theme_invalid (schema, range, size floor or images)
           content:
             application/json:
               schema: { $ref: '_common.yaml#/components/schemas/Error' }
         "429": { $ref: '#/components/responses/ThemeRateLimited' }
+        "409": { $ref: '#/components/responses/ThemeMediaDisabled' }
     delete:
       operationId: themeClear
       summary: Go back to the default theme
@@ -55,6 +63,11 @@ paths:
         "429": { $ref: '#/components/responses/ThemeRateLimited' }
 components:
   responses:
+    ThemeMediaDisabled:
+      description: '{"error":"feature_disabled","feature":"media"} — the theme CSS uses image() while media is off'
+      content:
+        application/json:
+          schema: { $ref: '_common.yaml#/components/schemas/Error' }
     ThemeRateLimited:
       description: rate_limited (account writes, 50/day).
       content:
@@ -67,6 +80,30 @@ components:
       required: [tokens]
       properties:
         tokens: { $ref: '#/components/schemas/ThemeTokens' }
+        css: { type: string, maxLength: 32768, description: 'Raw theme CSS (advanced mode); empty or absent for none' }
+        images:
+          type: array
+          maxItems: 8
+          items: { $ref: '#/components/schemas/ThemeImageIn' }
+    ThemeImageIn:
+      type: object
+      additionalProperties: false
+      required: [name, ref]
+      properties:
+        name: { $ref: '#/components/schemas/ThemeImageName' }
+        ref: { type: string, description: 'A fresh upload of the caller, or the ref of one of the theme''s current images' }
+    ThemeImageName:
+      type: string
+      pattern: '^[a-z][a-z0-9-]{0,31}$'
+    ThemeImage:
+      type: object
+      additionalProperties: false
+      required: [name, ref, w, h]
+      properties:
+        name: { $ref: '#/components/schemas/ThemeImageName' }
+        ref: { type: string }
+        w: { type: integer }
+        h: { type: integer }
     ThemeOut:
       type: object
       additionalProperties: false
@@ -75,9 +112,13 @@ components:
     ThemeView:
       type: object
       additionalProperties: false
-      required: [tokens, updated_at]
+      required: [tokens, css, images, updated_at]
       properties:
         tokens: { $ref: '#/components/schemas/ThemeTokens' }
+        css: { type: string, description: 'Theme CSS, line endings normalized; empty for none' }
+        images:
+          type: array
+          items: { $ref: '#/components/schemas/ThemeImage' }
         updated_at: { type: string, format: date-time }
     ThemeTokens:
       type: object
