@@ -54,6 +54,7 @@ const tr = i18n.t.bind(i18n) as unknown as (k: string, o?: Record<string, unknow
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  sessionStorage.clear();
 });
 
 const sentence = (i: number) => `This is sentence number ${String(i)} of a rather long paragraph that goes on.`;
@@ -233,6 +234,31 @@ describe('compose page', () => {
     fireEvent.click(screen.getByTestId('composer-publish'));
     await screen.findByTestId('composer-published');
     expect((calls.find((c) => c.method === 'POST')?.body as { parents: unknown }).parents).toEqual([{ ref: 'par', kind: 'ref' }]);
+  });
+
+  it('opens the post it replies to on a click, and keeps the draft for the way back', async () => {
+    stubAPI((c) => (c.method === 'GET' && c.path === '/posts/par' ? json(200, postJSON({ ref: 'par', mine: false })) : undefined));
+    const router = createMemoryRouter(
+      [
+        { path: '/compose', element: <ComposePage /> },
+        { path: '/p/:ref', element: <p data-testid="post-page">post</p> },
+      ],
+      { initialEntries: ['/compose?parent=par&kind=ref'] },
+    );
+    const view = render(
+      <QueryClientProvider client={makeQueryClient()}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>,
+    );
+    const preview = await screen.findByTestId('post-preview');
+    expect(screen.getByTestId('post-preview-open').getAttribute('href')).toBe('/p/par');
+    fireEvent.change(screen.getByTestId('composer-body'), { target: { value: 'half a reply' } });
+    fireEvent.click(preview);
+    await screen.findByTestId('post-page');
+    expect(router.state.location.pathname).toBe('/p/par');
+    await router.navigate(-1);
+    expect((await screen.findByTestId<HTMLTextAreaElement>('composer-body')).value).toBe('half a reply');
+    view.unmount();
   });
 
   it('replies to several posts at once: from the address, adds one by link, takes one out', async () => {
