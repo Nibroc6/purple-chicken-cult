@@ -1,13 +1,15 @@
-// P0-W08 end to end: the family tree (/p/:ref) — rows around the focal post
-// under section headers (parents above with the primary parent's siblings in
-// the focal row, replies below, ranked by distance tier then the reader's
-// preset), "+N more" after five with the rest of the row as a ranked list and
-// further pages, tier hairlines, earlier / later rows, a diamond shown once
-// ("shown above") with a chip that refocuses, no trace of hidden parents or
-// children, re-centering by keyboard buttons and by swiping (the rows below
-// reload, the rows above stay), folding at 10 lines by keyboard, viewer-bound
-// snapshots with a reopen on expiry, and the Compact outline. Selectors avoid
-// English text so the spec runs in en and en-XA (post bodies are user content).
+// P0-W08 end to end: the reply tree (/p/:ref) — rows around the focal post
+// (parents above with the primary parent's siblings in the focal row, replies
+// below, ranked by distance tier then the reader's preset) drawn as one
+// connected canvas with the focal post highlighted and shown in full below,
+// "+N more" loading the rest of a generation, earlier / later generations, a
+// diamond shown once (a dashed edge to its node), the focal post's other
+// parents joined by an "also" edge, no trace of hidden parents or children,
+// clicking or Enter on a post bringing it into focus (a drag does not), a long
+// post as an excerpt on the map and in full once in focus, viewer-bound
+// snapshots with a reopen on expiry, and the same canvas in Compact. Selectors
+// avoid English text so the spec runs in en and en-XA (post bodies are user
+// content).
 import { expect, test, type APIRequestContext, type Locator, type Page, type Response } from '@playwright/test';
 import { World } from './fixtures/world';
 
@@ -101,11 +103,13 @@ async function openTree(page: Page, ref: string): Promise<TreeJSON> {
   return (await res.json()) as TreeJSON;
 }
 
-const rowOf = (page: Page, gen: number): Locator => page.locator(`[data-testid="tree-row"][data-gen="${String(gen)}"]`);
+const nodeOf = (page: Page, ref: string): Locator => page.locator(`[data-testid="explorer-node"][data-ref="${ref}"]`);
+const nodeWith = (page: Page, text: string): Locator => page.getByTestId('explorer-node').filter({ hasText: text });
+const focusCard = (page: Page): Locator => page.getByTestId('tree-focus');
 const bodies = (r: RowJSON | undefined) => (r?.items ?? []).map((it) => (it.shown_above ? `^${it.post.author.handle}` : it.post.body));
 const longBody = Array.from({ length: 12 }, (_, i) => `Long reply line ${String(i + 1)}`).join('\n\n');
 
-test('rows around the focal post, ranked by tier, under section headers', async ({ page, request, baseURL }) => {
+test('rows around the focal post, ranked by tier, on one connected canvas', async ({ page, request, baseURL }) => {
   await setup(request, baseURL);
   await loginAs(page, baseURL, 'alice');
   const focal = await refOf(page, 'The focal post');
@@ -147,140 +151,119 @@ test('rows around the focal post, ranked by tier, under section headers', async 
   expect(all).not.toContain('Dave for his friends only');
   expect(tv.rows[2]?.items[0]?.post.reply_count).toBe(12);
 
-  // The page: one section header per row, the focal row centered on the focal post.
-  await expect(page.getByTestId('tree-row-header')).toHaveCount(5);
-  await expect(page.getByTestId('tree-row')).toHaveCount(5);
-  await expect(rowOf(page, 0).locator('[data-centered="true"]')).toHaveAttribute('data-ref', focal);
-  await expect(rowOf(page, 0).locator('[data-centered="true"] .post-focal')).toBeVisible();
-  await expect(rowOf(page, -1).getByTestId('tree-tier-divider')).toHaveCount(1);
+  // The page: one canvas, every loaded post a node once, the focal post highlighted and in full below.
+  await expect(page.getByTestId('tree-row')).toHaveCount(0);
+  await expect(page.getByTestId('explorer-node')).toHaveCount(16);
+  await expect(nodeOf(page, focal)).toHaveAttribute('data-focal', 'true');
+  await expect(focusCard(page)).toHaveAttribute('data-ref', focal);
+  await expect(focusCard(page).locator('.post-focal')).toBeVisible();
   await expect(page.getByText('Xavier is never shown')).toHaveCount(0);
   for (const id of ['integrity-chain', 'integrity-inviter-label', 'integrity-why', 'integrity-audience', 'integrity-report']) {
-    await expect(rowOf(page, 0).locator('[data-centered="true"]').getByTestId(id)).toBeVisible();
+    await expect(focusCard(page).getByTestId(id)).toBeVisible();
   }
 
-  // "+N more" after five: N counts every visible reply beyond them.
-  const replies = rowOf(page, 1);
-  await expect(replies.getByTestId('tree-track').getByTestId('tree-item')).toHaveCount(5);
-  const chip = replies.getByTestId('tree-more');
-  await expect(chip).toHaveAttribute('data-count', '7');
-  await chip.click();
-  const list = replies.getByTestId('tree-more-list');
-  await expect(list.getByTestId('tree-item')).toHaveCount(5);
-  await expect(list.getByTestId('tree-tier-divider')).toHaveCount(1);
+  // "+N more" counts the visible replies beyond the first page and loads them.
+  const chip = page.getByTestId('explorer-more');
+  await expect(chip).toHaveAttribute('data-count', '2');
+  // It sits at the end of the row, off screen: fold the focus card and show the whole tree first.
+  await page.getByTestId('tree-focus-toggle').click();
+  await page.getByTestId('explorer-fit').click();
   const more = page.waitForResponse(isMore);
-  await list.getByTestId('tree-load-more').click();
+  await chip.click();
   const page2 = (await (await more).json()) as RowJSON;
   expect(bodies(page2)).toEqual(['Carol reply 11', 'Carol reply 10']);
   expect(page2.more).toBe(0);
-  await expect(list.getByTestId('tree-item')).toHaveCount(7);
-  await expect(list.getByTestId('tree-load-more')).toHaveCount(0);
+  await expect(page.getByTestId('explorer-node')).toHaveCount(18);
+  await expect(page.getByTestId('explorer-more')).toHaveCount(0);
 
-  // Earlier rows load at the top edge, until there are none.
+  // Earlier generations load at the top edge, until there are none.
   const earlier = page.waitForResponse(isRow);
   await page.getByTestId('tree-earlier').click();
   const up = (await (await earlier).json()) as RowJSON;
   expect([up.gen, up.label, bodies(up)]).toEqual([-3, 'generations_up', ['Root by carol']]);
-  await expect(page.getByTestId('tree-row')).toHaveCount(6);
+  await expect(nodeWith(page, 'Root by carol')).toHaveCount(1);
+  await expect(page.getByTestId('tree-earlier')).toHaveCount(0);
 });
 
-test('a diamond shows once, chips refocus, hidden parents look like roots', async ({ page, request, baseURL }) => {
+test('a diamond shows once, other parents join the focal post, hidden parents look like roots', async ({ page, request, baseURL }) => {
   await setup(request, baseURL);
   await loginAs(page, baseURL, 'alice');
   const focal = await refOf(page, 'The focal post');
   await openTree(page, focal);
 
-  const stub = rowOf(page, 2).getByTestId('tree-shown-above');
-  await expect(stub).toHaveCount(1);
-  await expect(rowOf(page, 2).getByText('Diamond by carol')).toHaveCount(0);
-  // The diamond in the replies row names its other parent's author; the chip refocuses on it.
-  const replies = rowOf(page, 1);
-  await replies.getByTestId('tree-more').click();
-  const diamond = replies.locator('[data-testid="tree-item"]', { hasText: 'Diamond by carol' });
-  const chip = diamond.getByTestId('tree-also');
-  await expect(chip).toContainText('fran');
-  const reopened = page.waitForResponse(isOpen);
-  await chip.click();
-  const tv = (await (await reopened).json()) as TreeJSON;
-  expect(bodies(tv.rows.find((r) => r.gen === 0))[0]).toBe(longBody);
-  await expect(page).toHaveURL(new RegExp(`/p/${tv.focal}$`));
+  // The diamond is a reply and a reply to a reply: one node, a dashed edge for its second spot.
+  await expect(nodeWith(page, 'Diamond by carol')).toHaveCount(1);
+  await expect(page.locator('.explorer-edge[data-kind="above"]')).toHaveCount(1);
+  // carol's second parent joins the focal post apart from the siblings' line.
+  await expect(nodeWith(page, 'Second parent by carol')).toHaveCount(1);
+  await expect(page.locator('.explorer-edge[data-kind="also"]')).toHaveCount(1);
 
-  // carol's reply to dave's friends-only post: no "Replying to", nothing earlier.
+  // carol's reply to dave's friends-only post: no parents, nothing earlier.
   const under = await refOf(page, 'Carol under a hidden parent');
   const root = await openTree(page, under);
   expect(root.rows.map((r) => r.gen)).toEqual([0]);
   expect(root.has_earlier || root.has_later).toBe(false);
-  await expect(page.getByTestId('tree-row')).toHaveCount(1);
+  await expect(page.getByTestId('explorer-node')).toHaveCount(1);
+  await expect(page.locator('.explorer-edge')).toHaveCount(0);
   await expect(page.getByTestId('tree-earlier')).toHaveCount(0);
   await expect(page.getByText("Dave's secret")).toHaveCount(0);
 });
 
-test('re-centering by keyboard and by swiping reloads the rows below, the rows above stay', async ({ page, request, baseURL }) => {
+test('clicking or pressing Enter on a post brings it into focus; a drag does not', async ({ page, request, baseURL }) => {
   await page.setViewportSize({ width: 420, height: 900 });
   await setup(request, baseURL);
   await loginAs(page, baseURL, 'alice');
   const focal = await refOf(page, 'The focal post');
   const tv = await openTree(page, focal);
-  const replies = rowOf(page, 1);
+  const second = tv.rows[3]?.items[1]?.post.ref ?? '';
 
-  // Keyboard: the next button centers the second reply; its row below has nothing.
-  const next = replies.getByTestId('tree-next');
-  await next.focus();
-  const row = page.waitForResponse(isRow);
+  // A drag pans the map and opens nothing.
+  const svg = page.getByTestId('explorer-svg');
+  const before = await svg.getAttribute('viewBox');
+  const box = await svg.boundingBox();
+  if (!box) throw new Error('no canvas');
+  let opened = 0;
+  page.on('response', (r) => {
+    if (isOpen(r)) opened++;
+  });
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 120, box.y + box.height / 2 + 60, { steps: 5 });
+  await page.mouse.up();
+  await expect(svg).not.toHaveAttribute('viewBox', before ?? '');
+  expect(opened).toBe(0);
+
+  // A click on a reply: the tree reopens around it.
+  await page.getByTestId('explorer-recenter').click();
+  const reopened = page.waitForResponse(isOpen);
+  await nodeOf(page, second).dispatchEvent('click');
+  const next = (await (await reopened).json()) as TreeJSON;
+  expect(next.focal).toBe(second);
+  await expect(page).toHaveURL(new RegExp(`/p/${second}$`));
+  await expect(focusCard(page)).toHaveAttribute('data-ref', second);
+  await expect(nodeOf(page, second)).toHaveAttribute('data-focal', 'true');
+  // The old focal post is now its parent, and Enter on it brings it back.
+  await expect(nodeOf(page, focal)).toHaveAttribute('data-gen', '-1');
+  const back = page.waitForResponse(isOpen);
+  await nodeOf(page, focal).focus();
   await page.keyboard.press('Enter');
-  const r = await row;
-  const q = new URL(r.url()).searchParams;
-  expect([q.get('gen'), q.get('center')]).toEqual(['2', tv.rows[3]?.items[1]?.post.ref]);
-  expect(((await r.json()) as RowJSON).items).toEqual([]);
-  await expect(page.getByTestId('tree-row')).toHaveCount(4);
-  await expect(replies.locator('[data-centered="true"]')).toHaveAttribute('data-ref', tv.rows[3]?.items[1]?.post.ref ?? '');
-  await expect(rowOf(page, -2)).toBeVisible();
-  await expect(rowOf(page, -1)).toBeVisible();
-
-  // Back to the first reply: its replies return.
-  const back = page.waitForResponse(isRow);
-  await replies.getByTestId('tree-prev').click();
-  expect(((await (await back).json()) as RowJSON).items.length).toBe(2);
-  await expect(rowOf(page, 2)).toBeVisible();
-
-  // Swipe: scroll the replies row so the third reply snaps to the middle.
-  const third = tv.rows[3]?.items[2]?.post.ref ?? '';
-  const swiped = page.waitForResponse((res) => isRow(res) && new URL(res.url()).searchParams.get('center') === third);
-  await replies.getByTestId('tree-track').evaluate((el, ref) => {
-    const slot = el.querySelector<HTMLElement>(`[data-slot-ref="${ref}"]`);
-    if (slot) el.scrollTo({ left: slot.offsetLeft - (el.clientWidth - slot.clientWidth) / 2, behavior: 'instant' });
-  }, third);
-  expect((await swiped).status()).toBe(200);
-  await expect(replies.locator('[data-centered="true"]')).toHaveAttribute('data-ref', third);
-
-  // The focal row re-centers on the other parent: its replies are listed instead.
-  const other = page.waitForResponse(isRow);
-  await rowOf(page, -1).getByTestId('tree-next').click();
-  const r0 = (await (await other).json()) as RowJSON;
-  expect([r0.gen, bodies(r0)]).toEqual([0, ['The focal post']]);
-  await expect(rowOf(page, 0).getByTestId('tree-item')).toHaveCount(1);
-  await expect(rowOf(page, 1)).toBeVisible();
+  expect(((await (await back).json()) as TreeJSON).focal).toBe(focal);
+  await expect(focusCard(page)).toHaveAttribute('data-ref', focal);
 });
 
-test('posts longer than 10 lines fold in the tree and expand by keyboard', async ({ page, request, baseURL }) => {
+test('a long post is an excerpt on the map and whole once in focus', async ({ page, request, baseURL }) => {
   await setup(request, baseURL);
   await loginAs(page, baseURL, 'alice');
   await openTree(page, await refOf(page, 'The focal post'));
-  const long = rowOf(page, 1).locator('[data-testid="tree-item"]', { hasText: 'Long reply line 12' });
-  const toggle = long.getByTestId('feed-fold-toggle');
-  const body = long.locator('.fold-body');
-  const clipped = () => body.evaluate((el) => el.scrollHeight > el.clientHeight + 1);
-  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
-  await expect(body).toHaveClass(/fold-tree/);
-  expect(await clipped()).toBe(true);
-  await toggle.focus();
-  await page.keyboard.press('Enter');
-  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
-  await expect(body).not.toHaveClass(/fold-clamp/);
-  expect(await clipped()).toBe(false);
-  await expect(long.getByText(/Long reply line 12/)).toBeVisible();
-  // The focal post never folds; short replies have nothing to unfold.
-  await expect(rowOf(page, 0).getByTestId('feed-fold-toggle')).toHaveCount(0);
-  await expect(rowOf(page, 1).getByTestId('feed-fold-toggle')).toHaveCount(1);
+  const long = nodeWith(page, 'Long reply line 1');
+  await expect(long).toHaveCount(1);
+  await expect(long).not.toContainText('Long reply line 12');
+  const reopened = page.waitForResponse(isOpen);
+  await long.dispatchEvent('click');
+  expect((await reopened).status()).toBe(200);
+  await expect(focusCard(page).getByText(/Long reply line 12/)).toBeVisible();
+  // The post in focus never folds.
+  await expect(focusCard(page).getByTestId('feed-fold-toggle')).toHaveCount(0);
 });
 
 test('snapshots belong to their viewer; an expired one reopens the tree', async ({ page, request, baseURL, playwright }) => {
@@ -316,14 +299,14 @@ test('snapshots belong to their viewer; an expired one reopens the tree', async 
   expect(own.status()).toBe(409);
   expect(((await own.json()) as { error: string }).error).toBe('tree_snapshot_expired');
   const reopened = page.waitForResponse(isOpen);
-  await rowOf(page, 1).getByTestId('tree-next').click();
+  await page.getByTestId('tree-later').click();
   expect((await reopened).status()).toBe(200);
   await expect(page.getByTestId('tree-page')).toHaveAttribute('data-opened', '1');
-  await expect(page.getByTestId('tree-row')).toHaveCount(5);
+  await expect(page.getByTestId('explorer-node')).toHaveCount(16);
   await expect(page.getByTestId('tree-action-error')).toHaveCount(0);
 });
 
-test('the Compact outline', async ({ page, request, baseURL }) => {
+test('the same canvas in Compact', async ({ page, request, baseURL }) => {
   const origin = baseURL ?? '';
   await setup(request, baseURL);
   const csrf = await loginAs(page, baseURL, 'alice');
@@ -332,24 +315,12 @@ test('the Compact outline', async ({ page, request, baseURL }) => {
     data: { ui_prefs: { format: 'compact' } },
   });
   expect(patch.status()).toBe(200);
-  const tv = await openTree(page, await refOf(page, 'The focal post'));
+  const focal = await refOf(page, 'The focal post');
+  await openTree(page, focal);
   await expect(page.getByTestId('tree-layout')).toHaveAttribute('data-format', 'compact');
-  await expect(page.getByTestId('tree-row')).toHaveCount(5);
-  const focalItem = rowOf(page, 0).locator('[data-centered="true"]');
+  await expect(page.getByTestId('explorer-node')).toHaveCount(16);
+  await expect(nodeOf(page, focal)).toHaveAttribute('data-focal', 'true');
   for (const id of ['integrity-chain', 'integrity-inviter-label', 'integrity-why', 'integrity-audience', 'integrity-report']) {
-    await expect(focalItem.getByTestId(id)).toBeVisible();
+    await expect(focusCard(page).getByTestId(id)).toBeVisible();
   }
-  // A generation collapses and opens again.
-  const toggle = rowOf(page, 1).getByTestId('tree-row-toggle');
-  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
-  await toggle.click();
-  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
-  await expect(rowOf(page, 1).getByTestId('tree-item').first()).toBeHidden();
-  await toggle.click();
-  // "Show its replies" re-centers the row: the replies to replies reload.
-  const second = tv.rows[3]?.items[1]?.post.ref ?? '';
-  const row = page.waitForResponse(isRow);
-  await rowOf(page, 1).locator(`[data-testid="tree-item"][data-ref="${second}"]`).getByTestId('tree-center').click();
-  expect(new URL((await row).url()).searchParams.get('center')).toBe(second);
-  await expect(page.getByTestId('tree-row')).toHaveCount(4);
 });

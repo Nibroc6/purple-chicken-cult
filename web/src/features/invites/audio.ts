@@ -1,6 +1,8 @@
 // Access to the handshake sound (features/handshake-audio, P1-W13's codec)
-// for both devices. One AudioContext per page, created on first use (from a
-// click, as browsers require).
+// for both devices. One AudioContext per page, created on first use. Call
+// handshakeAudio() synchronously in the click handler, before any await:
+// Safari and iOS only let an AudioContext start inside the gesture itself, so
+// it is resumed (and unlocked with a silent buffer) right there.
 //
 // Test seam (plan §7, the AudioInput seam of the HandshakeAudio contract): a
 // page may define globalThis.pccHandshakeAudio (a HandshakeAudio factory) and
@@ -15,13 +17,32 @@ interface Seams {
   pccAudioInput?: AudioInput;
 }
 
-let shared: HandshakeAudio | undefined;
+let shared: { ctx: AudioContext; audio: HandshakeAudio } | undefined;
 
 export function handshakeAudio(): HandshakeAudio {
   const seam = (globalThis as Seams).pccHandshakeAudio;
   if (seam) return seam();
-  shared ??= createHandshakeAudio(new AudioContext());
-  return shared;
+  if (!shared) {
+    const ctx = new AudioContext();
+    shared = { ctx, audio: createHandshakeAudio(ctx) };
+  }
+  unlock(shared.ctx);
+  return shared.audio;
+}
+
+// unlock starts ctx from within the user gesture: resume() plus a one-sample
+// silent buffer, which is what iOS Safari needs to let later playback through.
+export function unlock(ctx: AudioContext): void {
+  if (ctx.state === 'running') return;
+  void ctx.resume().catch(() => undefined);
+  try {
+    const src = ctx.createBufferSource();
+    src.buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
+    src.connect(ctx.destination);
+    src.start();
+  } catch {
+    // play() reports a context that never starts.
+  }
 }
 
 export function audioInput(): AudioInput | undefined {

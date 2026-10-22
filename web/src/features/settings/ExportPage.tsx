@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { exportAccount } from './api';
 import { ErrorText, SettingsShell } from './shared';
 import { exportFileName } from './vm';
+import { InfoTip } from '../../lib/InfoTip';
 
 // saveBlob hands the export to the browser's download manager.
 export function saveBlob(blob: Blob, name: string): void {
@@ -32,8 +33,10 @@ function ExportForm() {
   });
   return (
     <div className="settings-form">
-      <p>{t('export.intro')}</p>
-      <p className="muted">{t('export.verify')}</p>
+      <p>
+        {t('export.intro')}
+        <InfoTip>{t('export.verify')}</InfoTip>
+      </p>
       <div className="settings-actions">
         <button
           type="button"

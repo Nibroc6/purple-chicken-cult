@@ -1,7 +1,8 @@
 {
   "page": {
     "title": "Feed",
-    "empty": "Nothing to show yet. Posts from everyone you're connected to appear here, closest first.",
+    "empty": "Nothing here yet.",
+    "emptyTip": "Posts from everyone you're connected to show up here, closest first.",
     "retry": "Try again",
     "expandError": "These posts could not be loaded."
   },
@@ -10,7 +11,8 @@
     "latest": "Latest",
     "balanced": "Balanced",
     "top": "Top",
-    "hint": "{preset, select, latest {Newest first within each step.} top {What people in your network liked most, within each step.} other {Newest first, nudged by what people in your network liked.}}"
+    "hint": "{preset, select, latest {Newest first within each step.} top {What people in your network liked most, within each step.} other {Newest first, nudged by what people in your network liked.}}",
+    "hintLabel": "About this order"
   },
   "newAbove": {
     "banner": "{count, plural, one {# new post above} other {# new posts above}}"
@@ -40,7 +42,8 @@
   },
   "collapsed": {
     "summary": "{count, plural, one {# post from a distant, low-trust connection} other {# posts from distant, low-trust connections}}",
-    "explain": "New accounts far from you are folded away until they have been around for a while.",
+    "explain": "New accounts far from you are folded away until they've been around for a while.",
+    "explainLabel": "Why these are folded",
     "show": "{count, plural, one {Show it} other {Show them}}"
   },
   "more": "Load more"

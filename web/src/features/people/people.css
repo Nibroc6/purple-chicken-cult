@@ -62,3 +62,11 @@
   padding: var(--space-3) var(--space-4);
   margin-block-start: var(--space-4);
 }
+
+.people-upgrade-quiet {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: 44px;
+  margin-block-end: var(--space-2);
+}

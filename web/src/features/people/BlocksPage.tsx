@@ -6,6 +6,7 @@ import { Link } from 'react-router';
 import { Loading } from '../../app/Loading';
 import { fetchBlocks } from './api';
 import { ErrorText, PeopleList, peopleKey } from './shared';
+import { InfoTip } from '../../lib/InfoTip';
 
 export default function BlocksPage() {
   const { t } = useTranslation(['people', 'common']);
@@ -16,7 +17,10 @@ export default function BlocksPage() {
       <p>
         <Link to="/settings">{t('common:nav.settings')}</Link>
       </p>
-      <p className="muted">{t('blocks.help')}</p>
+      <p className="muted">
+        {t('blocks.helpShort')}
+        <InfoTip>{t('blocks.help')}</InfoTip>
+      </p>
       {q.isPending ? <Loading /> : q.error ? <ErrorText err={q.error} /> : <PeopleList people={q.data} empty={t('blocks.empty')} />}
     </section>
   );

@@ -1,13 +1,15 @@
 // The like summary and the like / save / hide / show-less controls of one post. Pure
 // over the view-model and PostActions (no API import), so any layout can use
-// it. Once hidden in this session the post collapses to a notice. data-part
-// names each control for theme CSS (features/themes/sheet.ts).
+// it. Once hidden in this session the post collapses to a notice. Each control
+// is an icon button with a tooltip; data-part names it for theme CSS
+// (features/themes/sheet.ts).
 // Owner: P0-W06 → P1-W08.
 import { Fragment, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useInRouterContext } from 'react-router';
 import { errorKey } from '../../api/errors';
 import { useModalParam } from '../../app/Modal';
+import { IconButton } from '../../lib/IconButton';
 import type { PostActions } from '../../formats/types';
 import type { LikesVM, PostVM, Ref } from '../../vm/types';
 import { useFailed, useHidden } from './store';
@@ -111,53 +113,49 @@ export function EngageBar({ post, actions }: { post: PostVM; actions: PostAction
     <div className="engage" data-testid="engage">
       <LikeSummary likes={post.likes} post={post.ref} />
       <div className="engage-bar" role="group" aria-label={t('actions.label')}>
-        <button
-          type="button"
+        <IconButton
+          icon={post.likes.byMe ? 'like-on' : 'like'}
+          label={post.likes.byMe ? t('like.undo') : t('like.action')}
           data-testid="engage-like"
           data-part="like"
           aria-pressed={post.likes.byMe}
           onClick={() => {
             actions.like(post.ref, !post.likes.byMe);
           }}
-        >
-          {post.likes.byMe ? t('like.undo') : t('like.action')}
-        </button>
+        />
         {actions.save ? (
-          <button
-            type="button"
+          <IconButton
+            icon={post.savedByMe ? 'save-on' : 'save'}
+            label={post.savedByMe ? t('save.undo') : t('save.action')}
+            hint={t('save.private')}
             data-testid="engage-save"
             data-part="save"
             aria-pressed={post.savedByMe}
-            title={t('save.private')}
             onClick={() => {
               actions.save?.(post.ref, !post.savedByMe);
             }}
-          >
-            {post.savedByMe ? t('save.undo') : t('save.action')}
-          </button>
+          />
         ) : null}
         {post.mine ? null : (
           <>
-            <button
-              type="button"
+            <IconButton
+              icon="hide"
+              label={t('hide.action')}
               data-testid="engage-hide"
               data-part="hide"
               onClick={() => {
                 actions.hide(post.ref);
               }}
-            >
-              {t('hide.action')}
-            </button>
-            <button
-              type="button"
+            />
+            <IconButton
+              icon="show-less"
+              label={t('showLess.action', { handle: post.author.handle })}
               data-testid="engage-show-less"
               data-part="show-less"
               onClick={() => {
                 actions.showLess(post.ref);
               }}
-            >
-              {t('showLess.action', { handle: post.author.handle })}
-            </button>
+            />
           </>
         )}
       </div>

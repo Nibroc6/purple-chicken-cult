@@ -11,6 +11,7 @@ import { i18n } from '../../i18n/setup';
 import { groupFingerprint, keysPath, toKeys } from './keys';
 import LandingPage from './LandingPage';
 import TermsPage from './TermsPage';
+import AboutPage from './AboutPage';
 
 const tr = i18n.t.bind(i18n) as unknown as (k: string, o?: Record<string, unknown>) => string;
 
@@ -68,6 +69,7 @@ describe('landing page', () => {
     expect(screen.getByTestId('landing-login').getAttribute('href')).toBe('/login');
     expect(screen.getByTestId('landing-join').getAttribute('href')).toBe('/join');
     expect(screen.getByTestId('landing-terms').getAttribute('href')).toBe('/terms');
+    expect(screen.getByTestId('landing-about').getAttribute('href')).toBe('/about');
     expect(seen).toEqual([]);
   });
 });
@@ -100,5 +102,19 @@ describe('terms page', () => {
     renderAt('/terms', <TermsPage />);
     const alert = await screen.findByRole('alert');
     expect(alert.querySelector('a')?.getAttribute('href')).toBe(keysPath);
+  });
+});
+
+describe('about page', () => {
+  it('has every section, a table of contents and no app data', () => {
+    const seen = stubFetch(() => new Response(null, { status: 404 }));
+    renderAt('/about', <AboutPage />);
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(tr('about:title'));
+    for (const id of ['joining', 'handshake', 'connections', 'probation', 'distance', 'privacy', 'pace', 'safety', 'moderation']) {
+      const s = screen.getByTestId(`about-${id}`);
+      expect(within(s).getByRole('heading', { level: 2 }).textContent).toBe(tr(`about:sections.${id}.title`));
+      expect(screen.getByRole('link', { name: tr(`about:sections.${id}.title`) }).getAttribute('href')).toBe(`#${id}`);
+    }
+    expect(seen).toEqual([]);
   });
 });

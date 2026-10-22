@@ -18,7 +18,7 @@ export default function FriendsPage() {
     <section className="page people-page">
       <h1>{t('friends.title')}</h1>
       <PeopleNav />
-      {q.isPending ? <Loading /> : q.error ? <ErrorText err={q.error} /> : <PeopleList people={people} empty={t('friends.empty')} />}
+      {q.isPending ? <Loading /> : q.error ? <ErrorText err={q.error} /> : <PeopleList people={people} empty={t('friends.empty')} emptyTip={t('friends.emptyTip')} />}
       {q.hasNextPage ? (
         <button
           type="button"

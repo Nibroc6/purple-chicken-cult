@@ -22,7 +22,7 @@ describe('i18n', () => {
   it('formats ICU plurals and selects', () => {
     expect(i18n.t('errors:rate_limited', { seconds: 1 })).toContain('1 second');
     expect(i18n.t('errors:rate_limited', { seconds: 5 })).toContain('5 seconds');
-    expect(i18n.t('integrity:tier.start', { tier: 1 })).toBe('Friends');
+    expect(i18n.t('integrity:tier.start', { tier: 1 })).toBe('Acquaintances');
     expect(i18n.t('integrity:tier.start', { tier: 4 })).toBe('4 steps away');
   });
   it('picks a supported locale', () => {

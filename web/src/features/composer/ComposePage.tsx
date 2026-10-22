@@ -1,7 +1,8 @@
 // The composer (§10.1.5, §10.1.3, §10.7): counter from 280 code points, amber
 // past 500, hard stop at 20,000; split into a thread past 500 (editable parts);
 // audience and reference policy (slippery default from settings); language
-// (first of the user's languages, then the UI locale, "und" available); replies
+// detected from the text (else the first of the user's languages, then the UI
+// locale), with a picker to choose another, "und" available; replies
 // and continuations from ?parent=<ref>&kind=ref|cont, with a warning when the
 // parent's audience is limited; up to 4 pictures through the media picker
 // (P1; a thread attaches them to its first part; the picker hides itself when
@@ -15,8 +16,8 @@ import type { Audience, MediaVM, PostVM, RefPolicy } from '../../vm/types';
 import { addOwnPosts } from '../feed/vm';
 import { MediaImage, MediaPicker } from '../media';
 import { createPost, createThread, fetchPost, postKey, type DraftIn, type ParentIn } from '../post/api';
-import { defaultLang } from '../post/lang';
-import { AudienceSelect, Counter, ErrorText, LangSelect, PolicySelect, PostPreview } from '../post/shared';
+import { defaultLang, detectLang } from '../post/lang';
+import { AudienceSelect, AutoLang, Counter, ErrorText, PolicySelect, PostPreview } from '../post/shared';
 import { codePoints, HARD_LIMIT, hasAudienceLimit, MAX_MEDIA, MAX_PARTS, SOFT_LIMIT } from '../post/vm';
 import { joinParts, splitThread } from './split';
 import './composer.css';
@@ -63,7 +64,7 @@ function Composer({ parent, me, onPublished }: { parent?: ParentIn; me: MeLike; 
   const qc = useQueryClient();
   const [body, setBody] = useState('');
   const [parts, setParts] = useState<string[] | null>(null);
-  const [lang, setLang] = useState(() => defaultLang(me.settings.languages, me.settings.ui_locale));
+  const [chosenLang, setLang] = useState<string | null>(null);
   const [audience, setAudience] = useState<Audience>('connected');
   const [policy, setPolicy] = useState<RefPolicy>(me.settings.slippery_default ? 'nobody' : 'anyone');
   const [noPreview, setNoPreview] = useState(false);
@@ -76,6 +77,8 @@ function Composer({ parent, me, onPublished }: { parent?: ParentIn; me: MeLike; 
   });
   const parentPost = pq.data;
   const blocked = parent !== undefined && (pq.isError || (parentPost !== undefined && !canAttach(parentPost, parent.kind)));
+  const detected = detectLang((parts ?? [body]).join('\n'), me.settings.languages);
+  const lang = chosenLang ?? detected ?? defaultLang(me.settings.languages, me.settings.ui_locale);
   const draft = (): DraftIn => ({
     body,
     lang,
@@ -144,9 +147,10 @@ function Composer({ parent, me, onPublished }: { parent?: ParentIn; me: MeLike; 
       )}
       <MediaSection media={media} onChange={setMedia} />
       <div className="composer-options">
-        <LangSelect
+        <AutoLang
           id="composer-lang"
           value={lang}
+          detected={chosenLang === null && detected !== null}
           languages={me.settings.languages}
           uiLocale={me.settings.ui_locale}
           onChange={setLang}

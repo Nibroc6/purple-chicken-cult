@@ -39,6 +39,7 @@ import {
   type ModReason,
 } from './api';
 import './moderation.css';
+import { InfoTip } from '../../lib/InfoTip';
 
 export const queueKey = ['moderation', 'queue'] as const;
 const cosignsKey = ['moderation', 'cosigns'] as const;
@@ -57,6 +58,7 @@ export default function ModQueuePage() {
 
 function Queue() {
   const { t } = useTranslation(['moderation', 'errors']);
+  const me = useMe();
   const q = useInfiniteQuery({
     queryKey: queueKey,
     queryFn: ({ pageParam }) => fetchQueue(pageParam),
@@ -67,14 +69,24 @@ function Queue() {
   const items = q.data?.pages.flatMap((p) => p.items) ?? [];
   return (
     <>
-      <p className="muted">{t('queue.intro')}</p>
-      <ul className="link-list">
+      <p className="muted">
+        {t('queue.intro')}
+        <InfoTip>{t('queue.introTip')}</InfoTip>
+      </p>
+      <ul className="link-list link-cards">
         <li>
           <Link to="/mod/log">{t('footer.log')}</Link>
         </li>
         <li>
           <Link to="/mod/recovery">{t('footer.recovery')}</Link>
         </li>
+        {me?.role === 'admin' ? (
+          <li>
+            <Link to="/mod/roles" data-testid="queue-roles-link">
+              {t('footer.roles')}
+            </Link>
+          </li>
+        ) : null}
       </ul>
       {q.isPending ? <Loading /> : null}
       {q.error ? (

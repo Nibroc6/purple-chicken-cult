@@ -29,6 +29,12 @@ parts are hard, and be precise about **what each mechanism actually guarantees**
 
 > Changes from v1–v3 and v4 are summarized in §20.
 
+> **Vocabulary.** The app calls a plain connection an **acquaintance** and an in-person
+> verified one (friend+) a **friend**. This document, the code and the signed records
+> keep the original level names: `friend` is an acquaintance, `friend+` is a friend, and
+> "friends" in the graph sense (1st degree, friend cap, friend requests) means
+> acquaintances of either level. Only user-facing text uses the new words.
+
 ---
 
 ## 1. Big picture
@@ -177,6 +183,8 @@ Report      { reporter, target, reason, at }
 - **An invite creates two records:** the permanent `Invite` and a `Friendship`. From
   Phase 1 that friendship starts as friend+, since an in-person handshake is exactly
   what friend+ means.
+- **The same code connects existing accounts** (§7 "One code, two uses"): a signed-in
+  scan creates only a co-signed `Friendship`, no `Invite`.
 - **Unfriending revokes the `Friendship`, never the `Invite`.** Unfriending is like
   blocking, except the person isn't removed from your indirect paths.
 - **Everyone who can see a user sees that user's inviter label** ("invited by @bob"),
@@ -570,6 +578,17 @@ retry prompt.
 | **Accepted** | QR plus jingle | Invite valid. The friendship starts as plain friend, and a later verified handshake upgrades it |
 | **Retry** | Anything less | No token. The app shows the volume prompt or the quiet-mode suggestion |
 
+- **One code, two uses.** The inviter's screen shows a single code. A guest session that
+  scans it signs up (an invite: needs the inviter's budget, checked when the guest
+  claims). A **signed-in** account that scans it turns the handshake into a *connect*:
+  - strangers: Verified makes friend+, Accepted makes friend; both sides co-sign the
+    `Friendship` with a passkey, and no invite is spent (so it works on probation too);
+  - plain friends: it becomes a friend+ upgrade (Verified only);
+  - friend+ already: `already_friends`; a block either way, an inactive account or a
+    full friend list: the uniform not-found.
+
+  This is the in-person route of §10.5, and how new accounts earn the friend+ edges
+  outside their subtree that end probation (§8).
 - **Stored results.** The `Invite` and `Friendship` records keep which channels passed
   and the timings, bucketed, in the `handshake` field. That's all.
 - **How the score is used:**
@@ -596,6 +615,8 @@ many phones could build 2ⁿ accounts in n days at "1 invite per 24h". So:
 ### Invite budget
 - **Probation:** no invites for 30 days. Probation lasts until the account also has ≥3
   friend+ edges to people **outside its own invite subtree**, whichever comes later.
+  Those edges come from in-person connects (§7): the invite code still opens on
+  probation, it just can't sign anyone up.
   - *Phase 0:* 7 days, plus ≥3 ordinary edges outside the subtree.
 - **After probation:** a token bucket of +1 invite per day, capped at 3. Genesis users get
   a cap of 5.
@@ -753,8 +774,11 @@ to friends or 2 hops, reveals that its author falls inside that limit.
   post won't see what it replies to."
 
 #### 10.1.4 The family-tree view
-Tapping a post opens it as the **focal post**. Each generation is one horizontal **row**,
-and rows stack vertically:
+Tapping a post opens it as the **focal post**. Each generation is one **row** of the
+tree, and the rows are drawn on one connected, pannable canvas (the same in every
+format), like a genealogy chart: every post is a card, family-tree lines join each post
+to its parents and replies, and the focal post is highlighted in the middle and shown in
+full, with its integrity elements and actions, under the map. The rows are:
 
 ```
   ── Earlier ──            ↑ load earlier (parents of the centered parent)
@@ -769,28 +793,31 @@ and rows stack vertically:
 1. **Same ranking as the feed.** Within a row, posts sort by distance tier first, then
    `t_eff` under the reader's preset (§5). Ties use the reader's own edge attributes,
    then ID.
-2. **Low-priority posts move out of the way.** The rank-1 post sits in the center
-   column, so the vertical scroll path runs through the best post of each generation.
-   Lower ranks go to the side, smaller and faded: on the right only on mobile,
-   alternating sides on desktop. After 5, a "+N more" chip opens a ranked list, where N
-   counts visible posts only.
-3. **Swiping a row** re-centers it. The rows below reload as the new center's children,
-   and the rows above stay put. A row is ranked as a snapshot, like a feed tier, so it
-   never reshuffles under your thumb.
-4. **Each post appears once.** Extra visible parents show as chips ("also replies to @b")
-   that refocus the view when tapped. If a post would appear a second time, as in a
-   diamond, the second spot shows "↑ shown above".
-5. **Small section headers** sit on every row: "Earlier", "Replying to", "This post",
-   "Replies", "Replies to replies", "3 generations down", and so on. Inside a row, a
-   hairline divider marks each change of distance tier.
+2. **Low-priority posts move out of the way.** The rank-1 post sits on the center line,
+   so the line down the middle runs through the best post of each generation. Lower
+   ranks alternate right and left of it. A "+N more" card at the end of a row loads the
+   rest, where N counts visible posts only.
+3. **Selecting a post brings it into focus**: the tree reopens around it (a new
+   snapshot), the old tree staying on screen until the new one arrives so the cards
+   slide into place. A row is ranked as a snapshot, like a feed tier, so it never
+   reshuffles while you look at it.
+4. **Each post appears once.** The focal post's extra visible parents join it with a
+   dashed "also" line. If a post would appear a second time, as in a diamond, its second
+   spot is a dashed line to the card it already has.
+5. **No section headers.** The lines show how posts relate; siblings hang from one shared
+   line under their parent.
 6. **Loading.** The view opens with the focal post plus 2 rows above and 2 below. More
    rows load near the edges.
    - Each row reads only link IDs from `post_parents`, then filters through the gate.
      Every visible candidate in the row is ranked, and bodies are loaded for the top ~10.
    - Authors deeper than the reader's current search layer come back in the fixed
      latency bucket (§4.1).
-7. **Interaction.** On mobile, scroll vertically and swipe each row horizontally, with
-   no free pan or zoom. On desktop, zooming out shows a minimap (Phase 1).
+7. **Interaction.** Drag (or the arrow keys) pans; the wheel, a pinch or + / − zooms;
+   "show everything" fits the whole tree and "back to this post" returns to the focal
+   post. Every card is a keyboard button. On desktop, zooming out shows a minimap.
+8. **Layout.** The canvas fills the screen beside the navigation. The controls and the
+   focused post, in full, float on it; the focus card folds away, and on phones it is a
+   bottom sheet.
 
 #### 10.1.5 Short posts, systematically
 Long posts are discouraged with friction only. Nothing ranks them lower, because a
@@ -919,7 +946,8 @@ Rendering rules:
 ### 10.5 Discovery (horizon-safe)
 - No global search, no public profiles, and no handle lookup.
 - **Ways to connect:**
-  1. **In person** (the primary route).
+  1. **In person** (the primary route): scan someone's invite code while signed in
+     (§7 "One code, two uses").
   2. **People you may know:** 2nd-degree candidates with ≥2 mutual friends, through
      edges at least 7 days old. Only a count of mutual friends is shown, and anyone can
      opt out of being suggested.
@@ -1150,11 +1178,11 @@ So at that scale:
 - **Preferences** live server-side in `users.ui_prefs`, so they follow you across devices.
   Each format is a lazily loaded chunk.
 
-| Format | Feed | Family tree |
+| Format | Feed | Reply tree |
 |---|---|---|
-| **Cards (default)** | Clean Instagram-style cards (§10.1.7) | The rows layout (§10.1.4) |
-| **Compact** | Dense text rows: author, chain, first lines | An indented outline you can collapse |
-| **Explorer** (Phase 1) | Cards with a small tree thumbnail | A pan-and-zoom node canvas, plus an outline mirror for keyboard and screen-reader users |
+| **Cards (default)** | Clean Instagram-style cards (§10.1.7) | The connected tree (§10.1.4) |
+| **Compact** | Dense text rows: author, chain, first lines | The connected tree (§10.1.4) |
+| **Explorer** (Phase 1) | Cards with a small tree thumbnail | The connected tree (§10.1.4) |
 
 **Accessibility settings are not a format.** High contrast, text size, reduced motion and
 dyslexia-friendly fonts apply to **every** format.
@@ -1182,7 +1210,8 @@ pretend to be one.
   never paste CSS someone sent you. Pasted CSS is the realistic attack, so there's no
   way to import or share theme CSS.
 - **Locked routes.** The sheet isn't applied on sign-in, enrollment, join, recovery,
-  co-signing, settings, moderation, report, blame or terms pages. A passkey prompt
+  co-signing, settings, moderation, report, blame or terms pages, nor while the report
+  form is open as a modal. A passkey prompt
   always looks like the app, and the theme page always works to undo a broken theme.
 - **Accessibility wins.** The sheet is dropped under the high-contrast setting.
 - **Images.** `image(name)` names one of up to 8 of the theme's own uploads. They're

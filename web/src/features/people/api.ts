@@ -115,9 +115,10 @@ export async function runAction(action: PersonAction, ref: Ref, cosig?: Cosig): 
   }
 }
 
-// openUpgrade opens a friend+ upgrade handshake with a plain friend.
-export async function openUpgrade(ref: Ref): Promise<OpenedVM> {
-  return toOpenedVM(unwrap(await api.POST('/friends/{ref}/upgrade', at(ref))));
+// openUpgrade opens a friend+ upgrade handshake with a plain friend (quiet:
+// the jingle off, the near-silent tone only).
+export async function openUpgrade(ref: Ref, quiet = false): Promise<OpenedVM> {
+  return toOpenedVM(unwrap(await api.POST('/friends/{ref}/upgrade', { ...at(ref), body: { quiet } })));
 }
 
 // sessionCosigns reports whether this session signed in with a passkey: its

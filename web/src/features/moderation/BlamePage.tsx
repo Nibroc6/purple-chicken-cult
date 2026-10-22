@@ -11,6 +11,7 @@ import { Loading } from '../../app/Loading';
 import { formatDateTime, formatRelative } from '../../lib/time';
 import { fetchBlame, type BlameItem } from './api';
 import './moderation.css';
+import { InfoTip } from '../../lib/InfoTip';
 
 export const blameKey = ['moderation', 'blame'] as const;
 
@@ -27,7 +28,10 @@ export default function BlamePage() {
   return (
     <section className="page moderation-page" data-testid="blame-page">
       <h1>{t('blame.title')}</h1>
-      <p className="muted">{t('blame.intro')}</p>
+      <p className="muted">
+        {t('blame.intro')}
+        <InfoTip>{t('blame.introTip')}</InfoTip>
+      </p>
       {q.isPending ? <Loading /> : null}
       {q.error ? (
         <p className="moderation-error" role="alert">

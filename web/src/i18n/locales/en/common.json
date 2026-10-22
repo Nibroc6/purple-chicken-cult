@@ -8,13 +8,20 @@
     "skip": "Skip to content",
     "feed": "Feed",
     "compose": "New post",
-    "invite": "Invite",
+    "invite": "Feathers",
     "people": "People",
     "saves": "Saved",
     "seen": "Seen",
     "notifications": "Notifications",
     "moderation": "Moderation",
     "settings": "Settings",
+    "more": "About and moderation",
+    "terms": "Terms",
+    "modLog": "Moderation log",
+    "blame": "Blame inbox",
+    "modRecovery": "Account recovery",
+    "roles": "Moderators and admins",
+    "about": "How it works",
     "menu": "Menu",
     "close": "Close menu",
     "collapse": "Collapse sidebar",
@@ -34,6 +41,9 @@
   "error": {
     "title": "Something went wrong",
     "retry": "Try again"
+  },
+  "infotip": {
+    "label": "More about this"
   },
   "settingsNav": {
     "label": "Settings sections",

@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import type { DecodeReport, HandshakeAudio } from './index';
 import { createHandshakeAudio } from './createHandshakeAudio';
 import { volumeLow } from './decoder';
+import { InfoTip } from '../../lib/InfoTip';
 
 const LISTEN_MS = 15_000;
 
@@ -60,7 +61,10 @@ export default function SoundCheckPage() {
   return (
     <main className="sound-check">
       <h1>{t('check.title')}</h1>
-      <p>{t('check.body')}</p>
+      <p>
+        {t('check.body')}
+        <InfoTip>{t('check.bodyTip')}</InfoTip>
+      </p>
       <p>
         <label>
           <input

@@ -34,7 +34,7 @@ type Class = gate.Class
 func Read(name string) Class { return Class{Kind: gate.ClassRead, Name: name} }
 
 // Write returns a write class (post, like, friend_request, report, social, account,
-// invite_handshake, save, media).
+// invite_handshake, friend_upgrade, save, media).
 func Write(name string) Class { return Class{Kind: gate.ClassWrite, Name: name} }
 
 // Step returns the class of a later step of a write of kind name (see

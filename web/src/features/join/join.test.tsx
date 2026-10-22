@@ -13,6 +13,8 @@ import type { HandshakeAudio, PlayBits } from '../handshake-audio';
 import { ephemeral, fromB64url, renderFrame } from '../invites/handshake';
 import { decodeFrame, isInviteFrame } from './decode';
 import JoinPage from './JoinPage';
+import { UpgradeToast } from './UpgradeToast';
+import { dispatch, resetSSE } from '../../api/sse';
 import { browserLanguages, joinErrorKey } from './vm';
 
 const FRAME_KEY = new Uint8Array(32).fill(3);
@@ -97,13 +99,13 @@ function stubAPI(session: unknown, handler: (c: Call) => Response | undefined): 
   return calls;
 }
 
-function renderJoin() {
+function renderJoin(at = '/join', extra?: React.ReactNode) {
   const router = createMemoryRouter(
     [
       { path: '/join', element: <JoinPage /> },
-      { path: '/', element: <p>home</p> },
+      { path: '/', element: <>{extra}<p>home</p></> },
     ],
-    { initialEntries: ['/join'] },
+    { initialEntries: [at] },
   );
   return render(
     <QueryClientProvider client={makeQueryClient()}>
@@ -343,6 +345,44 @@ describe('join page', () => {
     expect(calls.find((c) => c.path === '/invites/handshakes/mine/cosign')?.body).toEqual({ intent: 'i-1', assertion: { id: 'a' } });
   });
 
+  it('lets a signed-in person scan an invite code and become an acquaintance (Accepted connect)', async () => {
+    let st: Record<string, unknown> = status({ kind: 'connect', state: 'confirmed' });
+    cam.frames = [FRAME];
+    fakeAudio();
+    cosign.request.mockResolvedValue({ intent: 'i-1', assertion: { id: 'a' } });
+    stubAPI({ authenticated: true, kind: 'user', csrf: 'x', me: { handle: 'bob' } }, (c) => {
+      if (c.path === '/join/claim') return json(204, null);
+      if (c.path === '/join/status') return json(200, st);
+      if (c.path === '/join/audio/start') {
+        st = status({ kind: 'connect', state: 'confirmed', attempt: 1, attempts_left: 4, outcome: 'accepted', sign: 'needed', hs: 'mine' });
+        return json(200, { play_at: new Date().toISOString(), attempt: 1 });
+      }
+      if (c.path === '/invites/handshakes/mine/cosign') {
+        st = status({ kind: 'connect', state: 'done', attempt: 1, attempts_left: 4 });
+        return json(204, null);
+      }
+      return undefined;
+    });
+    renderJoin();
+    fireEvent.click(await screen.findByTestId('join-scan-friend'));
+    fireEvent.click(await screen.findByTestId('join-play', {}, { timeout: 3000 }));
+    const done = await screen.findByTestId('join-friend-plus', {}, { timeout: 5000 });
+    expect(done.textContent).toBe(tr('join:upgrade.doneAcquaintances'));
+    expect(cosign.request).toHaveBeenCalledWith(
+      expect.objectContaining({ purpose: 'friend_upgrade', target: 'mine', summary: tr('join:upgrade.summaryAccepted') }),
+    );
+  });
+
+  it('says so when a friend scans the code again', async () => {
+    cam.frames = [FRAME];
+    stubAPI({ authenticated: true, kind: 'user', csrf: 'x', me: { handle: 'bob' } }, (c) =>
+      c.path === '/join/claim' ? json(409, { error: 'already_friends' }) : undefined,
+    );
+    renderJoin();
+    fireEvent.click(await screen.findByTestId('join-scan-friend'));
+    expect(await screen.findByText(tr('join:errors.already_friends'), {}, { timeout: 3000 })).toBeTruthy();
+  });
+
   it('scans the second code in dual-QR mode', async () => {
     let st: Record<string, unknown> = status({ state: 'confirmed', mode: 'dual_qr' });
     cam.frames = [FRAME, DUAL];
@@ -391,5 +431,27 @@ describe('join page', () => {
       expect(screen.queryByTestId('join-scan')).toBeNull();
     });
     expect(screen.getByTestId('join-scan-friend')).toBeTruthy();
+  });
+
+  it('opens the scanner at once with ?scan=1', async () => {
+    cam.frames = [];
+    stubAPI({ authenticated: true, kind: 'user', csrf: 'x', me: { handle: 'bob' } }, () => undefined);
+    renderJoin('/join?scan=1');
+    expect(await screen.findByTestId('join-video', {}, { timeout: 3000 })).toBeTruthy();
+  });
+
+  it('offers the scanner when an acquaintance opens a friend upgrade', async () => {
+    cam.frames = [];
+    stubAPI({ authenticated: true, kind: 'user', csrf: 'x', me: { handle: 'bob' } }, () => undefined);
+    renderJoin('/', <UpgradeToast />);
+    expect(await screen.findByText('home')).toBeTruthy();
+    await waitFor(() => {
+      dispatch('friend_upgrade', { from: 'r1', handle: 'alice' });
+      expect(screen.getByTestId('upgrade-toast').textContent).toContain(tr('join:toast.body', { handle: '@alice' }));
+    });
+    fireEvent.click(screen.getByTestId('upgrade-toast-scan'));
+    expect(await screen.findByTestId('join-video', {}, { timeout: 3000 })).toBeTruthy();
+    expect(screen.queryByTestId('upgrade-toast')).toBeNull();
+    resetSSE();
   });
 });

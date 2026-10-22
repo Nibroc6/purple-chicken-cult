@@ -1,7 +1,7 @@
 {
   "tier": {
-    "start": "{tier, select, 1 {Friends} 2 {Friends of friends} other {{tier} steps away}}",
-    "end": "{tier, select, 1 {You're caught up with friends} 2 {You're caught up with friends of friends} other {You're caught up with people {tier} steps away}}",
+    "start": "{tier, select, 1 {Acquaintances} 2 {Acquaintances of acquaintances} other {{tier} steps away}}",
+    "end": "{tier, select, 1 {You're caught up with acquaintances} 2 {You're caught up with acquaintances of acquaintances} other {You're caught up with people {tier} steps away}}",
     "caughtUp": "You're caught up"
   },
   "chain": {
@@ -20,12 +20,11 @@
     "button": "Why am I seeing this?",
     "title": "Why you're seeing this",
     "close": "Close",
-    "closeGlyph": "×",
     "loading": "Loading…",
     "failed": "Couldn't load the explanation.",
     "retry": "Try again",
     "author": "the author",
-    "tier": "{tier, select, 0 {This is your own post} 1 {From a friend} 2 {From a friend of a friend} other {From someone {tier} steps away}}",
+    "tier": "{tier, select, 0 {This is your own post} 1 {From an acquaintance} 2 {From an acquaintance of an acquaintance} other {From someone {tier} steps away}}",
     "posted": "Posted",
     "preset": "{preset, select, latest {Order: Latest, newest first} top {Order: Top} other {Order: Balanced}}",
     "shift": "{dir, select, none {Shown at the time it was posted} up {{unit, select, h {Moved up by about {hours, plural, one {# hour} other {# hours}}} other {Moved up by {minutes, plural, one {# minute} other {# minutes}}}}} other {{unit, select, h {Moved down by about {hours, plural, one {# hour} other {# hours}}} other {Moved down by {minutes, plural, one {# minute} other {# minutes}}}}}}",
@@ -40,7 +39,7 @@
     }
   },
   "audience": {
-    "label": "{audience, select, d1 {Friends only} d2 {Within 2 steps} d3 {Within 3 steps} friend_plus {Friend+ only} other {Everyone connected}}",
+    "label": "{audience, select, d1 {Acquaintances only} d2 {Within 2 steps} d3 {Within 3 steps} friend_plus {Friends only} other {Everyone connected}}",
     "forced": "(while you're new)"
   },
   "edited": "edited",

@@ -66,6 +66,10 @@ func TestUpgradeRoute(t *testing.T) {
 	}
 	f.do(t, http.MethodPost, "/api/friends/"+f.ref("alice", "bob")+"/upgrade", http.StatusNotFound)
 	f.do(t, http.MethodPost, "/api/friends/"+f.ref("bob", "carol")+"/upgrade", http.StatusNotFound)
+	// The optional body turns the jingle off.
+	if rec := f.h.Do(http.MethodPost, "/api/friends/"+f.ref("alice", "carol")+"/upgrade", map[string]any{"quiet": true}); rec.Code != http.StatusCreated {
+		t.Fatalf("quiet upgrade = %d %s", rec.Code, rec.Body)
+	}
 }
 
 // passkey is an enrolled browser: cookie, CSRF token and authenticator.

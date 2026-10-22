@@ -317,7 +317,8 @@ describe('likes page and post actions', () => {
     renderAt('/p/p1/likes');
     const btn = await screen.findByTestId('engage-save');
     expect(btn.getAttribute('aria-pressed')).toBe('false');
-    expect(btn.textContent).toBe(tr('engage:save.action'));
+    expect(btn.getAttribute('aria-label')).toBe(tr('engage:save.action'));
+    expect(btn.getAttribute('aria-describedby')).toBeTruthy();
     fireEvent.click(btn);
     await waitFor(() => {
       expect(screen.getByTestId('engage-save').getAttribute('aria-pressed')).toBe('true');

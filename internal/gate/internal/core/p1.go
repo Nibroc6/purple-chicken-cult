@@ -97,7 +97,7 @@ const (
 
 // Handshakes opens non-invite in-person handshakes (impl: gate/invites, P1-W02).
 type Handshakes interface {
-	OpenUpgrade(ctx context.Context, v Viewer, peer UserID) (gate.HandshakeView, error)
+	OpenUpgrade(ctx context.Context, v Viewer, peer UserID, quiet bool) (gate.HandshakeView, error)
 	OpenRecovery(ctx context.Context, guardian, account UserID) (gate.HandshakeView, error)
 	ClaimRecovery(ctx context.Context, sess [32]byte, payload string) (account UserID, err error)
 	Result(ctx context.Context, hs uuid.UUID) (Outcome, error)

@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { authError, type ErrorMsg } from '../auth/vm';
 import { cancelCeremony, getAssertion } from '../auth/webauthn';
 import { beginCosign, type IntentJSON } from './api';
-import { RecordView } from './RecordView';
+import { AdvancedRecords } from './RecordView';
 import { settleCosign, usePendingCosign, type CosignRequest } from './store';
 import { toRecordVMs, type RecordVM } from './vm';
 import './cosign.css';
@@ -74,18 +74,18 @@ function Dialog({ req }: { req: CosignRequest }) {
           if (e.key === 'Escape') cancel();
         }}
       >
-        <h2 id={titleId}>{t('cosign:dialog.title')}</h2>
-        {req.summary ? <p className="cosign-summary">{req.summary}</p> : null}
-        <p id={bodyId}>{t('cosign:dialog.body')}</p>
-        {state.phase === 'loading' ? <p aria-live="polite">{t('cosign:dialog.loading')}</p> : null}
-        {records?.map((r, i) => (
-          <RecordView key={i} record={r} />
-        ))}
-        {state.phase === 'failed' && state.error ? (
-          <p className="cosign-error" role="alert">
-            {t(state.error.key as 'errors:unknown', state.error.params)}
-          </p>
-        ) : null}
+        <div className="cosign-body">
+          <h2 id={titleId}>{t('cosign:dialog.title')}</h2>
+          {req.summary ? <p className="cosign-summary">{req.summary}</p> : null}
+          <p id={bodyId}>{t('cosign:dialog.body')}</p>
+          {state.phase === 'loading' ? <p aria-live="polite">{t('cosign:dialog.loading')}</p> : null}
+          {records ? <AdvancedRecords records={records} /> : null}
+          {state.phase === 'failed' && state.error ? (
+            <p className="cosign-error" role="alert">
+              {t(state.error.key as 'errors:unknown', state.error.params)}
+            </p>
+          ) : null}
+        </div>
         <div className="cosign-actions">
           {intent && records ? (
             <button

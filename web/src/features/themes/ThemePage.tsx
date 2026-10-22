@@ -31,6 +31,9 @@ import {
 } from './theme';
 import { useAppliedSheet, useAppliedTheme, useImageURLs, useStoredTheme, type SheetImage } from './useTheme';
 import './themes.css';
+import { InfoTip } from '../../lib/InfoTip';
+import { Icon } from '../../lib/Icon';
+import { IconButton } from '../../lib/IconButton';
 
 const themeCodes = new Set(['theme_contrast', 'theme_css', 'theme_font', 'theme_invalid', 'rate_limited']);
 
@@ -282,6 +285,7 @@ function ThemeForm({ stored }: { stored: ThemeView | null }) {
         <ul className="theme-checks" aria-label={t('check.legend')}>
           {results.map((r) => (
             <li key={r.id} data-testid="theme-check" data-check={r.id} data-ok={r.ok} data-failed={failed === r.id}>
+              <Icon name={r.ok ? 'ok' : 'fail'} />
               {t(r.ok ? 'check.ok' : 'check.low', {
                 what: t(`check.${r.id}` as 'check.text'),
                 ratio: Math.floor(r.ratio * 10) / 10,
@@ -313,12 +317,8 @@ function ThemeForm({ stored }: { stored: ThemeView | null }) {
               <ReportAction target={{ kind: 'post', ref: asRef('preview') }} onReport={noop} />
             </footer>
             <div className="engage-bar">
-              <button type="button" data-part="like" aria-pressed={false}>
-                {t('preview.like')}
-              </button>
-              <button type="button" data-part="save" aria-pressed={true}>
-                {t('preview.saved')}
-              </button>
+              <IconButton icon="like" label={t('preview.like')} data-part="like" aria-pressed={false} />
+              <IconButton icon="save-on" label={t('preview.saved')} data-part="save" aria-pressed={true} />
             </div>
           </article>
           <p>
@@ -514,7 +514,10 @@ export default function ThemePage() {
   return (
     <section className="page theme-page" data-testid="theme-page">
       <h1>{t('page.title')}</h1>
-      <p className="muted">{t('page.intro')}</p>
+      <p className="muted">
+        {t('page.intro')}
+        <InfoTip>{t('page.introTip')}</InfoTip>
+      </p>
       {theme.isPending ? <Loading /> : <ThemeForm stored={theme.data ?? null} />}
     </section>
   );

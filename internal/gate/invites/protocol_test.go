@@ -392,19 +392,35 @@ func TestOpenProblems(t *testing.T) {
 
 	_, err = e.s.Budget(e.as(alice)) // creates the bucket
 	e.must(err)
+	// Without invites the code still opens (it connects signed-in friends),
+	// but says so, and a guest cannot claim it.
+	noInvite := func(mode, what string) {
+		t.Helper()
+		hv, err := e.s.Open(e.as(alice), mode, false)
+		e.must(err)
+		if hv.Invite {
+			t.Fatalf("%s: the code claims to sign up", what)
+		}
+		wantNotFound(t, e.guest().claim(e.started(e.as(alice), hv).payload), what)
+	}
 	e.exec("UPDATE invite_budgets SET tokens = 0, refreshed_at = $2 WHERE user_id = $1", int64(alice), e.d.Clock.Now())
-	_, err = e.s.Open(e.as(alice), "qr_audio", false)
-	wantProblem(t, err, "no_invites")
+	noInvite("qr_audio", "no invites")
 	e.advance(invites.TokenEvery)
-	_, err = e.s.Open(e.as(alice), "qr_audio", false)
+	hv, err := e.s.Open(e.as(alice), "qr_audio", false)
 	e.must(err)
+	if !hv.Invite {
+		t.Fatal("a code with an invite saved must sign up")
+	}
+	// The budget is checked again at the guest's claim.
+	h := e.started(e.as(alice), hv)
+	e.exec("UPDATE invite_budgets SET tokens = 0, refreshed_at = $2 WHERE user_id = $1", int64(alice), e.d.Clock.Now())
+	wantNotFound(t, e.guest().claim(h.payload), "invite spent after the open")
+	e.advance(invites.TokenEvery)
 
 	e.exec("UPDATE invite_budgets SET paused_until = $2 WHERE user_id = $1", int64(alice), e.d.Clock.Now().Add(time.Hour))
-	_, err = e.s.Open(e.as(alice), "qr_audio", false)
-	wantProblem(t, err, "invites_paused")
+	noInvite("qr_audio", "paused")
 	e.exec("UPDATE invite_budgets SET paused_until = NULL, revoked = true WHERE user_id = $1", int64(alice))
-	_, err = e.s.Open(e.as(alice), "dual_qr", false)
-	wantProblem(t, err, "invites_paused")
+	noInvite("dual_qr", "revoked")
 }
 
 func TestFriendCap(t *testing.T) {

@@ -176,10 +176,12 @@ func validReason[T ~string](list []T, r string) bool {
 
 // GrantModerator makes handle a moderator (CLI `pcc mod grant`). by must be an
 // existing active admin; bootstrap makes handle the first admin and works only
-// while no admin exists. users.role is this module's column (plan §3.4).
+// while no admin exists. users.role is this module's column (plan §3.4). A
+// change of role is logged like one made on the roles page (roles.go); a
+// handle that already has the role (or a higher one) changes nothing.
 func (s *Service) GrantModerator(ctx context.Context, handle, by string, bootstrap bool) error {
-	handle = strings.ToLower(strings.TrimPrefix(strings.TrimSpace(handle), "@"))
-	by = strings.ToLower(strings.TrimPrefix(strings.TrimSpace(by), "@"))
+	handle, by = canonHandle(handle), canonHandle(by)
+	now := s.d.Clock.Now()
 	var id int64
 	err := s.d.DB.TxSerializable(ctx, func(tx pgx.Tx) error {
 		var admins int
@@ -187,26 +189,37 @@ func (s *Service) GrantModerator(ctx context.Context, handle, by string, bootstr
 			int16(core.RoleAdmin), int16(core.StatusActive)).Scan(&admins); err != nil {
 			return err
 		}
-		role := int16(core.RoleModerator)
+		role, action := int16(core.RoleModerator), ActionGrantModerator
+		var byID int64
 		if bootstrap {
 			if admins > 0 {
 				return errors.New("moderation: an admin already exists; use --by")
 			}
-			role = int16(core.RoleAdmin)
+			role, action = int16(core.RoleAdmin), ActionGrantAdmin
 		} else {
 			var byRole int16
-			err := tx.QueryRow(ctx, "SELECT role FROM users WHERE handle_canon = $1 AND status = $2", by,
-				int16(core.StatusActive)).Scan(&byRole)
+			err := tx.QueryRow(ctx, "SELECT id, role FROM users WHERE handle_canon = $1 AND status = $2", by,
+				int16(core.StatusActive)).Scan(&byID, &byRole)
 			if err != nil || byRole != int16(core.RoleAdmin) {
 				return errors.New("moderation: --by must name an active admin")
 			}
 		}
-		err := tx.QueryRow(ctx, "UPDATE users SET role = GREATEST(role, $2) WHERE handle_canon = $1 AND status = $3 RETURNING id",
-			handle, role, int16(core.StatusActive)).Scan(&id)
+		var old int16
+		err := tx.QueryRow(ctx, "SELECT id, role FROM users WHERE handle_canon = $1 AND status = $2 FOR UPDATE",
+			handle, int16(core.StatusActive)).Scan(&id, &old)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return gate.ErrNotFound
 		}
-		return err
+		if err != nil || old >= role {
+			return err
+		}
+		if _, err := tx.Exec(ctx, "UPDATE users SET role = $2 WHERE id = $1", id, role); err != nil {
+			return err
+		}
+		if bootstrap {
+			byID = id
+		}
+		return s.logRoleChange(ctx, tx, core.UserID(byID), core.UserID(id), action, nil, now) //nolint:gosec // users.id < 2^32 (DB CHECK)
 	})
 	if err != nil {
 		return err

@@ -13,6 +13,7 @@ import { useSeenTracker } from '../seen/useSeenTracker';
 import { EngageBar } from './EngageBar';
 import { usePostActions } from './usePostActions';
 import './engage.css';
+import { InfoTip } from '../../lib/InfoTip';
 
 export default function LikesPage() {
   const { t } = useTranslation(['engage', 'errors']);
@@ -36,7 +37,10 @@ export default function LikesPage() {
             <PostPreview post={q.data} />
           </div>
           <EngageBar post={q.data} actions={actions} />
-          <p className="muted">{t('likes.explain')}</p>
+          <p className="muted">
+            {t('likes.explainShort')}
+            <InfoTip>{t('likes.explain')}</InfoTip>
+          </p>
           <p className="post-links">
             <Link to={`/p/${q.data.ref}`}>{t('page.open')}</Link> <Link to="/seen">{t('page.seen')}</Link>
           </p>

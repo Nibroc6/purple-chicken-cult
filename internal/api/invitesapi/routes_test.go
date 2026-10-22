@@ -431,8 +431,12 @@ func TestInviteAndJoinOverHTTP(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), `"friend_plus":true`) {
 		t.Fatalf("invitee budget %s", rec.Body)
 	}
+	// On probation its code only connects signed-in friends.
 	rec = g.do(http.MethodPost, "/api/invites/handshakes", map[string]any{"mode": "qr_audio"})
-	want(t, rec, http.StatusConflict, "on_probation")
+	want(t, rec, http.StatusCreated, "")
+	if strings.Contains(rec.Body.String(), `"invite":true`) {
+		t.Fatalf("probation handshake %s", rec.Body)
+	}
 	rec = alice.do(http.MethodGet, "/api/invites/invitees", nil)
 	want(t, rec, http.StatusOK, "")
 	if !strings.Contains(rec.Body.String(), `"handle":"newbie"`) || !strings.Contains(rec.Body.String(), `"on_probation":true`) {

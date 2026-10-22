@@ -7,6 +7,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"math/big"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -92,9 +93,11 @@ func decodeClaim(in ClaimIn) (parsedFrame, []byte, []byte, bool) {
 }
 
 // Claim binds a scanned frame to the caller's session (invites: a guest
-// session; upgrades: the friend's own signed-in session). Any failure (stale
-// or forged frame, missing or wrong key or proof, taken or finished
-// handshake, wrong session) is the uniform not-found.
+// session; upgrades: the friend's own signed-in session; an invite code
+// scanned by a signed-in account turns into a connect, see connectKind). Any
+// failure (stale or forged frame, missing or wrong key or proof, taken or
+// finished handshake, wrong session, an inviter who cannot invite now) is the
+// uniform not-found.
 func (s *Service) Claim(ctx context.Context, in ClaimIn) error {
 	v, err := claimer(ctx)
 	if err != nil {
@@ -122,7 +125,7 @@ func (s *Service) claim(ctx context.Context, v core.Viewer, in ClaimIn, recovery
 		case recovery:
 			ok = h.kind == kindRecovery && v.Kind == core.SessGuest
 		case h.kind == kindInvite:
-			ok = v.Kind == core.SessGuest
+			ok = v.Kind == core.SessGuest || v.Kind == core.SessUser && v.ID != h.initiator
 		case h.kind == kindUpgrade:
 			ok = v.Kind == core.SessUser && v.ID == h.peer
 		default:
@@ -132,11 +135,27 @@ func (s *Service) claim(ctx context.Context, v core.Viewer, in ClaimIn, recovery
 			!hmac.Equal(f.mac, frameMAC(h.frameKey, h.id, h.ei, f.n)) || !fresh(h.createdAt, now, f.n) {
 			return gate.ErrNotFound
 		}
+		if h.kind == kindInvite {
+			if v.Kind == core.SessUser {
+				if h.kind, err = s.connectKind(ctx, h, v.ID); err != nil {
+					return err
+				}
+				h.peer = v.ID
+			} else if err := s.inviterReady(ctx, tx, h.initiator, now); err != nil {
+				return err
+			}
+		}
+		var peer *int64
+		if h.peer != 0 {
+			p := int64(h.peer)
+			peer = &p
+		}
 		challenge := sha256.Sum256([]byte(in.Payload))
 		h.state, h.claimed, h.ev, h.sigPub, h.challenge = stClaimed, v.Session[:], ev, pub, challenge[:]
 		_, err = tx.Exec(ctx, `UPDATE handshake_sessions SET state = $2, claimed_session = $3, claimed_at = $4,
-			expires_at = $5, invitee_epub = $6, invitee_sig_pub = $7, scan_index = $8, join_challenge = $9
-			WHERE id = $1`, h.id, stClaimed, v.Session[:], now, now.Add(ClaimedTTL), ev, pub, f.n, challenge[:])
+			expires_at = $5, invitee_epub = $6, invitee_sig_pub = $7, scan_index = $8, join_challenge = $9, kind = $10,
+			peer_user_id = $11 WHERE id = $1`, h.id, stClaimed, v.Session[:], now, now.Add(ClaimedTTL), ev, pub, f.n,
+			challenge[:], h.kind, peer)
 		return err
 	})
 	if err != nil {
@@ -144,6 +163,41 @@ func (s *Service) claim(ctx context.Context, v core.Viewer, in ClaimIn, recovery
 	}
 	s.liveEvent(h, "claimed")
 	return h, nil
+}
+
+// inviterReady checks at a guest's claim that the inviter can still invite
+// (the code may have been opened without budget, or the budget spent since).
+func (s *Service) inviterReady(ctx context.Context, q store.Q, inviter core.UserID, now time.Time) error {
+	m, err := s.d.Users.Get(ctx, inviter)
+	if err != nil || s.canInvite(ctx, q, m, now) != nil {
+		return gate.ErrNotFound
+	}
+	return nil
+}
+
+// connectKind is what an invite code becomes when the signed-in account u
+// claims it: a connect between strangers, an upgrade between plain friends
+// (sound only: an upgrade exists to be Verified). Friends+ already get
+// Problem already_friends; a block either way, an inactive account or a full
+// friend list on either side is the uniform not-found.
+func (s *Service) connectKind(ctx context.Context, h hsRow, u core.UserID) (int16, error) {
+	if !s.active(ctx, u) || !s.active(ctx, h.initiator) ||
+		s.d.Graph.Blocks(u, h.initiator) || s.d.Graph.Blocks(h.initiator, u) {
+		return 0, gate.ErrNotFound
+	}
+	lvl, ok := s.d.Graph.Level(h.initiator, u)
+	switch {
+	case ok && lvl == core.LevelFriendPlus:
+		return 0, gate.NewProblem(gate.StatusConflict, "already_friends")
+	case ok && h.mode != modeQRAudio:
+		return 0, gate.ErrNotFound
+	case ok:
+		return kindUpgrade, nil
+	}
+	if s.belowCap(ctx, u) != nil || s.belowCap(ctx, h.initiator) != nil {
+		return 0, gate.ErrNotFound
+	}
+	return kindConnect, nil
 }
 
 // claimedBy loads the handshake the session sess claimed most recently.
@@ -168,7 +222,7 @@ func (s *Service) joinCall(ctx context.Context, q store.Q, sig, call string, loc
 		return core.Viewer{}, hsRow{}, err
 	}
 	raw, err := b64.DecodeString(sig)
-	kindOK := (h.kind == kindUpgrade) == (v.Kind == core.SessUser) && (h.kind != kindUpgrade || v.ID == h.peer)
+	kindOK := h.signedInPeer() == (v.Kind == core.SessUser) && (!h.signedInPeer() || v.ID == h.peer)
 	if err != nil || !kindOK || h.sigPub == nil || !verifySig(h.sigPub, callMessage(h, call), raw) {
 		return core.Viewer{}, hsRow{}, gate.ErrNotFound
 	}

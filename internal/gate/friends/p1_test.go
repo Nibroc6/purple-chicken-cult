@@ -394,7 +394,7 @@ func TestUpgradeBegin(t *testing.T) {
 	e.link(alice.id, bob.id)
 	e.link(alice.id, carol)
 	e.link(carol, dave)
-	hv, err := e.f.UpgradeBegin(alice.ctx(), e.ref(alice.id, bob.id))
+	hv, err := e.f.UpgradeBegin(alice.ctx(), e.ref(alice.id, bob.id), false)
 	e.must(err)
 	if hv.HS == "" || hv.FrameKey == "" || hv.Mode != "qr_audio" {
 		t.Fatalf("handshake %+v", hv)
@@ -404,15 +404,15 @@ func TestUpgradeBegin(t *testing.T) {
 	if st.Kind != "upgrade" || st.State != "open" {
 		t.Fatalf("status %+v", st)
 	}
-	_, err = e.f.UpgradeBegin(alice.ctx(), e.ref(alice.id, dave))
+	_, err = e.f.UpgradeBegin(alice.ctx(), e.ref(alice.id, dave), false)
 	wantNotFound(t, err) // not a friend
-	_, err = e.f.UpgradeBegin(alice.ctx(), e.ref(alice.id, alice.id))
+	_, err = e.f.UpgradeBegin(alice.ctx(), e.ref(alice.id, alice.id), false)
 	wantNotFound(t, err)
-	_, err = e.f.UpgradeBegin(alice.ctx(), gate.Ref("garbage"))
+	_, err = e.f.UpgradeBegin(alice.ctx(), gate.Ref("garbage"), false)
 	wantNotFound(t, err)
 	e.d.Graph.AddEdge(alice.id, carol, core.LevelFriendPlus, coretest.Epoch)
-	_, err = e.f.UpgradeBegin(alice.ctx(), e.ref(alice.id, carol))
+	_, err = e.f.UpgradeBegin(alice.ctx(), e.ref(alice.id, carol), false)
 	wantNotFound(t, err) // already friend+
-	_, err = e.f.UpgradeBegin(e.ctx, e.ref(alice.id, bob.id))
+	_, err = e.f.UpgradeBegin(e.ctx, e.ref(alice.id, bob.id), false)
 	wantNotFound(t, err) // anonymous
 }

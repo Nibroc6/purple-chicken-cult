@@ -1,5 +1,5 @@
 // Package modapi serves /api/reports, /api/blame, /api/mod/* (queue, claim,
-// resolve, confirm, quarantine, csam-report, log) and /api/csp-report (plan §5.3).
+// resolve, confirm, quarantine, csam-report, log, roles) and /api/csp-report (plan §5.3).
 //
 // Owner: P0-W12 → P1-W06.
 package modapi
@@ -70,6 +70,11 @@ type QuarantineIn struct {
 // CSAMReportIn is the body of POST /api/mod/items/{id}/csam-report.
 type CSAMReportIn struct {
 	ReportRef string `json:"report_ref"`
+}
+
+// GrantIn is the body of POST /api/mod/roles: the handle to make a moderator.
+type GrantIn struct {
+	Handle string `json:"handle"`
 }
 
 // ConfirmMax bounds a confirmation (a WebAuthn assertion is a few KiB).
@@ -173,6 +178,29 @@ func Register(r chi.Router, d *api.Deps) {
 			return err
 		}
 		return apix.JSON(w, http.StatusOK, page)
+	})
+	apix.Route(r, http.MethodGet, "/mod/roles", rGraph, func(w http.ResponseWriter, r *http.Request) error {
+		staff, err := m.Staff(r.Context())
+		if err != nil {
+			return err
+		}
+		return apix.JSON(w, http.StatusOK, staff)
+	})
+	apix.Route(r, http.MethodPost, "/mod/roles", wSocial, func(w http.ResponseWriter, r *http.Request) error {
+		in, err := apix.Decode[GrantIn](r, 0)
+		if err != nil {
+			return err
+		}
+		if err := m.GrantModeratorRole(r.Context(), in.Handle); err != nil {
+			return err
+		}
+		return apix.NoContent(w)
+	})
+	apix.Route(r, http.MethodPost, "/mod/roles/{ref}/revoke", wSocial, func(w http.ResponseWriter, r *http.Request) error {
+		if err := m.RevokeModerator(r.Context(), apix.Ref(r, "ref")); err != nil {
+			return err
+		}
+		return apix.NoContent(w)
 	})
 	apix.Route(r, http.MethodPost, "/csp-report", aCSP, func(w http.ResponseWriter, r *http.Request) error {
 		raw, err := apix.Decode[json.RawMessage](r, CSPMax)

@@ -246,6 +246,7 @@ describe('feed page', () => {
       expect(screen.getByTestId('feed-preset-top').getAttribute('aria-pressed')).toBe('true');
     });
     expect(screen.getByTestId('feed-preset-top').textContent).toBe(tr('feed:preset.top'));
+    fireEvent.click(within(screen.getByTestId('feed-preset-hint')).getByRole('button', { name: tr('feed:preset.hintLabel') }));
     expect(screen.getByText(tr('feed:preset.hint', { preset: 'top' }))).toBeTruthy();
     expect(feedCalls(calls)).toEqual([{}]);
   });

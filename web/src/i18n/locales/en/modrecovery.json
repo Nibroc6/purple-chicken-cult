@@ -1,7 +1,8 @@
 {
   "page": {
     "title": "Account recovery",
-    "intro": "Manual recovery needs two different moderators, each confirming with their passkey. After the second approval the account holder is warned and can cancel for 24 hours; then the second moderator gets a one-time enrollment link.",
+    "intro": "Manual recovery needs two different moderators.",
+    "introTip": "Each confirms with their passkey. After the second approval the account holder is warned and can cancel for 24 hours; then the second moderator gets a one-time enrollment link.",
     "membersOnly": "This page is for moderators."
   },
   "request": {

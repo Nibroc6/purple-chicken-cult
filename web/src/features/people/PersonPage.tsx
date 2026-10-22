@@ -66,7 +66,8 @@ function Upgrade({ person }: { person: PeopleVM }) {
   const qc = useQueryClient();
   const titleId = useId();
   const [opened, setOpened] = useState<OpenedVM>();
-  const open = useMutation({ mutationFn: () => openUpgrade(person.ref), onSuccess: setOpened });
+  const [quiet, setQuiet] = useState(false);
+  const open = useMutation({ mutationFn: () => openUpgrade(person.ref, quiet), onSuccess: setOpened });
   if (!opened && !canUpgrade(person)) return null;
   return (
     <section className="people-section people-upgrade" aria-labelledby={titleId} data-testid="upgrade-panel">
@@ -88,6 +89,18 @@ function Upgrade({ person }: { person: PeopleVM }) {
       ) : (
         <>
           <p>{t('upgrade.offer', { handle: person.handle })}</p>
+          <label className="people-upgrade-quiet">
+            <input
+              type="checkbox"
+              name="quiet"
+              data-testid="upgrade-quiet"
+              checked={quiet}
+              onChange={(e) => {
+                setQuiet(e.target.checked);
+              }}
+            />
+            {t('upgrade.quiet')}
+          </label>
           <button
             type="button"
             data-testid="action-upgrade"

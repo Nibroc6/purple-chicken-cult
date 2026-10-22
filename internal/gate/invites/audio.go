@@ -268,13 +268,13 @@ func (s *Service) Report(ctx context.Context, ref gate.Ref, in ReportIn) (Report
 }
 
 // recordOutcome stores h's latest attempt and, when it passed, starts what
-// follows: an upgrade drafts the friend+ Friendship both sides sign; a
+// follows: an upgrade or a connect drafts the Friendship both sides sign; a
 // recovery ends (the account module reads Result).
 func (s *Service) recordOutcome(ctx context.Context, tx pgx.Tx, h *hsRow, now time.Time) error {
 	state, pending := h.state, h.pending
 	if h.passed() {
 		switch h.kind {
-		case kindUpgrade:
+		case kindUpgrade, kindConnect:
 			p, err := s.upgradeDraft(ctx, *h, now)
 			if err != nil {
 				return err

@@ -192,9 +192,11 @@ paths:
     get:
       operationId: modLog
       description: >-
-        The public moderation log: confirmed removals and suspensions per day,
-        reason and subject with a count. A subject is named only if the caller
-        has that person in their horizon; otherwise it is a pseudonym.
+        The public moderation log: confirmed removals, suspensions and role
+        changes (grant_moderator, revoke_moderator, grant_admin; reason
+        role_change) per day, reason and subject with a count. A subject is
+        named only if the caller has that person in their horizon; otherwise it
+        is a pseudonym.
       parameters:
         - { name: cursor, in: query, required: false, schema: { type: string, maxLength: 256 } }
       responses:
@@ -204,6 +206,59 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ModLogPage' }
         "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/ModRateLimited' }
+  /mod/roles:
+    get:
+      operationId: modRoles
+      description: >-
+        Admins only. The active moderators and admins (admins first, then by
+        handle) with the time of their logged grant, and the latest 50 role
+        changes from the moderation log, newest first. Everyone else gets the
+        uniform 404.
+      responses:
+        "200":
+          description: The staff list.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ModStaff' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/ModRateLimited' }
+    post:
+      operationId: modGrantModerator
+      description: >-
+        Admins only. Makes the active member with this handle a moderator and
+        records grant_moderator in the moderation log. Needs a passkey
+        verification within 5 minutes. The admin role is not granted here (CLI
+        only). Problems: handle_unknown (422), already_staff (409).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ModGrantIn' }
+      responses:
+        "204": { description: Granted. }
+        "400": { $ref: '_common.yaml#/components/responses/Problem' }
+        "401": { $ref: '#/components/responses/ModStepUp' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409": { $ref: '_common.yaml#/components/responses/Problem' }
+        "422": { $ref: '_common.yaml#/components/responses/Problem' }
+        "429": { $ref: '#/components/responses/ModRateLimited' }
+  /mod/roles/{ref}/revoke:
+    parameters:
+      - { name: ref, in: path, required: true, schema: { type: string, maxLength: 256 } }
+    post:
+      operationId: modRevokeModerator
+      description: >-
+        Admins only. Makes the moderator (the ref from GET /mod/roles) a member
+        again, releases their claims on queue items and records
+        revoke_moderator in the moderation log. Needs a passkey verification
+        within 5 minutes. Problems: admin_role (admins change only through the
+        CLI), not_moderator (409).
+      responses:
+        "204": { description: Revoked. }
+        "401": { $ref: '#/components/responses/ModStepUp' }
+        "404": { $ref: '_common.yaml#/components/responses/NotFound' }
+        "409": { $ref: '_common.yaml#/components/responses/Problem' }
         "429": { $ref: '#/components/responses/ModRateLimited' }
   /csp-report:
     post:
@@ -300,6 +355,40 @@ components:
           type: array
           items: { $ref: '_common.yaml#/components/schemas/LogItem' }
         next: { type: string }
+    ModGrantIn:
+      type: object
+      required: [handle]
+      additionalProperties: false
+      properties:
+        handle: { type: string, maxLength: 64 }
+    ModStaff:
+      type: object
+      required: [members, changes]
+      properties:
+        members:
+          type: array
+          items: { $ref: '#/components/schemas/ModStaffMember' }
+        changes:
+          type: array
+          items: { $ref: '#/components/schemas/ModRoleChange' }
+    ModStaffMember:
+      type: object
+      required: [ref, handle, role]
+      properties:
+        ref: { type: string }
+        handle: { type: string }
+        display_name: { type: string }
+        role: { type: string, enum: [moderator, admin] }
+        since: { type: string, format: date-time }
+        me: { type: boolean }
+    ModRoleChange:
+      type: object
+      required: [action, handle, by_handle, at]
+      properties:
+        action: { type: string, enum: [grant_moderator, revoke_moderator, grant_admin] }
+        handle: { type: string }
+        by_handle: { type: string }
+        at: { type: string, format: date-time }
     ModCSPReports:
       type: array
       items:

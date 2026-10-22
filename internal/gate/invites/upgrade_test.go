@@ -13,7 +13,7 @@ import (
 // upgrade opens a friend+ upgrade by a with b and lets b's signed-in browser claim it.
 func (e *env) upgrade(a, b *member) (*hs, *guest) {
 	e.t.Helper()
-	hv, err := e.s.OpenUpgrade(a.ctx(), a.viewer(), b.id)
+	hv, err := e.s.OpenUpgrade(a.ctx(), a.viewer(), b.id, false)
 	e.must(err)
 	h := e.started(a.ctx(), hv)
 	p := e.peerOf(b)
@@ -33,6 +33,21 @@ func TestAcceptedInviteThenVerifiedUpgradeMakesFriendPlus(t *testing.T) {
 	core.Subscribe(e.d.Bus, func(ev core.EdgeUpgraded) { upgraded = append(upgraded, ev) })
 
 	h, p := e.upgrade(alice, nb)
+	// The friend is offered the scanner (notification and push).
+	var offers, live int
+	for _, ev := range e.rec.Events {
+		if ev.To == nb.id && ev.Kind == "friend_upgrade" && ev.SubjectUser == alice.id {
+			offers++
+		}
+	}
+	for _, ev := range e.rec.LiveEv {
+		if ev.To == nb.id && ev.Topic == "friend_upgrade" {
+			live++
+		}
+	}
+	if offers != 1 || live != 1 {
+		t.Fatalf("scanner offers: %d notifications, %d live events", offers, live)
+	}
 	st, err := p.status()
 	e.must(err)
 	if st.Kind != "upgrade" || st.State != "confirmed" || st.HS == "" || st.SignupToken != "" {
@@ -93,7 +108,7 @@ func TestAcceptedInviteThenVerifiedUpgradeMakesFriendPlus(t *testing.T) {
 		t.Fatalf("final status %+v", s)
 	}
 	// Already friend+: no second upgrade.
-	_, err = e.s.OpenUpgrade(alice.ctx(), alice.viewer(), nb.id)
+	_, err = e.s.OpenUpgrade(alice.ctx(), alice.viewer(), nb.id, false)
 	wantNotFound(t, err, "upgrade of a friend+ edge")
 	// The friend+ edge counts toward the invitee's probation.
 	b, err := e.s.Budget(nb.ctx())
@@ -124,11 +139,11 @@ func TestUpgradeNeedsTheRightPeople(t *testing.T) {
 	e := newEnv(t)
 	alice, bob, carol := e.enroll("alice"), e.enroll("bob"), e.enroll("carol")
 	e.friend(alice.id, bob.id)
-	_, err := e.s.OpenUpgrade(alice.ctx(), alice.viewer(), carol.id)
+	_, err := e.s.OpenUpgrade(alice.ctx(), alice.viewer(), carol.id, false)
 	wantNotFound(t, err, "upgrade with a stranger")
-	_, err = e.s.OpenUpgrade(alice.ctx(), alice.viewer(), alice.id)
+	_, err = e.s.OpenUpgrade(alice.ctx(), alice.viewer(), alice.id, false)
 	wantNotFound(t, err, "upgrade with oneself")
-	hv, err := e.s.OpenUpgrade(alice.ctx(), alice.viewer(), bob.id)
+	hv, err := e.s.OpenUpgrade(alice.ctx(), alice.viewer(), bob.id, false)
 	e.must(err)
 	h := e.started(alice.ctx(), hv)
 	// Only bob's own signed-in session can claim it.
@@ -194,5 +209,29 @@ func TestRecoveryHandshake(t *testing.T) {
 	}
 	if _, err := e.s.Result(e.ctx, uuid.UUID{1}); err == nil {
 		t.Fatal("result of an unknown handshake")
+	}
+}
+
+func TestQuietUpgradeVerifiesOnTheUltrasonicLayer(t *testing.T) {
+	e := newEnv(t)
+	alice, bob := e.enroll("alice"), e.enroll("bob")
+	e.friend(alice.id, bob.id)
+	hv, err := e.s.OpenUpgrade(alice.ctx(), alice.viewer(), bob.id, true)
+	e.must(err)
+	h := e.started(alice.ctx(), hv)
+	if st, _ := e.s.Status(alice.ctx(), h.ref); st.Kind != "upgrade" || st.Mode != "qr_audio" || !st.Quiet {
+		t.Fatalf("quiet upgrade status %+v", st)
+	}
+	p := e.peerOf(bob)
+	e.must(p.claim(h.payload))
+	e.must(e.s.Confirm(h.ctx, h.ref))
+	out, err := e.play(h, p, sound{ultra: true})
+	e.must(err)
+	if out.Outcome != "verified" {
+		t.Fatalf("quiet upgrade outcome %+v", out)
+	}
+	e.signBoth(alice, bob, h, p)
+	if e.level(alice.id, bob.id) != core.LevelFriendPlus {
+		t.Fatal("the quiet upgrade did not promote the edge")
 	}
 }

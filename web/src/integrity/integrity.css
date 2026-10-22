@@ -1,7 +1,7 @@
-/* Integrity elements (§15.5), owner P0-W10 → P1-W09. These styles and glyphs are
+/* Integrity elements (§15.5), owner P0-W10 → P1-W09. These styles are
    reserved: user content renders as React elements without classes (Markdown,
-   previews, display names), and display names may not contain the glyphs used
-   here (gate/users CleanDisplayName). Logical properties only. Every element
+   previews, display names), and its icons are app SVGs (lib/Icon.tsx) that
+   user text cannot produce. Logical properties only. Every element
    keeps a legible size floor and wraps instead of truncating. */
 .integrity {
   display: inline-flex;
@@ -35,6 +35,18 @@ button.integrity:focus-visible {
   outline: 2px solid var(--color-integrity-text);
   outline-offset: 2px;
 }
+/* The integrity icon buttons (report, report the inviter, why): round chips. */
+button.integrity.icon-button {
+  padding: 0;
+  min-block-size: 28px;
+  min-inline-size: 28px;
+  border-radius: 999px;
+  background: var(--color-integrity-bg);
+  color: var(--color-integrity-text);
+}
+button.integrity.icon-button .icon {
+  font-size: 0.8rem;
+}
 button.integrity[aria-disabled='true'] {
   cursor: default;
   opacity: 0.75;
@@ -46,38 +58,13 @@ button.integrity[aria-disabled='true'] {
   font-weight: 700;
   padding-inline: var(--space-2);
 }
-.integrity.tier-header::before {
-  content: '◆';
-}
-.integrity.tier-header[data-kind='end']::before,
-.integrity.tier-header[data-kind='caught_up']::before {
-  content: '✓';
-}
 
-
-.integrity.inviter-label::before {
-  content: '⌂';
-}
 .inviter-report {
   font-size: max(0.75rem, 12px);
 }
-.inviter-report::before {
-  content: '⚑';
-}
 
-.integrity.audience::before {
-  content: '◎';
-}
 .integrity.audience .audience-forced {
   font-weight: 400;
-}
-
-.integrity.edited::before {
-  content: '✎';
-}
-
-.integrity.report::before {
-  content: '⚑';
 }
 
 .why-wrap {
