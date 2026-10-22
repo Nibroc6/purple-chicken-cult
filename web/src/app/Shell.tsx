@@ -5,7 +5,9 @@
 // layouts are one markup restyled by CSS. The sidebar keeps the .shell-header
 // and .nav-list classes so themes that style those still reach it. The
 // secondary links (moreNav) sit at the sidebar's foot, or in a page footer when
-// signed out or in the top-header layout on wide screens.
+// signed out or in the top-header layout on wide screens. On phones a bottom
+// tab bar (tabNav) keeps the main pages under the thumb, and its last button
+// opens everything else in the drawer.
 import { Suspense, useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { NavLink, Outlet, useLocation } from 'react-router';
@@ -13,7 +15,7 @@ import { Icon } from '../lib/Icon';
 import { loadCollapsed, saveCollapsed } from '../lib/navLayout';
 import { featureSlots } from './featureSlots';
 import { Loading } from './Loading';
-import { mainNav, moreNav, navAllows, type MainNavEntry } from './mainNav';
+import { mainNav, moreNav, navAllows, tabNav, type MainNavEntry } from './mainNav';
 import { usePageTitle } from './pageTitle';
 import { useSession } from './session';
 
@@ -95,19 +97,6 @@ export function Shell() {
           {signedIn ? (
             <>
               <button
-                ref={menuButton}
-                type="button"
-                className="sidebar-menu"
-                aria-expanded={drawerOpen}
-                aria-controls={navId}
-                onClick={() => {
-                  setDrawerOpen((o) => !o);
-                }}
-              >
-                <Icon name={drawerOpen ? 'close' : 'menu'} />
-                <span className="visually-hidden">{drawerOpen ? t('nav.close') : t('nav.menu')}</span>
-              </button>
-              <button
                 type="button"
                 className="sidebar-toggle"
                 aria-expanded={!collapsed}
@@ -160,6 +149,43 @@ export function Shell() {
           <G key={i} />
         ))}
       </div>
+      {signedIn ? (
+        <nav className="tabbar" aria-label={t('nav.tabs')}>
+          <ul>
+            {visible(tabNav).map((e) => (
+              <li key={e.to} data-primary={e.to === '/compose' ? 'true' : undefined}>
+                <NavLink to={e.to} end={e.to === '/'}>
+                  <span className="tabbar-icon" aria-hidden="true">
+                    <Icon name={e.icon} />
+                  </span>
+                  <span className="tabbar-label">{t(e.short ?? e.label)}</span>
+                  {e.badges ? navBadges.map((Badge, i) => <Badge key={i} />) : null}
+                </NavLink>
+              </li>
+            ))}
+            <li>
+              <button
+                ref={menuButton}
+                type="button"
+                className="sidebar-menu"
+                aria-expanded={drawerOpen}
+                aria-controls={navId}
+                onClick={() => {
+                  setDrawerOpen((o) => !o);
+                }}
+              >
+                <span className="tabbar-icon" aria-hidden="true">
+                  <Icon name={drawerOpen ? 'close' : 'menu'} />
+                </span>
+                <span className="tabbar-label" aria-hidden="true">
+                  {t('nav.menu')}
+                </span>
+                <span className="visually-hidden">{drawerOpen ? t('nav.close') : t('nav.menu')}</span>
+              </button>
+            </li>
+          </ul>
+        </nav>
+      ) : null}
     </div>
   );
 }
