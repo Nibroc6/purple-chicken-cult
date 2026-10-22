@@ -11,6 +11,7 @@ import { faBookmark, faComment, faEyeSlash, faHeart } from '@fortawesome/free-re
 import {
   faAnglesLeft,
   faAnglesRight,
+  faBan,
   faBars,
   faBell,
   faBookmark as faBookmarkSolid,
@@ -28,6 +29,8 @@ import {
   faGear,
   faHeart as faHeartSolid,
   faHouse,
+  faLink,
+  faLinkSlash,
   faListUl,
   faMinus,
   faPen,
@@ -40,6 +43,8 @@ import {
   faUserGroup,
   faUserPlus,
   faUsers,
+  faVolumeHigh,
+  faVolumeXmark,
   faXmark,
   type IconDefinition,
 } from '@fortawesome/free-solid-svg-icons';
@@ -83,6 +88,12 @@ const icons = {
   // Adds the post to a reply to several posts (features/composer).
   'reply-pick': faReplyAll,
   replies: faComment,
+  // Person actions (features/people).
+  mute: faVolumeXmark,
+  unmute: faVolumeHigh,
+  'hide-via': faLinkSlash,
+  'show-via': faLink,
+  block: faBan,
   // Integrity elements (integrity/).
   tier: faDiamond,
   'tier-done': faCircleCheck,

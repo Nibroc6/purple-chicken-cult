@@ -4,13 +4,15 @@ import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { Chain, InviterLabel, ReportAction, type ReportTarget } from '../../integrity';
+import type { IconName } from '../../lib/Icon';
+import { IconButton } from '../../lib/IconButton';
+import { InfoTip } from '../../lib/InfoTip';
 import type { PersonVM } from '../../vm/types';
 import { requestCosign } from '../cosign';
 import { useOpenReport } from '../moderation/ReportModal';
 import { runAction, sessionCosigns, type Cosig, type PersonAction } from './api';
 import { confirmActions, cosignPurpose, errorParams, peopleErrorKey, primaryActions, secondaryActions } from './vm';
 import './people.css';
-import { InfoTip } from '../../lib/InfoTip';
 
 // peopleKey prefixes every query of this feature (any action refreshes them all).
 export const peopleKey = ['people'] as const;
@@ -40,6 +42,16 @@ const cosignsKey = ['session-cosigns'] as const;
 function cosigns(qc: QueryClient): Promise<boolean> {
   return qc.query({ queryKey: cosignsKey, queryFn: sessionCosigns, staleTime: Infinity });
 }
+
+// The secondary actions show as icon buttons (the label is the tooltip and the
+// accessible name); the friendship actions keep their words.
+const actionIcons: Partial<Record<PersonAction, IconName>> = {
+  mute: 'mute',
+  unmute: 'unmute',
+  hide_via: 'hide-via',
+  show_via: 'show-via',
+  block: 'block',
+};
 
 // i18n-dynamic: people:action.
 // i18n-dynamic: people:confirm.
@@ -99,66 +111,100 @@ function ActionButton({ person, action }: { person: PersonVM; action: PersonActi
       </span>
     );
   }
+  const run = () => {
+    if (confirmActions.has(action)) setConfirming(true);
+    else m.mutate();
+  };
+  const icon = actionIcons[action];
   return (
     <>
-      <button
-        type="button"
-        data-testid={`action-${action}`}
-        disabled={m.isPending}
-        onClick={() => {
-          if (confirmActions.has(action)) setConfirming(true);
-          else m.mutate();
-        }}
-      >
-        {label}
-      </button>
+      {icon ? (
+        <IconButton icon={icon} label={label} data-testid={`action-${action}`} disabled={m.isPending} onClick={run} />
+      ) : (
+        <button type="button" data-testid={`action-${action}`} disabled={m.isPending} onClick={run}>
+          {label}
+        </button>
+      )}
       <ErrorText err={m.error} />
     </>
   );
 }
 
-// PersonActions renders the friendship actions, then mute and block.
-export function PersonActions({ person, secondary = true }: { person: PersonVM; secondary?: boolean }) {
+// PersonActions renders the friendship actions, then mute, hide-via and
+// block as icon buttons, then (optionally) more icon actions such as report.
+export function PersonActions({ person, secondary = true, children }: { person: PersonVM; secondary?: boolean; children?: ReactNode }) {
   const acts = [...primaryActions(person), ...(secondary ? secondaryActions(person) : [])];
-  if (acts.length === 0) return null;
+  if (acts.length === 0 && !children) return null;
   return (
     <div className="people-actions">
       {acts.map((a) => (
         <ActionButton key={a} person={person} action={a} />
       ))}
+      {children}
     </div>
   );
 }
 
-// PersonCard is one person: name, chain and inviter label (integrity
-// elements), an optional extra line and the actions.
+// Avatar is the person's initial on a tinted disc (no pictures yet); the name
+// beside it carries the meaning, so it is decorative.
+function Avatar({ person }: { person: PersonVM }) {
+  const name = person.displayName || person.handle;
+  const first = new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(name)[Symbol.iterator]().next();
+  const initial = first.done ? '?' : first.value.segment.toLocaleUpperCase();
+  return (
+    <span className="people-avatar" aria-hidden="true">
+      {initial}
+    </span>
+  );
+}
+
+// i18n-dynamic: people:person.relation.
+function relationKey(p: PersonVM): string {
+  return p.blocked ? 'blocked' : (p.request ?? p.relation);
+}
+
+// PersonCard is one person: avatar, name, @handle and how they relate to you
+// on the first line with the actions at its end; the chain and the inviter
+// label (integrity elements) and any extra details on the line below. The
+// person page's own card (page) marks its badge person-relation.
 export function PersonCard({
   person,
   extra,
   secondary = false,
+  page = false,
   children,
 }: {
   person: PersonVM;
   extra?: ReactNode;
   secondary?: boolean;
+  page?: boolean;
   children?: ReactNode;
 }) {
   const { t } = useTranslation('people');
   const report = useReport();
+  const rel = relationKey(person);
   return (
     <li className="people-card" data-testid="person-card">
-      <div className="people-card-head">
-        <Link to={`/people/${person.ref}`} className="people-name">
-          {person.displayName ? <strong data-user-content="">{person.displayName}</strong> : null}
-          <span className="muted">{t('handle', { handle: person.handle })}</span>
-        </Link>
+      <div className="people-card-main">
+        <Avatar person={person} />
+        <div className="people-id">
+          <Link to={`/people/${person.ref}`} className="people-name">
+            {person.displayName ? <strong data-user-content="">{person.displayName}</strong> : null}
+            <span className="muted">{t('handle', { handle: person.handle })}</span>
+          </Link>
+          <span className="people-badge" data-testid={page ? 'person-relation' : 'person-badge'} data-relation={person.relation} data-badge={rel}>
+            {t(`person.relation.${rel}` as 'person.relation.self')}
+          </span>
+        </div>
+        {children ?? <PersonActions person={person} secondary={secondary} />}
+      </div>
+      <div className="people-card-meta">
         {person.relation !== 'self' && !person.blocked ? (
           <Chain chain={person.chain} author={{ ref: person.ref, handle: person.handle }} />
         ) : null}
         <InviterLabel inviter={person.inviter} invitee={person.ref} onReport={report} />
         {extra}
       </div>
-      {children ?? <PersonActions person={person} secondary={secondary} />}
     </li>
   );
 }
