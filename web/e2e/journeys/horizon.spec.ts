@@ -43,7 +43,7 @@ test("tier 1 for a friend, tier 2 with the chain for a friend of a friend, nothi
   await page.getByTestId("composer-publish").click();
   await expect(page.getByTestId("composer-published")).toBeVisible();
 
-  // bob: tier 1, chain "you → @alice", the genesis inviter label.
+  // bob: tier 1, chain "you → @alice"; the inviter label is not on the card.
   await signInPage(page, origin, "bob");
   await page.goto("/");
   const forBob = cardOf(page, "Alice shares her garden plan");
@@ -54,10 +54,7 @@ test("tier 1 for a friend, tier 2 with the chain for a friend of a friend, nothi
   await expect(forBob.getByTestId("integrity-chain")).not.toContainText(
     at("bob"),
   );
-  await expect(forBob.getByTestId("integrity-inviter-label")).toHaveAttribute(
-    "data-kind",
-    "genesis",
-  );
+  await expect(forBob.getByTestId("integrity-inviter-label")).toHaveCount(0);
 
   // carol: tier 2 under its own header, the chain names bob as the first hop.
   const carol = await signInPage(page, origin, "carol");

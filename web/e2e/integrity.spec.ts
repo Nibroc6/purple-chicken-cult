@@ -2,7 +2,8 @@
 // format (Cards, Compact), in the light and the dark color scheme and with the
 // high-contrast switch, the seven integrity elements — tier header, chain,
 // inviter label, "why", audience badge, edited mark, report action — are
-// present on a feed card and on the focal post of the tree, visible, at least
+// present on a feed card and on the focal post of the tree (the inviter label
+// in the "how you're connected" modal the card's chain opens), visible, at least
 // 12 px text (buttons at least 24 × 24 px), never truncated, with text contrast
 // of at least 4.5:1 (WCAG AA) and button borders of at least 3:1 against what
 // is actually painted behind them. jsdom cannot measure any of this, so the
@@ -98,9 +99,7 @@ async function expectLegible(scope: Locator, id: string, what: string): Promise<
 async function checkPage(page: Page, card: Locator, header: Locator, what: string): Promise<void> {
   await expect(card).toBeVisible();
   await expectLegible(header, 'integrity-tier-header', what);
-  for (const id of seven.slice(1)) await expectLegible(card, id, what);
-  // The inviter label's own "report the inviter" action.
-  await expectLegible(card, 'integrity-inviter-report', what);
+  for (const id of seven.slice(1)) if (id !== 'integrity-inviter-label') await expectLegible(card, id, what);
   expect(await truncatedIntegrity(page), `${what}: truncated`).toEqual([]);
 }
 
@@ -137,8 +136,20 @@ for (const format of ['cards', 'compact'] as const) {
         await page.goto(`/p/${post.ref}`);
         await expect(page.getByTestId('tree-layout')).toHaveAttribute('data-format', format);
         const focal = page.getByTestId('tree-focus');
-        for (const id of seven.slice(1)) await expectLegible(focal, id, `${what} tree`);
+        for (const id of seven.slice(2)) if (id !== 'integrity-inviter-label') await expectLegible(focal, id, `${what} tree`);
+        await expectLegible(focal, 'integrity-chain', `${what} tree`);
         expect(await truncatedIntegrity(page), `${what} tree: truncated`).toEqual([]);
+
+        // The inviter label and its own "report the inviter" action, one tap
+        // from the chain (opened here: a feed card left on screen behind the
+        // modal would count as seen and leave the next feed session).
+        await focal.getByTestId('integrity-chain-open').first().click();
+        const via = page.getByTestId('via-modal');
+        await expectLegible(via, 'integrity-inviter-label', `${what} via`);
+        await expectLegible(via, 'integrity-inviter-report', `${what} via`);
+        expect(await truncatedIntegrity(page), `${what} via: truncated`).toEqual([]);
+        await page.keyboard.press('Escape');
+        await expect(via).toHaveCount(0);
       }
     }
   });

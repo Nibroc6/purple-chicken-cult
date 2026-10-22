@@ -68,3 +68,8 @@ export const integrityTestIds = [
   'integrity-edited',
   'integrity-report',
 ] as const;
+
+// A post card renders all of them but the inviter label: the author's
+// inviter is one tap away, in the "how you're connected" modal its chain
+// opens. Person cards and pages still show the label inline.
+export const postIntegrityTestIds = integrityTestIds.filter((t) => t !== 'integrity-inviter-label');
