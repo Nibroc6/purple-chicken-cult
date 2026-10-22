@@ -1,14 +1,19 @@
 {
   "canvas": {
-    "label": "Map of this conversation. The outline below lists the same posts.",
-    "hint": "Drag or use the arrow keys to move around, scroll or press + and − to zoom, 0 to see everything. Selecting a post shows its replies.",
+    "label": "Map of this conversation. Select a post to bring it into focus.",
+    "hint": "Drag or use the arrow keys to move around, scroll, pinch or press + and − to zoom, 0 to see everything. Select a post to bring it into focus.",
     "tools": "Map controls",
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out",
     "fit": "Show everything",
     "zoom": "{percent, number}%",
     "node": "@{handle}",
-    "more": "+{count, number} more"
+    "more": "+{count, number} more",
+    "recenter": "Back to this post",
+    "open": "@{handle}: {text}. Bring into focus",
+    "focal": "@{handle}: {text}. In focus",
+    "replies": "{count, plural, one {# reply} other {# replies}}",
+    "moreLabel": "{count, plural, one {Load # more post here} other {Load # more posts here}}"
   },
   "thumb": {
     "label": "Open the reply tree: {parents, plural, =0 {no earlier posts} one {replies to # post} other {replies to # posts}}, {replies, plural, =0 {no replies} one {# reply} other {# replies}}",

@@ -132,11 +132,11 @@ for (const format of ['cards', 'compact'] as const) {
         const card = page.locator(`[data-testid="feed-post"][data-ref="${post.ref}"]`);
         await checkPage(page, card, page.getByTestId('feed-tier').first(), `${what} feed`);
 
-        // Tree: the focal post (its row header carries no tier, so the feed's
-        // header stands for the element there).
+        // Tree: the post in focus (the tree carries no tier header, so the
+        // feed's header stands for the element there).
         await page.goto(`/p/${post.ref}`);
         await expect(page.getByTestId('tree-layout')).toHaveAttribute('data-format', format);
-        const focal = page.locator('[data-testid="tree-row"][data-gen="0"]');
+        const focal = page.getByTestId('tree-focus');
         for (const id of seven.slice(1)) await expectLegible(focal, id, `${what} tree`);
         expect(await truncatedIntegrity(page), `${what} tree: truncated`).toEqual([]);
       }

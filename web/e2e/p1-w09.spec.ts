@@ -5,8 +5,8 @@
 // reload, the high-contrast switch winning over a theme, every preset keeping
 // the integrity elements legible on a feed card, and the Explorer format:
 // feed cards with a tree thumbnail that opens the tree, the tree as a canvas
-// mirrored by the outline (selecting a node re-centers its row and the rows
-// below reload), zoom and pan by keyboard and pointer, and the minimap only on
+// with the post in focus in full below it (selecting a node brings it into
+// focus), zoom and pan by keyboard and pointer, and the minimap only on
 // desktop and only zoomed out. Selectors avoid English text, so the spec runs
 // in en and en-XA.
 import fs from 'node:fs';
@@ -187,7 +187,7 @@ test('every preset keeps the integrity elements legible on a feed card', async (
   }
 });
 
-test('Explorer: feed cards with a tree thumbnail, the tree as a canvas mirrored by the outline', async ({ page, request, baseURL }) => {
+test('Explorer: feed cards with a tree thumbnail, the tree as a canvas with the post in focus below', async ({ page, request, baseURL }) => {
   const alice = await setup(page, request, baseURL ?? '');
   expect((await alice.send('PATCH', '/me/settings', { ui_prefs: { format: 'explorer' } })).status).toBe(200);
   const root = await alice.feedPost('Explorer root by bob');
@@ -207,24 +207,24 @@ test('Explorer: feed cards with a tree thumbnail, the tree as a canvas mirrored 
   const nodes = page.getByTestId('explorer-node');
   await expect(nodes.first()).toBeVisible();
   await expect(page.locator(`[data-testid="explorer-node"][data-ref="${root.ref}"]`)).toHaveAttribute('data-focal', 'true');
-  // The outline mirror carries every post with its integrity elements (the
-  // edited mark of an unedited post stays in the DOM, hidden).
-  const focal = page.locator('[data-testid="tree-row"][data-gen="0"]');
+  // The post in focus carries its integrity elements (the edited mark of an
+  // unedited post stays in the DOM, hidden).
+  const focal = page.getByTestId('tree-focus');
   for (const id of seven.slice(1)) {
     const el = focal.getByTestId(id).first();
     if (id === 'integrity-edited') await expect(el, id).toBeAttached();
     else await expect(el, id).toBeVisible();
   }
 
-  // Selecting the reply that is not centered centers it: the row below reloads as its replies.
-  const replies = page.locator('[data-testid="tree-row"][data-gen="1"]');
-  const centered = await replies.locator('[data-testid="tree-item"][data-centered="true"]').getAttribute('data-ref');
-  const other = centered === r1.ref ? r2 : r1;
+  // Selecting the second reply brings it into focus: its own reply hangs below it.
+  const second = page.locator('[data-testid="explorer-node"][data-gen="1"]').nth(1);
+  const other = (await second.getAttribute('data-ref')) === r1.ref ? r1 : r2;
   const otherChild = other.ref === r1.ref ? 'Under the first reply' : 'Under the second reply';
-  await page.locator(`[data-testid="explorer-node"][data-ref="${other.ref}"]`).click();
-  await expect(page.locator(`[data-testid="explorer-node"][data-ref="${other.ref}"]`)).toHaveAttribute('data-centered', 'true');
-  await expect(replies.locator(`[data-testid="tree-item"][data-ref="${other.ref}"]`)).toHaveAttribute('data-selected', 'true');
-  await expect(page.locator('[data-testid="tree-row"][data-gen="2"]')).toContainText(otherChild);
+  await second.dispatchEvent('click');
+  await expect(page).toHaveURL(new RegExp(`/p/${other.ref}$`));
+  await expect(page.locator(`[data-testid="explorer-node"][data-ref="${other.ref}"]`)).toHaveAttribute('data-focal', 'true');
+  await expect(page.locator('[data-testid="explorer-node"][data-gen="1"]').filter({ hasText: otherChild })).toHaveCount(1);
+  await expect(page.locator(`[data-testid="explorer-node"][data-ref="${root.ref}"]`)).toHaveAttribute('data-gen', '-1');
 
   // Zoom and pan by keyboard and pointer.
   const canvas = page.getByTestId('explorer-canvas');

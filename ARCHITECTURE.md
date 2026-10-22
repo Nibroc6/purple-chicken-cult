@@ -774,8 +774,11 @@ to friends or 2 hops, reveals that its author falls inside that limit.
   post won't see what it replies to."
 
 #### 10.1.4 The family-tree view
-Tapping a post opens it as the **focal post**. Each generation is one horizontal **row**,
-and rows stack vertically:
+Tapping a post opens it as the **focal post**. Each generation is one **row** of the
+tree, and the rows are drawn on one connected, pannable canvas (the same in every
+format), like a genealogy chart: every post is a card, family-tree lines join each post
+to its parents and replies, and the focal post is highlighted in the middle and shown in
+full, with its integrity elements and actions, under the map. The rows are:
 
 ```
   ── Earlier ──            ↑ load earlier (parents of the centered parent)
@@ -790,28 +793,28 @@ and rows stack vertically:
 1. **Same ranking as the feed.** Within a row, posts sort by distance tier first, then
    `t_eff` under the reader's preset (§5). Ties use the reader's own edge attributes,
    then ID.
-2. **Low-priority posts move out of the way.** The rank-1 post sits in the center
-   column, so the vertical scroll path runs through the best post of each generation.
-   Lower ranks go to the side, smaller and faded: on the right only on mobile,
-   alternating sides on desktop. After 5, a "+N more" chip opens a ranked list, where N
-   counts visible posts only.
-3. **Swiping a row** re-centers it. The rows below reload as the new center's children,
-   and the rows above stay put. A row is ranked as a snapshot, like a feed tier, so it
-   never reshuffles under your thumb.
-4. **Each post appears once.** Extra visible parents show as chips ("also replies to @b")
-   that refocus the view when tapped. If a post would appear a second time, as in a
-   diamond, the second spot shows "↑ shown above".
-5. **Small section headers** sit on every row: "Earlier", "Replying to", "This post",
-   "Replies", "Replies to replies", "3 generations down", and so on. Inside a row, a
-   hairline divider marks each change of distance tier.
+2. **Low-priority posts move out of the way.** The rank-1 post sits on the center line,
+   so the line down the middle runs through the best post of each generation. Lower
+   ranks alternate right and left of it. A "+N more" card at the end of a row loads the
+   rest, where N counts visible posts only.
+3. **Selecting a post brings it into focus**: the tree reopens around it (a new
+   snapshot), the old tree staying on screen until the new one arrives so the cards
+   slide into place. A row is ranked as a snapshot, like a feed tier, so it never
+   reshuffles while you look at it.
+4. **Each post appears once.** The focal post's extra visible parents join it with a
+   dashed "also" line. If a post would appear a second time, as in a diamond, its second
+   spot is a dashed line to the card it already has.
+5. **No section headers.** The lines show how posts relate; siblings hang from one shared
+   line under their parent.
 6. **Loading.** The view opens with the focal post plus 2 rows above and 2 below. More
    rows load near the edges.
    - Each row reads only link IDs from `post_parents`, then filters through the gate.
      Every visible candidate in the row is ranked, and bodies are loaded for the top ~10.
    - Authors deeper than the reader's current search layer come back in the fixed
      latency bucket (§4.1).
-7. **Interaction.** On mobile, scroll vertically and swipe each row horizontally, with
-   no free pan or zoom. On desktop, zooming out shows a minimap (Phase 1).
+7. **Interaction.** Drag (or the arrow keys) pans; the wheel, a pinch or + / − zooms;
+   "show everything" fits the whole tree and "back to this post" returns to the focal
+   post. Every card is a keyboard button. On desktop, zooming out shows a minimap.
 
 #### 10.1.5 Short posts, systematically
 Long posts are discouraged with friction only. Nothing ranks them lower, because a
@@ -1172,11 +1175,11 @@ So at that scale:
 - **Preferences** live server-side in `users.ui_prefs`, so they follow you across devices.
   Each format is a lazily loaded chunk.
 
-| Format | Feed | Family tree |
+| Format | Feed | Reply tree |
 |---|---|---|
-| **Cards (default)** | Clean Instagram-style cards (§10.1.7) | The rows layout (§10.1.4) |
-| **Compact** | Dense text rows: author, chain, first lines | An indented outline you can collapse |
-| **Explorer** (Phase 1) | Cards with a small tree thumbnail | A pan-and-zoom node canvas, plus an outline mirror for keyboard and screen-reader users |
+| **Cards (default)** | Clean Instagram-style cards (§10.1.7) | The connected tree (§10.1.4) |
+| **Compact** | Dense text rows: author, chain, first lines | The connected tree (§10.1.4) |
+| **Explorer** (Phase 1) | Cards with a small tree thumbnail | The connected tree (§10.1.4) |
 
 **Accessibility settings are not a format.** High contrast, text size, reduced motion and
 dyslexia-friendly fonts apply to **every** format.
