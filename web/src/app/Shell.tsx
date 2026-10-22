@@ -13,6 +13,8 @@ export function Shell() {
   const { t } = useTranslation('common');
   const session = useSession();
   const signedIn = session.data?.authenticated === true;
+  const role = session.data?.me?.role;
+  const moderator = role === 'moderator' || role === 'admin';
   return (
     <div className="shell">
       <a className="skip-link" href="#main">
@@ -48,6 +50,11 @@ export function Shell() {
                   ))}
                 </NavLink>
               </li>
+              {moderator ? (
+                <li>
+                  <NavLink to="/mod">{t('nav.moderation')}</NavLink>
+                </li>
+              ) : null}
               <li>
                 <NavLink to="/settings">{t('nav.settings')}</NavLink>
               </li>
