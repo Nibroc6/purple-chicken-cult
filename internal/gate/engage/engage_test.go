@@ -432,6 +432,66 @@ func TestHideAndShowLess(t *testing.T) {
 	}
 }
 
+func TestUnhideAndResetShowLess(t *testing.T) {
+	e := newEnv(t)
+	p1 := e.post("bob", "one")
+	p2 := e.post("carol", "two")
+	p3 := e.post("carol", "three")
+	ctx := e.as("alice")
+	if err := e.e.Hide(ctx, e.ref("alice", p1)); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []core.PostID{p2, p3} {
+		if err := e.e.ShowLess(ctx, e.ref("alice", p)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	page, err := e.e.Hidden(ctx, "")
+	if err != nil || len(page.Items) != 3 {
+		t.Fatalf("hidden page %+v (%v)", page, err)
+	}
+	// Undoing a show-less gives its step back; undoing twice changes nothing.
+	for range 2 {
+		if err := e.e.Unhide(ctx, e.ref("alice", p2)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if sl := e.e.ShowLessCounts(e.ctx, e.id("alice")); sl[e.id("carol")] != 1 {
+		t.Fatalf("show less after undo %v", sl)
+	}
+	if _, ok := e.e.HiddenSet(e.ctx, e.id("alice"))[p2]; ok {
+		t.Fatal("p2 still hidden")
+	}
+	// A plain hide leaves show-less alone.
+	if err := e.e.Unhide(ctx, e.ref("alice", p1)); err != nil {
+		t.Fatal(err)
+	}
+	list, err := e.e.ShowLessList(ctx)
+	if err != nil || len(list) != 1 || list[0].Handle != "carol" || list[0].Count != 1 {
+		t.Fatalf("show-less list %+v (%v)", list, err)
+	}
+	if err := e.e.ResetShowLess(ctx, list[0].Ref); err != nil {
+		t.Fatal(err)
+	}
+	if sl := e.e.ShowLessCounts(e.ctx, e.id("alice")); len(sl) != 0 {
+		t.Fatalf("show less after reset %v", sl)
+	}
+	// The reset keeps the post hidden, and undoing it later does not go below zero.
+	if _, ok := e.e.HiddenSet(e.ctx, e.id("alice"))[p3]; !ok {
+		t.Fatal("reset unhid p3")
+	}
+	if err := e.e.Unhide(ctx, e.ref("alice", p3)); err != nil {
+		t.Fatal(err)
+	}
+	if n := e.count("SELECT count(*) FROM show_less"); n != 0 {
+		t.Fatalf("%d show_less rows", n)
+	}
+	// Another viewer's ref does not open.
+	if err := e.e.ResetShowLess(e.as("bob"), list[0].Ref); !errors.Is(err, gate.ErrNotFound) {
+		t.Fatalf("foreign ref: %v", err)
+	}
+}
+
 // §5.5 n: friends 1.0, second degree 0.5, the author and probation accounts 0,
 // one inviter's invitees together at most 4 units, nothing from 3 hops or beyond.
 func TestPreferN(t *testing.T) {

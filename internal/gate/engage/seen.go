@@ -203,8 +203,9 @@ func scanKeys(rows pgx.Rows, err error) ([]seenKey, error) {
 
 // Cursor domains: a cursor of one list never opens in another.
 const (
-	cursorSeen  = "pcc/seen-cursor/v1"
-	cursorSaves = "pcc/saves-cursor/v1"
+	cursorSeen   = "pcc/seen-cursor/v1"
+	cursorSaves  = "pcc/saves-cursor/v1"
+	cursorHidden = "pcc/hidden-cursor/v1"
 )
 
 // Cursors are "<µs>.<post ref>.<mac>": the post travels as the viewer's own
