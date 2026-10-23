@@ -112,6 +112,15 @@
 .explorer-edge[data-kind='above'] {
   stroke-dasharray: 5 4;
 }
+/* Pointing at a post lights up its own lines and fades the others. */
+.explorer-edges[data-hot='true'] .explorer-edge {
+  opacity: 0.25;
+}
+.explorer-edges[data-hot='true'] .explorer-edge[data-hot='true'] {
+  opacity: 1;
+  stroke: var(--color-accent);
+  stroke-width: 2.5;
+}
 
 .explorer-node {
   cursor: pointer;
@@ -178,6 +187,19 @@
 .explorer-node-text {
   fill: var(--color-text);
   font-size: 13px;
+}
+.explorer-node-thumb .media-image,
+.explorer-node-thumb .media-missing {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  min-inline-size: 0;
+  min-block-size: 0;
+  padding: 0;
+  object-fit: cover;
+  border-radius: 6px;
+  font-size: 10px;
+  overflow: hidden;
 }
 
 .explorer-more {
@@ -295,7 +317,8 @@
   .explorer-more-box {
     stroke: CanvasText;
   }
-  .explorer-node[data-focal='true'] .explorer-node-box {
+  .explorer-node[data-focal='true'] .explorer-node-box,
+  .explorer-edges[data-hot='true'] .explorer-edge[data-hot='true'] {
     stroke: Highlight;
   }
 }
