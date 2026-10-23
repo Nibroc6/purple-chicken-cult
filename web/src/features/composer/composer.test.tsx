@@ -425,6 +425,23 @@ describe('compose page', () => {
     });
   });
 
+  it('publishes pictures without text', async () => {
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: () => 'blob:x', revokeObjectURL: () => undefined }));
+    const calls = stubAPI((c) => {
+      if (c.method === 'POST' && c.path === '/media') return json(201, { ref: 'm1', w: 4, h: 3 });
+      if (c.method === 'POST' && c.path === '/posts') return json(201, postJSON({ body: '', media: [{ ref: 'm1', w: 4, h: 3 }] }));
+      return undefined;
+    });
+    renderAt('/compose');
+    await screen.findByTestId('composer-body');
+    expect(screen.getByTestId<HTMLButtonElement>('composer-publish').disabled).toBe(true);
+    fireEvent.change(screen.getByTestId('media-file'), { target: { files: [png('a.png')] } });
+    expect(screen.getByTestId<HTMLButtonElement>('composer-publish').disabled).toBe(false);
+    fireEvent.click(screen.getByTestId('composer-publish'));
+    await screen.findByTestId('composer-published');
+    expect(calls.find((c) => c.path === '/posts')?.body).toMatchObject({ body: '', media: ['m1'] });
+  });
+
   it('takes at most four pictures', async () => {
     vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: () => 'blob:x', revokeObjectURL: () => undefined }));
     let n = 0;

@@ -118,7 +118,7 @@ function EditForm({ post }: { post: PostVM }) {
         {t('edit.parentsFixed')}
         <InfoTip>{t('edit.parentsFixedTip')}</InfoTip>
       </p>
-      <button type="submit" data-testid="post-edit-save" disabled={m.isPending || body.trim() === '' || n > HARD_LIMIT}>
+      <button type="submit" data-testid="post-edit-save" disabled={m.isPending || (body.trim() === '' && post.media.length === 0) || n > HARD_LIMIT}>
         {t('edit.save')}
       </button>
       {m.isSuccess ? (

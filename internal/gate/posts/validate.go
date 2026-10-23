@@ -19,9 +19,10 @@ const maxLangLen = 35
 func CodePoints(s string) int { return utf8.RuneCountInString(s) }
 
 // cleanBody NFC-normalizes body and trims trailing whitespace and leading blank
-// lines. Problems: body_empty, body_too_long (> MaxBodyCodePoints code points
-// after normalization), bad_request for NUL bytes (Postgres text refuses them).
-func cleanBody(body string) (string, error) {
+// lines. Problems: body_empty (unless empty is allowed: a post with pictures),
+// body_too_long (> MaxBodyCodePoints code points after normalization),
+// bad_request for NUL bytes (Postgres text refuses them).
+func cleanBody(body string, allowEmpty bool) (string, error) {
 	if strings.IndexByte(body, 0) >= 0 {
 		return "", gate.NewProblem(gate.StatusBadRequest, "bad_request", "body")
 	}
@@ -35,6 +36,9 @@ func cleanBody(body string) (string, error) {
 		b = b[i+1:]
 	}
 	if strings.TrimSpace(b) == "" {
+		if allowEmpty {
+			return "", nil
+		}
 		return "", gate.NewProblem(gate.StatusUnprocessable, "body_empty", "body")
 	}
 	if CodePoints(b) > MaxBodyCodePoints {

@@ -37,18 +37,18 @@ func TestScanMentions(t *testing.T) {
 }
 
 func TestCleanBodyAndLang(t *testing.T) {
-	if b, err := cleanBody("\n \n  indented code\nline  \n\n"); err != nil || b != "  indented code\nline" {
+	if b, err := cleanBody("\n \n  indented code\nline  \n\n", false); err != nil || b != "  indented code\nline" {
 		t.Fatalf("%q %v", b, err)
 	}
-	if b, _ := cleanBody("é"); b != "é" {
+	if b, _ := cleanBody("é", false); b != "é" {
 		t.Fatalf("not NFC: %q", b)
 	}
 	// NFC can shrink a body back under the limit: count after normalizing.
-	if _, err := cleanBody(strings.Repeat("é", MaxBodyCodePoints)); err != nil {
+	if _, err := cleanBody(strings.Repeat("é", MaxBodyCodePoints), false); err != nil {
 		t.Fatal(err)
 	}
 	var p *gate.Problem
-	if _, err := cleanBody(strings.Repeat("a", MaxBodyCodePoints+1)); !errors.As(err, &p) || p.Code != "body_too_long" {
+	if _, err := cleanBody(strings.Repeat("a", MaxBodyCodePoints+1), false); !errors.As(err, &p) || p.Code != "body_too_long" {
 		t.Fatal(err)
 	}
 	for in, want := range map[string]string{"": "und", "und": "und", "EN": "en", "pt-br": "pt-BR", "zh-Hant-TW": "zh-Hant-TW"} {

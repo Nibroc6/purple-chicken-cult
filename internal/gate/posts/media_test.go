@@ -258,3 +258,32 @@ func TestFriendPlusAudience(t *testing.T) {
 	_, err = e.p.Create(e.as("alice"), posts.Draft{Body: "x", Lang: "en", Audience: "friends_plus"})
 	wantProblem(t, err, "audience_invalid")
 }
+
+// A post with pictures needs no text (create and edit); without pictures an
+// empty body is still body_empty.
+func TestPicturesOnly(t *testing.T) {
+	e := newEnv(t)
+	e.withMedia()
+	m := e.upload("alice", "a picture")
+	pv, err := e.p.Create(e.as("alice"), posts.Draft{Body: " \n ", Lang: "en", Media: []gate.Ref{m.Ref}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pv.Body != "" || len(pv.Media) != 1 {
+		t.Fatalf("pictures-only post %+v", pv)
+	}
+	if _, err := e.p.Edit(e.as("alice"), pv.Ref, "now with words", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.p.Edit(e.as("alice"), pv.Ref, "", ""); err != nil {
+		t.Fatalf("edit back to pictures only: %v", err)
+	}
+	var p *gate.Problem
+	if _, err := e.p.Create(e.as("alice"), posts.Draft{Body: "", Lang: "en"}); !errors.As(err, &p) || p.Code != "body_empty" {
+		t.Fatalf("empty without pictures: %v", err)
+	}
+	plain := e.post("alice", "words only")
+	if _, err := e.p.Edit(e.as("alice"), plain.Ref, " ", ""); !errors.As(err, &p) || p.Code != "body_empty" {
+		t.Fatalf("emptying a post without pictures: %v", err)
+	}
+}
