@@ -137,7 +137,8 @@ function Composer({
     !blocked &&
     !loading &&
     texts.length <= MAX_PARTS &&
-    texts.every((p) => p.trim() !== '' && codePoints(p) <= HARD_LIMIT);
+    // A single post with pictures needs no text.
+    texts.every((p) => (p.trim() !== '' || (!parts && pics.items.length > 0)) && codePoints(p) <= HARD_LIMIT);
   return (
     <form
       className="composer"

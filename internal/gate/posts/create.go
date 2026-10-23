@@ -95,7 +95,7 @@ func (s *Service) create(ctx context.Context, drafts []Draft) ([]gate.PostView, 
 	bodies := make([]string, len(drafts))
 	langs := make([]string, len(drafts))
 	for i, d := range drafts {
-		if bodies[i], err = cleanBody(d.Body); err != nil {
+		if bodies[i], err = cleanBody(d.Body, len(d.Media) > 0); err != nil { // pictures alone make a post
 			return nil, err
 		}
 		if langs[i], err = cleanLang(d.Lang); err != nil {

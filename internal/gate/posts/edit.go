@@ -27,7 +27,11 @@ func (s *Service) Edit(ctx context.Context, p gate.Ref, body, lang string) (gate
 	if err != nil {
 		return gate.PostView{}, err
 	}
-	b, err := cleanBody(body)
+	var pictures bool // a post with pictures may have no text (media is immutable)
+	if err := s.d.DB.Q().QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM post_media WHERE post_id = $1)`, m.ID).Scan(&pictures); err != nil {
+		return gate.PostView{}, err
+	}
+	b, err := cleanBody(body, pictures)
 	if err != nil {
 		return gate.PostView{}, err
 	}

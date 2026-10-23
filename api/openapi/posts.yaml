@@ -239,7 +239,7 @@ components:
   responses:
     PostsProblem:
       description: >-
-        bad_request, body_empty, body_too_long, lang_invalid, audience_invalid,
+        bad_request, body_empty (no text and no pictures), body_too_long, lang_invalid, audience_invalid,
         ref_policy_invalid, too_many_parents, duplicate_parent, cont_multiple,
         cont_not_own, ref_not_allowed, too_many_parts, cont_not_detachable,
         too_many_media.
