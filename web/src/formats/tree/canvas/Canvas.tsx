@@ -12,7 +12,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type Keyboard
 import { useTranslation } from 'react-i18next';
 import { MediaImage } from '../../../features/media';
 import { Icon } from '../../../lib/Icon';
-import { lines, NODE_H, NODE_W, route, type Bounds, type CanvasLayout, type CanvasMore, type CanvasNode } from './layout';
+import { lines, NODE_H, NODE_W, type Bounds, type CanvasLayout, type CanvasMore, type CanvasNode } from './layout';
 import { Minimap } from './Minimap';
 import { capture } from './pointer';
 import './canvas.css';
@@ -401,7 +401,7 @@ export function Canvas({
             key: `${e.from}>${e.to}`,
             from: e.from,
             to: e.to,
-            d: route(a, b, e.kind, e.route),
+            d: e.d,
             kind: e.kind,
             focal: a.focal || b.focal,
           },
