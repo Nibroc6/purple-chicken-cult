@@ -19,7 +19,8 @@ import compact from '../compact';
 import explorer from '../explorer';
 import type { FormatModule, TreeActions } from '../types';
 import { fit, viewBox, zoomAt } from './canvas/Canvas';
-import { excerpt, GAP_X, layoutTree, lines, NODE_H, NODE_W, PORT, ROW_H, route, slotOffset } from './canvas/layout';
+import { excerpt, GAP_X, layoutTree, lines, NODE_H, NODE_W, PORT, ROW_H, slotOffset, type CanvasEdge, type EdgeKind } from './canvas/layout';
+import { routeEdges, type Point, type Routable } from './canvas/route';
 
 const tr = i18n.t.bind(i18n) as unknown as (k: string, o?: Record<string, unknown>) => string;
 
@@ -93,6 +94,42 @@ function tree(over: Partial<TreeVM> = {}): TreeVM {
 }
 
 const first = () => undefined;
+
+// routed lays lines between cards (by index) and routes them.
+function routed(cards: { x: number; y: number }[], list: [number, number, EdgeKind][]): Routable[] {
+  const byRef = new Map(cards.map((c, i) => [asRef(`n${String(i)}`), c]));
+  const edges: Routable[] = list.map(([f, t, kind]) => ({ from: asRef(`n${String(f)}`), to: asRef(`n${String(t)}`), kind, points: [], d: '' }));
+  routeEdges(edges, byRef);
+  return edges;
+}
+
+// noSharedRuns lists pairs of lines that run along the same stretch, other
+// than siblings sharing their parent's line.
+function noSharedRuns(edges: Routable[]): string[] {
+  const runs = (pts: Point[]) =>
+    pts.slice(1).flatMap((p, i) => {
+      const q = pts[i];
+      if (!q) return [];
+      if (Math.abs(q[1] - p[1]) < 0.5) return [{ h: true, at: p[1], lo: Math.min(q[0], p[0]), hi: Math.max(q[0], p[0]) }];
+      if (Math.abs(q[0] - p[0]) < 0.5) return [{ h: false, at: p[0], lo: Math.min(q[1], p[1]), hi: Math.max(q[1], p[1]) }];
+      return [];
+    });
+  const trunk = (e: Routable) => e.kind === 'reply' || e.kind === 'kin';
+  const bad: string[] = [];
+  edges.forEach((a, i) => {
+    edges.slice(i + 1).forEach((b) => {
+      if (a.from === b.from && trunk(a) && trunk(b)) return;
+      for (const ra of runs(a.points)) {
+        for (const rb of runs(b.points)) {
+          if (ra.h === rb.h && Math.abs(ra.at - rb.at) < 1 && Math.min(ra.hi, rb.hi) - Math.max(ra.lo, rb.lo) > 1) {
+            bad.push(`${a.from}>${a.to} / ${b.from}>${b.to} ${ra.h ? 'y' : 'x'}=${String(ra.at)}`);
+          }
+        }
+      }
+    });
+  });
+  return bad;
+}
 
 describe('canvas layout', () => {
   it('puts the first post of each generation on the axis and alternates the rest', () => {
@@ -204,16 +241,12 @@ describe('canvas layout', () => {
     const l = layoutTree(tv, first);
     const extra = l.edges.filter((e) => e.kind === 'also');
     expect(extra.map((e) => `${e.from}>${e.to}`).sort()).toEqual(['c2>g1', 'c3>g1']);
-    const ports = extra.map((e) => e.route);
     // c2 is right of g1 and c3 left: each arrives on its own side, off the trunk.
-    expect(ports.map((p) => p?.to).sort()).toEqual([-PORT, PORT]);
-    expect(new Set(ports.map((p) => p?.track)).size).toBe(2);
-    expect(l.edges.find((e) => e.kind === 'reply' && e.to === asRef('g1'))?.route).toBeUndefined();
-    // The ports move the line's ends; the track moves where it crosses the gap.
-    const a = { x: 0, y: 0 };
-    const b = { x: 240, y: ROW_H };
-    expect(route(a, b, 'also', { from: PORT, to: -PORT, track: 0 })).toMatch(new RegExp(`^M ${String(PORT)} .* V ${String(ROW_H - NODE_H / 2)}$`));
-    expect(route(a, b, 'also', { from: 0, to: 0, track: 0 })).not.toBe(route(a, b, 'also', { from: 0, to: 0, track: 1 }));
+    const g1 = l.byRef.get(asRef('g1'))?.x ?? NaN;
+    const arrive = (e: CanvasEdge) => (e.points[e.points.length - 1]?.[0] ?? NaN) - g1;
+    expect(extra.map(arrive).sort()).toEqual([-PORT, PORT]);
+    expect(arrive(l.edges.find((e) => e.kind === 'reply' && e.to === asRef('g1')) as CanvasEdge)).toBe(0);
+    expect(noSharedRuns(l.edges)).toEqual([]);
   });
 
   it('carries a post\'s first picture to its card', () => {
@@ -224,27 +257,123 @@ describe('canvas layout', () => {
   });
 
   it('routes a line across several rows down a lane between the cards', () => {
-    const d = route({ x: 0, y: 0 }, { x: 0, y: 2 * ROW_H }, 'also');
-    expect(d).toContain(`L ${String((NODE_W + GAP_X) / 2)}`);
-    expect(d.endsWith(`L 0 ${String(2 * ROW_H - NODE_H / 2)}`)).toBe(true);
+    const e = routed([{ x: 0, y: 0 }, { x: 0, y: 2 * ROW_H }], [[0, 1, 'also']])[0];
+    const lane = (NODE_W + GAP_X) / 2;
+    expect(e?.points.some(([x]) => x === lane)).toBe(true);
+    expect(e?.points[e.points.length - 1]).toEqual([PORT, 2 * ROW_H - NODE_H / 2]);
+    // Two such lines in one column gap run down it apart.
+    const two = routed(
+      [
+        { x: 0, y: 0 },
+        { x: 0, y: 3 * ROW_H },
+        { x: 0, y: ROW_H },
+        { x: 0, y: 4 * ROW_H },
+      ],
+      [
+        [0, 1, 'also'],
+        [2, 3, 'also'],
+      ],
+    );
+    const lanes = two.map((x) => x.points[2]?.[0]);
+    expect(lanes[0]).not.toBe(lanes[1]);
+    expect(noSharedRuns(two)).toEqual([]);
   });
 
-  it('routes edges as family-tree elbows', () => {
-    const a = { x: 0, y: 0 };
-    expect(route(a, { x: 0, y: ROW_H }, 'reply')).toBe(`M 0 ${String(NODE_H / 2)} V ${String(ROW_H - NODE_H / 2)}`);
+  it('routes siblings from one shared line, family-tree style', () => {
+    const r = routed(
+      [
+        { x: 0, y: 0 },
+        { x: 0, y: ROW_H },
+        { x: 240, y: ROW_H },
+      ],
+      [
+        [0, 1, 'reply'],
+        [0, 2, 'reply'],
+      ],
+    );
+    expect(r[0]?.d).toBe(`M 0 ${String(NODE_H / 2)} L 0 ${String(ROW_H - NODE_H / 2)}`);
     const mid = NODE_H / 2 + (ROW_H - NODE_H) / 2;
-    const d = route(a, { x: 240, y: ROW_H }, 'reply');
-    expect(d).toContain(`H ${String(240 - 10)}`);
-    expect(d).toContain(`Q 0 ${String(mid)}`);
-    expect(d.endsWith(`V ${String(ROW_H - NODE_H / 2)}`)).toBe(true);
-    // "also" edges cross higher up, apart from the siblings' line.
-    expect(route(a, { x: -240, y: ROW_H }, 'also')).not.toContain(`Q 0 ${String(mid)}`);
+    expect(r[1]?.points).toEqual([
+      [0, NODE_H / 2],
+      [0, mid],
+      [240, mid],
+      [240, ROW_H - NODE_H / 2],
+    ]);
+    expect(r[1]?.d).toContain(`Q 0 ${String(mid)}`);
   });
 
   it('loops a shown-above edge under its row, or up to a post higher up', () => {
     const below = NODE_H / 2;
-    expect(route({ x: 0, y: 0 }, { x: 240, y: 0 }, 'above')).toMatch(new RegExp(`^M 0 ${String(below)} .* H 230 .* V ${String(below)}$`));
-    expect(route({ x: 0, y: ROW_H }, { x: 240, y: 0 }, 'above')).toMatch(new RegExp(`^M 0 ${String(ROW_H - below)} .* V ${String(below)}$`));
+    const [loop, up] = routed(
+      [
+        { x: 0, y: 0 },
+        { x: 240, y: 0 },
+        { x: 0, y: ROW_H },
+      ],
+      [
+        [0, 1, 'above'],
+        [2, 1, 'above'],
+      ],
+    );
+    expect(loop?.points[0]).toEqual([PORT, below]);
+    expect(loop?.points[loop.points.length - 1]).toEqual([240 - PORT, below]);
+    expect(loop?.points[1]?.[1]).toBeGreaterThan(below);
+    // Drawn from its own start (the lower post) up to the bottom of the higher one.
+    expect(up?.points[0]?.[1]).toBe(ROW_H - below);
+    expect(up?.points[up.points.length - 1]?.[1]).toBe(below);
+    expect(noSharedRuns([loop, up].filter((x) => x !== undefined))).toEqual([]);
+  });
+
+  it('never lays two lines along the same stretch, and keeps crossings few', () => {
+    // Many parents in one row, each with replies below, and replies to
+    // several of them: every bus and extra line gets its own track.
+    let seed = 7;
+    const rand = (n: number) => {
+      seed = (seed * 1103515245 + 12345) % 2147483648;
+      return seed % n;
+    };
+    for (let round = 0; round < 200; round++) {
+      const cards: { x: number; y: number }[] = [];
+      const cols = 2 + rand(5);
+      for (let b = 0; b < 4; b++) for (let c = 0; c < cols; c++) cards.push({ x: slotOffset(c) * (NODE_W + GAP_X), y: b * ROW_H });
+      const at = (b: number, c: number) => b * cols + c;
+      const list: [number, number, EdgeKind][] = [];
+      for (let b = 1; b < 4; b++) {
+        for (let c = 0; c < cols; c++) {
+          list.push([at(b - 1, rand(cols)), at(b, c), 'reply']);
+          for (let k = rand(3); k > 0; k--) list.push([at(rand(b), rand(cols)), at(b, c), rand(4) === 0 ? 'above' : 'also']);
+        }
+      }
+      const seen = new Set<string>();
+      const uniq = list.filter(([f, t]) => {
+        const k = `${String(f)}>${String(t)}`;
+        if (seen.has(k) || f === t) return false;
+        seen.add(k);
+        return true;
+      });
+      expect(noSharedRuns(routed(cards, uniq))).toEqual([]);
+    }
+    // Two buses side by side: the one whose drops fall inside the other's span
+    // goes below it, so neither crosses the other's drops.
+    const r = routed(
+      [
+        { x: 0, y: 0 },
+        { x: 240, y: 0 },
+        { x: -240, y: ROW_H },
+        { x: 480, y: ROW_H },
+        { x: 240, y: ROW_H },
+        { x: 0, y: ROW_H },
+      ],
+      [
+        [0, 2, 'reply'],
+        [0, 3, 'reply'],
+        [1, 4, 'reply'],
+        [1, 5, 'reply'],
+      ],
+    );
+    const bus = (i: number) => r[i]?.points[1]?.[1] ?? NaN;
+    expect(bus(0)).not.toBe(bus(2));
+    expect(bus(0)).toBe(bus(1));
   });
 
   it('wraps an excerpt into two lines between words', () => {
