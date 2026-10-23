@@ -12,6 +12,7 @@
     "recenter": "Back to this post",
     "open": "@{handle}: {text}. Bring into focus",
     "focal": "@{handle}: {text}. In focus",
+    "picture": "A picture",
     "replies": "{count, plural, one {# reply} other {# replies}}",
     "moreLabel": "{count, plural, one {Load # more post here} other {Load # more posts here}}"
   },

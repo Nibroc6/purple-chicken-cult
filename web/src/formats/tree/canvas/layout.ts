@@ -13,7 +13,7 @@
 // and uncles, cousins, nieces and nephews …) hang from their own parents, a band
 // below them, outside the direct posts on their parent's side, marked kin so
 // the canvas can play them down. Owner: P1-W09.
-import type { PostVM, Ref, TreeRowVM, TreeVM } from '../../../vm/types';
+import type { MediaVM, PostVM, Ref, TreeRowVM, TreeVM } from '../../../vm/types';
 
 export const NODE_W = 208;
 export const NODE_H = 96;
@@ -36,6 +36,7 @@ export interface CanvasNode {
   name: string;
   excerpt: string;
   replies: number;
+  media?: MediaVM; // the post's first picture, shown as a thumbnail
 }
 
 export type EdgeKind = 'reply' | 'also' | 'above' | 'kin';
@@ -44,6 +45,18 @@ export interface CanvasEdge {
   from: Ref; // upper end
   to: Ref; // lower end
   kind: EdgeKind;
+  // A line that is not a family trunk (another parent, a dashed spot) gets its
+  // own ports on the two cards and its own track across the gap, so lines
+  // into one card never merge into one.
+  route?: Ports;
+}
+
+// Ports: how far off the card's middle a line leaves (from) and arrives (to),
+// and which track it takes across a gap between rows.
+export interface Ports {
+  from: number;
+  to: number;
+  track: number;
 }
 
 export interface CanvasMore {
@@ -216,6 +229,7 @@ export function layoutTree(tree: TreeVM, centered: Centers): CanvasLayout {
       name: p.author.displayName,
       excerpt: excerpt(p.body?.nodes),
       replies: p.replyCount,
+      ...(p.media[0] ? { media: p.media[0] } : {}),
     };
     nodes.push(n);
     byRef.set(n.ref, n);
@@ -304,6 +318,8 @@ export function layoutTree(tree: TreeVM, centered: Centers): CanvasLayout {
     }
   }
 
+  separate(edges, byRef);
+
   const xs = [...nodes.map((n) => n.x), ...more.map((m) => m.x)];
   const ys = nodes.map((n) => n.y);
   const minX = Math.min(0, ...xs) - NODE_W / 2 - PAD;
@@ -317,6 +333,38 @@ export function layoutTree(tree: TreeVM, centered: Centers): CanvasLayout {
     byRef,
     bounds: { x: minX, y: minY, w: maxX - minX, h: maxY - minY },
   };
+}
+
+// PORT is the spacing of a card's extra ports, either side of its middle.
+export const PORT = 18;
+
+// separate gives every line that is not a trunk (reply, or a relative's line
+// to its parent) its own ports and track: a card's extra lines leave and
+// arrive on the side they head for, spaced PORT apart, and the lines crossing
+// one gap take tracks in turn.
+function separate(edges: CanvasEdge[], byRef: Map<Ref, CanvasNode>): void {
+  const extra = edges.filter((e) => e.kind === 'also' || e.kind === 'above');
+  const used = new Map<string, number>();
+  const next = (k: string) => {
+    const n = used.get(k) ?? 0;
+    used.set(k, n + 1);
+    return n;
+  };
+  const byX = (a: CanvasEdge, b: CanvasEdge, end: 'from' | 'to') =>
+    (byRef.get(a[end])?.x ?? 0) - (byRef.get(b[end])?.x ?? 0);
+  for (const e of [...extra].sort((a, b) => byX(a, b, 'from'))) {
+    const a = byRef.get(e.from);
+    const b = byRef.get(e.to);
+    if (!a || !b) continue;
+    const side = (u: number) => Math.sign(u) || 1;
+    const sOut = side(b.x - a.x);
+    const sIn = side(a.x - b.x);
+    e.route = {
+      from: sOut * PORT * (next(`out:${e.from}:${String(sOut)}`) + 1),
+      to: sIn * PORT * (next(`in:${e.to}:${String(sIn)}`) + 1),
+      track: next(`gap:${String(b.y)}`),
+    };
+  }
 }
 
 const n2 = (v: number) => String(Math.round(v * 10) / 10);
@@ -363,6 +411,12 @@ function polyline(pts: [number, number][]): string {
   return out.join(' ');
 }
 
+// TRACKS are where extra lines cross a gap between rows (a share of the gap),
+// clear of the siblings' shared line halfway down; LANES shift a line that runs
+// down between two columns of cards.
+const TRACKS = [0.3, 0.7, 0.18, 0.82, 0.4, 0.6];
+const LANES = [0, -8, 8, -12, 12];
+
 // LOOP is how far below a row a line between two of its posts runs.
 const LOOP = 20;
 
@@ -373,16 +427,20 @@ const LOOP = 20;
 // down, apart from the focal row's siblings. A "shown above" edge whose reply
 // sits in the same row loops under the row, and one whose reply sits higher
 // up runs from the top of a up to the bottom of b.
-export function route(a: { x: number; y: number }, b: { x: number; y: number }, kind: EdgeKind): string {
+export function route(a: { x: number; y: number }, b: { x: number; y: number }, kind: EdgeKind, p?: Ports): string {
+  if (p) {
+    a = { x: a.x + p.from, y: a.y };
+    b = { x: b.x + p.to, y: b.y };
+  }
   if (b.y > a.y) {
     const y1 = a.y + NODE_H / 2;
     const y2 = b.y - NODE_H / 2;
-    const share = kind === 'also' ? 0.35 : 0.5;
+    const share = p ? (TRACKS[p.track % TRACKS.length] ?? 0.35) : kind === 'also' ? 0.35 : 0.5;
     if (y2 - y1 <= ROW_H) return elbow(a.x, y1, b.x, y2, y1 + (y2 - y1) * share);
     // Across more than one band: down to the gap under a, along to a lane
     // between two columns of cards, down it, and along the gap above b.
     const gap = ROW_H - NODE_H;
-    const lane = b.x + (Math.sign(a.x - b.x) || 1) * ((NODE_W + GAP_X) / 2);
+    const lane = b.x + (Math.sign(a.x - b.x) || 1) * ((NODE_W + GAP_X) / 2) + (LANES[(p?.track ?? 0) % LANES.length] ?? 0);
     return polyline([
       [a.x, y1],
       [a.x, y1 + gap * share],

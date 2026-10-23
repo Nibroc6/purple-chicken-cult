@@ -19,7 +19,7 @@ import compact from '../compact';
 import explorer from '../explorer';
 import type { FormatModule, TreeActions } from '../types';
 import { fit, viewBox, zoomAt } from './canvas/Canvas';
-import { excerpt, GAP_X, layoutTree, lines, NODE_H, NODE_W, ROW_H, route, slotOffset } from './canvas/layout';
+import { excerpt, GAP_X, layoutTree, lines, NODE_H, NODE_W, PORT, ROW_H, route, slotOffset } from './canvas/layout';
 
 const tr = i18n.t.bind(i18n) as unknown as (k: string, o?: Record<string, unknown>) => string;
 
@@ -190,6 +190,37 @@ describe('canvas layout', () => {
     const e = l.edges.map((x) => `${x.from}>${x.to}:${x.kind}`);
     expect(e).toEqual(expect.arrayContaining(['gp>u1:kin', 'u1>k1:kin', 's1>n1:kin']));
     expect(at('f')?.kin).toBe(false);
+  });
+
+  it('gives each extra line into one card its own port and track', () => {
+    // g1 replies to c1, and also to c2 and c3 (either side of it).
+    const tv = tree({
+      rows: [
+        row(0, 'this_post', 'f', [item('f')]),
+        row(1, 'replies', 'f', [item('c1'), item('c2'), item('c3')]),
+        row(2, 'replies_to_replies', 'c1', [item('g1', { alsoParents: [asRef('c2'), asRef('c3')] })]),
+      ],
+    });
+    const l = layoutTree(tv, first);
+    const extra = l.edges.filter((e) => e.kind === 'also');
+    expect(extra.map((e) => `${e.from}>${e.to}`).sort()).toEqual(['c2>g1', 'c3>g1']);
+    const ports = extra.map((e) => e.route);
+    // c2 is right of g1 and c3 left: each arrives on its own side, off the trunk.
+    expect(ports.map((p) => p?.to).sort()).toEqual([-PORT, PORT]);
+    expect(new Set(ports.map((p) => p?.track)).size).toBe(2);
+    expect(l.edges.find((e) => e.kind === 'reply' && e.to === asRef('g1'))?.route).toBeUndefined();
+    // The ports move the line's ends; the track moves where it crosses the gap.
+    const a = { x: 0, y: 0 };
+    const b = { x: 240, y: ROW_H };
+    expect(route(a, b, 'also', { from: PORT, to: -PORT, track: 0 })).toMatch(new RegExp(`^M ${String(PORT)} .* V ${String(ROW_H - NODE_H / 2)}$`));
+    expect(route(a, b, 'also', { from: 0, to: 0, track: 0 })).not.toBe(route(a, b, 'also', { from: 0, to: 0, track: 1 }));
+  });
+
+  it('carries a post\'s first picture to its card', () => {
+    const tv = tree({
+      rows: [row(0, 'this_post', 'f', [item('f', {}, { media: [{ ref: asRef('m1'), w: 4, h: 3 }, { ref: asRef('m2'), w: 1, h: 1 }] })])],
+    });
+    expect(layoutTree(tv, first).byRef.get(asRef('f'))?.media?.ref).toBe('m1');
   });
 
   it('routes a line across several rows down a lane between the cards', () => {
@@ -453,6 +484,51 @@ describe('connected tree', () => {
     expect(document.querySelector('.explorer-edge[data-kind="kin"]')).toBeTruthy();
     fireEvent.click(node('u1'));
     expect(a.openTree).toHaveBeenCalledWith('u1');
+  });
+
+  it("lights up a post's lines while it is pointed at or focused", () => {
+    show();
+    const lit = () =>
+      [...document.querySelectorAll<SVGPathElement>('.explorer-edge[data-hot="true"]')].map((e) => `${e.dataset.from ?? ''}>${e.dataset.to ?? ''}`).sort();
+    expect(lit()).toEqual([]);
+    fireEvent.pointerEnter(node('c1'));
+    expect(lit()).toEqual(['c1>g1', 'c1>p2', 'f>c1']);
+    expect(document.querySelector('.explorer-edges')?.getAttribute('data-hot')).toBe('true');
+    // Drawn last, over the other lines.
+    const paths = [...document.querySelectorAll<SVGPathElement>('.explorer-edge')];
+    expect(paths.slice(-3).every((e) => e.dataset.hot === 'true')).toBe(true);
+    fireEvent.pointerLeave(node('c1'));
+    expect(lit()).toEqual([]);
+    fireEvent.focus(node('p2'));
+    expect(lit()).toEqual(['c1>p2', 'p2>f']);
+    fireEvent.blur(node('p2'));
+    expect(document.querySelector('.explorer-edges')?.getAttribute('data-hot')).toBe('false');
+  });
+
+  it('shows a thumbnail of the first picture, beside the text or in its place', () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(new Response(JSON.stringify({ url: '/m/k?e=1', expires_at: '2099-01-01T00:00:00Z' }), { status: 200, headers: { 'content-type': 'application/json' } }))),
+    );
+    const pic = { media: [{ ref: asRef('m1'), w: 4, h: 3, alt: 'a cat' }] };
+    show(
+      tree({
+        rows: [
+          row(0, 'this_post', 'f', [item('f', {}, pic), item('s1', {}, { ...pic, body: null })]),
+          row(1, 'replies', 'f', [item('c1')]),
+        ],
+      }),
+    );
+    const thumb = (ref: string) => node(ref).querySelector<SVGForeignObjectElement>('[data-testid="explorer-node-thumb"]');
+    expect(thumb('c1')).toBeNull();
+    expect(thumb('f')?.dataset.alone).toBe('false');
+    expect(thumb('f')?.querySelector('[data-testid="media-image"]')?.getAttribute('alt')).toBe('a cat');
+    // A post with only a picture: the picture fills the text's place, and the
+    // card is still named.
+    expect(thumb('s1')?.dataset.alone).toBe('true');
+    expect(Number(thumb('s1')?.getAttribute('width'))).toBeGreaterThan(NODE_W / 2);
+    expect(node('s1').querySelector('.explorer-node-text')).toBeNull();
+    expect(node('s1').getAttribute('aria-label')).toBe(tr('explorer:canvas.open', { handle: 'alice', text: tr('explorer:canvas.picture') }));
   });
 
   it('starts with the focused post folded on phones', () => {

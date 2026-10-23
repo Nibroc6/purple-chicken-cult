@@ -5,9 +5,12 @@
 // tree. Clicking a post (or Tab to it and Enter) brings it into focus: the
 // tree reopens around it. "+N more" loads the rest of a generation. On
 // desktop, zooming out shows a minimap of the whole tree with the visible part
-// outlined; dragging in it moves the view. Owner: P1-W09.
+// outlined; dragging in it moves the view. Pointing at a post (or focusing it)
+// lights up its lines and fades the rest, so it is clear where each one goes.
+// Owner: P1-W09.
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import { MediaImage } from '../../../features/media';
 import { Icon } from '../../../lib/Icon';
 import { lines, NODE_H, NODE_W, route, type Bounds, type CanvasLayout, type CanvasMore, type CanvasNode } from './layout';
 import { Minimap } from './Minimap';
@@ -106,11 +109,45 @@ function activate(fn: () => void) {
   };
 }
 
-function Node({ n, clip, onPick }: { n: CanvasNode; clip: string; onPick: (n: CanvasNode, key: boolean) => void }) {
+// THUMB is the side of a card's picture beside its text; a card with no text
+// shows the picture across the text's place instead.
+const THUMB = 44;
+// NARROW is how many characters fit on a line beside the picture.
+const NARROW = 19;
+
+function Thumb({ n }: { n: CanvasNode }) {
+  if (!n.media) return null;
+  const alone = !n.excerpt;
+  const box = alone
+    ? { x: 12, y: 48, width: NODE_W - 24, height: NODE_H - 56 }
+    : { x: NODE_W - THUMB - 12, y: 46, width: THUMB, height: THUMB };
+  return (
+    <foreignObject {...box} className="explorer-node-thumb" data-testid="explorer-node-thumb" data-alone={alone}>
+      <MediaImage media={n.media} variant="thumb" />
+    </foreignObject>
+  );
+}
+
+function Node({
+  n,
+  clip,
+  onPick,
+  onHot,
+}: {
+  n: CanvasNode;
+  clip: string;
+  onPick: (n: CanvasNode, key: boolean) => void;
+  onHot: (ref: string | undefined) => void;
+}) {
   const { t } = useTranslation('explorer');
-  const label = n.focal
-    ? t('canvas.focal', { handle: n.handle, text: n.excerpt })
-    : t('canvas.open', { handle: n.handle, text: n.excerpt });
+  const text = n.excerpt || (n.media ? t('canvas.picture') : '');
+  const label = n.focal ? t('canvas.focal', { handle: n.handle, text }) : t('canvas.open', { handle: n.handle, text });
+  const on = () => {
+    onHot(n.ref);
+  };
+  const off = () => {
+    onHot(undefined);
+  };
   return (
     <g
       className="explorer-node"
@@ -134,6 +171,10 @@ function Node({ n, clip, onPick }: { n: CanvasNode; clip: string; onPick: (n: Ca
       onKeyDown={activate(() => {
         onPick(n, true);
       })}
+      onPointerEnter={on}
+      onPointerLeave={off}
+      onFocus={on}
+      onBlur={off}
     >
       <rect className="explorer-node-box" width={NODE_W} height={NODE_H} />
       <g clipPath={`url(#${clip})`} aria-hidden="true">
@@ -150,7 +191,7 @@ function Node({ n, clip, onPick }: { n: CanvasNode; clip: string; onPick: (n: Ca
         {n.excerpt ? (
           <text className="explorer-node-text" y={66} data-user-content="">
             {/* A space ends each wrapped line so the text still reads as one. */}
-            {lines(n.excerpt).map((l, i, all) => (
+            {lines(n.excerpt, n.media ? NARROW : undefined).map((l, i, all) => (
               <tspan key={i} x={12} dy={i === 0 ? 0 : 18}>
                 {i < all.length - 1 ? `${l} ` : l}
               </tspan>
@@ -158,6 +199,7 @@ function Node({ n, clip, onPick }: { n: CanvasNode; clip: string; onPick: (n: Ca
           </text>
         ) : null}
       </g>
+      <Thumb n={n} />
       {n.replies > 0 ? (
         <text className="explorer-node-replies" x={NODE_W - 10} y={22} textAnchor="end" aria-hidden="true">
           {t('canvas.replies', { count: n.replies })}
@@ -350,19 +392,27 @@ export function Canvas({
   const zoomedOut = view.k < 1;
   const edges = useMemo(
     () =>
-      layout.edges.map((e) => {
+      layout.edges.flatMap((e) => {
         const a = layout.byRef.get(e.from);
         const b = layout.byRef.get(e.to);
-        if (!a || !b) return null;
-        return {
-          key: `${e.from}>${e.to}`,
-          d: route(a, b, e.kind),
-          kind: e.kind,
-          focal: a.focal || b.focal,
-        };
+        if (!a || !b) return [];
+        return [
+          {
+            key: `${e.from}>${e.to}`,
+            from: e.from,
+            to: e.to,
+            d: route(a, b, e.kind, e.route),
+            kind: e.kind,
+            focal: a.focal || b.focal,
+          },
+        ];
       }),
     [layout],
   );
+  // The post pointed at or focused: its lines are drawn last, over the rest.
+  const [hot, setHot] = useState<string | undefined>();
+  const isHot = (e: { from: string; to: string }) => hot !== undefined && (e.from === hot || e.to === hot);
+  const drawn = hot === undefined ? edges : [...edges.filter((e) => !isHot(e)), ...edges.filter(isHot)];
 
   return (
     <div className="explorer-canvas" data-testid="explorer-canvas" data-zoom={view.k.toFixed(2)}>
@@ -426,11 +476,23 @@ export function Canvas({
               <rect x={4} y={0} width={NODE_W - 12} height={NODE_H} />
             </clipPath>
           </defs>
-          <g className="explorer-edges" aria-hidden="true">
-            {edges.map((e) => (e ? <path key={e.key} d={e.d} className="explorer-edge" data-kind={e.kind} data-focal={e.focal} /> : null))}
+          <g className="explorer-edges" aria-hidden="true" data-hot={hot !== undefined}>
+            {drawn.map((e) => (
+              <path
+                key={e.key}
+                d={e.d}
+                className="explorer-edge"
+                data-testid="explorer-edge"
+                data-from={e.from}
+                data-to={e.to}
+                data-kind={e.kind}
+                data-focal={e.focal}
+                data-hot={isHot(e)}
+              />
+            ))}
           </g>
           {layout.nodes.map((n) => (
-            <Node key={n.ref} n={n} clip={clip} onPick={pick} />
+            <Node key={n.ref} n={n} clip={clip} onPick={pick} onHot={setHot} />
           ))}
           {layout.more.map((m) => (
             <More key={`more-${String(m.gen)}-${m.center}`} m={m} onMore={more} />
