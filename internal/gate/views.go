@@ -194,11 +194,23 @@ type TreeRow struct {
 	Beyond bool `json:"beyond,omitempty"`
 }
 
+// TreeKin is a relative beyond the direct line (§10.1.4): a reply to Parent (a
+// post on the map: in a row or an earlier relative), one generation below it.
+// Degree is its kinship distance from the focal post.
+type TreeKin struct {
+	Post        PostView `json:"post"`
+	Parent      Ref      `json:"parent"`
+	Gen         int      `json:"gen"`
+	Degree      int      `json:"degree"`
+	AlsoParents []Ref    `json:"also_parents,omitempty"`
+}
+
 // TreeView is the opened family tree.
 type TreeView struct {
 	Snapshot   string    `json:"snapshot"`
 	Focal      Ref       `json:"focal"`
 	Rows       []TreeRow `json:"rows"`
+	Kin        []TreeKin `json:"kin,omitempty"`
 	HasEarlier bool      `json:"has_earlier"`
 	HasLater   bool      `json:"has_later"`
 }

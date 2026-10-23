@@ -163,6 +163,35 @@ describe('canvas layout', () => {
     expect(l.nodes.filter((n) => n.ref === asRef('c2'))).toHaveLength(1);
   });
 
+  it('hangs relatives under their parents, outside the direct posts on their side', () => {
+    const kin = (ref: string, parent: string, gen: number, degree: number) => ({
+      post: item(ref).post,
+      parent: asRef(parent),
+      gen,
+      degree,
+      alsoParents: [],
+    });
+    const tv = tree({
+      kin: [kin('u1', 'gp', -1, 3), kin('n1', 's1', 1, 3), kin('k1', 'u1', 0, 4), kin('lost', 'nowhere', 1, 5), kin('c1', 'f', 1, 9)],
+    });
+    const l = layoutTree(tv, first);
+    const at = (ref: string) => l.byRef.get(asRef(ref));
+    const step = NODE_W + GAP_X;
+    // The aunt sits in the parents' band right of the focal post's two parents.
+    expect([at('u1')?.y, at('u1')?.x, at('u1')?.kin]).toEqual([ROW_H, 2 * step, true]);
+    // The cousin hangs under her, right of the focal row's posts.
+    expect([at('k1')?.y, at('k1')?.x]).toEqual([2 * ROW_H, 2 * step]);
+    // The niece goes past the replies and their "+N more".
+    expect([at('n1')?.y, at('n1')?.x]).toEqual([3 * ROW_H, 3 * step]);
+    // No parent on the map, or already shown in a row: no second node.
+    expect(at('lost')).toBeUndefined();
+    expect(l.nodes.filter((n) => n.ref === asRef('c1'))).toHaveLength(1);
+    expect(at('c1')?.kin).toBe(false);
+    const e = l.edges.map((x) => `${x.from}>${x.to}:${x.kind}`);
+    expect(e).toEqual(expect.arrayContaining(['gp>u1:kin', 'u1>k1:kin', 's1>n1:kin']));
+    expect(at('f')?.kin).toBe(false);
+  });
+
   it('routes a line across several rows down a lane between the cards', () => {
     const d = route({ x: 0, y: 0 }, { x: 0, y: 2 * ROW_H }, 'also');
     expect(d).toContain(`L ${String((NODE_W + GAP_X) / 2)}`);
@@ -415,6 +444,15 @@ describe('connected tree', () => {
     expect(svg.getAttribute('viewBox')).not.toBe(before);
     fireEvent.click(screen.getByTestId('explorer-zoom-in'));
     expect(screen.queryByTestId('explorer-minimap')).toBeNull();
+  });
+
+  it('marks relatives as kin and opens them like any post', () => {
+    const a = show(tree({ kin: [{ post: item('u1').post, parent: asRef('gp'), gen: -1, degree: 3, alsoParents: [] }] }));
+    expect(node('u1').dataset.kin).toBe('true');
+    expect(node('f').dataset.kin).toBe('false');
+    expect(document.querySelector('.explorer-edge[data-kind="kin"]')).toBeTruthy();
+    fireEvent.click(node('u1'));
+    expect(a.openTree).toHaveBeenCalledWith('u1');
   });
 
   it('starts with the focused post folded on phones', () => {

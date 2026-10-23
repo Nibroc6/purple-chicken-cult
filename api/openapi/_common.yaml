@@ -202,6 +202,15 @@ components:
         more: { type: integer, minimum: 0 }
         cursor: { type: string }
         beyond: { type: boolean }
+    TreeKin:
+      type: object
+      required: [post, parent, gen, degree]
+      properties:
+        post: { $ref: '#/components/schemas/PostView' }
+        parent: { $ref: '#/components/schemas/Ref' }
+        gen: { type: integer }
+        degree: { type: integer, minimum: 1 }
+        also_parents: { type: array, items: { $ref: '#/components/schemas/Ref' } }
     TreeView:
       type: object
       required: [snapshot, focal, rows, has_earlier, has_later]
@@ -209,6 +218,13 @@ components:
         snapshot: { type: string }
         focal: { $ref: '#/components/schemas/Ref' }
         rows: { type: array, items: { $ref: '#/components/schemas/TreeRow' } }
+        kin:
+          description: >-
+            Relatives beyond the direct line, nearest first, while the map has
+            room: unshown replies of posts on the map (aunts and uncles,
+            cousins, nieces and nephews …), each under its parent.
+          type: array
+          items: { $ref: '#/components/schemas/TreeKin' }
         has_earlier: { type: boolean }
         has_later: { type: boolean }
     SettingsView:

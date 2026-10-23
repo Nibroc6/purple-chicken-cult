@@ -110,6 +110,24 @@ func (s *Service) rank(ctx context.Context, sr core.Search, sn *snapshot, k rowK
 	if !ok {
 		return &rowSnap{}
 	}
+	rs := &rowSnap{entries: make([]core.PostID, 0, len(vis))}
+	if k.gen == 0 {
+		if _, ok := vis[sn.focal]; ok {
+			rs.entries = append(rs.entries, sn.focal)
+		}
+	}
+	for _, id := range s.order(ctx, sr, sn, vis) {
+		if k.gen == 0 && id == sn.focal {
+			continue
+		}
+		rs.entries = append(rs.entries, id)
+	}
+	return rs
+}
+
+// order sorts posts like a row: distance tier first, then rank.Less under the
+// snapshot's preset.
+func (s *Service) order(ctx context.Context, sr core.Search, sn *snapshot, vis map[core.PostID]core.Checked) []core.PostID {
 	params := rank.ParamsFor(sn.preset)
 	now := s.now()
 	cands := make([]ranked, 0, len(vis))
@@ -128,19 +146,11 @@ func (s *Service) rank(ctx context.Context, sr core.Search, sn *snapshot, k rowK
 		}
 		return 0
 	})
-	rs := &rowSnap{entries: make([]core.PostID, 0, len(cands))}
-	if k.gen == 0 {
-		if _, ok := vis[sn.focal]; ok {
-			rs.entries = append(rs.entries, sn.focal)
-		}
+	out := make([]core.PostID, len(cands))
+	for i, c := range cands {
+		out[i] = c.id
 	}
-	for _, c := range cands {
-		if k.gen == 0 && c.id == sn.focal {
-			continue
-		}
-		rs.entries = append(rs.entries, c.id)
-	}
-	return rs
+	return out
 }
 
 // candidate is the rank input of c, exactly as the feed builds it.
@@ -316,6 +326,11 @@ func (s *Service) build(ctx context.Context, sr core.Search, sn *snapshot, fc co
 		sn.view[k.gen] = &viewRow{center: k.center, served: served}
 		view.Rows = append(view.Rows, row)
 	}
+	kin, err := s.kin(ctx, sr, sn)
+	if err != nil {
+		return gate.TreeView{}, err
+	}
+	view.Kin = kin
 	if vr, ok := sn.view[-2]; ok && len(vr.served) > 0 {
 		view.HasEarlier = s.hasParents(ctx, sr, sn, vr.served[0])
 	}

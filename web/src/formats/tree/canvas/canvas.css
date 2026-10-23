@@ -136,6 +136,21 @@
   stroke-width: 3;
   filter: drop-shadow(0 0 6px var(--color-accent));
 }
+/* Relatives beyond the direct line are played down until hovered or focused. */
+.explorer-node[data-kin='true'] {
+  opacity: 0.7;
+}
+.explorer-node[data-kin='true']:hover,
+.explorer-node[data-kin='true']:focus-visible {
+  opacity: 1;
+}
+.explorer-node[data-kin='true'] .explorer-node-box {
+  stroke-dasharray: 4 3;
+}
+.explorer-edge[data-kind='kin'] {
+  stroke-width: 1;
+  opacity: 0.6;
+}
 .explorer-node-avatar {
   fill: var(--color-border);
 }
