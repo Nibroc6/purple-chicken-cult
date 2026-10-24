@@ -8,7 +8,7 @@ import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router';
 import { Loading } from '../../app/Loading';
-import { sessionKey, useSession } from '../../app/session';
+import { markSignedOut, useSession } from '../../app/session';
 import { listPasskeys, logout } from './api';
 import { addPasskey, removeKey } from './passkeyFlow';
 import { authError, toPasskeyVM, type PasskeyVM } from './vm';
@@ -91,7 +91,7 @@ function Passkeys() {
     onSuccess: async (p) => {
       if (p.current) {
         // This session was started with that passkey: it has ended.
-        qc.setQueryData(sessionKey, { authenticated: false, kind: 'none' });
+        markSignedOut(qc);
         await navigate('/login', { replace: true });
         return;
       }
@@ -105,7 +105,7 @@ function Passkeys() {
     onSuccess: async () => {
       // Leave first: this page sends signed-out visitors to the login page.
       await navigate('/', { replace: true });
-      qc.setQueryData(sessionKey, { authenticated: false, kind: 'none' });
+      markSignedOut(qc);
     },
   });
 

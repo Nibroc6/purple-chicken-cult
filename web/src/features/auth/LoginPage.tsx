@@ -1,17 +1,24 @@
 // Sign in with a passkey (§17.2; plan §6.4). The page offers passkey autofill
 // (conditional mediation) on the input and a button for the regular prompt.
 // Every attempt is its own server ceremony in a fresh guest session; a
-// successful one replaces it with a new user session. Owner: P0-W01 → P1-W07.
+// successful one replaces it with a new user session and goes to ?next= (a
+// path on this site) or the feed. Owner: P0-W01 → P1-W07.
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Navigate, useNavigate } from 'react-router';
+import { Navigate, useNavigate, useSearchParams } from 'react-router';
 import { Loading } from '../../app/Loading';
-import { sessionKey, useSession } from '../../app/session';
+import { adoptSession, useSession } from '../../app/session';
 import { loginBegin, loginFinish, type SessionView } from './api';
 import { authError, type ErrorMsg } from './vm';
 import { autofillSupported, cancelCeremony, getAssertion } from './webauthn';
 import './auth.css';
+
+// nextPath is where to go after signing in: ?next= when it is a path on this
+// site, else the feed.
+export function nextPath(next: string | null): string {
+  return next && /^\/(?![/\\])/.test(next) ? next : '/';
+}
 
 interface Autofill {
   begun: Promise<unknown>;
@@ -23,6 +30,8 @@ export default function LoginPage() {
   const session = useSession();
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const next = nextPath(params.get('next'));
   const inputId = useId();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<ErrorMsg | undefined>();
@@ -31,8 +40,8 @@ export default function LoginPage() {
   const signedOut = session.data?.authenticated === false;
 
   const doneRef = useRef(async (sv: SessionView) => {
-    qc.setQueryData(sessionKey, sv);
-    await navigate('/', { replace: true });
+    adoptSession(qc, sv);
+    await navigate(next, { replace: true });
   });
 
   useEffect(() => {
@@ -65,7 +74,7 @@ export default function LoginPage() {
   }, [signedOut]);
 
   if (session.isPending) return <Loading />;
-  if (session.data?.authenticated) return <Navigate to="/" replace />;
+  if (session.data?.authenticated) return <Navigate to={next} replace />;
 
   const signIn = async () => {
     setBusy(true);

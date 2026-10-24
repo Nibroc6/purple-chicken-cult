@@ -7,10 +7,12 @@
 // secondary links (moreNav) sit at the sidebar's foot, or in a page footer when
 // signed out or in the top-header layout on wide screens. On phones a bottom
 // tab bar (tabNav) keeps the main pages under the thumb, and its last button
-// opens everything else in the drawer.
+// opens everything else in the drawer. Signed out, member pages give way to a
+// sign-in prompt (SignInGate).
 import { Suspense, useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import { NavLink, Outlet, useLocation } from 'react-router';
+import { SignInGate } from '../features/auth/SignInGate';
 import { Icon } from '../lib/Icon';
 import { loadCollapsed, saveCollapsed } from '../lib/navLayout';
 import { featureSlots } from './featureSlots';
@@ -147,9 +149,11 @@ export function Shell() {
       ) : null}
       <div className="shell-body" inert={drawerOpen}>
         <main id="main" className="shell-main" ref={main}>
-          <Suspense fallback={<Loading />}>
-            <Outlet />
-          </Suspense>
+          <SignInGate>
+            <Suspense fallback={<Loading />}>
+              <Outlet />
+            </Suspense>
+          </SignInGate>
         </main>
         <footer className="site-footer" data-testid="site-footer">
           <nav aria-label={t('nav.more')}>

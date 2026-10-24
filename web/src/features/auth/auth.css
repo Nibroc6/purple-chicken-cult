@@ -84,3 +84,16 @@
   margin-block: 0 var(--space-2);
   padding-inline-start: var(--space-6);
 }
+
+/* The sign-in gate: its wrapper must not change the page's layout. */
+.signin-gate-page {
+  display: contents;
+}
+
+.signin-gate-page[hidden] {
+  display: none;
+}
+
+.signin-prompt h1:focus {
+  outline: none;
+}
