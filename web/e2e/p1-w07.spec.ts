@@ -212,7 +212,7 @@ test('a device-bound session: copied cookies, the 10-minute bound cookie, single
   expect(await feedStatus(page.request)).toBe(404);
   expect((await session(page.request)).authenticated).toBe(false);
   await page.goto(`${origin}/settings/passkeys`);
-  await expect(page.getByTestId('passkeys-login')).toBeVisible();
+  await expect(page.getByTestId('signin-prompt')).toBeVisible();
   // …and it cannot refresh without the device key.
   expect((await refresh(page.request, await Device.create('ES256'))).status).toBe(404);
 
