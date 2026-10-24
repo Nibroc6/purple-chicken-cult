@@ -16,6 +16,7 @@ export function setCSRF(token: string | undefined): void {
 type Listener = (err: ApiError) => void;
 const stepUpListeners = new Set<Listener>();
 const sessionExpiredListeners = new Set<Listener>();
+const notFoundListeners = new Set<() => void>();
 
 // onStepUp subscribes to 401 step_up_required (the step-up slot opens its modal).
 export function onStepUp(fn: Listener): () => void {
@@ -29,6 +30,14 @@ export function onFeedSessionExpired(fn: Listener): () => void {
   return () => sessionExpiredListeners.delete(fn);
 }
 
+// onNotFound subscribes to every 404 except /session's own. The API answers a
+// signed-out request with the same uniform 404 as a missing thing, so a 404 is
+// the cue to ask /api/session whether this tab is still signed in.
+export function onNotFound(fn: () => void): () => void {
+  notFoundListeners.add(fn);
+  return () => notFoundListeners.delete(fn);
+}
+
 const safe = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 const middleware: Middleware = {
@@ -36,8 +45,13 @@ const middleware: Middleware = {
     if (csrf && !safe.has(request.method)) request.headers.set('X-PCC-CSRF', csrf);
     return request;
   },
-  async onResponse({ response }) {
+  async onResponse({ request, response }) {
     if (response.ok) return response;
+    if (response.status === 404 && !new URL(request.url).pathname.endsWith('/api/session')) {
+      notFoundListeners.forEach((fn) => {
+        fn();
+      });
+    }
     const body: unknown = await response
       .clone()
       .json()

@@ -13,6 +13,7 @@ export const BACKOFF_BASE_MS = 1000;
 export const BACKOFF_MAX_MS = 60_000;
 
 const handlers = new Map<string, Set<Handler>>();
+const errorListeners = new Set<() => void>();
 let source: EventSource | undefined;
 let listened = new Set<string>();
 let timer: ReturnType<typeof setTimeout> | undefined;
@@ -59,6 +60,9 @@ function connect(): void {
   };
   es.onerror = () => {
     if (source !== es) return;
+    errorListeners.forEach((fn) => {
+      fn();
+    });
     es.close();
     source = undefined;
     if (count() > 0 && timer === undefined) {
@@ -93,6 +97,13 @@ export function subscribe<T>(type: string, fn: (d: T) => void): () => void {
     set.delete(h);
     if (count() === 0) disconnect();
   };
+}
+
+// onStreamError subscribes to the stream failing (the session may have ended:
+// EventSource cannot say why, so the session watch asks /api/session).
+export function onStreamError(fn: () => void): () => void {
+  errorListeners.add(fn);
+  return () => errorListeners.delete(fn);
 }
 
 // dispatch delivers an event to subscribers (used by the EventSource owner and tests).
