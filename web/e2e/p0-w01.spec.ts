@@ -117,13 +117,14 @@ test('genesis enrollment, passkey login and step-up with a virtual authenticator
   });
   await page.getByTestId('passkey-remove').first().click();
   await page.getByTestId('cosign-sign').click();
-  await expect(page).toHaveURL(`${origin}/login`);
+  // The sign-in page, possibly with the way back to the passkeys page.
+  await expect(page).toHaveURL(/\/login(\?next=%2Fsettings%2Fpasskeys)?$/);
   expect((await session(page)).authenticated).toBe(false);
 
   // The remaining passkey signs in through the button (autofill is off).
   await expect(page.locator('input[autocomplete="username webauthn"]')).toBeVisible();
   await page.getByTestId('login-passkey').click();
-  await expect(page).toHaveURL(`${origin}/`);
+  await expect(page).toHaveURL(new RegExp(`^${origin}/(settings/passkeys)?$`));
   expect((await session(page)).me?.handle).toBe('alice');
   await second.remove();
   await ctx.dispose();

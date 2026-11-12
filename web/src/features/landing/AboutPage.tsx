@@ -43,14 +43,14 @@ export default function AboutPage() {
           ))}
           {'link' in s ? (
             <p>
-              <Link to={s.link.to}>{t(s.link.label)}</Link>
+              <Link to={s.link.to} className="button">{t(s.link.label)}</Link>
             </p>
           ) : null}
         </section>
       ))}
       <p className="landing-links">
-        <Link to="/terms">{t('terms')}</Link>
-        <Link to="/">{t('home')}</Link>
+        <Link to="/terms" className="button">{t('terms')}</Link>
+        <Link to="/" className="button">{t('home')}</Link>
       </p>
     </article>
   );

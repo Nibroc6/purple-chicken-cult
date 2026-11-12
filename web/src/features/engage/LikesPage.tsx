@@ -42,7 +42,7 @@ export default function LikesPage() {
             <InfoTip>{t('likes.explain')}</InfoTip>
           </p>
           <p className="post-links">
-            <Link to={`/p/${q.data.ref}`}>{t('page.open')}</Link> <Link to="/seen">{t('page.seen')}</Link>
+            <Link to={`/p/${q.data.ref}`}>{t('page.open')}</Link> <Link to="/seen" className="button">{t('page.seen')}</Link>
           </p>
         </>
       ) : null}

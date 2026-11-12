@@ -29,7 +29,7 @@ export default function SeenPage() {
       <h1>{t('page.title')}</h1>
       <p className="muted">
         {t('page.intro')}
-        <InfoTip>{t('page.introTip')}</InfoTip> <Link to="/saves">{t('page.saves')}</Link>
+        <InfoTip>{t('page.introTip')}</InfoTip> <Link to="/saves" className="button">{t('page.saves')}</Link>
       </p>
       {q.isPending ? <Loading /> : null}
       {q.error ? (
