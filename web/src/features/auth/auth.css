@@ -84,3 +84,14 @@
   margin-block: 0 var(--space-2);
   padding-inline-start: var(--space-6);
 }
+
+/* "Got an invite?" under the sign-in form. */
+.auth-join {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: start;
+  margin-block-start: var(--space-4);
+}
+.auth-join p {
+  margin: 0;
+}

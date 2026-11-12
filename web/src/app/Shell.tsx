@@ -10,7 +10,7 @@
 // opens everything else in the drawer.
 import { Suspense, useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
-import { NavLink, Outlet, useLocation } from 'react-router';
+import { Navigate, NavLink, Outlet, useLocation } from 'react-router';
 import { Icon } from '../lib/Icon';
 import { loadCollapsed, saveCollapsed } from '../lib/navLayout';
 import { featureSlots } from './featureSlots';
@@ -36,6 +36,26 @@ function subscribeNarrow(onChange: () => void): () => void {
 }
 function isNarrow(): boolean {
   return typeof window.matchMedia !== 'function' || window.matchMedia(narrowQuery).matches;
+}
+
+// publicPaths are the pages a signed-out visitor may open; any other page
+// sends them to sign in, then back (/login?next=…).
+const publicPaths = ['/', '/login', '/enroll', '/join', '/recover', '/about', '/terms', '/sound/check', '/cosign/check', '/media/check'];
+
+export function isPublicPath(path: string): boolean {
+  return publicPaths.includes(path.replace(/\/+$/, '') || '/');
+}
+
+// MemberOnly renders the page, or (signed out, on a members' page) sends the
+// visitor to the sign-in page with the way back.
+function MemberOnly() {
+  const session = useSession();
+  const loc = useLocation();
+  if (session.data && !session.data.authenticated && session.data.kind === 'none' && !isPublicPath(loc.pathname)) {
+    const next = loc.pathname + loc.search;
+    return <Navigate to={`/login?next=${encodeURIComponent(next)}`} replace />;
+  }
+  return <Outlet />;
 }
 
 export function Shell() {
@@ -148,7 +168,7 @@ export function Shell() {
       <div className="shell-body" inert={drawerOpen}>
         <main id="main" className="shell-main" ref={main}>
           <Suspense fallback={<Loading />}>
-            <Outlet />
+            <MemberOnly />
           </Suspense>
         </main>
         <footer className="site-footer" data-testid="site-footer">

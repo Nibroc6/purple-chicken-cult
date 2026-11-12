@@ -30,9 +30,20 @@
   outline-offset: 2px;
 }
 
+/* A link that leads somewhere as a call to action looks like a button
+   (a.button); it keeps link semantics. */
+:where(a.button) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-block-size: 44px;
+  text-decoration: none;
+}
+
 /* Buttons: a quiet bordered surface by default, filled accent for .primary
    and for a form's submit button. */
-:where(button, input[type='button'], input[type='submit'], input[type='reset']) {
+:where(button, input[type='button'], input[type='submit'], input[type='reset'], a.button) {
   font: inherit;
   font-weight: 550;
   line-height: 1.25;
@@ -50,11 +61,11 @@
     box-shadow var(--ease),
     translate var(--ease);
 }
-:where(button, input[type='button'], input[type='submit'], input[type='reset']):where(:hover:not(:disabled)) {
+:where(button, input[type='button'], input[type='submit'], input[type='reset'], a.button):where(:hover:not(:disabled)) {
   background: var(--color-hover);
   border-color: color-mix(in srgb, var(--color-accent) 45%, var(--color-border-strong));
 }
-:where(button, input[type='button'], input[type='submit'], input[type='reset']):where(:active:not(:disabled)) {
+:where(button, input[type='button'], input[type='submit'], input[type='reset'], a.button):where(:active:not(:disabled)) {
   translate: 0 1px;
 }
 :where(button, input, select, textarea):where(:disabled, [aria-disabled='true']) {
@@ -67,13 +78,13 @@
   border-color: color-mix(in srgb, var(--color-accent) 50%, var(--color-border-strong));
 }
 
-:where(button.primary, button[type='submit'], input[type='submit']) {
+:where(button.primary, button[type='submit'], input[type='submit'], a.button.primary) {
   color: var(--color-on-accent);
   background: var(--color-accent);
   border-color: var(--color-accent);
   box-shadow: var(--shadow-sm);
 }
-:where(button.primary, button[type='submit'], input[type='submit']):where(:hover:not(:disabled)) {
+:where(button.primary, button[type='submit'], input[type='submit'], a.button.primary):where(:hover:not(:disabled)) {
   color: var(--color-on-accent);
   background: color-mix(in srgb, var(--color-accent) 86%, var(--color-text));
   border-color: color-mix(in srgb, var(--color-accent) 86%, var(--color-text));
