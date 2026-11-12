@@ -60,7 +60,14 @@ export function ConnectedTree({
     </>
   );
   return (
-    <div className="tree tree-connected" data-format={format} data-testid="tree-layout" aria-label={t('layout.label')} role="region">
+    <div
+      className="tree tree-connected"
+      data-format={format}
+      data-testid="tree-layout"
+      data-focus-open={focal ? open : false}
+      aria-label={t('layout.label')}
+      role="region"
+    >
       <Canvas
         layout={layout}
         focal={layout.byRef.get(tree.focal)}

@@ -40,6 +40,9 @@ export interface CanvasEdge {
   from: Ref; // upper end
   to: Ref; // lower end
   kind: EdgeKind;
+  // On the thread being read: the line joins two of the focal post's
+  // ancestors (or the focal post itself), or the focal post to a direct reply.
+  onPath: boolean;
 }
 
 export interface CanvasMore {
@@ -235,7 +238,7 @@ export function layoutTree(tree: TreeVM, centered: Centers): CanvasLayout {
     const k = `${from}>${to}`;
     if (seen.has(k)) return;
     seen.add(k);
-    edges.push({ from, to, kind });
+    edges.push({ from, to, kind, onPath: false });
   };
   for (const sl of slots) {
     const ref = sl.it.post.ref;
@@ -260,6 +263,8 @@ export function layoutTree(tree: TreeVM, centered: Centers): CanvasLayout {
     }
   }
 
+  markPath(edges, tree.focal);
+
   const xs = [...nodes.map((n) => n.x), ...more.map((m) => m.x)];
   const ys = nodes.map((n) => n.y);
   const minX = Math.min(0, ...xs) - NODE_W / 2 - PAD;
@@ -273,6 +278,26 @@ export function layoutTree(tree: TreeVM, centered: Centers): CanvasLayout {
     byRef,
     bounds: { x: minX, y: minY, w: maxX - minX, h: maxY - minY },
   };
+}
+
+// markPath highlights the thread being read: every line between the focal
+// post's ancestors (through all of their parents, never through "shown above"
+// pointers) and every line from the focal post to its direct replies. Siblings
+// and their branches stay plain.
+export function markPath(edges: CanvasEdge[], focal: Ref): void {
+  const up = new Set<Ref>([focal]);
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const e of edges) {
+      if (e.kind !== 'above' && up.has(e.to) && !up.has(e.from)) {
+        up.add(e.from);
+        grew = true;
+      }
+    }
+  }
+  for (const e of edges) {
+    e.onPath = e.kind !== 'above' && ((up.has(e.from) && up.has(e.to)) || e.from === focal);
+  }
 }
 
 const n2 = (v: number) => String(Math.round(v * 10) / 10);
@@ -329,7 +354,25 @@ const LOOP = 20;
 // down, apart from the focal row's siblings. A "shown above" edge whose reply
 // sits in the same row loops under the row, and one whose reply sits higher
 // up runs from the top of a up to the bottom of b.
-export function route(a: { x: number; y: number }, b: { x: number; y: number }, kind: EdgeKind): string {
+// PORT is how far from a card's middle an extra-parent ("also") line leaves
+// its parent and enters its reply, so it never shares a segment with the
+// solid main-parent line through the middle.
+export const PORT = NODE_W / 4;
+
+// ports gives the x where an edge leaves a and enters b: the middle for main
+// parent and "shown above" lines; for an extra parent, a quarter of a card
+// toward the other end (a straight drop when both are in one column).
+export function ports(a: { x: number }, b: { x: number }, kind: EdgeKind): [number, number] {
+  if (kind !== 'also') return [a.x, b.x];
+  const s = Math.sign(b.x - a.x);
+  if (s === 0) return [a.x + PORT, b.x + PORT];
+  return [a.x + s * PORT, b.x - s * PORT];
+}
+
+export function route(a0: { x: number; y: number }, b0: { x: number; y: number }, kind: EdgeKind): string {
+  const [ax, bx] = ports(a0, b0, kind);
+  const a = { x: ax, y: a0.y };
+  const b = { x: bx, y: b0.y };
   if (b.y > a.y) {
     const y1 = a.y + NODE_H / 2;
     const y2 = b.y - NODE_H / 2;
@@ -355,4 +398,17 @@ export function route(a: { x: number; y: number }, b: { x: number; y: number }, 
   const y1 = a.y - NODE_H / 2;
   const y2 = b.y + NODE_H / 2;
   return elbow(a.x, y1, b.x, y2, (y1 + y2) / 2);
+}
+
+// markAt is where a "shown elsewhere" line carries its ↺ marker: the middle of
+// its horizontal run (or of the line, when it runs straight).
+export function markAt(a: { x: number; y: number }, b: { x: number; y: number }): { x: number; y: number } {
+  const x = (a.x + b.x) / 2;
+  if (b.y > a.y) {
+    const y1 = a.y + NODE_H / 2;
+    const y2 = b.y - NODE_H / 2;
+    return { x, y: y2 - y1 <= ROW_H ? y1 + (y2 - y1) / 2 : y2 - ((ROW_H - NODE_H) / 2) };
+  }
+  if (b.y === a.y) return { x, y: a.y + NODE_H / 2 + LOOP };
+  return { x, y: (a.y - NODE_H / 2 + b.y + NODE_H / 2) / 2 };
 }

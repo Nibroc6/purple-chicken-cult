@@ -32,6 +32,68 @@
 .explorer-toolbar button {
   min-block-size: 24px;
   min-inline-size: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+/* Wide screens label every tool; phones keep the toolbar to one row of icons
+   (the label stays as the button's title and accessible name). */
+.explorer-tool-icon {
+  display: none;
+}
+@media (max-width: 47.99rem) {
+  .explorer-toolbar {
+    flex-wrap: nowrap;
+    padding: var(--space-1);
+    gap: var(--space-1);
+  }
+  .explorer-tool-icon {
+    display: inline;
+  }
+  /* The focused post's sheet takes the bottom edge on phones. */
+  .explorer-legend {
+    inset-block-start: var(--space-3);
+    inset-block-end: auto;
+  }
+  .explorer-tool-label {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+/* The key to the line styles, at the bottom end corner (the minimap takes
+   the bottom start one). */
+.explorer-legend {
+  inset-block-end: var(--space-3);
+  inset-inline-end: var(--space-3);
+  padding-block: var(--space-2);
+  padding-inline: var(--space-3);
+  font-size: 0.8125rem;
+}
+.explorer-legend summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--color-muted);
+}
+.explorer-legend ul {
+  list-style: none;
+  margin: 0;
+  margin-block-start: var(--space-2);
+  padding: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+.explorer-legend li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.explorer-legend-sample {
+  flex: none;
 }
 .explorer-stage {
   position: absolute;
@@ -64,13 +126,32 @@
   stroke-linejoin: round;
   transition: d 300ms ease;
 }
-.explorer-edge[data-focal='true'] {
-  stroke: var(--color-accent);
-  stroke-width: 2;
+/* Line kinds: solid for a post's main parent, dashed for an extra parent,
+   dotted and faint for a pointer to a post already shown elsewhere (with a ↺
+   marker). Purple traces the thread being read: the focal post's ancestors
+   and its direct replies. */
+.explorer-edge[data-kind='also'] {
+  stroke-dasharray: 6 4;
 }
-.explorer-edge[data-kind='also'],
 .explorer-edge[data-kind='above'] {
-  stroke-dasharray: 5 4;
+  stroke-dasharray: 1.5 4;
+  stroke-linecap: round;
+  opacity: 0.6;
+}
+.explorer-edge[data-path='true'] {
+  stroke: var(--color-accent);
+  stroke-width: 2.5;
+}
+.explorer-edge-mark circle {
+  fill: var(--color-surface);
+  stroke: var(--color-muted);
+  stroke-width: 1;
+}
+.explorer-edge-mark-arrow {
+  fill: none;
+  stroke: var(--color-muted);
+  stroke-width: 1.5;
+  stroke-linecap: round;
 }
 
 .explorer-node {
@@ -216,6 +297,19 @@
 }
 .tree-focus[data-open='false'] .tree-focus-body {
   display: none;
+}
+/* Wide screens dock the focused post along the end edge, full height, and
+   the map shrinks to the space beside it, so the panel never covers cards. */
+@media (min-width: 64rem) {
+  .tree-connected[data-focus-open='true'] .explorer-canvas {
+    inset-inline-end: calc(min(28rem, 40%) + 2 * var(--space-3));
+  }
+  .tree-connected[data-focus-open='true'] .tree-focus {
+    inset-block-start: var(--space-3);
+    inset-block-end: auto;
+    inline-size: min(28rem, 40%);
+    max-block-size: calc(100% - 2 * var(--space-3));
+  }
 }
 @media (max-width: 47.99rem) {
   .tree-focus {

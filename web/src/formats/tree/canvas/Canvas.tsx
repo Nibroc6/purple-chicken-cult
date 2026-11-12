@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon } from '../../../lib/Icon';
-import { lines, NODE_H, NODE_W, route, type Bounds, type CanvasLayout, type CanvasMore, type CanvasNode } from './layout';
+import { lines, markAt, NODE_H, NODE_W, route, type Bounds, type CanvasLayout, type CanvasMore, type CanvasNode, type EdgeKind } from './layout';
 import { Minimap } from './Minimap';
 import { capture } from './pointer';
 import './canvas.css';
@@ -193,6 +193,38 @@ function More({ m, onMore }: { m: CanvasMore; onMore: (m: CanvasMore, key: boole
   );
 }
 
+// i18n-dynamic: explorer:legend.
+// Legend explains the three kinds of line. It starts open on wide screens and
+// folded to its "Key" button on phones, where space is tight.
+function Legend({ open }: { open: boolean }) {
+  const { t } = useTranslation('explorer');
+  const sample = (kind: EdgeKind) => (
+    <svg className="explorer-legend-sample" width={32} height={12} aria-hidden="true">
+      <path className="explorer-edge" data-kind={kind} d="M 2 6 H 30" />
+    </svg>
+  );
+  const kinds: EdgeKind[] = ['reply', 'also', 'above'];
+  return (
+    <details className="explorer-legend tree-overlay" data-testid="explorer-legend" open={open}>
+      <summary>{t('legend.title')}</summary>
+      <ul>
+        {kinds.map((k) => (
+          <li key={k}>
+            {sample(k)}
+            {t(`legend.${k}`)}
+          </li>
+        ))}
+        <li>
+          <svg className="explorer-legend-sample" width={32} height={12} aria-hidden="true">
+            <path className="explorer-edge" data-kind="reply" data-path="true" d="M 2 6 H 30" />
+          </svg>
+          {t('legend.path')}
+        </li>
+      </ul>
+    </details>
+  );
+}
+
 export function Canvas({
   layout,
   focal,
@@ -357,7 +389,8 @@ export function Canvas({
           key: `${e.from}>${e.to}`,
           d: route(a, b, e.kind),
           kind: e.kind,
-          focal: a.focal || b.focal,
+          path: e.onPath,
+          mark: e.kind === 'above' ? markAt(a, b) : undefined,
         };
       }),
     [layout],
@@ -391,11 +424,17 @@ export function Canvas({
         >
           <Icon name="zoom-in" />
         </button>
-        <button type="button" data-testid="explorer-fit" onClick={showAll}>
-          {t('canvas.fit')}
+        <button type="button" data-testid="explorer-fit" title={t('canvas.fit')} onClick={showAll}>
+          <span className="explorer-tool-icon" aria-hidden="true">
+            <Icon name="fit" />
+          </span>
+          <span className="explorer-tool-label">{t('canvas.fit')}</span>
         </button>
-        <button type="button" data-testid="explorer-recenter" onClick={showFocal}>
-          {t('canvas.recenter')}
+        <button type="button" data-testid="explorer-recenter" title={t('canvas.recenter')} onClick={showFocal}>
+          <span className="explorer-tool-icon" aria-hidden="true">
+            <Icon name="recenter" />
+          </span>
+          <span className="explorer-tool-label">{t('canvas.recenter')}</span>
         </button>
         {tools}
       </div>
@@ -422,7 +461,15 @@ export function Canvas({
             </clipPath>
           </defs>
           <g className="explorer-edges" aria-hidden="true">
-            {edges.map((e) => (e ? <path key={e.key} d={e.d} className="explorer-edge" data-kind={e.kind} data-focal={e.focal} /> : null))}
+            {edges.map((e) => (e ? <path key={e.key} d={e.d} className="explorer-edge" data-kind={e.kind} data-path={e.path} /> : null))}
+            {edges.map((e) =>
+              e?.mark ? (
+                <g key={`${e.key}-mark`} className="explorer-edge-mark" transform={`translate(${String(e.mark.x)} ${String(e.mark.y)})`}>
+                  <circle r={9} />
+                  <path className="explorer-edge-mark-arrow" d="M -4 0 A 4 4 0 1 0 0 -4 M 0 -4 L -2.5 -6.5 M 0 -4 L -2.5 -1.5" />
+                </g>
+              ) : null,
+            )}
           </g>
           {layout.nodes.map((n) => (
             <Node key={n.ref} n={n} clip={clip} onPick={pick} />
@@ -441,6 +488,7 @@ export function Canvas({
           />
         ) : null}
       </div>
+      <Legend open={desktop} />
       <p id={hint} className="explorer-hint visually-hidden">
         {t('canvas.hint')}
       </p>

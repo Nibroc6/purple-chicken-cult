@@ -19,7 +19,7 @@ import compact from '../compact';
 import explorer from '../explorer';
 import type { FormatModule, TreeActions } from '../types';
 import { fit, viewBox, zoomAt } from './canvas/Canvas';
-import { excerpt, GAP_X, layoutTree, lines, NODE_H, NODE_W, ROW_H, route, slotOffset } from './canvas/layout';
+import { excerpt, GAP_X, layoutTree, lines, markPath, NODE_H, NODE_W, PORT, ports, ROW_H, route, slotOffset } from './canvas/layout';
 
 const tr = i18n.t.bind(i18n) as unknown as (k: string, o?: Record<string, unknown>) => string;
 
@@ -164,9 +164,28 @@ describe('canvas layout', () => {
   });
 
   it('routes a line across several rows down a lane between the cards', () => {
-    const d = route({ x: 0, y: 0 }, { x: 0, y: 2 * ROW_H }, 'also');
+    const d = route({ x: 0, y: 0 }, { x: 0, y: 2 * ROW_H }, 'reply');
     expect(d).toContain(`L ${String((NODE_W + GAP_X) / 2)}`);
     expect(d.endsWith(`L 0 ${String(2 * ROW_H - NODE_H / 2)}`)).toBe(true);
+  });
+
+  it('gives an extra-parent line its own exit and entry points off the middle', () => {
+    expect(ports({ x: 0 }, { x: 240 }, 'also')).toEqual([PORT, 240 - PORT]);
+    expect(ports({ x: 240 }, { x: 0 }, 'also')).toEqual([240 - PORT, PORT]);
+    expect(ports({ x: 0 }, { x: 0 }, 'also')).toEqual([PORT, PORT]);
+    expect(ports({ x: 0 }, { x: 240 }, 'reply')).toEqual([0, 240]);
+    const d = route({ x: 0, y: 0 }, { x: 240, y: ROW_H }, 'also');
+    expect(d.startsWith(`M ${String(PORT)} `)).toBe(true);
+    expect(d.endsWith(`V ${String(ROW_H - NODE_H / 2)}`)).toBe(true);
+    expect(d).toContain(`Q ${String(240 - PORT)} `);
+  });
+
+  it('marks the thread being read: every ancestor line and the direct replies, not siblings', () => {
+    const e = (from: string, to: string, kind: 'reply' | 'also' | 'above' = 'reply') => ({ from: asRef(from), to: asRef(to), kind, onPath: false });
+    const edges = [e('root', 'mid'), e('other', 'mid', 'also'), e('root', 'sib'), e('mid', 'f'), e('mid', 'f2'), e('f', 'r1'), e('r1', 'gr'), e('sib', 'f', 'above')];
+    markPath(edges, asRef('f'));
+    const on = edges.filter((x) => x.onPath).map((x) => `${x.from}>${x.to}`);
+    expect(on).toEqual(['root>mid', 'other>mid', 'mid>f', 'f>r1']);
   });
 
   it('routes edges as family-tree elbows', () => {
@@ -274,7 +293,7 @@ describe('connected tree', () => {
       expect(within(focus).getAllByTestId(tid).length).toBeGreaterThan(0);
     }
     expect(screen.getByTestId('explorer-svg').getAttribute('aria-label')).toBe(tr('explorer:canvas.label'));
-    expect(document.querySelectorAll('.explorer-edge')).toHaveLength(9);
+    expect(document.querySelectorAll('.explorer-edges .explorer-edge')).toHaveLength(9);
   });
 
   it('brings a post into focus by click or Enter; the focal post only recenters the view', () => {
