@@ -212,7 +212,8 @@ test('a device-bound session: copied cookies, the 10-minute bound cookie, single
   expect(await feedStatus(page.request)).toBe(404);
   expect((await session(page.request)).authenticated).toBe(false);
   await page.goto(`${origin}/settings/passkeys`);
-  await expect(page.getByTestId('passkeys-login')).toBeVisible();
+  // Signed out: the members' page sends the visitor to sign in.
+  await expect(page).toHaveURL(/\/login\?next=%2Fsettings%2Fpasskeys$/);
   // …and it cannot refresh without the device key.
   expect((await refresh(page.request, await Device.create('ES256'))).status).toBe(404);
 
