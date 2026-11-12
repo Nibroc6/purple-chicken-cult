@@ -66,5 +66,24 @@
   "signedOut": {
     "title": "You're signed out",
     "signIn": "Sign in"
+  },
+  "settingsGroups": {
+    "appearance": "Appearance",
+    "privacy": "Privacy and safety",
+    "account": "Account",
+    "danger": "Leaving"
+  },
+  "settingsHint": {
+    "display": "Layout, text size and contrast",
+    "theme": "Colors and your own theme",
+    "languages": "The app’s language and the languages you read",
+    "privacy": "Who can find you and see your name",
+    "blocks": "People you blocked",
+    "hidden": "Posts you hid, to bring back",
+    "passkeys": "The devices you sign in with",
+    "recovery": "Friends who can help you back in",
+    "notifications": "Alerts on this device",
+    "export": "Download everything you posted",
+    "delete": "Close your account for good"
   }
 }

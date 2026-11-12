@@ -156,6 +156,29 @@ a {
   outline-offset: -2px;
 }
 
+/* The settings index: groups of entries, each with a one-line hint. */
+.settings-group h2 {
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-muted);
+  margin-block: var(--space-6) var(--space-2);
+}
+.settings-group:first-child h2 {
+  margin-block-start: 0;
+}
+.settings-entry-title {
+  display: block;
+}
+.settings-entry-hint {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 400;
+  color: var(--color-muted);
+}
+
+
 .sidebar-nav {
   display: flex;
   flex: 1;
