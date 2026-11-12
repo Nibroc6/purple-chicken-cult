@@ -158,9 +158,12 @@ test('rows around the focal post, ranked by tier, on one connected canvas', asyn
   await expect(focusCard(page)).toHaveAttribute('data-ref', focal);
   await expect(focusCard(page).locator('.post-focal')).toBeVisible();
   await expect(page.getByText('Xavier is never shown')).toHaveCount(0);
+  // The inviter label sits in the "why" panel on Cards post cards.
+  await focusCard(page).getByTestId('integrity-why').click();
   for (const id of ['integrity-chain', 'integrity-inviter-label', 'integrity-why', 'integrity-audience', 'integrity-report']) {
     await expect(focusCard(page).getByTestId(id)).toBeVisible();
   }
+  await focusCard(page).getByTestId('integrity-why-close').click();
 
   // "+N more" counts the visible replies beyond the first page and loads them.
   const chip = page.getByTestId('explorer-more');
@@ -326,9 +329,12 @@ test('the same canvas in Compact', async ({ page, request, baseURL }) => {
   await expect(page.getByTestId('tree-layout')).toHaveAttribute('data-format', 'compact');
   await expect(page.getByTestId('explorer-node')).toHaveCount(16);
   await expect(nodeOf(page, focal)).toHaveAttribute('data-focal', 'true');
+  // The inviter label sits in the "why" panel on Cards post cards.
+  await focusCard(page).getByTestId('integrity-why').click();
   for (const id of ['integrity-chain', 'integrity-inviter-label', 'integrity-why', 'integrity-audience', 'integrity-report']) {
     await expect(focusCard(page).getByTestId(id)).toBeVisible();
   }
+  await focusCard(page).getByTestId('integrity-why-close').click();
 });
 
 test('reply to two posts on different rows: picked from the tree, placed below the lower one with a line to each', async ({
