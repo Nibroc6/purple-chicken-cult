@@ -97,5 +97,11 @@
     "waitingFriend": "Signed. Waiting for them to sign…",
     "summaryConnect": "You two become friends.",
     "summaryConnectAccepted": "You two become acquaintances."
+  },
+  "steps": {
+    "join": "1. New here? Open the join page",
+    "joinHint": "They point their phone's camera at this code to open the join page. If they're already a member, skip to step 2: they open Join from their menu.",
+    "joinQR": "Code that opens {url}",
+    "code": "2. Show your invite code"
   }
 }
