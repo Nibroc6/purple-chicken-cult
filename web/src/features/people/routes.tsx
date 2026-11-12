@@ -9,8 +9,10 @@ const FriendsPage = lazy(() => import('./FriendsPage'));
 const RequestsPage = lazy(() => import('./RequestsPage'));
 const SuggestionsPage = lazy(() => import('./SuggestionsPage'));
 const BlocksPage = lazy(() => import('./BlocksPage'));
+const MePage = lazy(() => import('./MePage'));
 
 export const routes: RouteObject[] = [
+  { path: '/me', element: <MePage /> },
   { path: '/people/:ref', element: <PersonPage /> },
   { path: '/friends', element: <FriendsPage /> },
   { path: '/friends/requests', element: <RequestsPage /> },

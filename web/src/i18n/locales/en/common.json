@@ -10,8 +10,8 @@
     "feed": "Feed",
     "compose": "New post",
     "post": "Post",
-    "invite": "Feathers",
-    "people": "Chickens",
+    "invite": "Invite",
+    "people": "People",
     "saves": "Saved",
     "seen": "Seen",
     "notifications": "Notifications",
@@ -28,7 +28,8 @@
     "menu": "Menu",
     "close": "Close menu",
     "collapse": "Collapse sidebar",
-    "expand": "Expand sidebar"
+    "expand": "Expand sidebar",
+    "profile": "Your profile"
   },
   "placeholder": {
     "body": "This page is not built yet."

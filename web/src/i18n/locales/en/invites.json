@@ -1,7 +1,7 @@
 {
   "page": {
-    "title": "Feathers",
-    "intro": "Use a feather to show your code to someone you're with.",
+    "title": "Invite",
+    "intro": "Show your code to someone you're with: they join, or if they're already here you become friends.",
     "introTip": "If they're new here, they join with it. If they already have an account, they scan it while signed in and you become friends."
   },
   "budget": {

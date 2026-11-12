@@ -2,7 +2,7 @@
 import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router';
+import { Link, NavLink } from 'react-router';
 import { Chain, InviterLabel, ReportAction, type ReportTarget } from '../../integrity';
 import type { PersonVM } from '../../vm/types';
 import { requestCosign } from '../cosign';
@@ -180,15 +180,18 @@ export function PeopleList({ people, empty, emptyTip, render }: {
   return <ul className="people-list">{people.map((p) => render?.(p) ?? <PersonCard key={p.ref} person={p} />)}</ul>;
 }
 
-// PeopleNav links the people pages.
+// PeopleNav links the people pages as tabs; the current one is marked
+// (aria-current) and styled as selected.
 export function PeopleNav() {
   const { t } = useTranslation('people');
   return (
     <nav className="people-nav" aria-label={t('nav.label')}>
-      <Link to="/friends">{t('friends.title')}</Link>
-      <Link to="/friends/requests">{t('requests.title')}</Link>
-      <Link to="/suggestions">{t('suggestions.title')}</Link>
-      <Link to="/settings/blocks">{t('blocks.title')}</Link>
+      <NavLink to="/friends" end>
+        {t('friends.title')}
+      </NavLink>
+      <NavLink to="/friends/requests">{t('requests.title')}</NavLink>
+      <NavLink to="/suggestions">{t('suggestions.title')}</NavLink>
+      <NavLink to="/settings/blocks">{t('blocks.title')}</NavLink>
     </nav>
   );
 }

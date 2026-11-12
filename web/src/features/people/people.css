@@ -2,8 +2,24 @@
 .people-nav {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-3);
+  gap: var(--space-1);
   margin-block-end: var(--space-4);
+  border-block-end: 1px solid var(--color-border);
+}
+.people-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 44px;
+  padding-inline: var(--space-3);
+  margin-block-end: -1px;
+  border-block-end: 2px solid transparent;
+  color: var(--color-muted);
+  text-decoration: none;
+  font-weight: 500;
+}
+.people-nav a[aria-current='page'] {
+  color: var(--color-accent);
+  border-block-end-color: var(--color-accent);
 }
 
 .people-list {
