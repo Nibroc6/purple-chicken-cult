@@ -289,6 +289,7 @@ describe('connected tree', () => {
     const focus = screen.getByTestId('tree-focus');
     expect(focus.dataset.ref).toBe('f');
     expect(within(focus).getByText('the focal post')).toBeTruthy();
+    fireEvent.click(within(focus).getByTestId('integrity-why'));
     for (const tid of integrityTestIds.filter((t) => t !== 'integrity-tier-header')) {
       expect(within(focus).getAllByTestId(tid).length).toBeGreaterThan(0);
     }

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 // Props of the seven integrity components (SCAFFOLD contract; ARCHITECTURE §15.5,
 // plan §6.2). Every format, theme and custom layout must render all seven, visibly.
 import { createContext } from 'react';
@@ -20,6 +21,9 @@ export interface InviterLabelProps {
 }
 export interface WhyButtonProps {
   post: Ref; // fetches /posts/{ref}/why lazily through an injected loader
+  // Shown at the top of the panel as soon as it opens (no loading needed):
+  // on post cards, the author's inviter label.
+  about?: ReactNode;
 }
 export interface AudienceBadgeProps {
   audience: PostVM['audience'];

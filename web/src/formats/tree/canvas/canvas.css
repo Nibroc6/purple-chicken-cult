@@ -119,7 +119,7 @@
   outline-offset: -2px;
 }
 
-.explorer-edge {
+:is(.explorer-edge, .explorer-legend-line) {
   fill: none;
   stroke: var(--color-muted);
   stroke-width: 1.5;
@@ -130,15 +130,15 @@
    dotted and faint for a pointer to a post already shown elsewhere (with a ↺
    marker). Purple traces the thread being read: the focal post's ancestors
    and its direct replies. */
-.explorer-edge[data-kind='also'] {
+:is(.explorer-edge, .explorer-legend-line)[data-kind='also'] {
   stroke-dasharray: 6 4;
 }
-.explorer-edge[data-kind='above'] {
+:is(.explorer-edge, .explorer-legend-line)[data-kind='above'] {
   stroke-dasharray: 1.5 4;
   stroke-linecap: round;
   opacity: 0.6;
 }
-.explorer-edge[data-path='true'] {
+:is(.explorer-edge, .explorer-legend-line)[data-path='true'] {
   stroke: var(--color-accent);
   stroke-width: 2.5;
 }

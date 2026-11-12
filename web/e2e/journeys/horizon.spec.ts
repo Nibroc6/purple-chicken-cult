@@ -54,6 +54,7 @@ test("tier 1 for a friend, tier 2 with the chain for a friend of a friend, nothi
   await expect(forBob.getByTestId("integrity-chain")).not.toContainText(
     at("bob"),
   );
+  await forBob.getByTestId("integrity-why").click();
   await expect(forBob.getByTestId("integrity-inviter-label")).toHaveAttribute(
     "data-kind",
     "genesis",

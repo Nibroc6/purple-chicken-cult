@@ -123,6 +123,7 @@ describe.each([
   it('renders every integrity element', () => {
     show();
     expect(screen.getByTestId('feed-layout').dataset.format).toBe(id);
+    for (const why of screen.getAllByTestId('integrity-why')) fireEvent.click(why);
     for (const tid of integrityTestIds) expect(screen.getAllByTestId(tid).length).toBeGreaterThan(0);
   });
 
@@ -225,6 +226,7 @@ describe.each([
     const { container } = render(<f.PostLayout post={p('solo')} actions={actions()} variant="tree" />);
     expect(container.querySelector('[data-seen-ref]')).toBeNull();
     expect(container.querySelector('a[href="/people/u1"]')).toBeTruthy();
+    for (const why of screen.getAllByTestId('integrity-why')) fireEvent.click(why);
     for (const tid of integrityTestIds.filter((x) => x !== 'integrity-tier-header')) {
       expect(screen.getAllByTestId(tid).length).toBeGreaterThan(0);
     }

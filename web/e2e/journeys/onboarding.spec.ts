@@ -105,7 +105,9 @@ test('enroll, invite in person, post, reply, notify, like, export and verify', a
     await expect(card).toHaveAttribute('data-tier', '1');
     await expect(page.getByTestId('integrity-tier-header').first()).toHaveAttribute('data-tier', '1');
     await expect(card.getByTestId('integrity-chain')).toContainText(at('bob'));
+    await card.getByTestId('integrity-why').click();
     await expect(card.getByTestId('integrity-inviter-label')).toContainText(at('alice'));
+    await card.getByTestId('integrity-why-close').click();
     await expect(card.getByTestId('integrity-audience')).toHaveAttribute('data-audience', 'd1');
     await expect(card.getByTestId('integrity-audience')).not.toHaveAttribute('data-forced', 'true');
     await card.getByTestId('feed-reply').click();

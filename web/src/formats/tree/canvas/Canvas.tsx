@@ -200,7 +200,7 @@ function Legend({ open }: { open: boolean }) {
   const { t } = useTranslation('explorer');
   const sample = (kind: EdgeKind) => (
     <svg className="explorer-legend-sample" width={32} height={12} aria-hidden="true">
-      <path className="explorer-edge" data-kind={kind} d="M 2 6 H 30" />
+      <path className="explorer-legend-line" data-kind={kind} d="M 2 6 H 30" />
     </svg>
   );
   const kinds: EdgeKind[] = ['reply', 'also', 'above'];
@@ -216,7 +216,7 @@ function Legend({ open }: { open: boolean }) {
         ))}
         <li>
           <svg className="explorer-legend-sample" width={32} height={12} aria-hidden="true">
-            <path className="explorer-edge" data-kind="reply" data-path="true" d="M 2 6 H 30" />
+            <path className="explorer-legend-line" data-kind="reply" data-path="true" d="M 2 6 H 30" />
           </svg>
           {t('legend.path')}
         </li>

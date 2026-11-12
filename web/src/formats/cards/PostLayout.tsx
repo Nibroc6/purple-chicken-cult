@@ -1,10 +1,11 @@
 // Cards post layout (§10.1.7): an author row (display name with its @handle,
-// the time, "why"), a provenance row (chain, inviter label), the visible
+// the time, "why"), the chain under it, the visible
 // context rows, the body (folded past 6 lines or 400 characters in the feed,
 // 10 lines in the tree), link pictures (P1), previews, then one row: the like
 // summary over like / save, reply, family tree and a ⋯ menu (add to a reply,
 // hide, show less), with the audience, edited mark and report at its end.
-// Every integrity element (§15.5) stays visible on the card.
+// The inviter label is in the "why" panel (§15.5: on post cards it is one tap
+// away); every other integrity element stays visible on the card.
 // Owner: P0-W07 → P1-W12 (P0-W08 reuses it for the tree's 'tree' / 'focal' variants).
 import { useTranslation } from 'react-i18next';
 import { ReplyPick } from '../../features/composer';
@@ -63,12 +64,11 @@ export function PostLayout({ post, actions, variant, part }: CardProps) {
               {t('thread.position', { index: post.thread.index, total: post.thread.total })}
             </span>
           ) : null}
-          <WhyButton post={post.ref} />
+          <WhyButton post={post.ref} about={<InviterLabel inviter={post.author.inviter} invitee={post.author.ref} onReport={actions.report} />} />
         </span>
       </header>
       <div className="post-provenance">
         <Chain chain={post.author.chain} author={post.author} />
-        <InviterLabel inviter={post.author.inviter} invitee={post.author.ref} onReport={actions.report} />
       </div>
       {hidden ? null : (
         <>
