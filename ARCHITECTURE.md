@@ -1264,7 +1264,9 @@ and blame messages.
 These are visible and legible in every format, theme and layout:
 - tier headers
 - the chain (§4.5)
-- the inviter label (§3)
+- the inviter label (§3); on a post card it may sit at the top of the post's "Why am I
+  seeing this?" panel, one tap away, instead of on the card itself (person pages always
+  show it)
 - "Why am I seeing this?" (§5.3)
 - the audience-limit badge
 - the "edited" mark

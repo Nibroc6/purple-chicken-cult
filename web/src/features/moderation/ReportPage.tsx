@@ -38,7 +38,7 @@ export default function ReportPage() {
           <p className="muted" data-testid="report-invalid">
             {t('report.invalid')}
           </p>
-          <Link to="/">{t('report.home')}</Link>
+          <Link to="/" className="button">{t('report.home')}</Link>
         </>
       )}
     </section>

@@ -6,11 +6,11 @@
   inset-block-end: var(--space-3);
   inset-inline: var(--space-3);
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2) var(--space-3);
+  flex-direction: column;
+  gap: var(--space-2);
   inline-size: fit-content;
-  max-inline-size: calc(100% - 2 * var(--space-3));
+  min-inline-size: min(24rem, 100% - 2 * var(--space-3));
+  max-inline-size: min(48rem, 100% - 2 * var(--space-3));
   margin-inline: auto;
   padding-block: var(--space-2);
   padding-inline: var(--space-3);
@@ -19,28 +19,154 @@
   background: var(--color-surface);
   box-shadow: 0 4px 16px rgb(0 0 0 / 15%);
 }
+.reply-tray-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
 .reply-tray-title {
   margin: 0;
   font-weight: 600;
 }
+.reply-tray-hint {
+  font-weight: 400;
+  font-size: 0.875rem;
+}
+/* The picked posts, as small cards side by side. */
 .reply-tray-list {
   display: flex;
-  flex-wrap: wrap;
   gap: var(--space-2);
   margin: 0;
   padding: 0;
   list-style: none;
 }
-.reply-tray-list li {
+.reply-tray[data-open='false'] .reply-tray-list {
+  display: none;
+}
+.reply-tray-card {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--space-1);
+  flex: 1 1 0;
+  min-inline-size: 0;
+  max-inline-size: 15rem;
+  padding-block: var(--space-2);
+  padding-inline: var(--space-2) var(--space-1);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius);
+  background: var(--color-accent-soft);
+  font-size: 0.875rem;
+}
+.reply-tray-card-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-inline-size: 0;
+  flex: 1;
+}
+.reply-tray-card-who {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.reply-tray-card-excerpt {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.reply-tray-remove {
+  flex: none;
+  min-block-size: 28px;
+  min-inline-size: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
 }
 .reply-tray-actions {
   display: flex;
   gap: var(--space-2);
 }
-/* On the reply tree the focus card moves up out of the tray's way. */
+/* Wide screens always show the cards; the toggle is for phones. */
+@media (min-width: 48rem) {
+  .reply-tray-toggle {
+    display: none;
+  }
+  .reply-tray[data-open='false'] .reply-tray-list {
+    display: flex;
+  }
+}
+/* On phones the tray is one slim bar (title, Show, Write) until opened; the
+   cards then stack. */
+@media (max-width: 47.99rem) {
+  .reply-tray {
+    inset-inline: var(--space-2);
+    max-inline-size: none;
+    inline-size: auto;
+    min-inline-size: 0;
+    padding-inline: var(--space-2);
+  }
+  .reply-tray-hint {
+    display: none;
+  }
+  .reply-tray[data-open='false'] {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .reply-tray-list {
+    flex-direction: column;
+  }
+  .reply-tray-card {
+    max-inline-size: none;
+  }
+  .reply-tray[data-open='false'] .reply-tray-actions [data-testid='reply-tray-clear'] {
+    display: none;
+  }
+}
+
+/* On phones the tray sits above the tab bar. */
+.shell[data-signed-in='true'] .reply-tray {
+  inset-block-end: calc(var(--tabbar-height, 0px) + var(--space-3));
+}
+
+/* A post in the reader's multi-post reply says so on its card. */
+.reply-picked {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding-inline: var(--space-2) var(--space-1);
+  border-radius: 999px;
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.reply-picked-remove {
+  min-block-size: 28px;
+  min-inline-size: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+}
+.post:has(.reply-picked) {
+  border-color: var(--color-accent);
+}
+
+/* On the reply tree the focus card moves up out of the tray's way (not
+   when it is open full screen on a phone). */
 .shell:has(.reply-tray) .tree-focus {
   inset-block-end: calc(var(--space-3) + 4rem);
+}
+@media (max-width: 47.99rem) {
+  .shell:has(.reply-tray) .tree-focus[data-open='true'] {
+    inset-block-end: 0;
+  }
 }

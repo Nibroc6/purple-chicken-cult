@@ -91,8 +91,8 @@ export function MediaPicker(props: MediaPickerProps) {
 
   return (
     <div className="media-picker" data-testid="media-picker">
-      <label className="media-choose">
-        <span>{t('picker.choose', { max: limit })}</span>
+      <label className="media-choose" data-disabled={pending || items.length >= limit ? 'true' : undefined}>
+        <span className="media-choose-button">{t('picker.choose', { max: limit })}</span>
         <input
           ref={input}
           type="file"

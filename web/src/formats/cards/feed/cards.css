@@ -19,6 +19,16 @@
   position: static;
   font-weight: 400;
 }
+/* "You're caught up with …" at the end of a tier: a quiet divider rather
+   than a second banner (still the integrity colour, for contrast). */
+.feed-tier > .tier-header:not(:first-child):not(:only-child) {
+  justify-content: center;
+  background: none;
+  border-block-start: 1px solid var(--color-border);
+  border-radius: 0;
+  padding-block-start: var(--space-2);
+  font-size: max(0.875rem, 12px);
+}
 
 .post-card .post-author {
   display: flex;
@@ -54,11 +64,22 @@
   overflow-wrap: anywhere;
 }
 
-.post-meta {
+/* Chain and inviter label: one quiet row under the name. */
+.post-provenance {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin-block: var(--space-1) var(--space-2);
+}
+
+/* Audience, edited mark and report sit at the end of the actions row. */
+.post-meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-2);
-  margin-block-start: var(--space-2);
+  margin-inline-start: auto;
 }
 
 .post-links {
@@ -67,16 +88,20 @@
   gap: var(--space-1);
 }
 
-/* The engage bar and the reply / tree links share one row under the post. */
+/* The like summary, then one row under the post: like / save, reply, tree,
+   the ⋯ menu, and the integrity footer at the end. */
 .post-actions {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
+  align-items: center;
   gap: var(--space-1);
   margin-block-start: var(--space-2);
 }
 .post-actions .engage {
-  flex: 1 1 auto;
+  display: contents;
+}
+.post-actions .engage-likes {
+  flex: 1 0 100%;
 }
 .post-actions .engage-bar {
   margin-block-end: 0;

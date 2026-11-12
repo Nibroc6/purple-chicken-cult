@@ -15,7 +15,7 @@ export default function BlocksPage() {
     <section className="page people-page">
       <h1>{t('blocks.title')}</h1>
       <p>
-        <Link to="/settings">{t('common:nav.settings')}</Link>
+        <Link to="/settings" className="button">{t('common:nav.settings')}</Link>
       </p>
       <p className="muted">
         {t('blocks.helpShort')}

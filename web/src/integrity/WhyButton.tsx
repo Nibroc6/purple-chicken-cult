@@ -11,7 +11,7 @@ import './integrity.css';
 
 type State = { kind: 'idle' } | { kind: 'loading' } | { kind: 'ready'; why: WhyVM } | { kind: 'error' };
 
-export function WhyButton({ post }: WhyButtonProps) {
+export function WhyButton({ post, about }: WhyButtonProps) {
   const { t } = useTranslation('integrity');
   const load = useContext(WhyLoaderContext);
   const [open, setOpen] = useState(false);
@@ -39,8 +39,8 @@ export function WhyButton({ post }: WhyButtonProps) {
     );
   };
   const toggle = () => {
-    if (!load) return;
-    if (!open && (state.kind === 'idle' || state.kind === 'error')) fetchWhy();
+    if (!load && !about) return;
+    if (load && !open && (state.kind === 'idle' || state.kind === 'error')) fetchWhy();
     setOpen(!open);
   };
   const close = () => {
@@ -57,19 +57,20 @@ export function WhyButton({ post }: WhyButtonProps) {
         className="integrity why"
         data-testid="integrity-why"
         data-post={post}
-        aria-expanded={load ? open : undefined}
+        aria-expanded={load || about ? open : undefined}
         aria-controls={open ? panelId : undefined}
-        aria-disabled={load ? undefined : true}
+        aria-disabled={load || about ? undefined : true}
         onClick={toggle}
       />
       {open ? (
         <WhyPanel
           id={panelId}
-          loading={state.kind === 'loading' || state.kind === 'idle'}
+          loading={state.kind === 'loading' || (state.kind === 'idle' && load !== undefined)}
           failed={state.kind === 'error'}
           why={state.kind === 'ready' ? state.why : undefined}
           onClose={close}
           onRetry={fetchWhy}
+          about={about}
         />
       ) : null}
     </span>

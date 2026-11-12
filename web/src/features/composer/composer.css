@@ -148,3 +148,13 @@
 .composer-parent > button {
   align-self: flex-start;
 }
+
+.composer-shortcut {
+  margin-block: calc(-1 * var(--space-1)) 0;
+  font-size: 0.8125rem;
+}
+@media (pointer: coarse) {
+  .composer-shortcut {
+    display: none;
+  }
+}

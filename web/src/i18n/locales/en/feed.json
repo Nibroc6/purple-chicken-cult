@@ -1,7 +1,7 @@
 {
   "page": {
     "title": "Feed",
-    "empty": "Nothing here yet.",
+    "empty": "Nothing here yet. Posts from people you're connected to show up here, closest first. Invite someone in person or send an acquaintance request to get started.",
     "emptyTip": "Posts from everyone you're connected to show up here, closest first.",
     "retry": "Try again",
     "expandError": "These posts could not be loaded."
@@ -24,7 +24,8 @@
     "handle": "@{handle}",
     "links": "Open",
     "reply": "Reply",
-    "tree": "{count, plural, =0 {Reply tree} one {# reply} other {# replies}}"
+    "tree": "{count, plural, =0 {Reply tree} one {# reply} other {# replies}}",
+    "more": "More actions"
   },
   "context": {
     "label": "Replying to",

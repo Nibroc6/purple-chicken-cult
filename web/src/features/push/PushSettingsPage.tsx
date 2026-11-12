@@ -203,7 +203,7 @@ export default function PushSettingsPage() {
     <section className="page push-page" data-testid="push-page">
       <h1>{t('push:page.title')}</h1>
       <p>
-        <Link to="/settings">{t('settings:index.title')}</Link>
+        <Link to="/settings" className="button">{t('settings:index.title')}</Link>
       </p>
       <p>
         {t('push:page.intro')}

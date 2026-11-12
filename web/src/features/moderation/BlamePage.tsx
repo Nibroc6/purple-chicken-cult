@@ -60,7 +60,7 @@ export default function BlamePage() {
         </button>
       ) : null}
       <p>
-        <Link to="/mod/log">{t('footer.log')}</Link>
+        <Link to="/mod/log" className="button">{t('footer.log')}</Link>
       </p>
     </section>
   );

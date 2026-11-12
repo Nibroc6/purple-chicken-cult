@@ -266,11 +266,13 @@ describe('invite page', () => {
       return origFetch(req);
     });
     renderAt('/invite', <InvitePage />);
+    // The join-page code is drawn first; wait for the handshake's.
+    expect(qr.draw.mock.calls.some((a) => a[1].endsWith('/join'))).toBe(true);
     fireEvent.click(await openButton());
     await waitFor(() => {
-      expect(qr.draw).toHaveBeenCalled();
+      expect(qr.draw.mock.calls.some((a) => !a[1].endsWith('/join'))).toBe(true);
     });
-    const drawn = qr.draw.mock.calls.map((a) => a[1]);
+    const drawn = qr.draw.mock.calls.map((a) => a[1]).filter((p) => !p.endsWith('/join'));
     const f = parseFrame(drawn[0] ?? '');
     expect(f?.n).toBeGreaterThanOrEqual(12);
     expect(b64url(f?.hs ?? new Uint8Array())).toBe(b64url(HS));

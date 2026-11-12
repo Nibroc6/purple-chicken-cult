@@ -26,7 +26,7 @@ export default function TermsPage() {
       ))}
       <Keys />
       <p>
-        <Link to="/">{t('terms.home')}</Link>
+        <Link to="/" className="button">{t('terms.home')}</Link>
       </p>
     </article>
   );

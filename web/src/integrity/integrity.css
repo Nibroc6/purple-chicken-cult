@@ -94,3 +94,8 @@ button.integrity[aria-disabled='true'] {
 .why-panel .why-close {
   float: inline-end;
 }
+
+/* The inviter label at the top of the "why" panel (post cards). */
+.why-panel .why-about {
+  margin-block-end: var(--space-2);
+}

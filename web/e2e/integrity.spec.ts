@@ -95,8 +95,17 @@ async function expectLegible(scope: Locator, id: string, what: string): Promise<
   if (m.button) expect(m.border, `${what}: ${id} border contrast`).toBeGreaterThanOrEqual(3);
 }
 
+// openInviter opens a card's "why" panel when the inviter label is not on the
+// card itself (Cards shows it in the panel, one tap away).
+async function openInviter(card: Locator): Promise<void> {
+  if ((await card.getByTestId('integrity-inviter-label').count()) > 0) return;
+  await card.getByTestId('integrity-why').first().click();
+  await expect(card.getByTestId('integrity-why-panel')).toBeVisible();
+}
+
 async function checkPage(page: Page, card: Locator, header: Locator, what: string): Promise<void> {
   await expect(card).toBeVisible();
+  await openInviter(card);
   await expectLegible(header, 'integrity-tier-header', what);
   for (const id of seven.slice(1)) await expectLegible(card, id, what);
   // The inviter label's own "report the inviter" action.
@@ -137,6 +146,7 @@ for (const format of ['cards', 'compact'] as const) {
         await page.goto(`/p/${post.ref}`);
         await expect(page.getByTestId('tree-layout')).toHaveAttribute('data-format', format);
         const focal = page.getByTestId('tree-focus');
+        await openInviter(focal);
         for (const id of seven.slice(1)) await expectLegible(focal, id, `${what} tree`);
         expect(await truncatedIntegrity(page), `${what} tree: truncated`).toEqual([]);
       }

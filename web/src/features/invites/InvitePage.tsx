@@ -6,12 +6,13 @@
 // the budget allows), someone signed in becomes a friend (always).
 // Owner: P0-W04 → P1-W02.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { Loading } from '../../app/Loading';
 import { formatDateTime } from '../../lib/time';
 import { fetchBudget, openHandshake, type HandshakeMode, type OpenedVM } from './api';
+import { drawFeatherQR } from './featherQR';
 import { HandshakeHost } from './HandshakeHost';
 import { ErrorText, invitesKey, useNow } from './shared';
 import { canInvite, canShowCode, countdown, type BudgetVM } from './vm';
@@ -59,6 +60,8 @@ export default function InvitePage() {
         />
       ) : (
         <>
+          <JoinLink />
+          <h2 className="invites-step">{t('steps.code')}</h2>
           <fieldset className="invites-mode">
             <legend>{t('mode.legend')}</legend>
             <label className="invites-choice">
@@ -102,6 +105,7 @@ export default function InvitePage() {
           <div className="invites-actions">
             <button
               type="button"
+              className="primary"
               data-testid="invite-open"
               disabled={!budget.data || !canShowCode(budget.data) || open.isPending}
               onClick={() => {
@@ -116,8 +120,33 @@ export default function InvitePage() {
       )}
       <ErrorText err={open.error} />
       <p>
-        <Link to="/invite/people">{t('open.people')}</Link>
+        <Link to="/invite/people" className="button">
+          {t('open.people')}
+        </Link>
       </p>
+    </section>
+  );
+}
+
+// JoinLink is step one for someone new: a plain code their phone's camera
+// opens as this site's join page, so nobody has to type the address. It spends
+// no feather; the invite code itself comes next.
+function JoinLink() {
+  const { t } = useTranslation('invites');
+  const canvas = useRef<HTMLCanvasElement>(null);
+  const url = `${window.location.origin}/join`;
+  useEffect(() => {
+    if (canvas.current) drawFeatherQR(canvas.current, url, 200);
+  }, [url]);
+  return (
+    <section className="invites-joinlink" data-testid="invite-joinlink" aria-labelledby="invites-step-join">
+      <h2 id="invites-step-join" className="invites-step">
+        {t('steps.join')}
+      </h2>
+      <div className="invites-joinlink-body">
+        <canvas ref={canvas} className="invites-qr invites-qr-small" role="img" aria-label={t('steps.joinQR', { url })} />
+        <p className="muted">{t('steps.joinHint')}</p>
+      </div>
     </section>
   );
 }

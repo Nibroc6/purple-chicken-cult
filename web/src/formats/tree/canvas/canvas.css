@@ -1,9 +1,11 @@
 /* The reply-tree canvas (§10.1.4), shared by every format: post cards on a
    pannable, zoomable map joined by family-tree lines, the focal post
    highlighted. The map fills the tree; its controls and the focused post
-   float on it as .tree-overlay panels (a bottom sheet on phones). Logical
+   float on it as .tree-overlay panels (a bar that opens full screen on phones). Logical
    properties only; every color is a theme token. */
 .tree-connected {
+  /* --legend-w is the key's width; the toolbar keeps clear of it. */
+  --legend-w: 12rem;
   position: relative;
   overflow: hidden;
 }
@@ -22,7 +24,7 @@
 .explorer-toolbar {
   inset-block-start: var(--space-3);
   inset-inline-start: var(--space-3);
-  max-inline-size: calc(100% - 2 * var(--space-3));
+  max-inline-size: calc(100% - var(--legend-w) - 3 * var(--space-3));
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -32,6 +34,74 @@
 .explorer-toolbar button {
   min-block-size: 24px;
   min-inline-size: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+/* Wide screens label every tool; phones keep the toolbar to one row of icons
+   (the label stays as the button's title and accessible name). */
+.explorer-tool-icon {
+  display: none;
+}
+@media (max-width: 47.99rem) {
+  .tree-connected {
+    --legend-w: 6rem;
+  }
+  /* Opened on a phone, the key may cover the toolbar until it is closed. */
+  .explorer-legend[open] {
+    inline-size: auto;
+    max-inline-size: calc(100% - 2 * var(--space-3));
+    z-index: 3;
+  }
+  .explorer-toolbar {
+    flex-wrap: nowrap;
+    padding: var(--space-1);
+    gap: var(--space-1);
+  }
+  .explorer-tool-icon {
+    display: inline;
+  }
+  .explorer-tool-label {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+/* The key to the line styles, at the top end corner (the focused post
+   floats at the bottom end one, the minimap at the bottom start one). */
+.explorer-legend {
+  inset-block-start: var(--space-3);
+  inset-inline-end: var(--space-3);
+  inline-size: var(--legend-w);
+  box-sizing: border-box;
+  padding-block: var(--space-2);
+  padding-inline: var(--space-3);
+  font-size: 0.8125rem;
+}
+.explorer-legend summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--color-muted);
+}
+.explorer-legend ul {
+  list-style: none;
+  margin: 0;
+  margin-block-start: var(--space-2);
+  padding: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+.explorer-legend li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.explorer-legend-sample {
+  flex: none;
 }
 .explorer-stage {
   position: absolute;
@@ -57,20 +127,39 @@
   outline-offset: -2px;
 }
 
-.explorer-edge {
+:is(.explorer-edge, .explorer-legend-line) {
   fill: none;
   stroke: var(--color-muted);
   stroke-width: 1.5;
   stroke-linejoin: round;
   transition: d 300ms ease;
 }
-.explorer-edge[data-focal='true'] {
-  stroke: var(--color-accent);
-  stroke-width: 2;
+/* Line kinds: solid for a post's main parent, dashed for an extra parent,
+   dotted and faint for a pointer to a post already shown elsewhere (with a ↺
+   marker). Purple traces the thread being read: the focal post's ancestors
+   and its direct replies. */
+:is(.explorer-edge, .explorer-legend-line)[data-kind='also'] {
+  stroke-dasharray: 6 4;
 }
-.explorer-edge[data-kind='also'],
-.explorer-edge[data-kind='above'] {
-  stroke-dasharray: 5 4;
+:is(.explorer-edge, .explorer-legend-line)[data-kind='above'] {
+  stroke-dasharray: 1.5 4;
+  stroke-linecap: round;
+  opacity: 0.6;
+}
+:is(.explorer-edge, .explorer-legend-line)[data-path='true'] {
+  stroke: var(--color-accent);
+  stroke-width: 2.5;
+}
+.explorer-edge-mark circle {
+  fill: var(--color-surface);
+  stroke: var(--color-muted);
+  stroke-width: 1;
+}
+.explorer-edge-mark-arrow {
+  fill: none;
+  stroke: var(--color-muted);
+  stroke-width: 1.5;
+  stroke-linecap: round;
 }
 
 .explorer-node {
@@ -183,7 +272,7 @@
 }
 
 /* The focused post, in full, floating at the end corner of the map; it
-   folds down to its header bar. On phones it is a bottom sheet. */
+   folds down to its header bar. On phones it opens full screen. */
 .tree-focus {
   inset-block-end: var(--space-3);
   inset-inline-end: var(--space-3);
@@ -218,15 +307,47 @@
   display: none;
 }
 @media (max-width: 47.99rem) {
+  /* Folded, the focused post is a bar along the bottom of the map; open, it
+     takes the whole screen (over the tab bar) until it is closed. */
   .tree-focus {
     inset-inline: 0;
     inset-block-end: 0;
     inline-size: auto;
-    max-block-size: 55%;
     border-inline: none;
     border-block-end: none;
     border-end-start-radius: 0;
     border-end-end-radius: 0;
+  }
+  .tree-focus[data-open='true'] {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    max-block-size: none;
+    border: none;
+    border-radius: 0;
+    padding-block-start: env(safe-area-inset-top);
+    padding-block-end: env(safe-area-inset-bottom);
+    padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
+  }
+  .tree-focus[data-open='true'] .tree-focus-bar {
+    border-block-end: 1px solid var(--color-border);
+  }
+  .tree-focus[data-open='true'] .tree-focus-body {
+    flex: 1;
+    padding-block-start: var(--space-2);
+  }
+  .tree-focus[data-open='true'] .tree-focus-toggle {
+    min-inline-size: 44px;
+    min-block-size: 44px;
+    font-size: 1.25rem;
+  }
+  .tree-focus[data-open='true'] .tree-focus-toggle-label {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
   .explorer-minimap {
     display: none;
@@ -242,5 +363,14 @@
   }
   .explorer-node[data-focal='true'] .explorer-node-box {
     stroke: Highlight;
+  }
+}
+
+.tree-focus-close {
+  display: none;
+}
+@media (max-width: 47.99rem) {
+  .tree-focus[data-open='true'] .tree-focus-close {
+    display: inline;
   }
 }

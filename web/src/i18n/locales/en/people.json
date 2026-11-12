@@ -1,7 +1,7 @@
 {
   "handle": "@{handle}",
   "nav": {
-    "label": "Chickens"
+    "label": "People"
   },
   "person": {
     "title": "Person",
@@ -31,7 +31,7 @@
   },
   "suggestions": {
     "title": "People you may know",
-    "empty": "No suggestions right now.",
+    "empty": "No suggestions right now. People you share acquaintances with show up here.",
     "mutual": "{count, plural, one {# mutual acquaintance} other {# mutual acquaintances}}"
   },
   "blocks": {
@@ -51,7 +51,8 @@
     "mute": "Mute",
     "unmute": "Unmute",
     "hide_via": "Hide paths through them",
-    "show_via": "Show paths through them again"
+    "show_via": "Show paths through them again",
+    "more": "More"
   },
   "confirm": {
     "unfriend": "Remove @{handle} from your acquaintances? Who invited whom stays visible.",
@@ -85,7 +86,7 @@
       "oldest": "Oldest first"
     },
     "empty": "Nothing from @{handle} here yet.",
-    "open": "Open",
+    "open": "Open conversation",
     "more": "Show more"
   }
 }

@@ -1,7 +1,7 @@
 // The "why" panel (§5.3): the tier and chain a post came through, when it was
 // posted, the order in use, how far ranking moved it and the reasons, all from
 // catalogs. Owner: P0-W10 → P1-W09.
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon } from '../lib/Icon';
 import { formatDateTime, formatRelative } from '../lib/time';
@@ -15,6 +15,7 @@ export interface WhyPanelProps {
   why: WhyVM | undefined;
   onClose: () => void;
   onRetry: () => void;
+  about?: ReactNode;
 }
 
 // shiftArgs turns a signed minute count into the catalog's select/plural arguments.
@@ -28,7 +29,7 @@ export function shiftArgs(minutes: number): { dir: 'up' | 'down' | 'none'; unit:
   };
 }
 
-export function WhyPanel({ id, loading, failed, why, onClose, onRetry }: WhyPanelProps) {
+export function WhyPanel({ id, loading, failed, why, onClose, onRetry, about }: WhyPanelProps) {
   const { t, i18n } = useTranslation('integrity');
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -55,6 +56,7 @@ export function WhyPanel({ id, loading, failed, why, onClose, onRetry }: WhyPane
         <Icon name="close" />
       </button>
       <h3>{t('why.title')}</h3>
+      {about ? <div className="why-about">{about}</div> : null}
       {loading ? (
         <p aria-live="polite" data-testid="integrity-why-loading">
           {t('why.loading')}

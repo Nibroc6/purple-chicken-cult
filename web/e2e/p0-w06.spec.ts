@@ -168,6 +168,7 @@ test('hide and show less take the post away for the reader only', async ({ page,
 
   await page.goto(`/p/${other.ref}/likes`);
   const hide = page.waitForResponse((r) => r.url().endsWith('/hide'));
+  await page.getByTestId('post-more').first().click();
   await page.getByTestId('engage-hide').click();
   expect((await hide).status()).toBe(204);
   await expect(page.getByTestId('engage-hidden')).toHaveAttribute('data-kind', 'hide');
@@ -175,6 +176,7 @@ test('hide and show less take the post away for the reader only', async ({ page,
 
   await page.goto(`/p/${liked.ref}/likes`);
   const less = page.waitForResponse((r) => r.url().endsWith('/show-less'));
+  await page.getByTestId('post-more').first().click();
   await page.getByTestId('engage-show-less').click();
   expect((await less).status()).toBe(204);
   await expect(page.getByTestId('engage-hidden')).toHaveAttribute('data-kind', 'show_less');

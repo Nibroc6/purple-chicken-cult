@@ -37,10 +37,10 @@ function Roles() {
       <p className="muted">{t('roles.intro')}</p>
       <ul className="link-list link-cards">
         <li>
-          <Link to="/mod">{t('footer.queue')}</Link>
+          <Link to="/mod" className="button">{t('footer.queue')}</Link>
         </li>
         <li>
-          <Link to="/mod/log">{t('footer.log')}</Link>
+          <Link to="/mod/log" className="button">{t('footer.log')}</Link>
         </li>
       </ul>
       {notice ? (

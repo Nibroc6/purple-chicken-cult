@@ -199,6 +199,7 @@ describe('people pages', () => {
       return undefined;
     });
     renderAt('/people/r-bob', '/people/:ref', <PersonPage />);
+    fireEvent.click(await screen.findByTestId('person-more'));
     fireEvent.click(await screen.findByRole('button', { name: tr('people:action.block', { handle: 'bob' }) }));
     expect(calls.some((c) => c.method === 'PUT')).toBe(false);
     expect(screen.getByText(tr('people:confirm.block', { handle: 'bob' }))).toBeTruthy();
@@ -236,6 +237,7 @@ describe('people pages', () => {
       return undefined;
     });
     renderAt('/people/r-bob', '/people/:ref', <PersonPage />);
+    fireEvent.click(await screen.findByTestId('person-more'));
     fireEvent.click(await screen.findByRole('button', { name: tr('people:action.block', { handle: 'bob' }) }));
     fireEvent.click(screen.getByTestId('confirm-block'));
     await waitFor(() => {

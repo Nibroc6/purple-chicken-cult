@@ -75,10 +75,10 @@ function Queue() {
       </p>
       <ul className="link-list link-cards">
         <li>
-          <Link to="/mod/log">{t('footer.log')}</Link>
+          <Link to="/mod/log" className="button">{t('footer.log')}</Link>
         </li>
         <li>
-          <Link to="/mod/recovery">{t('footer.recovery')}</Link>
+          <Link to="/mod/recovery" className="button">{t('footer.recovery')}</Link>
         </li>
         {me?.role === 'admin' ? (
           <li>

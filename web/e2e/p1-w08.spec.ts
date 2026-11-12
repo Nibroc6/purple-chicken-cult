@@ -96,10 +96,8 @@ test("a save is private: listed on the saves page, invisible to everyone else", 
   await save.click();
   expect((await put).status()).toBe(204);
   await expect(save).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByTestId("engage-likes")).toHaveAttribute(
-    "data-count",
-    "0",
-  );
+  // Saving is private: it never shows up as a like (no summary at all).
+  await expect(page.getByTestId("engage-likes")).toHaveCount(0);
 
   await page.goto("/saves");
   await expect(page.getByTestId("saves-item")).toHaveCount(1);

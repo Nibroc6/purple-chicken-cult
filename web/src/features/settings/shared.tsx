@@ -39,7 +39,7 @@ export function SettingsShell({ title, children }: { title: string; children: (m
     <section className="page settings-page">
       <h1>{title}</h1>
       <p>
-        <Link to="/settings">{t('index.title')}</Link>
+        <Link to="/settings" className="button">{t('index.title')}</Link>
       </p>
       {me.data ? children(me.data) : loading ? <Loading /> : <ErrorText err={me.error} />}
     </section>

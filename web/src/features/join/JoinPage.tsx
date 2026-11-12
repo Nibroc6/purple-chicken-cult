@@ -110,7 +110,7 @@ export default function JoinPage() {
               {t('scan.startFriend')}
             </button>
             <p>
-              <Link to="/">{t('home')}</Link>
+              <Link to="/" className="button">{t('home')}</Link>
             </p>
           </>
         ) : (
@@ -195,7 +195,7 @@ export default function JoinPage() {
           <p role="status" data-testid="join-friend-plus">
             {step.connect && step.outcome === 'accepted' ? t('upgrade.doneAcquaintances') : t('upgrade.done')}
           </p>
-          <Link to="/friends">{t('upgrade.friends')}</Link>
+          <Link to="/friends" className="button">{t('upgrade.friends')}</Link>
         </>
       ) : null}
       {step.kind === 'recovered' ? (

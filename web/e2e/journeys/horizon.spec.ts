@@ -54,6 +54,7 @@ test("tier 1 for a friend, tier 2 with the chain for a friend of a friend, nothi
   await expect(forBob.getByTestId("integrity-chain")).not.toContainText(
     at("bob"),
   );
+  await forBob.getByTestId("integrity-why").click();
   await expect(forBob.getByTestId("integrity-inviter-label")).toHaveAttribute(
     "data-kind",
     "genesis",
@@ -196,6 +197,7 @@ test("a block hides the blocked person from the blocker only; their reply is a s
   const alice = await signInPage(page, origin, "alice");
   const carolPost = await alice.feedPost("Carol knows about compost");
   await page.goto(`/people/${carolPost.author.ref}`);
+  await page.getByTestId("person-more").click();
   await page.getByTestId("action-block").click();
   await page.getByTestId("confirm-block").click();
   await expect(page.getByTestId("action-unblock")).toBeVisible();

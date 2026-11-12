@@ -131,9 +131,9 @@ describe('like summary', () => {
     );
   }
 
-  it('says when nobody in the network liked it', () => {
+  it('shows no summary when nobody in the network liked it', () => {
     show(likes());
-    expect(screen.getByTestId('engage-likes').textContent).toBe(tr('engage:likes.none'));
+    expect(screen.queryByTestId('engage-likes')).toBeNull();
   });
 
   it('counts in-network likes without names', () => {
@@ -283,7 +283,7 @@ describe('likes page and post actions', () => {
     fireEvent.click(await screen.findByTestId('engage-like'));
     expect(await screen.findByTestId('engage-error')).toBeTruthy();
     expect(screen.getByTestId('engage-like').getAttribute('aria-pressed')).toBe('false');
-    expect(screen.getByTestId('engage-likes').dataset.count).toBe('0');
+    expect(screen.queryByTestId('engage-likes')).toBeNull();
   });
 
   it('hides and shows less, rolling back on failure', async () => {

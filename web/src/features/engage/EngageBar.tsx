@@ -10,6 +10,7 @@ import { Link, useInRouterContext } from 'react-router';
 import { errorKey } from '../../api/errors';
 import { useModalParam } from '../../app/Modal';
 import { IconButton } from '../../lib/IconButton';
+import { MoreMenu } from '../../lib/MoreMenu';
 import type { PostActions } from '../../formats/types';
 import type { LikesVM, PostVM, Ref } from '../../vm/types';
 import { useFailed, useHidden } from './store';
@@ -53,13 +54,9 @@ function OpenLikesButton({ post, children }: { post: Ref; children: ReactNode })
 // Given the post, the count opens the likes modal.
 export function LikeSummary({ likes, post }: { likes: LikesVM; post?: Ref }) {
   const { t, i18n } = useTranslation('engage');
-  if (likes.inNetwork === 0) {
-    return (
-      <p className="engage-likes muted" data-testid="engage-likes" data-count={0}>
-        {t('likes.none')}
-      </p>
-    );
-  }
+  // Nothing to say yet: no line at all (an empty summary on every new post
+  // was noise).
+  if (likes.inNetwork === 0) return null;
   if (likes.names.length === 0 && !likes.byMe) {
     return (
       <p className="engage-likes" data-testid="engage-likes" data-count={likes.inNetwork}>
@@ -98,7 +95,39 @@ export function LikeSummary({ likes, post }: { likes: LikesVM; post?: Ref }) {
   );
 }
 
-export function EngageBar({ post, actions }: { post: PostVM; actions: PostActions }) {
+// EngageMenuItems are the secondary controls (hide, show less), shown in a
+// post's ⋯ menu: never on the reader's own posts.
+export function EngageMenuItems({ post, actions }: { post: PostVM; actions: PostActions }) {
+  const { t } = useTranslation('engage');
+  if (post.mine) return null;
+  return (
+    <>
+      <IconButton
+        icon="hide"
+        label={t('hide.action')}
+        data-testid="engage-hide"
+        data-part="hide"
+        onClick={() => {
+          actions.hide(post.ref);
+        }}
+      />
+      <IconButton
+        icon="show-less"
+        label={t('showLess.action', { handle: post.author.handle })}
+        data-testid="engage-show-less"
+        data-part="show-less"
+        onClick={() => {
+          actions.showLess(post.ref);
+        }}
+      />
+    </>
+  );
+}
+
+// EngageBar: the like summary, like and save, and (unless the layout renders
+// its own ⋯ menu with EngageMenuItems, withMenu false) a ⋯ menu with hide and
+// show less.
+export function EngageBar({ post, actions, withMenu = true }: { post: PostVM; actions: PostActions; withMenu?: boolean }) {
   const { t } = useTranslation(['engage', 'errors']);
   const hidden = useHidden(post.ref);
   const failed = useFailed(post.ref);
@@ -154,28 +183,11 @@ export function EngageBar({ post, actions }: { post: PostVM; actions: PostAction
             }}
           />
         ) : null}
-        {post.mine ? null : (
-          <>
-            <IconButton
-              icon="hide"
-              label={t('hide.action')}
-              data-testid="engage-hide"
-              data-part="hide"
-              onClick={() => {
-                actions.hide(post.ref);
-              }}
-            />
-            <IconButton
-              icon="show-less"
-              label={t('showLess.action', { handle: post.author.handle })}
-              data-testid="engage-show-less"
-              data-part="show-less"
-              onClick={() => {
-                actions.showLess(post.ref);
-              }}
-            />
-          </>
-        )}
+        {withMenu && !post.mine ? (
+          <MoreMenu label={t('actions.more')} testId="post-more">
+            <EngageMenuItems post={post} actions={actions} />
+          </MoreMenu>
+        ) : null}
       </div>
       {failed ? (
         <p className="engage-error" role="alert" data-testid="engage-error">

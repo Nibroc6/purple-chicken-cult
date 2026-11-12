@@ -28,7 +28,7 @@ export default function ManagePostPage() {
         <p role="status" data-testid="post-deleted">
           {t('delete.done')}
         </p>
-        <Link to="/compose">{t('manage.newPost')}</Link>
+        <Link to="/compose" className="button">{t('manage.newPost')}</Link>
       </section>
     );
   }

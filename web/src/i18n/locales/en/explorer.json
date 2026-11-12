@@ -18,5 +18,12 @@
   "thumb": {
     "label": "Open the reply tree: {parents, plural, =0 {no earlier posts} one {replies to # post} other {replies to # posts}}, {replies, plural, =0 {no replies} one {# reply} other {# replies}}",
     "more": "+"
+  },
+  "legend": {
+    "title": "Key",
+    "reply": "Replies to",
+    "also": "Also replies to",
+    "above": "Shown elsewhere on the map",
+    "path": "The thread you're reading"
   }
 }

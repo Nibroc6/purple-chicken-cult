@@ -220,7 +220,7 @@ test('"why" opens from a feed card, loads once and closes with Escape; integrity
   await page.goto('/');
   const card = page.getByTestId('feed-post').first();
   await expect(card).toBeVisible();
-  for (const id of ['integrity-chain', 'integrity-inviter-label', 'integrity-audience', 'integrity-report']) {
+  for (const id of ['integrity-chain', 'integrity-audience', 'integrity-report']) {
     await expect(card.getByTestId(id)).toBeVisible();
     await expect(card.getByTestId(id).locator('a')).toHaveCount(0);
   }
@@ -230,6 +230,9 @@ test('"why" opens from a feed card, loads once and closes with Escape; integrity
   const panel = card.getByTestId('integrity-why-panel');
   await expect(panel.getByTestId('integrity-why-body')).toBeVisible();
   await expect(panel.getByTestId('integrity-why-tier')).not.toBeEmpty();
+  // On Cards post cards the inviter label opens at the top of the panel.
+  await expect(panel.getByTestId('integrity-inviter-label')).toBeVisible();
+  await expect(panel.getByTestId('integrity-inviter-label').locator('a')).toHaveCount(0);
   await expect(why).toHaveAttribute('aria-expanded', 'true');
   await page.keyboard.press('Escape');
   await expect(panel).toHaveCount(0);

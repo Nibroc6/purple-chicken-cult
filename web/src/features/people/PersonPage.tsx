@@ -13,7 +13,7 @@ import { asRef } from '../../vm/types';
 import { HandshakeHost, type OpenedVM } from '../invites';
 import { fetchPerson, openUpgrade } from './api';
 import { PersonPosts } from './PersonPosts';
-import { ErrorText, PeopleNav, PersonActions, PersonCard, ReportPerson, peopleKey } from './shared';
+import { ErrorText, PersonActions, PersonCard, ReportPerson, peopleKey } from './shared';
 import { canUpgrade, type PeopleVM } from './vm';
 
 // i18n-dynamic: people:person.relation.
@@ -24,8 +24,9 @@ export default function PersonPage() {
   if (q.error instanceof ApiError && q.error.isNotFound) return <NotFound />;
   return (
     <section className="page people-page">
-      <h1>{t('person.title')}</h1>
-      <PeopleNav />
+      <h1 data-user-content={q.data?.displayName ? '' : undefined}>
+        {q.data ? q.data.displayName || t('handle', { handle: q.data.handle }) : t('person.title')}
+      </h1>
       {q.isPending ? (
         <Loading />
       ) : q.error ? (
@@ -48,8 +49,7 @@ export default function PersonPage() {
                 </>
               }
             >
-              <PersonActions person={q.data} secondary />
-              {q.data.relation !== 'self' ? <ReportPerson person={q.data} /> : null}
+              <PersonActions person={q.data} secondary menu extra={q.data.relation !== 'self' ? <ReportPerson person={q.data} /> : null} />
             </PersonCard>
           </ul>
           {q.data.relation !== 'self' ? <Upgrade key={q.data.ref} person={q.data} /> : null}
@@ -106,6 +106,7 @@ function Upgrade({ person }: { person: PeopleVM }) {
           </label>
           <button
             type="button"
+            className="primary"
             data-testid="action-upgrade"
             disabled={open.isPending}
             onClick={() => {

@@ -7,7 +7,7 @@
 // hook for theme CSS (features/themes/sheet.ts), e.g.
 //   .icon[data-icon=feed] { display: none }
 //   .nav-icon:has([data-icon=feed]) { background: image(home) center / contain no-repeat }
-import { faBookmark, faComment, faEyeSlash, faHeart } from '@fortawesome/free-regular-svg-icons';
+import { faBookmark, faEyeSlash, faHeart } from '@fortawesome/free-regular-svg-icons';
 import {
   faAnglesLeft,
   faAnglesRight,
@@ -19,8 +19,12 @@ import {
   faCircleInfo,
   faCircleMinus,
   faCircleQuestion,
+  faCircleUser,
+  faCrosshairs,
   faCrown,
+  faExpand,
   faDiamond,
+  faEllipsis,
   faEye,
   faFeather,
   faFileContract,
@@ -36,6 +40,7 @@ import {
   faReply,
   faReplyAll,
   faRotateLeft,
+  faSitemap,
   faTriangleExclamation,
   faUserGroup,
   faUserPlus,
@@ -56,6 +61,7 @@ const icons = {
   notifications: faBell,
   moderation: faFlag,
   settings: faGear,
+  profile: faCircleUser,
   about: faCircleQuestion,
   terms: faFileContract,
   'mod-log': faListUl,
@@ -69,6 +75,8 @@ const icons = {
   expand: faAnglesRight,
   'zoom-in': faPlus,
   'zoom-out': faMinus,
+  fit: faExpand,
+  recenter: faCrosshairs,
   info: faCircleInfo,
   ok: faCheck,
   fail: faXmark,
@@ -82,7 +90,9 @@ const icons = {
   reply: faReply,
   // Adds the post to a reply to several posts (features/composer).
   'reply-pick': faReplyAll,
-  replies: faComment,
+  // A branching tree: replies are posts in a family tree, not comments.
+  replies: faSitemap,
+  more: faEllipsis,
   // Integrity elements (integrity/).
   tier: faDiamond,
   'tier-done': faCircleCheck,

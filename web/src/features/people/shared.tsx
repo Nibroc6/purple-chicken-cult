@@ -2,7 +2,8 @@
 import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router';
+import { Link, NavLink } from 'react-router';
+import { MoreMenu } from '../../lib/MoreMenu';
 import { Chain, InviterLabel, ReportAction, type ReportTarget } from '../../integrity';
 import type { PersonVM } from '../../vm/types';
 import { requestCosign } from '../cosign';
@@ -104,6 +105,7 @@ function ActionButton({ person, action }: { person: PersonVM; action: PersonActi
       <button
         type="button"
         data-testid={`action-${action}`}
+        data-keep-open={confirmActions.has(action) ? '' : undefined}
         disabled={m.isPending}
         onClick={() => {
           if (confirmActions.has(action)) setConfirming(true);
@@ -117,15 +119,37 @@ function ActionButton({ person, action }: { person: PersonVM; action: PersonActi
   );
 }
 
-// PersonActions renders the friendship actions, then mute and block.
-export function PersonActions({ person, secondary = true }: { person: PersonVM; secondary?: boolean }) {
-  const acts = [...primaryActions(person), ...(secondary ? secondaryActions(person) : [])];
-  if (acts.length === 0) return null;
+// PersonActions renders the friendship actions, then mute and block. With
+// menu, mute, hide paths and block go in a ⋯ More menu (the person page),
+// and extra (the report action) follows the buttons.
+export function PersonActions({
+  person,
+  secondary = true,
+  menu = false,
+  extra,
+}: {
+  person: PersonVM;
+  secondary?: boolean;
+  menu?: boolean;
+  extra?: ReactNode;
+}) {
+  const { t } = useTranslation('people');
+  const primary = primaryActions(person);
+  const rest = secondary ? secondaryActions(person) : [];
+  if (primary.length === 0 && rest.length === 0 && !extra) return null;
   return (
     <div className="people-actions">
-      {acts.map((a) => (
+      {(menu ? primary : [...primary, ...rest]).map((a) => (
         <ActionButton key={a} person={person} action={a} />
       ))}
+      {menu && rest.length > 0 ? (
+        <MoreMenu label={t('action.more')} text={t('action.more')} testId="person-more">
+          {rest.map((a) => (
+            <ActionButton key={a} person={person} action={a} />
+          ))}
+        </MoreMenu>
+      ) : null}
+      {extra}
     </div>
   );
 }
@@ -180,15 +204,18 @@ export function PeopleList({ people, empty, emptyTip, render }: {
   return <ul className="people-list">{people.map((p) => render?.(p) ?? <PersonCard key={p.ref} person={p} />)}</ul>;
 }
 
-// PeopleNav links the people pages.
+// PeopleNav links the people pages as tabs; the current one is marked
+// (aria-current) and styled as selected.
 export function PeopleNav() {
   const { t } = useTranslation('people');
   return (
     <nav className="people-nav" aria-label={t('nav.label')}>
-      <Link to="/friends">{t('friends.title')}</Link>
-      <Link to="/friends/requests">{t('requests.title')}</Link>
-      <Link to="/suggestions">{t('suggestions.title')}</Link>
-      <Link to="/settings/blocks">{t('blocks.title')}</Link>
+      <NavLink to="/friends" end>
+        {t('friends.title')}
+      </NavLink>
+      <NavLink to="/friends/requests">{t('requests.title')}</NavLink>
+      <NavLink to="/suggestions">{t('suggestions.title')}</NavLink>
+      <NavLink to="/settings/blocks">{t('blocks.title')}</NavLink>
     </nav>
   );
 }

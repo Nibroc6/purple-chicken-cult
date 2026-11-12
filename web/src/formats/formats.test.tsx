@@ -1,6 +1,6 @@
 // Integrity presence suite (plan §6.1): every format renders all seven integrity
 // elements. Visibility, size and contrast are asserted in Playwright (INT).
-import { render } from '@testing-library/react';
+import { fireEvent, render } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { integrityTestIds } from '../integrity/types';
 import { feedPageVM } from '../test/fixtures';
@@ -23,6 +23,8 @@ describe.each(Object.keys(formats) as FormatId[])('format %s', (id) => {
     const { getAllByTestId } = render(
       <f.FeedLayout page={[feedPageVM()]} actions={actions} onLoadMore={vi.fn()} onExpand={vi.fn()} />,
     );
+    // On post cards the inviter label sits in the "why" panel (§15.5).
+    for (const why of getAllByTestId('integrity-why')) fireEvent.click(why);
     for (const tid of integrityTestIds) {
       expect(getAllByTestId(tid).length).toBeGreaterThan(0);
     }

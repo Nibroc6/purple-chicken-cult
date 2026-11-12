@@ -17,7 +17,7 @@ export default function InviteesPage() {
     <section className="page invites-page">
       <h1>{t('people.title')}</h1>
       <p>
-        <Link to="/invite">{t('people.back')}</Link>
+        <Link to="/invite" className="button">{t('people.back')}</Link>
       </p>
       {q.isPending ? <Loading /> : q.error ? <ErrorText err={q.error} /> : <List items={q.data} />}
     </section>

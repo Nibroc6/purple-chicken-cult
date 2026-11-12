@@ -20,6 +20,7 @@ export interface MainNavEntry {
     | 'nav.notifications'
     | 'nav.moderation'
     | 'nav.settings'
+    | 'nav.profile'
     | 'nav.about'
     | 'nav.terms'
     | 'nav.modLog'
@@ -46,6 +47,7 @@ export const mainNav: MainNavEntry[] = [
   { to: '/seen', label: 'nav.seen', icon: 'seen' },
   { to: '/notifications', label: 'nav.notifications', icon: 'notifications', badges: true },
   { to: '/mod', label: 'nav.moderation', icon: 'moderation', who: 'moderator' },
+  { to: '/me', label: 'nav.profile', icon: 'profile' },
   { to: '/settings', label: 'nav.settings', icon: 'settings' },
 ];
 
