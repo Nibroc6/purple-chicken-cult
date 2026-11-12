@@ -546,6 +546,12 @@ a {
 .post-listed {
   list-style: none;
 }
+/* The preview is already inside the list card: no second frame. */
+.post-listed > .post-preview {
+  border: 0;
+  padding: 0;
+  background: none;
+}
 .post-listed-actions {
   display: flex;
   flex-wrap: wrap;
