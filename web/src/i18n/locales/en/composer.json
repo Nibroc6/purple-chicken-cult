@@ -3,7 +3,8 @@
     "title": "New post"
   },
   "body": {
-    "label": "What's on your mind?"
+    "label": "What's on your mind?",
+    "shortcut": "Ctrl+Enter (⌘+Enter on a Mac) publishes."
   },
   "split": {
     "offer": "This is getting long. You can split it into a thread.",

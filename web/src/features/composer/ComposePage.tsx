@@ -172,8 +172,19 @@ function Composer({
               onChange={(e) => {
                 setBody(e.target.value);
               }}
+              onKeyDown={(e) => {
+                // Ctrl+Enter (⌘+Enter on a Mac) publishes.
+                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                  e.preventDefault();
+                  e.currentTarget.form?.requestSubmit();
+                }
+              }}
+              aria-describedby="composer-shortcut"
             />
           </label>
+          <p id="composer-shortcut" className="composer-shortcut muted">
+            {t('body.shortcut')}
+          </p>
           <Counter text={body} testId="composer-counter" />
           {n > SOFT_LIMIT && n <= HARD_LIMIT ? (
             <div className="composer-split-offer">
@@ -228,7 +239,7 @@ function Composer({
             {t('split.undo')}
           </button>
         ) : null}
-        <button type="submit" data-testid="composer-publish" disabled={!ready || m.isPending}>
+        <button type="submit" className="primary" data-testid="composer-publish" disabled={!ready || m.isPending}>
           {parts ? t('publish.thread', { count: parts.length }) : t('publish.one')}
         </button>
       </div>

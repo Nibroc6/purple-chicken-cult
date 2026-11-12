@@ -1,6 +1,6 @@
 {
   "picker": {
-    "choose": "{max, plural, one {Choose a picture} other {Choose up to # pictures}}",
+    "choose": "{max, plural, one {Add a picture} other {Add pictures (up to #)}}",
     "alt": "Describe the picture",
     "altPlaceholder": "What is in it, for people who cannot see it",
     "remove": "Remove",
