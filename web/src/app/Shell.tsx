@@ -48,10 +48,32 @@ export function isPublicPath(path: string): boolean {
 
 // MemberOnly renders the page, or (signed out, on a members' page) sends the
 // visitor to the sign-in page with the way back.
+function SignedOutNote() {
+  const { t } = useTranslation('common');
+  return (
+    <section className="page" data-testid="signed-out-note">
+      <h1>{t('signedOut.title')}</h1>
+      <p>
+        <NavLink to="/login" className="button primary">
+          {t('signedOut.signIn')}
+        </NavLink>
+      </p>
+    </section>
+  );
+}
+
+// A visitor who was signed in during this visit and has just signed out is
+// not sent anywhere automatically (the page that signed them out navigates;
+// the sign-in page's passkey autofill must not race them straight back in):
+// they see a short note with a sign-in button.
 function MemberOnly() {
   const session = useSession();
   const loc = useLocation();
+  const [wasMember, setWasMember] = useState(false);
+  const signedIn = session.data?.authenticated === true;
+  if (signedIn && !wasMember) setWasMember(true);
   if (session.data && !session.data.authenticated && session.data.kind === 'none' && !isPublicPath(loc.pathname)) {
+    if (wasMember) return <SignedOutNote />;
     const next = loc.pathname + loc.search;
     return <Navigate to={`/login?next=${encodeURIComponent(next)}`} replace />;
   }

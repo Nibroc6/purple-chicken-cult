@@ -62,5 +62,9 @@
     "recovery": "Recovery contacts",
     "theme": "Theme",
     "notifications": "Push notifications"
+  },
+  "signedOut": {
+    "title": "You're signed out",
+    "signIn": "Sign in"
   }
 }
