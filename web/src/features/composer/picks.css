@@ -40,6 +40,36 @@
   display: flex;
   gap: var(--space-2);
 }
+/* On phones the tray sits above the tab bar. */
+.shell[data-signed-in='true'] .reply-tray {
+  inset-block-end: calc(var(--tabbar-height, 0px) + var(--space-3));
+}
+
+/* A post in the reader's multi-post reply says so on its card. */
+.reply-picked {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding-inline: var(--space-2) var(--space-1);
+  border-radius: 999px;
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.reply-picked-remove {
+  min-block-size: 28px;
+  min-inline-size: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+}
+.post:has(.reply-picked) {
+  border-color: var(--color-accent);
+}
+
 /* On the reply tree the focus card moves up out of the tray's way. */
 .shell:has(.reply-tray) .tree-focus {
   inset-block-end: calc(var(--space-3) + 4rem);

@@ -32,6 +32,31 @@ export function ReplyPick({ post }: { post: { ref: string; author: { handle: str
   );
 }
 
+// PickedBadge marks a post that is in the reader's multi-post reply, on the
+// card itself, with a button to take it out again.
+export function PickedBadge({ post }: { post: { ref: string; author: { handle: string } } }) {
+  const { t } = useTranslation('composer');
+  const picks = usePicks();
+  const i = picks.findIndex((p) => p.ref === post.ref);
+  if (i < 0) return null;
+  return (
+    <span className="reply-picked" data-testid="reply-picked">
+      <span>{t('picks.badge', { n: i + 1, count: picks.length })}</span>
+      <button
+        type="button"
+        className="reply-picked-remove"
+        data-testid="reply-picked-remove"
+        aria-label={t('picks.remove', { handle: post.author.handle })}
+        onClick={() => {
+          togglePick({ ref: post.ref, handle: post.author.handle });
+        }}
+      >
+        <span aria-hidden="true">{CLOSE}</span>
+      </button>
+    </span>
+  );
+}
+
 export function ReplyTray() {
   const { t } = useTranslation('composer');
   const picks = usePicks();

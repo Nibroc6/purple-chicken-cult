@@ -8,7 +8,7 @@
 // away); every other integrity element stays visible on the card.
 // Owner: P0-W07 → P1-W12 (P0-W08 reuses it for the tree's 'tree' / 'focal' variants).
 import { useTranslation } from 'react-i18next';
-import { ReplyPick } from '../../features/composer';
+import { PickedBadge, ReplyPick } from '../../features/composer';
 import { EngageBar, EngageMenuItems, useHidden } from '../../features/engage';
 import { MoreMenu } from '../../lib/MoreMenu';
 import { AudienceBadge, Chain, EditedMark, InviterLabel, ReportAction, WhyButton } from '../../integrity';
@@ -83,6 +83,7 @@ export function PostLayout({ post, actions, variant, part }: CardProps) {
           <>
             <EngageBar post={post} actions={actions} withMenu={false} />
             {hidden ? null : <PostLinks post={post} actions={actions} pick={false} />}
+            <PickedBadge post={post} />
             {hidden || (post.mine && !post.canReference) ? null : (
               <MoreMenu label={t('post.more')} testId="post-more">
                 {post.canReference ? <ReplyPick post={post} /> : null}

@@ -44,13 +44,14 @@
     "remove": "Remove"
   },
   "picks": {
-    "pick": "Add to a reply to several posts",
-    "picked": "In your reply (take it out)",
+    "pick": "Reply to this and other posts together",
+    "picked": "Take it out of your reply",
     "label": "Your reply",
-    "title": "{count, plural, one {Replying to # post} other {Replying to # posts}} (up to {max, number})",
+    "title": "{count, plural, one {Your reply to # post} other {Your reply to # posts}} (up to {max, number}). Add more from any post’s ⋯ menu.",
     "handle": "@{handle}",
     "remove": "Take @{handle}'s post out",
     "write": "Write the reply",
-    "clear": "Clear"
+    "clear": "Clear",
+    "badge": "In your reply ({n, number} of {count, number})"
   }
 }

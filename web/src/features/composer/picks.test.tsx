@@ -4,7 +4,7 @@ import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, describe, expect, it } from 'vitest';
 import { i18n } from '../../i18n/setup';
 import { clearPicks, composeURL, getPicks, refFromLink, togglePick } from './picks';
-import { ReplyPick, ReplyTray } from './ReplyPicks';
+import { PickedBadge, ReplyPick, ReplyTray } from './ReplyPicks';
 
 const tr = i18n.t.bind(i18n) as unknown as (k: string, o?: Record<string, unknown>) => string;
 const post = (ref: string) => ({ ref, author: { handle: `h${ref}` } });
@@ -55,5 +55,23 @@ describe('reply picks', () => {
     fireEvent.click(screen.getByTestId('reply-tray-write'));
     expect(router.state.location.pathname + router.state.location.search).toBe('/compose?parent=a&parent=b&kind=ref');
     expect(getPicks()).toEqual([]);
+  });
+
+  it('marks a picked post on its card, with its place in the reply, and takes it out', () => {
+    render(
+      <>
+        <PickedBadge post={post('a')} />
+        <PickedBadge post={post('b')} />
+      </>,
+    );
+    expect(screen.queryByTestId('reply-picked')).toBeNull();
+    act(() => {
+      togglePick({ ref: 'x', handle: 'hx' });
+      togglePick({ ref: 'b', handle: 'hb' });
+    });
+    expect(screen.getByTestId('reply-picked').textContent).toContain(tr('composer:picks.badge', { n: 2, count: 2 }));
+    fireEvent.click(screen.getByTestId('reply-picked-remove'));
+    expect(screen.queryByTestId('reply-picked')).toBeNull();
+    expect(getPicks().map((p) => p.ref)).toEqual(['x']);
   });
 });
