@@ -19,6 +19,16 @@
   position: static;
   font-weight: 400;
 }
+/* "You're caught up with …" at the end of a tier: a quiet divider rather
+   than a second banner (still the integrity colour, for contrast). */
+.feed-tier > .tier-header:not(:first-child):not(:only-child) {
+  justify-content: center;
+  background: none;
+  border-block-start: 1px solid var(--color-border);
+  border-radius: 0;
+  padding-block-start: var(--space-2);
+  font-size: max(0.875rem, 12px);
+}
 
 .post-card .post-author {
   display: flex;

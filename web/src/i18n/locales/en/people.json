@@ -31,7 +31,7 @@
   },
   "suggestions": {
     "title": "People you may know",
-    "empty": "No suggestions right now.",
+    "empty": "No suggestions right now. People you share acquaintances with show up here.",
     "mutual": "{count, plural, one {# mutual acquaintance} other {# mutual acquaintances}}"
   },
   "blocks": {

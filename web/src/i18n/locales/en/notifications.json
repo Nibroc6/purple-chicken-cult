@@ -1,7 +1,7 @@
 {
   "page": {
     "title": "Notifications",
-    "empty": "Nothing yet.",
+    "empty": "No notifications yet. You'll see replies, mentions, acquaintance requests and news about people you invited here.",
     "emptyTip": "Acquaintance requests, mentions and replies to your posts show up here.",
     "more": "Show older"
   },
