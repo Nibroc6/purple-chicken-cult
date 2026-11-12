@@ -49,9 +49,13 @@ describe('reply picks', () => {
     fireEvent.click(screen.getByTestId('reply-pick'));
     expect(screen.getByTestId('reply-pick').getAttribute('aria-pressed')).toBe('true');
     act(() => {
-      togglePick({ ref: 'b', handle: 'hb' });
+      togglePick({ ref: 'b', handle: 'hb', name: 'Bea', excerpt: 'tomato seeds' });
     });
-    expect(screen.getByTestId('reply-tray').textContent).toContain(tr('composer:picks.title', { count: 2, max: 3 }));
+    expect(screen.getByTestId('reply-tray').textContent).toContain(tr('composer:picks.title', { count: 2 }));
+    const cards = screen.getAllByTestId('reply-tray-card');
+    expect(cards).toHaveLength(2);
+    expect(cards[1]?.textContent).toContain('Bea');
+    expect(cards[1]?.textContent).toContain('tomato seeds');
     fireEvent.click(screen.getByTestId('reply-tray-write'));
     expect(router.state.location.pathname + router.state.location.search).toBe('/compose?parent=a&parent=b&kind=ref');
     expect(getPicks()).toEqual([]);

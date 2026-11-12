@@ -8,6 +8,9 @@ import { MAX_PARENTS } from '../post/vm';
 export interface Pick {
   ref: string;
   handle: string;
+  // name and excerpt let the reply tray show the picked post as a small card.
+  name?: string;
+  excerpt?: string;
 }
 
 const KEY = 'pcc.replyPicks';
@@ -20,6 +23,12 @@ function load(): Pick[] {
     if (!Array.isArray(raw)) return [];
     return raw
       .filter((p): p is Pick => typeof (p as Pick | null)?.ref === 'string' && typeof (p as Pick).handle === 'string')
+      .map((p) => ({
+        ref: p.ref,
+        handle: p.handle,
+        ...(typeof p.name === 'string' ? { name: p.name } : {}),
+        ...(typeof p.excerpt === 'string' ? { excerpt: p.excerpt } : {}),
+      }))
       .slice(0, MAX_PARENTS);
   } catch {
     return [];

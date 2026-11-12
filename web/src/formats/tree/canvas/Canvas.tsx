@@ -229,12 +229,15 @@ export function Canvas({
   layout,
   focal,
   onFocus,
+  onPick,
   onMore,
   tools,
 }: {
   layout: CanvasLayout;
   focal: CanvasNode | undefined;
   onFocus: (n: CanvasNode) => void;
+  // onPick hears every post chosen on the map, the focal one included.
+  onPick?: (n: CanvasNode) => void;
   onMore: (m: CanvasMore) => void;
   tools?: ReactNode;
 }) {
@@ -371,6 +374,7 @@ export function Canvas({
   // The end of a drag or pinch is not a click (a key press always is).
   const pick = (n: CanvasNode, key: boolean) => {
     if (moved.current && !key) return;
+    onPick?.(n);
     if (n.focal) showFocal();
     else onFocus(n);
   };

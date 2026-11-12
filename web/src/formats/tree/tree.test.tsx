@@ -446,6 +446,18 @@ describe('connected tree', () => {
     expect(screen.getByTestId('tree-focus').dataset.open).toBe('true');
   });
 
+  it('opens a tapped post full screen on phones, and Escape closes it', () => {
+    setDesktop(false);
+    const a = show();
+    fireEvent.click(node('c1'));
+    expect(a.openTree).toHaveBeenCalledWith('c1');
+    expect(screen.getByTestId('tree-focus').dataset.open).toBe('true');
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.getByTestId('tree-focus').dataset.open).toBe('false');
+    fireEvent.click(node('f'));
+    expect(screen.getByTestId('tree-focus').dataset.open).toBe('true');
+  });
+
   it('has no minimap on mobile', () => {
     setDesktop(false);
     show();
