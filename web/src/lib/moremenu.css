@@ -56,3 +56,22 @@
     border-color: CanvasText;
   }
 }
+/* A menu button with a visible word ("More") next to the dots. */
+.more-menu-button:has(.more-menu-text) {
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  color: var(--color-text);
+  padding-inline: var(--space-3);
+  min-block-size: 44px;
+}
+/* Other text (confirm prompts) inside the menu wraps in the list. */
+.more-menu-list .people-confirm {
+  padding: var(--space-2);
+}
+.more-menu-list > button:not(.icon-button) {
+  justify-content: flex-start;
+  border: 0;
+  background: none;
+  text-align: start;
+  min-block-size: 44px;
+}

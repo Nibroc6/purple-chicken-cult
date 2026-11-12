@@ -42,12 +42,14 @@ export default function SeenPage() {
       ) : null}
       <ol className="seen-list" data-testid="seen-list">
         {posts.map((p) => (
-          <li key={p.ref} className="seen-item" data-testid="seen-item" data-ref={p.ref}>
+          <li key={p.ref} className="seen-item post post-listed" data-testid="seen-item" data-ref={p.ref}>
             <PostPreview post={p} />
-            <EngageBar post={p} actions={actions} />
-            <p className="post-links">
-              <Link to={`/p/${p.ref}`}>{t('page.open')}</Link>
-            </p>
+            <div className="post-listed-actions">
+              <EngageBar post={p} actions={actions} />
+              <Link to={`/p/${p.ref}`} className="button post-open">
+                {t('page.open')}
+              </Link>
+            </div>
           </li>
         ))}
       </ol>

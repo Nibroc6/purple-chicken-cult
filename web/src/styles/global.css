@@ -541,6 +541,23 @@ a {
     border-color var(--ease);
 }
 
+/* A post in a list (saved, recently seen, a person's posts): one card with
+   its actions and an "Open" button on the same row. */
+.post-listed {
+  list-style: none;
+}
+.post-listed-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-block-start: var(--space-2);
+}
+.post-listed-actions .engage {
+  flex: 1 1 auto;
+}
+
 /* Integrity elements (§15.5): reserved styles, never available to user content. */
 .integrity {
   color: var(--color-integrity-text);

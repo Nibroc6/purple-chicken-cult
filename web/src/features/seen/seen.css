@@ -12,10 +12,6 @@
   gap: var(--space-4);
 }
 
-.seen-item {
-  border-block-end: 1px solid var(--border, currentColor);
-  padding-block-end: var(--space-3);
-}
 
 .seen-error {
   color: var(--post-over, #a3122a);

@@ -3,12 +3,13 @@
 // always count on them. Escape, a click outside or picking an item closes it;
 // Escape hands focus back to the button. Inside the menu, icon buttons show
 // their label next to the icon (iconbutton.css), so every action is spelled
-// out.
+// out. A button marked data-keep-open (an action that asks to confirm in
+// place) leaves the menu open.
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Icon } from './Icon';
 import './moremenu.css';
 
-export function MoreMenu({ label, children, testId }: { label: string; children: ReactNode; testId?: string }) {
+export function MoreMenu({ label, children, testId, text }: { label: string; children: ReactNode; testId?: string; text?: string }) {
   const [open, setOpen] = useState(false);
   const id = useId();
   const root = useRef<HTMLDivElement>(null);
@@ -50,6 +51,7 @@ export function MoreMenu({ label, children, testId }: { label: string; children:
         }}
       >
         <Icon name="more" />
+        {text ? <span className="more-menu-text">{text}</span> : null}
       </button>
       <div
         id={id}
@@ -58,8 +60,10 @@ export function MoreMenu({ label, children, testId }: { label: string; children:
         aria-label={label}
         hidden={!open}
         onClick={(e) => {
-          // Picking an action closes the menu (the action runs first).
-          if (e.target instanceof Element && e.target.closest('button')) setOpen(false);
+          // Picking an action closes the menu (the action runs first), unless
+          // the action asks to confirm in place (data-keep-open).
+          const b = e.target instanceof Element ? e.target.closest('button') : null;
+          if (b && !b.hasAttribute('data-keep-open')) setOpen(false);
         }}
       >
         {children}

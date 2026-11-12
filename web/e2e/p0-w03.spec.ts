@@ -64,6 +64,7 @@ test('suggest, request, accept, block and unblock', async ({ page, request, base
   // bob opens alice's page and blocks her (asks first).
   await friend.locator('a').first().click();
   await expect(page.getByTestId('person-relation')).toBeVisible();
+  await page.getByTestId('person-more').click();
   await page.getByTestId('action-block').click();
   await page.getByTestId('confirm-block').click();
   await expect(page.getByTestId('action-unblock')).toBeVisible();

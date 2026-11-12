@@ -157,6 +157,7 @@ test('friend request, acceptance, unfriend and blocks are co-signed with the pas
     await page.goto(`${origin}/suggestions`);
     await card(page, 'gus').locator('a').first().click();
     await expect(page.getByTestId('person-relation')).toHaveAttribute('data-relation', 'connected');
+    await page.getByTestId('person-more').click();
     await page.getByTestId('action-block').click();
     await page.getByTestId('confirm-block').click();
     await sign(page, 'block');
@@ -166,6 +167,7 @@ test('friend request, acceptance, unfriend and blocks are co-signed with the pas
     await page.goto(`${origin}/friends`);
     await card(page, 'dave').locator('a').first().click();
     await expect(page.getByTestId('person-relation')).toHaveAttribute('data-relation', 'friend');
+    await page.getByTestId('person-more').click();
     await page.getByTestId('action-block').click();
     await page.getByTestId('confirm-block').click();
     await sign(page, 'revocation');
@@ -199,6 +201,7 @@ test('hiding the paths through a friend keeps them and their posts, and drops on
 
   await page.goto(`${origin}/friends`);
   await card(page, 'hal').locator('a').first().click();
+  await page.getByTestId('person-more').click();
   await page.getByTestId('action-hide_via').click();
   await page.getByTestId('confirm-hide_via').click();
   await expect(page.getByTestId('person-hidden-via')).toBeVisible();
@@ -220,6 +223,7 @@ test('hiding the paths through a friend keeps them and their posts, and drops on
   await loginAs(page, 'vic');
   await page.goto(`${origin}/friends`);
   await card(page, 'hal').locator('a').first().click();
+  await page.getByTestId('person-more').click();
   await page.getByTestId('action-show_via').click();
   await expect(page.getByTestId('person-hidden-via')).toHaveCount(0);
   expect((await feed(page)).map((p) => p.body)).toContain('Wes behind Hal');

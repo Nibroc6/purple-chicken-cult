@@ -197,6 +197,7 @@ test("a block hides the blocked person from the blocker only; their reply is a s
   const alice = await signInPage(page, origin, "alice");
   const carolPost = await alice.feedPost("Carol knows about compost");
   await page.goto(`/people/${carolPost.author.ref}`);
+  await page.getByTestId("person-more").click();
   await page.getByTestId("action-block").click();
   await page.getByTestId("confirm-block").click();
   await expect(page.getByTestId("action-unblock")).toBeVisible();

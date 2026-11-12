@@ -38,12 +38,14 @@ export default function SavesPage() {
       {q.isSuccess && posts.length === 0 ? <p data-testid="saves-empty">{t('page.empty')}</p> : null}
       <ol className="saves-list" data-testid="saves-list">
         {posts.map((p) => (
-          <li key={p.ref} className="saves-item" data-testid="saves-item" data-ref={p.ref}>
+          <li key={p.ref} className="saves-item post post-listed" data-testid="saves-item" data-ref={p.ref}>
             <PostPreview post={p} />
-            <EngageBar post={p} actions={actions} />
-            <p className="post-links">
-              <Link to={`/p/${p.ref}`}>{t('page.open')}</Link>
-            </p>
+            <div className="post-listed-actions">
+              <EngageBar post={p} actions={actions} />
+              <Link to={`/p/${p.ref}`} className="button post-open">
+                {t('page.open')}
+              </Link>
+            </div>
           </li>
         ))}
       </ol>

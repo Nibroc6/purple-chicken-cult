@@ -64,12 +64,14 @@ export function PersonPosts({ person }: { person: PeopleVM }) {
       ) : null}
       <ol className="people-posts-list" data-testid="person-posts-list">
         {posts.map((p) => (
-          <li key={p.ref} className="people-posts-item" data-testid="person-post" data-ref={p.ref}>
+          <li key={p.ref} className="people-posts-item post post-listed" data-testid="person-post" data-ref={p.ref}>
             <PostPreview post={p} />
-            <EngageBar post={p} actions={actions} />
-            <p className="post-links">
-              <Link to={`/p/${p.ref}`}>{t('posts.open')}</Link>
-            </p>
+            <div className="post-listed-actions">
+              <EngageBar post={p} actions={actions} />
+              <Link to={`/p/${p.ref}`} className="button post-open">
+                {t('posts.open')}
+              </Link>
+            </div>
           </li>
         ))}
       </ol>
