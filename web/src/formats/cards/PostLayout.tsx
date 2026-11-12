@@ -1,11 +1,15 @@
 // Cards post layout (§10.1.7): an author row (display name with its @handle,
-// inviter label, chain, "why"), the visible context rows, the body (folded
-// past 6 lines or 400 characters in the feed, 10 lines in the tree), link
-// pictures (P1), previews, the integrity footer (audience, edited, report) and the actions
-// (like summary, like / hide / show less, reply, family tree).
+// the time, "why"), a provenance row (chain, inviter label), the visible
+// context rows, the body (folded past 6 lines or 400 characters in the feed,
+// 10 lines in the tree), link pictures (P1), previews, then one row: the like
+// summary over like / save, reply, family tree and a ⋯ menu (add to a reply,
+// hide, show less), with the audience, edited mark and report at its end.
+// Every integrity element (§15.5) stays visible on the card.
 // Owner: P0-W07 → P1-W12 (P0-W08 reuses it for the tree's 'tree' / 'focal' variants).
 import { useTranslation } from 'react-i18next';
-import { EngageBar, useHidden } from '../../features/engage';
+import { ReplyPick } from '../../features/composer';
+import { EngageBar, EngageMenuItems, useHidden } from '../../features/engage';
+import { MoreMenu } from '../../lib/MoreMenu';
 import { AudienceBadge, Chain, EditedMark, InviterLabel, ReportAction, WhyButton } from '../../integrity';
 import type { PostVM } from '../../vm/types';
 import type { PostActions } from '../types';
@@ -52,8 +56,6 @@ export function PostLayout({ post, actions, variant, part }: CardProps) {
           {post.author.displayName ? <span className="post-name" data-user-content="">{post.author.displayName}</span> : null}{' '}
           <span className="post-handle">{t('post.handle', { handle: post.author.handle })}</span>
         </PersonLink>
-        <InviterLabel inviter={post.author.inviter} invitee={post.author.ref} onReport={actions.report} />
-        <Chain chain={post.author.chain} author={post.author} />
         <span className="post-head-end">
           <PostTime at={post.createdAt} />
           {post.thread ? (
@@ -64,6 +66,10 @@ export function PostLayout({ post, actions, variant, part }: CardProps) {
           <WhyButton post={post.ref} />
         </span>
       </header>
+      <div className="post-provenance">
+        <Chain chain={post.author.chain} author={post.author} />
+        <InviterLabel inviter={post.author.inviter} invitee={post.author.ref} onReport={actions.report} />
+      </div>
       {hidden ? null : (
         <>
           <ContextRows rows={post.context} withCont={part === undefined} />
@@ -72,17 +78,25 @@ export function PostLayout({ post, actions, variant, part }: CardProps) {
           <PreviewList previews={post.previews} />
         </>
       )}
-      <footer className="post-meta">
-        <AudienceBadge audience={post.audience} forced={post.audienceForced} />
-        <EditedMark {...(post.editedAt ? { editedAt: post.editedAt } : {})} />
-        <ReportAction target={{ kind: 'post', ref: post.ref }} onReport={actions.report} />
+      <footer className="post-actions">
+        {part === 'context' ? null : (
+          <>
+            <EngageBar post={post} actions={actions} withMenu={false} />
+            {hidden ? null : <PostLinks post={post} actions={actions} pick={false} />}
+            {hidden || (post.mine && !post.canReference) ? null : (
+              <MoreMenu label={t('post.more')} testId="post-more">
+                {post.canReference ? <ReplyPick post={post} /> : null}
+                <EngageMenuItems post={post} actions={actions} />
+              </MoreMenu>
+            )}
+          </>
+        )}
+        <span className="post-meta">
+          <AudienceBadge audience={post.audience} forced={post.audienceForced} />
+          <EditedMark {...(post.editedAt ? { editedAt: post.editedAt } : {})} />
+          <ReportAction target={{ kind: 'post', ref: post.ref }} onReport={actions.report} />
+        </span>
       </footer>
-      {part === 'context' ? null : (
-        <div className="post-actions">
-          <EngageBar post={post} actions={actions} />
-          {hidden ? null : <PostLinks post={post} actions={actions} />}
-        </div>
-      )}
     </article>
   );
 }

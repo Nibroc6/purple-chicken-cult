@@ -1,6 +1,7 @@
 {
   "actions": {
-    "label": "Post actions"
+    "label": "Post actions",
+    "more": "More actions"
   },
   "like": {
     "action": "Like",

@@ -343,9 +343,11 @@ test('reply to two posts on different rows: picked from the tree, placed below t
 
   // Pick the focal post and one of its replies for one reply.
   await openTree(page, focal);
+  await focusCard(page).getByTestId('post-more').click();
   await focusCard(page).getByTestId('reply-pick').click();
   await expect(page.getByTestId('reply-tray')).toBeVisible();
   await openTree(page, reply);
+  await focusCard(page).getByTestId('post-more').click();
   await focusCard(page).getByTestId('reply-pick').click();
   await expect(page.getByTestId('reply-tray').getByTestId('reply-tray-remove')).toHaveCount(2);
   await page.getByTestId('reply-tray-write').click();

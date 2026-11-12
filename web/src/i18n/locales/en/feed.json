@@ -24,7 +24,8 @@
     "handle": "@{handle}",
     "links": "Open",
     "reply": "Reply",
-    "tree": "{count, plural, =0 {Reply tree} one {# reply} other {# replies}}"
+    "tree": "{count, plural, =0 {Reply tree} one {# reply} other {# replies}}",
+    "more": "More actions"
   },
   "context": {
     "label": "Replying to",

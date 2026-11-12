@@ -1,0 +1,58 @@
+/* MoreMenu (lib/MoreMenu.tsx): a popover list under its ⋯ button. Logical
+   properties only. Icon buttons inside show their label beside the icon
+   instead of as a tooltip. */
+.more-menu {
+  position: relative;
+  display: inline-block;
+}
+.more-menu-list {
+  position: absolute;
+  z-index: 15;
+  inset-block-start: calc(100% + var(--space-1));
+  inset-inline-end: 0;
+  min-inline-size: 14rem;
+  display: grid;
+  padding: var(--space-1);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 15%);
+}
+.more-menu-list[hidden] {
+  display: none;
+}
+.more-menu-list .icon-button {
+  justify-content: flex-start;
+  gap: var(--space-2);
+  inline-size: 100%;
+  min-block-size: 44px;
+  padding-inline: var(--space-3);
+  border: 0;
+  border-radius: calc(var(--radius) / 2);
+  background: none;
+  text-align: start;
+}
+@media (hover: hover) {
+  .more-menu-list .icon-button:hover {
+    background: var(--color-integrity-bg);
+  }
+}
+.more-menu-list .icon-button .icon-button-tip,
+.more-menu-list .icon-button:hover .icon-button-tip,
+.more-menu-list .icon-button:focus-visible .icon-button-tip {
+  position: static;
+  display: inline;
+  translate: none;
+  animation: none;
+  padding: 0;
+  background: none;
+  color: inherit;
+  font-size: inherit;
+  white-space: normal;
+  text-align: start;
+}
+@media (forced-colors: active) {
+  .more-menu-list {
+    border-color: CanvasText;
+  }
+}

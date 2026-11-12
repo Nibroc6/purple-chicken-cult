@@ -163,7 +163,8 @@ export function MediaList({ media, variant }: { media: readonly MediaVM[]; varia
 
 // PostLinks: reply and add to a reply to several posts (when the reader may
 // reference the post), and the family tree with its visible reply count.
-export function PostLinks({ post, actions }: { post: PostVM; actions: PostActions }) {
+// With pick false the layout puts "add to a reply" in its own ⋯ menu instead.
+export function PostLinks({ post, actions, pick = true }: { post: PostVM; actions: PostActions; pick?: boolean }) {
   const { t, i18n } = useTranslation('feed');
   return (
     <div className="post-links" role="group" aria-label={t('post.links')}>
@@ -178,7 +179,7 @@ export function PostLinks({ post, actions }: { post: PostVM; actions: PostAction
           }}
         />
       ) : null}
-      {post.canReference ? <ReplyPick post={post} /> : null}
+      {pick && post.canReference ? <ReplyPick post={post} /> : null}
       <IconButton
         icon="replies"
         label={t('post.tree', { count: post.replyCount })}
